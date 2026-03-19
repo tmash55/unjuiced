@@ -9,6 +9,7 @@ const DEFAULTS: SignalPreferences = {
   signal_excluded_sports: ["esports"],
   signal_tier_filters: ["sharp"], // Sharps only by default
   signal_min_stake: 0,
+  sharp_signals_min_score: 0,
   signal_sort_by: "score",
   signal_show_resolved: false,
   signal_timeframe: "30d",

@@ -39,8 +39,28 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
     fetcher
   )
 
-  const sportEntries = Object.entries(wallet.sport_breakdown || {})
-    .sort((a, b) => b[1].bets - a[1].bets)
+  // Merge march-madness into ncaab, then sort
+  const sportEntries = (() => {
+    const raw = { ...(wallet.sport_breakdown || {}) }
+    if (raw["march-madness"] && raw["ncaab"]) {
+      raw["ncaab"] = {
+        w: (raw["ncaab"].w || 0) + (raw["march-madness"].w || 0),
+        l: (raw["ncaab"].l || 0) + (raw["march-madness"].l || 0),
+        bets: (raw["ncaab"].bets || 0) + (raw["march-madness"].bets || 0),
+        wagered: ((raw["ncaab"] as any).wagered || 0) + ((raw["march-madness"] as any).wagered || 0),
+        profit: ((raw["ncaab"] as any).profit || 0) + ((raw["march-madness"] as any).profit || 0),
+        roi: 0, // recalculate below
+      }
+      const merged = raw["ncaab"]
+      const totalBets = merged.w + merged.l
+      merged.roi = totalBets > 0 ? ((merged as any).profit / ((merged as any).wagered || 1)) * 100 : 0
+      delete raw["march-madness"]
+    } else if (raw["march-madness"]) {
+      raw["ncaab"] = raw["march-madness"]
+      delete raw["march-madness"]
+    }
+    return Object.entries(raw).sort((a, b) => b[1].bets - a[1].bets)
+  })()
 
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-1">
@@ -159,11 +179,11 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
               const sp = stats.roi >= 0
               return (
                 <div key={sport} className="flex items-center justify-between py-1.5 text-xs">
-                  <span className="text-neutral-400 uppercase">{sport}</span>
+                  <span className="text-neutral-400 uppercase">{sport === "ncaab" ? "NCAAB" : sport === "march-madness" ? "NCAAB" : sport}</span>
                   <div className="flex items-center gap-3 tabular-nums">
                     <span className="text-neutral-500">{stats.w}-{stats.l}</span>
                     <span className={cn("font-mono font-semibold", sp ? "text-emerald-400" : "text-red-400")}>
-                      {sp ? "+" : ""}{stats.roi.toFixed(1)}%
+                      {sp ? "+" : ""}{(stats.roi ?? 0).toFixed(1)}%
                     </span>
                   </div>
                 </div>

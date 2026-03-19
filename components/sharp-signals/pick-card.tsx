@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
 import { TierBadge } from "./tier-badge"
-import { formatDistanceToNow } from "date-fns"
+import { format, isToday, isTomorrow } from "date-fns"
 import { getSportsbookById } from "@/lib/data/sportsbooks"
 
 interface PickCardProps {
@@ -12,6 +12,9 @@ interface PickCardProps {
   isSelected: boolean
   onSelect: (pick: WhaleSignal) => void
   oddsFormat: OddsFormat
+  isSplitMarket?: boolean
+  onViewMarket?: () => void
+  onViewInsider?: (walletAddress: string) => void
 }
 
 function formatMoney(n: number): string {
@@ -20,14 +23,18 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(0)}`
 }
 
-export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardProps) {
+export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider }: PickCardProps) {
   const score = Math.round(pick.signal_score || 0)
   const sport = (pick.sport || "").toUpperCase()
   const matchup = pick.event_title || pick.market_title
   const betType = pick.market_label || pick.market_type || ""
-  const time = pick.game_start_time
-    ? formatDistanceToNow(new Date(pick.game_start_time), { addSuffix: true })
-    : "TBD"
+  const time = (() => {
+    if (!pick.game_start_time) return "TBD"
+    const d = new Date(pick.game_start_time)
+    if (isToday(d)) return `Today ${format(d, "h:mm a")}`
+    if (isTomorrow(d)) return `Tomorrow ${format(d, "h:mm a")}`
+    return format(d, "MMM d, h:mm a")
+  })()
   const selection = pick.outcome
   const amount = pick.bet_size
   const price = Math.round(pick.entry_price * 100)
@@ -100,6 +107,28 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
         </div>
       )}
 
+      {/* Split market indicator */}
+      {isSplitMarket && !pick.has_opposing_position && (
+        <div className="px-4 pt-2.5 pb-0">
+          <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+              <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+              <span>Split market — insiders on both sides</span>
+            </div>
+            {onViewMarket && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewMarket(); }}
+                className="text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-medium transition-colors"
+              >
+                View market
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Top row: Score + Identity + Time */}
       <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
         <span className={cn("font-mono text-lg font-bold tabular-nums leading-none tracking-tight", getScoreColor(score))}>
@@ -107,17 +136,12 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
         </span>
         <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60" />
         <TierBadge tier={pick.tier} size="xs" />
-        <span className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+        <button
+          onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
+          className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+        >
           {walletDisplay}
-        </span>
-        {walletRecord && (
-          <span className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">{walletRecord}</span>
-        )}
-        {walletRoi != null && (
-          <span className={cn("font-mono text-[11px] font-medium tabular-nums", walletRoi >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-            {walletRoi >= 0 ? "+" : ""}{walletRoi.toFixed(0)}%
-          </span>
-        )}
+        </button>
         <span className="ml-auto text-[11px] text-neutral-400 dark:text-neutral-600">
           {time}
         </span>

@@ -234,6 +234,7 @@ export interface SignalPreferences {
   signal_excluded_sports?: string[] | null;
   signal_tier_filters?: string[] | null;
   signal_min_stake?: number;
+  sharp_signals_min_score?: number;
   signal_sort_by?: string;
   signal_show_resolved?: boolean;
   signal_timeframe?: string;

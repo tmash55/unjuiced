@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { MarketPriceChart } from "./market-price-chart"
 import { TierBadge } from "./tier-badge"
-import { formatDistanceToNow } from "date-fns"
+import { format, isToday, isTomorrow, formatDistanceToNow } from "date-fns"
 import useSWR from "swr"
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -79,9 +79,13 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
     fetcher
   )
 
-  const timeDisplay = game.game_start_time
-    ? formatDistanceToNow(new Date(game.game_start_time), { addSuffix: true })
-    : "TBD"
+  const timeDisplay = (() => {
+    if (!game.game_start_time) return "TBD"
+    const d = new Date(game.game_start_time)
+    if (isToday(d)) return `Today ${format(d, "h:mm a")}`
+    if (isTomorrow(d)) return `Tomorrow ${format(d, "h:mm a")}`
+    return format(d, "MMM d, h:mm a")
+  })()
 
   const allBets = game.outcomes.flatMap(outcome =>
     outcome.bets.map(bet => ({
@@ -108,11 +112,11 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
           {game.market_type && (
             <>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span>{game.market_type}</span>
+              <span className="capitalize">{game.market_type}</span>
             </>
           )}
           <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-          <span className={getConfidenceColor(game.confidence)}>{game.confidence}</span>
+          <span className={cn("capitalize", getConfidenceColor(game.confidence))}>{game.confidence}</span>
           <span className="ml-auto text-neutral-400 dark:text-neutral-600">{timeDisplay}</span>
         </div>
         <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-200 leading-snug tracking-tight">
@@ -152,10 +156,6 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
               <span className="text-neutral-500">{formatMoney(mainOutcome.total_dollars)} wagered</span>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
               <span className="text-neutral-500">{mainOutcome.total_bets} bets</span>
-              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span className={cn("font-mono font-medium", mainOutcome.wins > mainOutcome.losses ? "text-emerald-500 dark:text-emerald-400" : "text-red-400")}>
-                {mainOutcome.wins}-{mainOutcome.losses}
-              </span>
               {mainOutcome.best_book_price && (
                 <>
                   <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
@@ -185,10 +185,6 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
               <span className="text-neutral-500">{formatMoney(secondOutcome.total_dollars)} wagered</span>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
               <span className="text-neutral-500">{secondOutcome.total_bets} bets</span>
-              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span className={cn("font-mono font-medium", secondOutcome.wins > secondOutcome.losses ? "text-emerald-500 dark:text-emerald-400" : "text-red-400")}>
-                {secondOutcome.wins}-{secondOutcome.losses}
-              </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-1 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">

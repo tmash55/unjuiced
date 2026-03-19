@@ -15,6 +15,12 @@ import { Leaderboard } from "@/components/sharp-signals/leaderboard";
 import { WalletDetailPanel } from "@/components/sharp-signals/wallet-detail-panel";
 import { SettingsSheet } from "@/components/sharp-signals/settings-sheet";
 import { DetailSheet } from "@/components/sharp-signals/detail-sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { OddsFormat } from "@/lib/odds";
 import { WhaleSignal, WalletScore } from "@/lib/polymarket/types";
@@ -69,13 +75,79 @@ interface GameData {
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
+/** Fetches game data by condition_id for the market modal */
+function MarketModalContent({ marketId, oddsFormat }: { marketId: string; oddsFormat: OddsFormat }) {
+  // Direct lookup by condition_id — fast, precise
+  const { data, isLoading } = useSWR(
+    `/api/polymarket/games?condition_id=${encodeURIComponent(marketId)}&resolved=false`,
+    fetcher
+  )
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3 animate-pulse py-4">
+        <div className="h-4 w-48 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
+        <div className="grid grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-10 bg-neutral-200 dark:bg-neutral-800/20 rounded" />)}
+        </div>
+        <div className="h-20 bg-neutral-200 dark:bg-neutral-800/20 rounded" />
+      </div>
+    )
+  }
+
+  const game = data?.games?.[0]
+  if (!game) return <p className="text-xs text-neutral-500 py-8 text-center">Market data not available</p>
+
+  return <MarketDetailPanel game={game} oddsFormat={oddsFormat} />
+}
+
+/** Fetches real wallet data from leaderboard API for the modal */
+function WalletModalContent({ walletAddress, oddsFormat, isFollowing, onToggleFollow }: {
+  walletAddress: string
+  oddsFormat: OddsFormat
+  isFollowing: boolean
+  onToggleFollow: (addr: string) => void
+}) {
+  const { data, isLoading } = useSWR(
+    `/api/polymarket/leaderboard?limit=1&wallet=${walletAddress}`,
+    fetcher
+  )
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3 animate-pulse py-4">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-16 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
+          <div className="h-5 w-12 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
+        </div>
+        <div className="h-4 w-32 bg-neutral-200 dark:bg-neutral-800/30 rounded" />
+        <div className="grid grid-cols-3 gap-3">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-neutral-200 dark:bg-neutral-800/20 rounded" />)}
+        </div>
+      </div>
+    )
+  }
+
+  const wallet = data?.wallets?.[0]
+  if (!wallet) return <p className="text-xs text-neutral-500 py-4 text-center">Wallet not found</p>
+
+  return (
+    <WalletDetailPanel
+      wallet={wallet}
+      oddsFormat={oddsFormat}
+      isFollowing={isFollowing}
+      onToggleFollow={onToggleFollow}
+    />
+  )
+}
+
 export default function SharpSignalsPage() {
   const { hasAccess, isLoading } = useHasEliteAccess();
   const { prefs, loaded: prefsLoaded, updatePrefs, toggleFollowWallet, followedWallets } = useSignalPreferences();
   const [tab, setTab] = useState<Tab>("picks");
   const [selectedSport, setSelectedSport] = useState("");
   const [selectedTier, setSelectedTier] = useState("");
-  const [minScore, setMinScore] = useState(0);
+  const minScore = prefs.sharp_signals_min_score || 0;
   const [selectedPick, setSelectedPick] = useState<WhaleSignal | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<GameData | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<WalletScore | null>(null);
@@ -83,6 +155,10 @@ export default function SharpSignalsPage() {
   const [showMySharps, setShowMySharps] = useState(false);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
+
+  // Modal state for wallet quick-view and market quick-view
+  const [modalWalletAddress, setModalWalletAddress] = useState<string | null>(null);
+  const [modalMarketId, setModalMarketId] = useState<string | null>(null); // condition_id
 
   // ── Infinite scroll picks feed (SWR Infinite) ──────────────
   const PAGE_SIZE = 50;
@@ -171,22 +247,20 @@ export default function SharpSignalsPage() {
         <div className="flex h-full gap-6">
           <div className="flex-1 min-w-0 space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-neutral-800/40 bg-neutral-900/40 p-4 animate-pulse">
-                <div className="flex items-start gap-3.5">
-                  <div className="h-11 w-11 rounded-full bg-neutral-800/50" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-24 bg-neutral-800/50 rounded" />
-                    <div className="h-3.5 w-3/4 bg-neutral-800/40 rounded" />
-                    <div className="h-3 w-1/2 bg-neutral-800/30 rounded" />
-                  </div>
+              <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="h-3 w-8 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
+                  <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
                 </div>
+                <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded mb-2" />
+                <div className="h-3 w-1/2 bg-neutral-100 dark:bg-neutral-800/30 rounded" />
               </div>
             ))}
           </div>
-          <div className="hidden md:block w-2/5 border-l border-neutral-800/40 pl-6 space-y-4">
-            <div className="h-8 w-48 bg-neutral-800/30 rounded animate-pulse" />
-            <div className="h-20 bg-neutral-800/20 rounded-xl animate-pulse" />
-            <div className="h-32 bg-neutral-800/15 rounded-xl animate-pulse" />
+          <div className="hidden md:block w-2/5 border-l border-neutral-200 dark:border-neutral-800/40 pl-6 space-y-4">
+            <div className="h-8 w-48 bg-neutral-200 dark:bg-neutral-800/30 rounded animate-pulse" />
+            <div className="h-20 bg-neutral-100 dark:bg-neutral-800/20 rounded-xl animate-pulse" />
+            <div className="h-32 bg-neutral-100 dark:bg-neutral-800/15 rounded-xl animate-pulse" />
           </div>
         </div>
       </AppPageLayout>
@@ -226,7 +300,8 @@ export default function SharpSignalsPage() {
 
   const excludedSports = prefs.signal_excluded_sports || [];
 
-  // Apply excluded sports + tier filter client-side
+  // Apply excluded sports filter client-side
+  // Note: past-game filtering is handled by the API (resolved=false + 30min buffer)
   const allPicks = (picksData?.signals || []).filter(
     (p: WhaleSignal) => !p.sport || !excludedSports.includes(p.sport)
   );
@@ -243,6 +318,12 @@ export default function SharpSignalsPage() {
       )
     : allMarkets;
 
+  // Derive available sports from loaded data
+  const availableSports = [...new Set([
+    ...allPicks.map((p: WhaleSignal) => p.sport).filter(Boolean),
+    ...allMarkets.map((m: GameData) => m.sport).filter(Boolean),
+  ])] as string[]
+
   // Auto-select first item when data loads or tab changes
   if (tab === "picks" && picks.length > 0 && !selectedPick) {
     setSelectedPick(picks[0]);
@@ -251,11 +332,39 @@ export default function SharpSignalsPage() {
     setSelectedMarket(markets[0]);
   }
 
+  // Detect split markets — games where insiders are on opposing sides
+  const splitMarketIds = new Set<string>()
+  const marketOutcomes = new Map<string, Set<string>>()
+  for (const p of picks) {
+    const key = p.market_title || ""
+    if (!key) continue
+    if (!marketOutcomes.has(key)) marketOutcomes.set(key, new Set())
+    marketOutcomes.get(key)!.add(p.outcome)
+  }
+  for (const [key, outcomes] of marketOutcomes) {
+    if (outcomes.size > 1) splitMarketIds.add(key)
+  }
+
   // Convert markets data to MarketCard format
   const convertToMarketCard = (game: GameData) => {
     const mainOutcome = game.outcomes[0]
     const secondOutcome = game.outcomes[1]
     if (!mainOutcome || !secondOutcome) return null
+
+    // Compute sharp vs insider dollar breakdown per side
+    const computeTierSplit = (bets: typeof mainOutcome.bets) => {
+      let sharpDollars = 0, insiderDollars = 0, otherDollars = 0
+      for (const b of bets) {
+        if (b.tier === "sharp") sharpDollars += b.bet_size
+        else if (b.tier === "whale") insiderDollars += b.bet_size
+        else otherDollars += b.bet_size
+      }
+      const total = sharpDollars + insiderDollars + otherDollars
+      return {
+        sharpPct: total > 0 ? Math.round((sharpDollars / total) * 100) : 0,
+        insiderPct: total > 0 ? Math.round((insiderDollars / total) * 100) : 0,
+      }
+    }
 
     return {
       id: game.condition_id,
@@ -270,14 +379,16 @@ export default function SharpSignalsPage() {
         price: mainOutcome.avg_entry_price * 100,
         insiderCount: mainOutcome.total_bets,
         totalWagered: mainOutcome.total_dollars,
-        percentOfMoney: game.flow_pct
+        percentOfMoney: game.flow_pct,
+        ...computeTierSplit(mainOutcome.bets),
       },
       sideB: {
         name: secondOutcome.outcome,
         price: secondOutcome.avg_entry_price * 100,
         insiderCount: secondOutcome.total_bets,
         totalWagered: secondOutcome.total_dollars,
-        percentOfMoney: 100 - game.flow_pct
+        percentOfMoney: 100 - game.flow_pct,
+        ...computeTierSplit(secondOutcome.bets),
       },
       totalVolume: game.total_dollars,
       wagerCount: game.total_bets
@@ -374,44 +485,7 @@ export default function SharpSignalsPage() {
               onSportChange={setSelectedSport}
               selectedTier={selectedTier}
               onTierChange={setSelectedTier}
-              minScore={minScore}
-              onMinScoreChange={setMinScore}
-              counts={{
-                total: tab === "picks" ? picks.length : markets.length,
-                nba: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "nba").length
-                  : markets.filter((m: GameData) => m.sport === "nba").length,
-                nhl: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "nhl").length
-                  : markets.filter((m: GameData) => m.sport === "nhl").length,
-                ncaab: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "ncaab").length
-                  : markets.filter((m: GameData) => m.sport === "ncaab").length,
-                nfl: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "nfl").length
-                  : markets.filter((m: GameData) => m.sport === "nfl").length,
-                soccer: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "soccer").length
-                  : markets.filter((m: GameData) => m.sport === "soccer").length,
-                mlb: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "mlb").length
-                  : markets.filter((m: GameData) => m.sport === "mlb").length,
-                tennis: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "tennis").length
-                  : markets.filter((m: GameData) => m.sport === "tennis").length,
-                ufc: tab === "picks"
-                  ? picks.filter((p: WhaleSignal) => p.sport === "ufc").length
-                  : markets.filter((m: GameData) => m.sport === "ufc").length,
-              }}
-              tierCounts={{
-                total: tab === "picks" ? allPicks.length : allMarkets.length,
-                sharp: tab === "picks"
-                  ? allPicks.filter((p: WhaleSignal) => p.tier === "sharp").length
-                  : allMarkets.filter((m: GameData) => m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === "sharp"))).length,
-                whale: tab === "picks"
-                  ? allPicks.filter((p: WhaleSignal) => p.tier === "whale").length
-                  : allMarkets.filter((m: GameData) => m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === "whale"))).length,
-              }}
+              availableSports={availableSports}
             />
           )}
 
@@ -443,14 +517,13 @@ export default function SharpSignalsPage() {
               {picksLoading && (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-xl border border-neutral-800/40 bg-neutral-900/40 p-4 animate-pulse">
-                      <div className="flex items-start gap-3.5">
-                        <div className="h-11 w-11 rounded-full bg-neutral-800/50" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-3 w-24 bg-neutral-800/50 rounded" />
-                          <div className="h-3.5 w-3/4 bg-neutral-800/40 rounded" />
-                        </div>
+                    <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-3 w-8 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
+                        <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
                       </div>
+                      <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded mb-2" />
+                      <div className="h-3 w-1/2 bg-neutral-100 dark:bg-neutral-800/30 rounded" />
                     </div>
                   ))}
                 </div>
@@ -473,6 +546,13 @@ export default function SharpSignalsPage() {
                   isSelected={selectedPick?.id === pick.id}
                   onSelect={(p) => { setSelectedPick(p); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
                   oddsFormat={oddsFormat}
+                  isSplitMarket={splitMarketIds.has(pick.market_title || "")}
+                  onViewMarket={splitMarketIds.has(pick.market_title || "") ? () => {
+                    setModalMarketId((pick as any).condition_id || pick.market_title);
+                  } : undefined}
+                  onViewInsider={(addr) => {
+                    setModalWalletAddress(addr);
+                  }}
                 />
               ))}
               {/* Infinite scroll sentinel */}
@@ -498,11 +578,11 @@ export default function SharpSignalsPage() {
               {marketsLoading && (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-xl border border-neutral-800/40 bg-neutral-900/40 p-4 animate-pulse">
+                    <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
                       <div className="space-y-3">
-                        <div className="h-3 w-32 bg-neutral-800/50 rounded" />
-                        <div className="h-3.5 w-3/4 bg-neutral-800/40 rounded" />
-                        <div className="h-1.5 w-full bg-neutral-800/30 rounded-full" />
+                        <div className="h-3 w-32 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
+                        <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
+                        <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800/30 rounded-full" />
                       </div>
                     </div>
                   ))}
@@ -548,7 +628,17 @@ export default function SharpSignalsPage() {
         {/* Right Panel — independent scroll */}
         <div className="hidden md:block w-2/5 border-l border-neutral-200 dark:border-neutral-800/30 pl-6 overflow-y-auto">
           {tab === "picks" && selectedPick && (
-            <PickDetailPanel pick={selectedPick} oddsFormat={oddsFormat} />
+            <PickDetailPanel
+              pick={selectedPick}
+              oddsFormat={oddsFormat}
+              isSplitMarket={splitMarketIds.has(selectedPick.market_title || "")}
+              onViewMarket={splitMarketIds.has(selectedPick.market_title || "") ? () => {
+                setModalMarketId((selectedPick as any).condition_id || selectedPick.market_title);
+              } : undefined}
+              onViewInsider={(addr) => {
+                setModalWalletAddress(addr);
+              }}
+            />
           )}
 
           {tab === "markets" && selectedMarket && (
@@ -593,7 +683,17 @@ export default function SharpSignalsPage() {
           }
         >
           {tab === "picks" && selectedPick && (
-            <PickDetailPanel pick={selectedPick} oddsFormat={oddsFormat} />
+            <PickDetailPanel
+              pick={selectedPick}
+              oddsFormat={oddsFormat}
+              isSplitMarket={splitMarketIds.has(selectedPick.market_title || "")}
+              onViewMarket={splitMarketIds.has(selectedPick.market_title || "") ? () => {
+                setModalMarketId((selectedPick as any).condition_id || selectedPick.market_title);
+              } : undefined}
+              onViewInsider={(addr) => {
+                setModalWalletAddress(addr);
+              }}
+            />
           )}
           {tab === "markets" && selectedMarket && (
             <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} />
@@ -608,6 +708,38 @@ export default function SharpSignalsPage() {
           )}
         </DetailSheet>
       </div>
+      {/* Wallet Quick-View Modal */}
+      <Dialog open={!!modalWalletAddress} onOpenChange={(open) => !open && setModalWalletAddress(null)}>
+        <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 p-6">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
+              Insider profile
+            </DialogTitle>
+          </DialogHeader>
+          {modalWalletAddress && (
+            <WalletModalContent
+              walletAddress={modalWalletAddress}
+              oddsFormat={oddsFormat}
+              isFollowing={followedWallets.includes(modalWalletAddress)}
+              onToggleFollow={handleToggleFollow}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Market Quick-View Modal */}
+      <Dialog open={!!modalMarketId} onOpenChange={(open) => !open && setModalMarketId(null)}>
+        <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 p-6">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
+              Market breakdown
+            </DialogTitle>
+          </DialogHeader>
+          {modalMarketId && (
+            <MarketModalContent marketId={modalMarketId} oddsFormat={oddsFormat} />
+          )}
+        </DialogContent>
+      </Dialog>
     </AppPageLayout>
   );
 }

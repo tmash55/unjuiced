@@ -195,7 +195,8 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false });
 
     // For score/stake sort, fetch more rows since sorting happens after enrichment
-    const fetchLimit = sortBy === "recent" ? limit : Math.max(limit * 5, 100);
+    // Need a large window to ensure top-scored picks from all sports are included
+    const fetchLimit = sortBy === "recent" ? limit : Math.max(limit * 10, 500);
     query = query.range(0, fetchLimit - 1);
 
     // Filters

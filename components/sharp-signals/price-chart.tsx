@@ -53,12 +53,17 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
 
     const dots: { x: number; y: number; size: number }[] = []
 
-    if (fills && fills.length > 0) {
+    if (fills && fills.length > 0 && points.length >= 2) {
+      const chartStart = points[0].time
+      const chartEnd = points[points.length - 1].time
+
       for (const fill of fills) {
         const fillTime = new Date(fill.created_at).getTime()
         const fillPrice = Math.round(fill.price * 100)
 
-        // Inject fill as a data point so ReferenceDot can reference it
+        // Skip fills outside the chart's visible time range
+        if (fillTime < chartStart || fillTime > chartEnd) continue
+
         // Find insertion position to keep sorted
         let insertIdx = points.length
         for (let i = 0; i < points.length; i++) {
@@ -68,12 +73,12 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
           }
         }
 
-        // Only inject if not already very close to an existing point
+        // Check if near an existing point (within 60s)
         const nearby = points[insertIdx] && Math.abs(points[insertIdx].time - fillTime) < 60000
         const nearbyPrev = insertIdx > 0 && Math.abs(points[insertIdx - 1].time - fillTime) < 60000
 
         if (!nearby && !nearbyPrev) {
-          // Interpolate chart price at this time for the line continuity
+          // Interpolate chart price at this time for line continuity
           let interpolatedPrice = fillPrice
           if (insertIdx > 0 && insertIdx < points.length) {
             const prev = points[insertIdx - 1]
@@ -84,12 +89,14 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
           points.splice(insertIdx, 0, { time: fillTime, price: interpolatedPrice, isFill: true })
         }
 
-        // Use the actual or nearest time for the dot
-        const snapTime = nearby ? points[insertIdx].time
-          : nearbyPrev ? points[insertIdx - 1].time
-          : fillTime
+        // Snap to the chart point — use chart's price so dot sits on the line
+        const snapIdx = nearby ? insertIdx
+          : nearbyPrev ? insertIdx - 1
+          : insertIdx
+        const snapTime = points[snapIdx]?.time ?? fillTime
+        const snapPrice = points[snapIdx]?.price ?? fillPrice
 
-        dots.push({ x: snapTime, y: fillPrice, size: fill.size })
+        dots.push({ x: snapTime, y: snapPrice, size: fill.size })
       }
     }
 
@@ -110,8 +117,11 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
   const prices = chartData.map((d) => d.price)
   const fillPrices = fillDots.map((f) => f.y)
   const allPrices = [...prices, ...fillPrices]
-  const minPrice = Math.max(0, Math.min(...allPrices) - 5)
-  const maxPrice = Math.min(100, Math.max(...allPrices) + 5)
+  const priceRange = Math.max(...allPrices) - Math.min(...allPrices)
+  // Tighter zoom: pad by 2 cents or 20% of range, whichever is larger (min 2, max 8)
+  const padding = Math.max(2, Math.min(8, Math.ceil(priceRange * 0.2) || 2))
+  const minPrice = Math.max(0, Math.min(...allPrices) - padding)
+  const maxPrice = Math.min(100, Math.max(...allPrices) + padding)
 
   return (
     <div className="h-[180px] w-full">

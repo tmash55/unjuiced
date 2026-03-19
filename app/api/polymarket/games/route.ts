@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
 
     // Parse query params
     const sp = req.nextUrl.searchParams;
+    const conditionId = sp.get("condition_id") || undefined;
     const sportFilter = sp.get("sport") || undefined;
     const minFlow = Math.max(parseInt(sp.get("minFlow") || "0", 10), 0);
     const confidenceFilter = sp.get("confidence") || "all";
@@ -79,7 +80,12 @@ export async function GET(req: NextRequest) {
       .from("polymarket_signals")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(2000); // Fetch enough to aggregate
+      .limit(conditionId ? 200 : 2000); // Smaller fetch for single market lookup
+
+    // Direct condition_id lookup — fast path
+    if (conditionId) {
+      query = query.eq("condition_id", conditionId);
+    }
 
     if (sportFilter) {
       query = query.eq("sport", sportFilter);

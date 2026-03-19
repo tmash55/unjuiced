@@ -30,5 +30,5 @@ export function formatOdds(cents: number, format: OddsFormat): string {
   if (format === "american") {
     return centsToAmerican(cents)
   }
-  return `${cents}¢`
+  return `${Math.round(cents)}¢`
 }

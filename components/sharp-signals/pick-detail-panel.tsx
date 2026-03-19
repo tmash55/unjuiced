@@ -1,12 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Activity, BarChart3, ExternalLink } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 import { PriceChart } from "./price-chart"
 import { OrderBook } from "./order-book"
 import { TierBadge } from "./tier-badge"
+import { Tooltip } from "@/components/tooltip"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
 import { getSportsbookById } from "@/lib/data/sportsbooks"
@@ -16,6 +16,9 @@ import useSWR from "swr"
 interface PickDetailPanelProps {
   pick: WhaleSignal
   oddsFormat: OddsFormat
+  isSplitMarket?: boolean
+  onViewMarket?: () => void
+  onViewInsider?: (walletAddress: string) => void
 }
 
 function formatMoney(n: number): string {
@@ -26,7 +29,7 @@ function formatMoney(n: number): string {
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
-export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
+export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket, onViewInsider }: PickDetailPanelProps) {
   const score = Math.round(pick.signal_score || 0)
   const matchup = pick.event_title || pick.market_title
   const betType = pick.market_label || pick.market_type || ""
@@ -39,9 +42,14 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
     ? `#${pick.wallet_address.slice(0, 4).toUpperCase()}`
     : "Anon"
 
-  const { data: priceData, isLoading: priceLoading } = useSWR(
-    pick.token_id ? `/api/polymarket/price-chart?token_id=${pick.token_id}` : null,
-    fetcher
+  // Chart interval state — maps UI labels to API params
+  const INTERVAL_MAP: Record<string, string> = { "1D": "1d", "1W": "1w", "1M": "1m", "MAX": "all" }
+  const [chartInterval, setChartInterval] = useState("1W")
+
+  const { data: priceData, isLoading: priceLoading, isValidating: priceValidating } = useSWR(
+    pick.token_id ? `/api/polymarket/price-chart?token_id=${pick.token_id}&interval=${INTERVAL_MAP[chartInterval]}` : null,
+    fetcher,
+    { keepPreviousData: true }
   )
   const { data: orderBookData } = useSWR(
     pick.token_id ? `/api/polymarket/orderbook?token_id=${pick.token_id}` : null,
@@ -103,128 +111,122 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto pr-1">
-      {/* Header */}
-      <div>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <TierBadge tier={pick.tier} size="sm" />
-              <span className="font-mono text-sm font-semibold text-neutral-700 dark:text-neutral-300 tabular-nums">
-                {walletDisplay}
-              </span>
-              {pick.wallet_record && (
-                <span className="text-xs text-neutral-500 tabular-nums">{pick.wallet_record}</span>
-              )}
-            </div>
-            <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-200 leading-snug">{matchup}</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">{betType}</p>
-          </div>
-          {pick.token_id && (
+      {/* Header — game info */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <TierBadge tier={pick.tier} size="xs" />
             <button
-              className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
-              onClick={() => window.open(`https://polymarket.com/event/${pick.event_slug || pick.condition_id}`, '_blank')}
+              onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
+              className="font-mono text-xs font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
             >
-              <ExternalLink className="h-3 w-3" />
-              Polymarket
+              {walletDisplay}
+            </button>
+            {pick.wallet_record && (
+              <span className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">{pick.wallet_record}</span>
+            )}
+          </div>
+          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200 leading-snug tracking-tight">{matchup}</h2>
+          {betType && <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{betType}</p>}
+        </div>
+        {pick.token_id && (
+          <button
+            className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-[11px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
+            onClick={() => window.open(`https://polymarket.com/event/${(pick as any).event_slug || (pick as any).condition_id || pick.token_id}`, '_blank')}
+          >
+            <ExternalLink className="h-3 w-3" />
+            Polymarket
+          </button>
+        )}
+      </div>
+
+      {/* Split market banner */}
+      {isSplitMarket && (
+        <div className="flex items-center justify-between text-[11px] px-0.5">
+          <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+            <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+            </svg>
+            <span>Insiders on both sides of this market</span>
+          </div>
+          {onViewMarket && (
+            <button
+              onClick={onViewMarket}
+              className="text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-medium transition-colors"
+            >
+              View market
             </button>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Selection + Pricing */}
-      <div className="space-y-3">
-        {/* Selection header */}
-        <div>
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1">Sharp money on</p>
-          <div className="flex items-baseline justify-between">
-            <p className="text-base font-semibold text-neutral-900 dark:text-neutral-200">{selection}</p>
-            <span className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums">
-              {formatOdds(price, oddsFormat)}
-            </span>
+      {/* Signal details */}
+      <div>
+        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Signal</p>
+        <div className="divide-y divide-neutral-200 dark:divide-neutral-800/30">
+          {/* Selection + Odds */}
+          <div className="flex items-baseline justify-between pb-2">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">{selection}</p>
+            <Tooltip content="The price on Polymarket when this insider entered their position.">
+              <span className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums cursor-help">
+                {formatOdds(price, oddsFormat)}
+              </span>
+            </Tooltip>
           </div>
-        </div>
 
-        {/* Price + Slippage row */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800/40 divide-y divide-neutral-200 dark:divide-neutral-800/30">
-          {/* Entry → Current */}
-          <div className="flex items-center justify-between px-3 py-2.5 text-xs tabular-nums">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-                <span className="text-neutral-500">Entry</span>
-                <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300">
-                  {formatOdds(entryPriceCents, oddsFormat)}
+          {/* Entry → Now + Slippage */}
+          <div className="flex items-center justify-between py-2 text-xs tabular-nums">
+            <div className="flex items-center gap-2.5">
+              <Tooltip content="The price when this insider opened their position.">
+                <span className="text-neutral-500 cursor-help">
+                  <span className="text-emerald-500 dark:text-emerald-400 mr-1">Entry</span>
+                  <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300">{formatOdds(entryPriceCents, oddsFormat)}</span>
                 </span>
-              </div>
+              </Tooltip>
               {currentPolyPrice != null && (
-                <>
-                  <span className="text-neutral-300 dark:text-neutral-700">&rarr;</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
-                    <span className="text-neutral-500">Now</span>
-                    <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300">
-                      {formatOdds(currentPolyPrice, oddsFormat)}
-                    </span>
-                  </div>
-                </>
+                <Tooltip content="The current live price on Polymarket for this market.">
+                  <span className="text-neutral-500 cursor-help">
+                    <span className="text-sky-500 dark:text-sky-400 mr-1">Now</span>
+                    <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300">{formatOdds(currentPolyPrice, oddsFormat)}</span>
+                  </span>
+                </Tooltip>
               )}
             </div>
-            {priceChange != null && priceChange !== 0 && (
-              <span className={cn(
-                "font-mono font-semibold",
-                priceChange > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-              )}>
-                {priceChange > 0 ? "+" : ""}{priceChange}¢
-              </span>
-            )}
-          </div>
-
-          {/* Slippage indicator */}
-          {slippage != null && (() => {
-            const info = getSlippageInfo(slippage)
-            return (
-              <div className="group relative px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-neutral-500">Slippage</span>
-                    <svg className="h-3 w-3 text-neutral-400 dark:text-neutral-600 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                    </svg>
-                  </div>
-                  <div className="flex items-center gap-2">
+            {slippage != null && (() => {
+              const info = getSlippageInfo(slippage)
+              return (
+                <Tooltip content={info.tip}>
+                  <div className="flex items-center gap-1.5 cursor-help">
                     <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border", info.color, info.bg, info.border)}>
                       {info.label}
                     </span>
-                    <span className={cn("font-mono text-xs font-bold tabular-nums", info.color)}>
+                    <span className={cn("font-mono text-[11px] font-bold", info.color)}>
                       {slippage >= 0 ? "+" : ""}{slippage.toFixed(1)}%
                     </span>
                   </div>
-                </div>
-                {/* Tooltip on hover */}
-                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 pointer-events-none">
-                  <div className="bg-neutral-900 dark:bg-neutral-800 text-neutral-200 text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-lg border border-neutral-700">
-                    {info.tip}
-                    <div className="absolute bottom-0 right-6 translate-y-1/2 rotate-45 w-2 h-2 bg-neutral-900 dark:bg-neutral-800 border-r border-b border-neutral-700" />
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
+                </Tooltip>
+              )
+            })()}
+          </div>
 
-          {/* Bet stats */}
-          <div className="flex items-center justify-between px-3 py-2.5 text-xs tabular-nums">
-            <span className="text-neutral-500 dark:text-neutral-400">{shares.toLocaleString()} shares</span>
+          {/* Bet size + avg */}
+          <div className="flex items-center justify-between py-2 text-xs tabular-nums">
             <div className="flex items-center gap-1.5">
-              <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">{formatMoney(amount)}</span>
-              <span className={cn(
-                "font-mono font-semibold",
-                parseFloat(multiplier) >= 3 ? "text-emerald-500 dark:text-emerald-400"
-                  : parseFloat(multiplier) >= 1.5 ? "text-amber-500 dark:text-amber-400"
-                  : "text-neutral-500 dark:text-neutral-400"
-              )}>
-                {multiplier}x
-              </span>
+              <Tooltip content="Total amount wagered on this position.">
+                <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 cursor-help">{formatMoney(amount)}</span>
+              </Tooltip>
+              <Tooltip content={`This bet is ${multiplier}x their average stake of $${pick.wallet_avg_stake ? Math.round(pick.wallet_avg_stake).toLocaleString() : "—"}. Higher multiples indicate stronger conviction.`}>
+                <span className={cn("font-mono font-semibold cursor-help", parseFloat(multiplier) >= 3 ? "text-emerald-500 dark:text-emerald-400" : parseFloat(multiplier) >= 1.5 ? "text-amber-500 dark:text-amber-400" : "text-neutral-400 dark:text-neutral-500")}>
+                  {multiplier}x
+                </span>
+              </Tooltip>
             </div>
+            <Tooltip content="This insider's average bet size across all tracked bets.">
+              <span className="text-neutral-400 dark:text-neutral-500 cursor-help">
+                {pick.wallet_avg_stake != null && <span className="font-mono">${Math.round(pick.wallet_avg_stake).toLocaleString()}</span>}
+                <span className="ml-1">avg</span>
+              </span>
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -233,7 +235,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
       {allBooks.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-neutral-500">Sportsbook odds</h3>
+            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Where to bet</p>
             {liveOdds?.updated_at && (
               <span className="text-[10px] text-neutral-400 dark:text-neutral-600">
                 Updated {formatDistanceToNow(new Date(liveOdds.updated_at), { addSuffix: true })}
@@ -298,71 +300,37 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
         </div>
       )}
 
-      {/* Insider profile */}
+      {/* Insider */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-neutral-400 dark:text-neutral-500">Insider</span>
-            <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300 tabular-nums">{walletDisplay}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs tabular-nums">
-            {pick.wallet_avg_stake != null && (
-              <span className="text-neutral-500">${Math.round(pick.wallet_avg_stake).toLocaleString()} avg</span>
-            )}
-            {pick.stake_vs_avg != null && pick.stake_vs_avg >= 1.5 && (
-              <span className={cn(
-                "font-mono font-semibold",
-                pick.stake_vs_avg >= 3 ? "text-emerald-500 dark:text-emerald-400" : "text-amber-500 dark:text-amber-400"
-              )}>
-                {pick.stake_vs_avg}x
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Polymarket history vs Our tracked — the transparency section */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800/40 divide-y divide-neutral-200 dark:divide-neutral-800/30">
-          {pick.wallet_total_trades != null && (
-            <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="text-neutral-500">All-time trades</span>
-              <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
-                {pick.wallet_total_trades.toLocaleString()}
-              </span>
-            </div>
-          )}
-          {pick.wallet_total_bets != null && (
-            <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="text-neutral-500">Sports tracked</span>
-              <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
-                {pick.wallet_total_bets.toLocaleString()}
-                {pick.wallet_record && (
-                  <span className="text-neutral-400 dark:text-neutral-500 ml-1.5">({pick.wallet_record})</span>
-                )}
-              </span>
-            </div>
-          )}
-          {pick.wallet_roi != null && (
-            <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="text-neutral-500">ROI (tracked)</span>
-              <span className={cn(
-                "font-mono font-semibold tabular-nums",
-                pick.wallet_roi >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-              )}>
-                {pick.wallet_roi >= 0 ? "+" : ""}{pick.wallet_roi.toFixed(1)}%
-              </span>
-            </div>
-          )}
-          {pick.wallet_hot_cold && (
-            <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="text-neutral-500">Recent form</span>
-              <span className={cn(
-                "font-medium",
-                pick.wallet_hot_cold === "hot" ? "text-emerald-600 dark:text-emerald-400" : "text-sky-600 dark:text-sky-400"
-              )}>
-                {pick.wallet_hot_cold === "hot" ? "Hot streak" : "Cold streak"}
-              </span>
-            </div>
-          )}
+        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-1.5">
+          {pick.tier === "sharp" ? "Sharp" : pick.tier === "whale" ? "Insider" : "New Account"}
+        </p>
+        <div className="flex items-center gap-2 flex-wrap text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
+        {pick.wallet_total_trades != null && (
+          <span><span className="font-mono text-neutral-600 dark:text-neutral-400">{pick.wallet_total_trades.toLocaleString()}</span> trades</span>
+        )}
+        {pick.wallet_total_bets != null && (
+          <>
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span><span className="font-mono text-neutral-600 dark:text-neutral-400">{pick.wallet_total_bets}</span> tracked {pick.wallet_record && <span className="text-neutral-500">({pick.wallet_record})</span>}</span>
+          </>
+        )}
+        {pick.wallet_roi != null && (
+          <>
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span className={cn("font-mono font-semibold", pick.wallet_roi >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-400")}>
+              {pick.wallet_roi >= 0 ? "+" : ""}{pick.wallet_roi.toFixed(1)}%
+            </span>
+          </>
+        )}
+        {pick.wallet_hot_cold && (
+          <>
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span className={cn("font-medium", pick.wallet_hot_cold === "hot" ? "text-emerald-500 dark:text-emerald-400" : "text-sky-500 dark:text-sky-400")}>
+              {pick.wallet_hot_cold === "hot" ? "Hot" : "Cold"}
+            </span>
+          </>
+        )}
         </div>
       </div>
 
@@ -412,18 +380,26 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
       {/* Price Chart */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="flex items-center gap-2 text-xs font-medium text-neutral-500">
-            <Activity className="h-3.5 w-3.5" />
-            Price chart
-          </h3>
-          <Tabs defaultValue="1W" className="h-auto">
-            <TabsList className="h-7 bg-neutral-100 dark:bg-neutral-800/60 p-0.5">
-              <TabsTrigger value="1D" className="h-6 px-2 text-[10px]">1D</TabsTrigger>
-              <TabsTrigger value="1W" className="h-6 px-2 text-[10px]">1W</TabsTrigger>
-              <TabsTrigger value="1M" className="h-6 px-2 text-[10px]">1M</TabsTrigger>
-              <TabsTrigger value="MAX" className="h-6 px-2 text-[10px]">MAX</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <p className="text-[11px] text-neutral-500 flex items-center gap-1.5">
+            <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
+            Polymarket price
+          </p>
+          <div className="flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
+            {["1D", "1W", "1M", "MAX"].map((interval) => (
+              <button
+                key={interval}
+                onClick={() => setChartInterval(interval)}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-150",
+                  chartInterval === interval
+                    ? "bg-white shadow-sm text-neutral-900 dark:bg-neutral-800/80 dark:text-neutral-200"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                {interval}
+              </button>
+            ))}
+          </div>
         </div>
         <PriceChart
           currentPrice={price}
@@ -431,14 +407,15 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
           data={priceData?.history || []}
           entryPrice={price}
           loading={priceLoading}
-          fills={pick.fills}
+          fills={pick.fills && pick.fills.length > 0 ? pick.fills : [{ price: pick.entry_price, size: pick.bet_size, created_at: pick.created_at, american_odds: pick.american_odds }]}
         />
       </div>
 
       {/* Fills Timeline */}
       {pick.fills && pick.fills.length > 1 && (
         <div>
-          <p className="text-[11px] text-neutral-500 mb-2">
+          <p className="text-[11px] text-neutral-500 mb-2 flex items-center gap-1.5">
+            <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
             Order fills ({pick.fills.length})
           </p>
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800/20">
@@ -477,10 +454,10 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
 
       {/* Order Book */}
       <div>
-        <h3 className="flex items-center gap-2 text-xs font-medium text-neutral-500 mb-2">
-          <BarChart3 className="h-3.5 w-3.5" />
-          Order book
-        </h3>
+        <p className="text-[11px] text-neutral-500 mb-2 flex items-center gap-1.5">
+          <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
+          Polymarket order book
+        </p>
         <OrderBook
           currentPrice={price}
           oddsFormat={oddsFormat}

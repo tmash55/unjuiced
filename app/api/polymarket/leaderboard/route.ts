@@ -65,11 +65,22 @@ export async function GET(req: NextRequest) {
     const minBets = Math.max(parseInt(sp.get("minBets") || "0", 10), 0);
     const showNew = sp.get("showNew") !== "false";
     const sortBy = sp.get("sortBy") || "rank";
+    const walletFilter = sp.get("wallet") || undefined;
 
     // Build query
     let query = supabase
       .from("polymarket_wallet_scores")
       .select("*", { count: "exact" });
+
+    // Direct wallet lookup — skip all other filters
+    if (walletFilter) {
+      query = query.eq("wallet_address", walletFilter);
+      const { data, error, count } = await query;
+      if (error) {
+        return NextResponse.json({ error: "Failed to fetch wallet" }, { status: 500 });
+      }
+      return NextResponse.json({ wallets: data ?? [], total: count ?? 0, updated_at: data?.[0]?.updated_at || null });
+    }
 
     // Filters
     if (tierFilter && tierFilter.length > 0) {

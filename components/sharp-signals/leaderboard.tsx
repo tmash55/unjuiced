@@ -4,6 +4,13 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { TierBadge } from "./tier-badge"
 import { FollowButton } from "./follow-button"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu"
 import type { WalletScore, LeaderboardResponse } from "@/lib/polymarket/types"
 import useSWR from "swr"
 
@@ -109,17 +116,29 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
         {/* Min bets */}
         <div className="ml-auto flex items-center gap-1.5">
           <span className="text-neutral-400 dark:text-neutral-600 text-[11px]">Min bets</span>
-          <select
-            value={minBets}
-            onChange={(e) => setMinBets(Number(e.target.value))}
-            className="appearance-none bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-0.5 text-neutral-700 dark:text-neutral-300 text-[11px] focus:outline-none cursor-pointer"
-          >
-            <option value={0}>Any</option>
-            <option value={5}>5+</option>
-            <option value={10}>10+</option>
-            <option value={25}>25+</option>
-            <option value={50}>50+</option>
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-0.5 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium cursor-pointer hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors outline-none">
+              {minBets === 0 ? "Any" : `${minBets}+`}
+              <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[80px]">
+              <DropdownMenuRadioGroup value={String(minBets)} onValueChange={(v) => setMinBets(Number(v))}>
+                {[
+                  { value: "0", label: "Any" },
+                  { value: "5", label: "5+" },
+                  { value: "10", label: "10+" },
+                  { value: "25", label: "25+" },
+                  { value: "50", label: "50+" },
+                ].map((opt) => (
+                  <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
+                    {opt.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -210,7 +229,7 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
                   )}
                   <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
                   {wallet.primary_sport && (
-                    <span className="capitalize">{wallet.primary_sport}</span>
+                    <span className="uppercase">{wallet.primary_sport}</span>
                   )}
                   <span className="text-neutral-400 dark:text-neutral-600">{formatMoney(wallet.avg_stake)} avg</span>
                 </div>

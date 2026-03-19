@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
-import { formatDistanceToNow } from "date-fns"
+import { format, isToday, isTomorrow } from "date-fns"
 
 export interface MarketSide {
   name: string
@@ -10,6 +10,8 @@ export interface MarketSide {
   insiderCount: number
   totalWagered: number
   percentOfMoney: number
+  sharpPct?: number   // % of this side's dollars from sharps
+  insiderPct?: number // % of this side's dollars from insiders
 }
 
 export interface Market {
@@ -40,9 +42,13 @@ function formatMoney(n: number): string {
 }
 
 export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketCardProps) {
-  const timeDisplay = market.gameStartTime
-    ? formatDistanceToNow(new Date(market.gameStartTime), { addSuffix: true })
-    : market.time
+  const timeDisplay = (() => {
+    if (!market.gameStartTime) return market.time
+    const d = new Date(market.gameStartTime)
+    if (isToday(d)) return `Today ${format(d, "h:mm a")}`
+    if (isTomorrow(d)) return `Tomorrow ${format(d, "h:mm a")}`
+    return format(d, "MMM d, h:mm a")
+  })()
   const favoring = market.sideA.percentOfMoney >= market.sideB.percentOfMoney ? "A" : "B"
 
   return (
@@ -63,7 +69,7 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketC
           {market.betType && (
             <>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span>{market.betType}</span>
+              <span className="capitalize">{market.betType}</span>
             </>
           )}
         </div>
@@ -75,40 +81,69 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketC
         {market.matchup}
       </h3>
 
-      {/* Flow comparison — compact two-row */}
+      {/* Flow comparison — stacked tier bars */}
       <div className="space-y-2">
         {[
-          { side: market.sideA, isFavored: favoring === "A", color: "bg-sky-500" },
-          { side: market.sideB, isFavored: favoring === "B", color: "bg-neutral-400 dark:bg-neutral-500" },
-        ].map(({ side, isFavored, color }) => (
-          <div key={side.name}>
-            <div className="flex items-center justify-between mb-0.5">
-              <span className={cn(
-                "text-xs font-medium",
-                isFavored ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-500"
-              )}>
-                {side.name}
-              </span>
-              <div className="flex items-center gap-2 text-[11px] tabular-nums">
-                <span className="text-neutral-400 dark:text-neutral-500">{side.insiderCount}</span>
-                <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-200">
-                  {formatOdds(side.price, oddsFormat)}
+          { side: market.sideA, isFavored: favoring === "A" },
+          { side: market.sideB, isFavored: favoring === "B" },
+        ].map(({ side, isFavored }) => {
+          const sharpPct = side.sharpPct ?? 100
+          const insiderPct = side.insiderPct ?? 0
+          const otherPct = Math.max(0, 100 - sharpPct - insiderPct)
+          const barWidth = side.percentOfMoney
+
+          return (
+            <div key={side.name}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className={cn(
+                  "text-xs font-medium",
+                  isFavored ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-500"
+                )}>
+                  {side.name}
+                </span>
+                <div className="flex items-center gap-2 text-[11px] tabular-nums">
+                  <span className="text-neutral-400 dark:text-neutral-500">{side.insiderCount}</span>
+                  <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-200">
+                    {formatOdds(side.price, oddsFormat)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
+                  <div
+                    className="h-full flex rounded-full overflow-hidden transition-all duration-500"
+                    style={{ width: `${barWidth}%` }}
+                  >
+                    {/* Sharp segment — emerald */}
+                    {sharpPct > 0 && (
+                      <div
+                        className="h-full bg-emerald-500/70 dark:bg-emerald-500/60"
+                        style={{ width: `${sharpPct}%` }}
+                      />
+                    )}
+                    {/* Insider segment — purple */}
+                    {insiderPct > 0 && (
+                      <div
+                        className="h-full bg-purple-500/60 dark:bg-purple-500/50"
+                        style={{ width: `${insiderPct}%` }}
+                      />
+                    )}
+                    {/* Other/burner segment — neutral */}
+                    {otherPct > 0 && (
+                      <div
+                        className="h-full bg-neutral-400/40 dark:bg-neutral-500/30"
+                        style={{ width: `${otherPct}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums w-7 text-right">
+                  {side.percentOfMoney}%
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-1 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
-                <div
-                  className={cn("h-full rounded-full transition-all duration-500", color)}
-                  style={{ width: `${side.percentOfMoney}%`, opacity: isFavored ? 0.7 : 0.35 }}
-                />
-              </div>
-              <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums w-7 text-right">
-                {side.percentOfMoney}%
-              </span>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Footer */}

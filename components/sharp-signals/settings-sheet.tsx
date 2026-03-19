@@ -236,6 +236,22 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
             </div>
           </div>
 
+          {/* Min Score */}
+          <div>
+            <SectionLabel>Minimum signal score</SectionLabel>
+            <SegmentedControl
+              options={[
+                { value: "0", label: "Any" },
+                { value: "60", label: "60+" },
+                { value: "70", label: "70+" },
+                { value: "80", label: "80+" },
+                { value: "90", label: "90+" },
+              ]}
+              value={String(prefs.sharp_signals_min_score || 0)}
+              onChange={(v) => onUpdate({ sharp_signals_min_score: Number(v) })}
+            />
+          </div>
+
           {/* Sort By */}
           <div>
             <SectionLabel>Sort by</SectionLabel>

@@ -68,17 +68,17 @@ export function MarketPriceChart({
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-[220px] w-full items-center justify-center rounded-lg border border-neutral-700 bg-neutral-800/50">
-        <div className="text-center text-neutral-400">
-          <div className="text-sm mb-2">Price History</div>
-          <div className="grid grid-cols-2 gap-4 text-xs">
+      <div className="flex h-[220px] w-full items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800/30 animate-pulse">
+        <div className="text-center text-neutral-400 dark:text-neutral-500">
+          <div className="text-xs mb-2">Loading price history</div>
+          <div className="grid grid-cols-2 gap-4 text-[11px]">
             <div>
-              <div className="text-sky-400">{sideAName}</div>
-              <div>{formatOdds(sideAPrice, oddsFormat)}</div>
+              <div className="text-sky-600 dark:text-sky-400">{sideAName}</div>
+              <div className="font-mono tabular-nums text-neutral-500">{formatOdds(sideAPrice, oddsFormat)}</div>
             </div>
             <div>
-              <div className="text-red-400">{sideBName}</div>
-              <div>{formatOdds(sideBPrice, oddsFormat)}</div>
+              <div className="text-neutral-500 dark:text-red-400">{sideBName}</div>
+              <div className="font-mono tabular-nums text-neutral-500">{formatOdds(sideBPrice, oddsFormat)}</div>
             </div>
           </div>
         </div>
