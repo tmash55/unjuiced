@@ -41,8 +41,10 @@ function computeConsensus(signals: Array<{
 }>): TierStats {
   const marketSides = new Map<string, { totalFlow: number; result: string; entries: number[] }>();
   for (const s of signals) {
-    if (!s.condition_id || !s.side || !s.result) continue;
-    const key = `${s.condition_id}::${s.side}`;
+    if (!s.condition_id || !s.result) continue;
+    // Group by condition_id + outcome (team/side picked), NOT by BUY/SELL side
+    const outcomeKey = s.outcome || s.side || "unknown";
+    const key = `${s.condition_id}::${outcomeKey}`;
     const existing = marketSides.get(key);
     if (existing) {
       existing.totalFlow += s.bet_size ?? 0;
@@ -147,7 +149,7 @@ export async function GET(req: NextRequest) {
     // Fetch all resolved signals
     let query = supabase
       .from("polymarket_signals")
-      .select("condition_id, side, bet_size, result, entry_price, created_at, tier, sport, wallet_address")
+      .select("condition_id, side, outcome, bet_size, result, entry_price, created_at, tier, sport, wallet_address")
       .eq("resolved", true)
       .not("result", "is", null);
 
