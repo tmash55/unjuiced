@@ -696,6 +696,7 @@ export async function GET(req: NextRequest) {
                   price: american != null ? (american > 0 ? `+${american}` : `${american}`) : (sel.price?.toString() ?? ""),
                   decimal: Math.round(decimal * 1000) / 1000,
                   line: sel.line?.toString(),
+                  link: sel.link ?? undefined,
                   mobile_link: sel.mobile_link ?? sel.deep_link ?? undefined,
                 });
               }

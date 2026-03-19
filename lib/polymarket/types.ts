@@ -219,6 +219,7 @@ export interface LiveOddsEntry {
   price: string;
   decimal: number;
   line?: string;
+  link?: string;
   mobile_link?: string;
 }
 
