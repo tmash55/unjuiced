@@ -105,6 +105,7 @@ const plans: PlanTier[] = [
     monthlyPrice: 70,
     yearlyPrice: 700,
     features: [
+      "Sharp Intel — insider tracking",
       "Live Arbitrage (in-game)",
       "Custom Model builder",
       "Custom EV thresholds",
@@ -162,6 +163,7 @@ const featureCategories: { category: string; features: FeatureRow[] }[] = [
   {
     category: "Elite Features",
     features: [
+      { name: "Sharp Intel", free: false, scout: false, sharp: false, elite: true },
       { name: "Live Arbitrage (In-Game)", free: false, scout: false, sharp: false, elite: true },
       { name: "Custom Model Builder", free: false, scout: false, sharp: false, elite: true },
       { name: "Custom EV Thresholds", free: false, scout: false, sharp: false, elite: true },
