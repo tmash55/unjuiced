@@ -38,6 +38,7 @@ function computeConsensus(signals: Array<{
   bet_size: number | null;
   result: string | null;
   entry_price: number | null;
+  [key: string]: any;
 }>): TierStats {
   const marketSides = new Map<string, { totalFlow: number; result: string; entries: number[] }>();
   for (const s of signals) {
