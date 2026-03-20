@@ -10,6 +10,8 @@ import { createPortal } from "react-dom"
 
 interface TourStep {
   target: string
+  /** Override target selector on mobile */
+  mobileTarget?: string
   title: string
   content: string | ((el: Element) => string)
   side?: "top" | "bottom" | "left" | "right"
@@ -32,6 +34,7 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     target: "[data-tour='selection-block']",
+    mobileTarget: "[data-tour='selection-block-mobile']",
     title: "The pick",
     content: "This is what the insider bet on and at what price. The odds shown are their entry price on Polymarket.",
     side: "left",
@@ -327,7 +330,8 @@ export function OnboardingTour() {
     if (!active) return
     const current = steps[step]
     if (!current) return
-    const el = document.querySelector(current.target)
+    const selector = (mobile && current.mobileTarget) ? current.mobileTarget : current.target
+    const el = document.querySelector(selector)
     if (!el) return
 
     const side = (mobile && current.mobileSide) ? current.mobileSide : (current.side || "bottom")
@@ -353,7 +357,8 @@ export function OnboardingTour() {
 
     // Delay to let tab content mount + scroll into view
     const timer = setTimeout(() => {
-      const el = document.querySelector(current.target)
+      const elSelector = (mobile && current.mobileTarget) ? current.mobileTarget : current.target
+      const el = document.querySelector(elSelector)
       if (el) {
         // Scroll the element's scrollable parent to show it near the top
         const scrollParent = el.closest("[class*='overflow-y-auto']") || el.closest("[class*='overflow-auto']")
@@ -439,7 +444,8 @@ export function OnboardingTour() {
 
   const current = steps[step]
   const isLast = step === steps.length - 1
-  const targetEl = document.querySelector(current.target)
+  const resolvedSelector = (mobile && current.mobileTarget) ? current.mobileTarget : current.target
+  const targetEl = document.querySelector(resolvedSelector)
   const resolvedContent = typeof current.content === "function" && targetEl
     ? current.content(targetEl)
     : typeof current.content === "string" ? current.content : ""

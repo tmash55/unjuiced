@@ -92,70 +92,96 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
       )}
       {...(isTourTarget ? { "data-tour": "pick-card" } : {})}
     >
-      {/* Main layout: left info + sport icon + selection block */}
-      <div className="flex gap-3 p-3">
-        {/* Left: info stack */}
-        <div className="flex-1 min-w-0 space-y-1.5">
-          {/* Top: Score + Identity */}
-          <div className="flex items-center gap-2">
-            <span className={cn("font-mono text-lg font-bold tabular-nums leading-none tracking-tight", getScoreColor(score))}>
-              {score}
-            </span>
-            <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60" />
-            <TierBadge tier={pick.tier} size="xs" {...(isTourTarget ? { "data-tour": "tier-badge" } : {})} />
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
-              className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-            >
-              {walletDisplay}
-            </button>
+      {/* Main layout — responsive: stacked on mobile, side-by-side on desktop */}
+      <div className="p-3">
+        {/* Top row: info + sport icon (desktop) + selection block (desktop) */}
+        <div className="flex gap-3">
+          {/* Left: info stack */}
+          <div className="flex-1 min-w-0 space-y-1.5">
+            {/* Score + Identity */}
+            <div className="flex items-center gap-2">
+              <span className={cn("font-mono text-lg font-bold tabular-nums leading-none tracking-tight", getScoreColor(score))}>
+                {score}
+              </span>
+              <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60" />
+              <TierBadge tier={pick.tier} size="xs" {...(isTourTarget ? { "data-tour": "tier-badge" } : {})} />
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
+                className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+              >
+                {walletDisplay}
+              </button>
+            </div>
+
+            {/* Matchup */}
+            <h3 className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight truncate">
+              {matchup}
+            </h3>
+
+            {/* Meta row */}
+            <div {...(isTourTarget ? { "data-tour": "meta-row" } : {})} className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-400 dark:text-neutral-500">
+              {betType && <span className="text-neutral-500 dark:text-neutral-400">{betType}</span>}
+              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+              <span className="shrink-0">{time}</span>
+              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+              <span className="font-mono font-medium tabular-nums text-neutral-600 dark:text-neutral-300">{formatMoney(amount)}</span>
+              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+              <span
+                {...(isTourTarget ? { "data-tour": "multiplier" } : {})}
+                className={cn(
+                  "font-mono font-bold tabular-nums",
+                  parseFloat(multiplier) >= 3 ? "text-emerald-600 dark:text-emerald-400"
+                    : parseFloat(multiplier) >= 1.5 ? "text-emerald-500 dark:text-emerald-400"
+                    : parseFloat(multiplier) >= 1 ? "text-emerald-400/70 dark:text-emerald-500/70"
+                    : "text-neutral-400 dark:text-neutral-500"
+                )}>
+                {multiplier}x
+              </span>
+            </div>
           </div>
 
-          {/* Matchup */}
-          <h3 className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight truncate">
-            {matchup}
-          </h3>
+          {/* Sport icon — desktop only */}
+          <div className="hidden sm:flex shrink-0 flex-col items-center justify-center">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+              <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-5 w-5" />
+            </div>
+            <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-500 uppercase tracking-wide mt-1">
+              {sport}
+            </span>
+          </div>
 
-          {/* Meta row */}
-          <div {...(isTourTarget ? { "data-tour": "meta-row" } : {})} className="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-            {betType && <span className="text-neutral-500 dark:text-neutral-400">{betType}</span>}
-            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-            <span className="shrink-0">{time}</span>
-            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-            <span className="font-mono font-medium tabular-nums text-neutral-600 dark:text-neutral-300">{formatMoney(amount)}</span>
-            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-            <span
-              {...(isTourTarget ? { "data-tour": "multiplier" } : {})}
-              className={cn(
-                "font-mono font-bold tabular-nums",
-                parseFloat(multiplier) >= 3 ? "text-emerald-600 dark:text-emerald-400"
-                  : parseFloat(multiplier) >= 1.5 ? "text-emerald-500 dark:text-emerald-400"
-                  : parseFloat(multiplier) >= 1 ? "text-emerald-400/70 dark:text-emerald-500/70"
-                  : "text-neutral-400 dark:text-neutral-500"
-              )}>
-              {multiplier}x
+          {/* Selection block — desktop only */}
+          <div {...(isTourTarget ? { "data-tour": "selection-block" } : {})} className="hidden sm:flex shrink-0 w-[140px] flex-col items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-3 py-2.5">
+            <span className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 text-center leading-tight truncate w-full">
+              {selectionLabel}
+            </span>
+            <span className="font-mono text-xl font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
+              {formatOdds(price, oddsFormat)}
             </span>
           </div>
         </div>
 
-        {/* Sport icon */}
-        <div className="shrink-0 flex flex-col items-center justify-center">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-            <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-5 w-5" />
+        {/* Mobile: selection row below info */}
+        <div {...(isTourTarget ? { "data-tour": "selection-block-mobile" } : {})} className="sm:hidden flex items-center gap-2.5 mt-2.5 pt-2.5 border-t border-neutral-200/40 dark:border-neutral-700/20">
+          {/* Sport badge */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+              <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-3.5 w-3.5" />
+            </div>
+            <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{sport}</span>
           </div>
-          <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-500 uppercase tracking-wide mt-1">
-            {sport}
-          </span>
-        </div>
 
-        {/* Selection block */}
-        <div {...(isTourTarget ? { "data-tour": "selection-block" } : {})} className="shrink-0 w-[140px] flex flex-col items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-3 py-2.5">
-          <span className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 text-center leading-tight truncate w-full">
-            {selectionLabel}
-          </span>
-          <span className="font-mono text-xl font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
-            {formatOdds(price, oddsFormat)}
-          </span>
+          <div className="flex-1" />
+
+          {/* Selection + odds inline */}
+          <div className="flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-3 py-1.5">
+            <span className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 truncate max-w-[120px]">
+              {selectionLabel}
+            </span>
+            <span className="font-mono text-base font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none">
+              {formatOdds(price, oddsFormat)}
+            </span>
+          </div>
         </div>
       </div>
 
