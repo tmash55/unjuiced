@@ -5,6 +5,7 @@ import { SocialProofBar } from "@/components/social-proof-bar";
 import { HitRatesHighlight } from "@/components/feature-highlights/hit-rates-highlight";
 import { SmartEdgesHighlight } from "@/components/feature-highlights/smart-edges-highlight";
 import { BuildSmarterBetsHighlight } from "@/components/feature-highlights/build-smarter-bets-highlight";
+import { SharpIntelHighlight } from "@/components/feature-highlights/sharp-intel-highlight";
 import { PricingHighlight } from "@/components/pricing-highlight";
 import { MoreThanTools } from "@/components/more-than-tools";
 
@@ -25,6 +26,7 @@ export default function Home() {
       <HitRatesHighlight />
       <SmartEdgesHighlight />
       <BuildSmarterBetsHighlight />
+      <SharpIntelHighlight />
 
       <PricingHighlight />
       <MoreThanTools />

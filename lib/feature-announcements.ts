@@ -17,6 +17,22 @@ export interface FeatureAnnouncement {
 // Ordered newest-first. Add new announcements to the top.
 export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
   {
+    id: "sharp-intel-launch-2026-03",
+    title: "New: Sharp Intel",
+    description: "Real-time insider tracking from prediction markets — matched to the best legal sportsbook odds.",
+    ctaHref: "/sharp-intel",
+    ctaLabel: "Try Sharp Intel",
+    badge: "NEW TOOL",
+    bullets: [
+      "Track 80+ of the sharpest Polymarket wallets in real time",
+      "Every signal scored 0-100 based on history, bet size, and timing",
+      "Live odds from 15+ legal US sportsbooks — matched to each signal",
+      "Follow your favorite sharps and build a personalized feed",
+      "65% win rate, +14% ROI across tracked consensus picks",
+    ],
+    enabled: true,
+  },
+  {
     id: "double-double-sheet-2026-03",
     title: "New: Double Double Sheet",
     description: "Compare SGP (P+R / P+R+A) pricing against double-double odds in one view.",
