@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
 
     if (!hasEliteAccess(plan)) {
       return NextResponse.json(
-        { error: "Elite tier required for Sharp Signals" },
+        { error: "Elite tier required for Sharp Intel" },
         { status: 403 }
       );
     }
@@ -218,8 +218,8 @@ export async function GET(req: NextRequest) {
     if (resolvedFilter === "true") query = query.eq("resolved", true);
     else if (resolvedFilter === "false") {
       query = query.eq("resolved", false);
-      // Also filter out games that have already started (with 30min buffer)
-      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      // Filter out games that have already started — picks are no longer actionable
+      const cutoff = new Date().toISOString();
       query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
     }
 
@@ -577,6 +577,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Detect split markets — different wallets on opposing outcomes of same condition_id
+    const splitMarketOutcomes = new Map<string, Set<string>>();
+    for (const s of aggregated) {
+      const cid = s.condition_id;
+      if (!cid) continue;
+      if (!splitMarketOutcomes.has(cid)) splitMarketOutcomes.set(cid, new Set());
+      splitMarketOutcomes.get(cid)!.add(s.outcome);
+    }
+    const splitConditionIds = new Set<string>();
+    for (const [cid, outcomes] of splitMarketOutcomes) {
+      if (outcomes.size > 1) splitConditionIds.add(cid);
+    }
+    for (const s of aggregated) {
+      (s as any).is_split_market = s.condition_id ? splitConditionIds.has(s.condition_id) : false;
+    }
+
     // Build odds_key for frontend to fetch odds separately (no Redis calls here)
     // Remap generic market keys to sport-specific Redis key names
     const SPORT_MARKET_REMAP: Record<string, Record<string, string>> = {
@@ -593,18 +609,55 @@ export async function GET(req: NextRequest) {
       const remap = SPORT_MARKET_REMAP[s.odds_sport];
       if (remap && remap[market]) market = remap[market];
 
-      // Extract line from title for totals
+      // Extract line from title for totals and spreads
       let line: string | null = null;
       if (market === "total_points" || market === "game_total_goals" || market === "game_total") {
         const lineMatch = (s.market_title || "").match(/O\/U\s+([\d.]+)/i);
         if (lineMatch) line = lineMatch[1];
+      } else if (market === "game_spread" || market === "game_puck_line" || market === "game_run_line") {
+        // Extract spread line from title: "Spread: Bucks (-5.5)" → "-5.5"
+        const lineMatch = (s.market_title || "").match(/\(([+-]?\d+\.?\d*)\)/);
+        let rawLine = lineMatch ? lineMatch[1] : null;
+
+        // Also try "Spread -15.5" format without parens
+        if (!rawLine) {
+          const altMatch = (s.market_title || "").match(/Spread\s+([+-]?\d+\.?\d*)/i);
+          if (altMatch) rawLine = altMatch[1];
+        }
+
+        if (rawLine) {
+          // The title line belongs to the team mentioned in the title (e.g., "Bucks")
+          // If the sharp bet the OTHER team, flip the sign
+          // "Spread: Bucks (-5.5)" + outcome="Jazz" → Jazz is +5.5
+          const titleTeam = (s.market_title || "").match(/Spread:\s*(.+?)\s*\(/i)?.[1]?.trim().toLowerCase();
+          const sharpOutcome = (s.outcome || "").toLowerCase();
+
+          if (titleTeam && sharpOutcome && !sharpOutcome.includes(titleTeam) && !titleTeam.includes(sharpOutcome)) {
+            // Sharp bet the opposite team — flip the sign
+            const num = parseFloat(rawLine);
+            if (!isNaN(num)) {
+              line = num > 0 ? `-${Math.abs(num)}` : `+${Math.abs(num)}`;
+            } else {
+              line = rawLine;
+            }
+          } else {
+            line = rawLine;
+          }
+        }
+      }
+
+      // Normalize outcome for totals: "Over 225.5" → "over", "Under 225.5" → "under"
+      let outcomeForOdds = s.outcome || null;
+      if (market === "total_points" || market === "game_total_goals" || market === "game_total") {
+        const ouMatch = (s.outcome || "").match(/^(over|under)/i);
+        if (ouMatch) outcomeForOdds = ouMatch[1].toLowerCase();
       }
 
       (s as any).odds_key = {
         sport: s.odds_sport,
         event_id: s.odds_event_id,
         market,
-        outcome: s.outcome || null,
+        outcome: outcomeForOdds,
         line,
       };
     }

@@ -57,8 +57,8 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketC
       className={cn(
         "cursor-pointer rounded-lg border px-4 py-3.5 transition-all duration-150",
         isSelected
-          ? "border-neutral-300 dark:border-neutral-700/50 bg-sky-50/40 dark:bg-sky-500/[0.03]"
-          : "border-neutral-200/80 dark:border-neutral-800/30 bg-white dark:bg-transparent hover:border-neutral-300 dark:hover:border-neutral-700/40",
+          ? "border-sky-200 dark:border-sky-500/20 bg-sky-50/50 dark:bg-sky-500/[0.06]"
+          : "border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-600/40",
         "active:scale-[0.998]"
       )}
     >

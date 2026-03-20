@@ -46,15 +46,17 @@ export function TierBadge({
   tier,
   size = "sm",
   className,
+  ...rest
 }: {
   tier: string;
   size?: "xs" | "sm" | "md";
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLSpanElement>) {
   const config = resolveConfig(tier);
 
   return (
     <span
+      {...rest}
       className={cn(
         "inline-flex items-center gap-1.5 font-semibold rounded-md border",
         size === "xs" && "px-1.5 py-px text-[9px] gap-1",

@@ -5,22 +5,30 @@ import useSWRInfinite from "swr/infinite";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
-import { StatsDashboard } from "@/components/sharp-signals/stats-dashboard";
-import { Filters } from "@/components/sharp-signals/filters";
-import { PickCard } from "@/components/sharp-signals/pick-card";
-import { PickDetailPanel } from "@/components/sharp-signals/pick-detail-panel";
-import { MarketCard } from "@/components/sharp-signals/market-card";
-import { MarketDetailPanel } from "@/components/sharp-signals/market-detail-panel";
-import { Leaderboard } from "@/components/sharp-signals/leaderboard";
-import { WalletDetailPanel } from "@/components/sharp-signals/wallet-detail-panel";
-import { SettingsSheet } from "@/components/sharp-signals/settings-sheet";
-import { DetailSheet } from "@/components/sharp-signals/detail-sheet";
+import { StatsDashboard } from "@/components/sharp-intel/stats-dashboard";
+import { Filters } from "@/components/sharp-intel/filters";
+import { PickCard } from "@/components/sharp-intel/pick-card";
+import { PickDetailPanel } from "@/components/sharp-intel/pick-detail-panel";
+import { MarketCard } from "@/components/sharp-intel/market-card";
+import { MarketDetailPanel } from "@/components/sharp-intel/market-detail-panel";
+import { Leaderboard } from "@/components/sharp-intel/leaderboard";
+import { WalletDetailPanel } from "@/components/sharp-intel/wallet-detail-panel";
+import { SettingsSheet } from "@/components/sharp-intel/settings-sheet";
+import { DetailSheet } from "@/components/sharp-intel/detail-sheet";
+import { OnboardingTour, TourTrigger, hasOddsForSport } from "@/components/sharp-intel/onboarding-tour";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { OddsFormat } from "@/lib/odds";
 import { WhaleSignal, WalletScore } from "@/lib/polymarket/types";
@@ -156,6 +164,12 @@ export default function SharpSignalsPage() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
+  // Clear selections when filters change
+  useEffect(() => {
+    setSelectedPick(null);
+    setSelectedMarket(null);
+  }, [selectedSport, selectedTier, showMySharps, minScore]);
+
   // Modal state for wallet quick-view and market quick-view
   const [modalWalletAddress, setModalWalletAddress] = useState<string | null>(null);
   const [modalMarketId, setModalMarketId] = useState<string | null>(null); // condition_id
@@ -201,6 +215,8 @@ export default function SharpSignalsPage() {
   });
 
   const allPicksRaw = picksPages?.flatMap((p) => p.signals || []) ?? [];
+
+
   const picksTotal = picksPages?.[0]?.total ?? 0;
   const picksHasMore = picksPages ? picksPages[picksPages.length - 1]?.signals?.length >= PAGE_SIZE : false;
   const picksLoadingMore = picksSize > 1 && picksPages && typeof picksPages[picksSize - 1] === "undefined";
@@ -243,11 +259,11 @@ export default function SharpSignalsPage() {
 
   if (isLoading) {
     return (
-      <AppPageLayout title="Sharp Signals" subtitle="Real-time insider tracking from prediction markets">
-        <div className="flex h-full gap-6">
-          <div className="flex-1 min-w-0 space-y-3">
+      <AppPageLayout title="Sharp Intel" subtitle="Real-time insider tracking from prediction markets">
+        <div className="flex h-full gap-4">
+          <div className="flex-1 min-w-0 space-y-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
+              <div key={i} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 p-4 animate-pulse">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-3 w-8 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
                   <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
@@ -257,7 +273,7 @@ export default function SharpSignalsPage() {
               </div>
             ))}
           </div>
-          <div className="hidden md:block w-2/5 border-l border-neutral-200 dark:border-neutral-800/40 pl-6 space-y-4">
+          <div className="hidden md:block w-2/5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-4 space-y-4">
             <div className="h-8 w-48 bg-neutral-200 dark:bg-neutral-800/30 rounded animate-pulse" />
             <div className="h-20 bg-neutral-100 dark:bg-neutral-800/20 rounded-xl animate-pulse" />
             <div className="h-32 bg-neutral-100 dark:bg-neutral-800/15 rounded-xl animate-pulse" />
@@ -269,7 +285,7 @@ export default function SharpSignalsPage() {
 
   if (!hasAccess) {
     return (
-      <AppPageLayout title="Sharp Signals" subtitle="Real-time insider tracking from prediction markets">
+      <AppPageLayout title="Sharp Intel" subtitle="Real-time insider tracking from prediction markets">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-800/40 border border-neutral-700/30 mb-5">
             <svg className="h-7 w-7 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -278,7 +294,7 @@ export default function SharpSignalsPage() {
           </div>
           <h2 className="text-xl font-semibold text-neutral-200 mb-2">Elite feature</h2>
           <p className="text-neutral-500 mb-6 max-w-md text-sm leading-relaxed">
-            Sharp Signals gives you real-time tracking of prediction market insiders.
+            Sharp Intel gives you real-time tracking of prediction market insiders.
             Upgrade to Elite to unlock this feature.
           </p>
           <Link
@@ -318,6 +334,7 @@ export default function SharpSignalsPage() {
       )
     : allMarkets;
 
+
   // Derive available sports from loaded data
   const availableSports = [...new Set([
     ...allPicks.map((p: WhaleSignal) => p.sport).filter(Boolean),
@@ -326,24 +343,15 @@ export default function SharpSignalsPage() {
 
   // Auto-select first item when data loads or tab changes
   if (tab === "picks" && picks.length > 0 && !selectedPick) {
-    setSelectedPick(picks[0]);
+    // Prefer a pick from a sport with sportsbook odds (skip soccer, tennis, ufc, esports)
+    const withOdds = picks.find((p: WhaleSignal) => hasOddsForSport(p.sport));
+    setSelectedPick(withOdds || picks[0]);
   }
   if (tab === "markets" && markets.length > 0 && !selectedMarket) {
     setSelectedMarket(markets[0]);
   }
 
   // Detect split markets — games where insiders are on opposing sides
-  const splitMarketIds = new Set<string>()
-  const marketOutcomes = new Map<string, Set<string>>()
-  for (const p of picks) {
-    const key = p.market_title || ""
-    if (!key) continue
-    if (!marketOutcomes.has(key)) marketOutcomes.set(key, new Set())
-    marketOutcomes.get(key)!.add(p.outcome)
-  }
-  for (const [key, outcomes] of marketOutcomes) {
-    if (outcomes.size > 1) splitMarketIds.add(key)
-  }
 
   // Convert markets data to MarketCard format
   const convertToMarketCard = (game: GameData) => {
@@ -400,7 +408,7 @@ export default function SharpSignalsPage() {
 
   return (
     <AppPageLayout
-      title="Sharp Signals"
+      title="Sharp Intel"
       subtitle="Real-time insider tracking from prediction markets"
       headerActions={
         <div className="flex items-center gap-2">
@@ -411,15 +419,20 @@ export default function SharpSignalsPage() {
           <span className="text-xs text-emerald-500 dark:text-emerald-400 font-medium">Live</span>
         </div>
       }
-      statsBar={<StatsDashboard />}
+      statsBar={
+        <div data-tour="stats-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-4 py-3">
+          <StatsDashboard />
+        </div>
+      }
       contextBar={
-        <div className="space-y-0">
+        <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
           {/* Row 1: Tabs + Controls (odds toggle, settings) */}
-          <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800/40 px-4">
-            <div className="flex gap-1">
+          <div className="flex items-center justify-between border-b border-neutral-200/60 dark:border-neutral-700/30 px-4">
+            <div data-tour="tabs" className="flex gap-1">
               {tabs.map((t) => (
                 <button
                   key={t.key}
+                  data-tour-tab={t.key}
                   onClick={() => {
                     setTab(t.key);
                     leftPanelRef.current?.scrollTo({ top: 0 });
@@ -450,7 +463,8 @@ export default function SharpSignalsPage() {
 
             {/* Right side: odds toggle + settings */}
             <div className="flex items-center gap-2 py-1">
-              <div className="flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
+              {/* Desktop: segmented control */}
+              <div className="hidden sm:flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
                 <button
                   className={cn(
                     "px-2 py-0.5 text-[11px] font-medium rounded transition-all duration-150",
@@ -474,6 +488,30 @@ export default function SharpSignalsPage() {
                   Implied %
                 </button>
               </div>
+
+              {/* Mobile: dropdown */}
+              <div className="sm:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium outline-none">
+                    {oddsFormat === "american" ? "American" : "Implied %"}
+                    <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[120px]">
+                    <DropdownMenuRadioGroup value={oddsFormat} onValueChange={(v) => setOddsFormat(v as OddsFormat)}>
+                      <DropdownMenuRadioItem value="american" className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
+                        American
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="cents" className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
+                        Implied %
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <TourTrigger />
               <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
             </div>
           </div>
@@ -486,38 +524,27 @@ export default function SharpSignalsPage() {
               selectedTier={selectedTier}
               onTierChange={setSelectedTier}
               availableSports={availableSports}
+              showMySharps={showMySharps}
+              onToggleMySharps={tab === "picks" && followedWallets.length > 0 ? () => setShowMySharps(!showMySharps) : undefined}
+              followedCount={followedWallets.length}
+              followedWallets={followedWallets}
+              onUnfollow={handleToggleFollow}
             />
           )}
 
-          {/* My Sharps filter — only when user has followed wallets */}
-          {tab === "picks" && followedWallets.length > 0 && (
-            <div className="px-4 pb-1.5">
-              <button
-                onClick={() => setShowMySharps(!showMySharps)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors",
-                  showMySharps
-                    ? "bg-sky-50 text-sky-600 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/25"
-                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 border border-neutral-200 dark:border-neutral-800/40"
-                )}
-              >
-                My Sharps ({followedWallets.length})
-              </button>
-            </div>
-          )}
         </div>
       }
     >
-      <div className="flex gap-6 h-[calc(100vh-4rem)] -mb-5">
+      <div className="flex gap-4 h-[calc(100vh-4rem)] -mb-5">
         {/* Left Panel — independent scroll */}
-        <div ref={leftPanelRef} className="flex-1 min-w-0 space-y-2 overflow-y-auto pr-1">
+        <div ref={leftPanelRef} className="flex-1 min-w-0 overflow-y-auto rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-3 space-y-2">
           {/* Picks Tab */}
           {tab === "picks" && (
             <>
               {picksLoading && (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
+                    <div key={i} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 p-4 animate-pulse">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="h-3 w-8 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
                         <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
@@ -539,15 +566,16 @@ export default function SharpSignalsPage() {
                   <p className="text-xs text-neutral-600 mt-1">Try adjusting your filters</p>
                 </div>
               )}
-              {picks.map((pick: WhaleSignal) => (
+              {picks.map((pick: WhaleSignal, idx: number) => (
                 <PickCard
                   key={pick.id}
                   pick={pick}
                   isSelected={selectedPick?.id === pick.id}
                   onSelect={(p) => { setSelectedPick(p); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
                   oddsFormat={oddsFormat}
-                  isSplitMarket={splitMarketIds.has(pick.market_title || "")}
-                  onViewMarket={splitMarketIds.has(pick.market_title || "") ? () => {
+                  isSplitMarket={pick.is_split_market === true}
+                  isTourTarget={idx === 0}
+                  onViewMarket={pick.is_split_market === true ? () => {
                     setModalMarketId((pick as any).condition_id || pick.market_title);
                   } : undefined}
                   onViewInsider={(addr) => {
@@ -574,11 +602,11 @@ export default function SharpSignalsPage() {
 
           {/* Markets Tab */}
           {tab === "markets" && (
-            <>
+            <div data-tour="markets-list">
               {marketsLoading && (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-lg border border-neutral-200/80 dark:border-neutral-800/40 bg-white dark:bg-transparent p-4 animate-pulse">
+                    <div key={i} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 p-4 animate-pulse">
                       <div className="space-y-3">
                         <div className="h-3 w-32 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
                         <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
@@ -611,28 +639,30 @@ export default function SharpSignalsPage() {
                   oddsFormat={oddsFormat}
                 />
               ))}
-            </>
+            </div>
           )}
 
           {/* Leaderboard Tab */}
           {tab === "leaderboard" && (
-            <Leaderboard
-              selectedWallet={selectedWallet}
-              onSelectWallet={(w) => { setSelectedWallet(w); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
-              followedWallets={followedWallets}
-              onToggleFollow={handleToggleFollow}
-            />
+            <div data-tour="leaderboard-list">
+              <Leaderboard
+                selectedWallet={selectedWallet}
+                onSelectWallet={(w) => { setSelectedWallet(w); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
+                followedWallets={followedWallets}
+                onToggleFollow={handleToggleFollow}
+              />
+            </div>
           )}
         </div>
 
         {/* Right Panel — independent scroll */}
-        <div className="hidden md:block w-2/5 border-l border-neutral-200 dark:border-neutral-800/30 pl-6 overflow-y-auto">
+        <div className="hidden md:block w-2/5 overflow-y-auto rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-4">
           {tab === "picks" && selectedPick && (
             <PickDetailPanel
               pick={selectedPick}
               oddsFormat={oddsFormat}
-              isSplitMarket={splitMarketIds.has(selectedPick.market_title || "")}
-              onViewMarket={splitMarketIds.has(selectedPick.market_title || "") ? () => {
+              isSplitMarket={selectedPick.is_split_market === true}
+              onViewMarket={selectedPick.is_split_market === true ? () => {
                 setModalMarketId((selectedPick as any).condition_id || selectedPick.market_title);
               } : undefined}
               onViewInsider={(addr) => {
@@ -686,8 +716,8 @@ export default function SharpSignalsPage() {
             <PickDetailPanel
               pick={selectedPick}
               oddsFormat={oddsFormat}
-              isSplitMarket={splitMarketIds.has(selectedPick.market_title || "")}
-              onViewMarket={splitMarketIds.has(selectedPick.market_title || "") ? () => {
+              isSplitMarket={selectedPick.is_split_market === true}
+              onViewMarket={selectedPick.is_split_market === true ? () => {
                 setModalMarketId((selectedPick as any).condition_id || selectedPick.market_title);
               } : undefined}
               onViewInsider={(addr) => {
@@ -710,7 +740,7 @@ export default function SharpSignalsPage() {
       </div>
       {/* Wallet Quick-View Modal */}
       <Dialog open={!!modalWalletAddress} onOpenChange={(open) => !open && setModalWalletAddress(null)}>
-        <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 p-6">
+        <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
               Insider profile
@@ -729,7 +759,7 @@ export default function SharpSignalsPage() {
 
       {/* Market Quick-View Modal */}
       <Dialog open={!!modalMarketId} onOpenChange={(open) => !open && setModalMarketId(null)}>
-        <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 p-6">
+        <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
               Market breakdown
@@ -740,6 +770,9 @@ export default function SharpSignalsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Onboarding tour — auto-shows on first visit */}
+      <OnboardingTour />
     </AppPageLayout>
   );
 }

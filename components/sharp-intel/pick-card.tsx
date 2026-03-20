@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
 import { TierBadge } from "./tier-badge"
+import { SportIcon } from "@/components/icons/sport-icons"
 import { format, isToday, isTomorrow } from "date-fns"
 import { getSportsbookById } from "@/lib/data/sportsbooks"
 
@@ -15,6 +16,8 @@ interface PickCardProps {
   isSplitMarket?: boolean
   onViewMarket?: () => void
   onViewInsider?: (walletAddress: string) => void
+  /** Add data-tour attributes for onboarding (first card only) */
+  isTourTarget?: boolean
 }
 
 function formatMoney(n: number): string {
@@ -23,7 +26,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(0)}`
 }
 
-export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider }: PickCardProps) {
+export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider, isTourTarget }: PickCardProps) {
   const score = Math.round(pick.signal_score || 0)
   const sport = (pick.sport || "").toUpperCase()
   const matchup = pick.event_title || pick.market_title
@@ -52,8 +55,6 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
     return "text-neutral-400 dark:text-neutral-600"
   }
 
-  const bestBook = pick.live_odds?.best
-  const bestBookInfo = bestBook ? getSportsbookById(bestBook.book) : null
 
   const selectionLabel = (() => {
     const label = (betType || "").toLowerCase()
@@ -85,14 +86,82 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
         "group cursor-pointer rounded-lg border transition-all duration-150",
         isHedge && "opacity-60",
         isSelected
-          ? "border-neutral-300 dark:border-neutral-700/50 bg-sky-50/40 dark:bg-sky-500/[0.03]"
-          : "border-neutral-200/80 dark:border-neutral-800/30 bg-white dark:bg-transparent hover:border-neutral-300 dark:hover:border-neutral-700/40",
+          ? "border-sky-200 dark:border-sky-500/20 bg-sky-50/50 dark:bg-sky-500/[0.06]"
+          : "border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-600/40",
         "active:scale-[0.998]"
       )}
+      {...(isTourTarget ? { "data-tour": "pick-card" } : {})}
     >
-      {/* Hedge warning banner */}
+      {/* Main layout: left info + sport icon + selection block */}
+      <div className="flex gap-3 p-3">
+        {/* Left: info stack */}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {/* Top: Score + Identity */}
+          <div className="flex items-center gap-2">
+            <span className={cn("font-mono text-lg font-bold tabular-nums leading-none tracking-tight", getScoreColor(score))}>
+              {score}
+            </span>
+            <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60" />
+            <TierBadge tier={pick.tier} size="xs" {...(isTourTarget ? { "data-tour": "tier-badge" } : {})} />
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
+              className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+            >
+              {walletDisplay}
+            </button>
+          </div>
+
+          {/* Matchup */}
+          <h3 className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight truncate">
+            {matchup}
+          </h3>
+
+          {/* Meta row */}
+          <div {...(isTourTarget ? { "data-tour": "meta-row" } : {})} className="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
+            {betType && <span className="text-neutral-500 dark:text-neutral-400">{betType}</span>}
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span className="shrink-0">{time}</span>
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span className="font-mono font-medium tabular-nums text-neutral-600 dark:text-neutral-300">{formatMoney(amount)}</span>
+            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+            <span
+              {...(isTourTarget ? { "data-tour": "multiplier" } : {})}
+              className={cn(
+                "font-mono font-bold tabular-nums",
+                parseFloat(multiplier) >= 3 ? "text-emerald-600 dark:text-emerald-400"
+                  : parseFloat(multiplier) >= 1.5 ? "text-emerald-500 dark:text-emerald-400"
+                  : parseFloat(multiplier) >= 1 ? "text-emerald-400/70 dark:text-emerald-500/70"
+                  : "text-neutral-400 dark:text-neutral-500"
+              )}>
+              {multiplier}x
+            </span>
+          </div>
+        </div>
+
+        {/* Sport icon */}
+        <div className="shrink-0 flex flex-col items-center justify-center">
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+            <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-5 w-5" />
+          </div>
+          <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-500 uppercase tracking-wide mt-1">
+            {sport}
+          </span>
+        </div>
+
+        {/* Selection block */}
+        <div {...(isTourTarget ? { "data-tour": "selection-block" } : {})} className="shrink-0 w-[140px] flex flex-col items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-3 py-2.5">
+          <span className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 text-center leading-tight truncate w-full">
+            {selectionLabel}
+          </span>
+          <span className="font-mono text-xl font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
+            {formatOdds(price, oddsFormat)}
+          </span>
+        </div>
+      </div>
+
+      {/* Bottom banners */}
       {pick.has_opposing_position && pick.opposing_position && (
-        <div className="px-4 pt-2.5 pb-0">
+        <div className="px-3 pb-2.5 pt-0">
           <div className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
             <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
@@ -106,10 +175,8 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
         </div>
       )}
-
-      {/* Split market indicator */}
       {isSplitMarket && !pick.has_opposing_position && (
-        <div className="px-4 pt-2.5 pb-0">
+        <div className="px-3 pb-2.5 pt-0">
           <div className="flex items-center justify-between text-[11px]">
             <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
               <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -128,76 +195,6 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
         </div>
       )}
-
-      {/* Top row: Score + Identity + Time */}
-      <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
-        <span className={cn("font-mono text-lg font-bold tabular-nums leading-none tracking-tight", getScoreColor(score))}>
-          {score}
-        </span>
-        <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60" />
-        <TierBadge tier={pick.tier} size="xs" />
-        <button
-          onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
-          className="font-mono text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-        >
-          {walletDisplay}
-        </button>
-        <span className="ml-auto text-[11px] text-neutral-400 dark:text-neutral-600">
-          {time}
-        </span>
-      </div>
-
-      {/* Content: Left (matchup + meta) | Right (odds + selection) */}
-      <div className="flex gap-4 px-4 pb-3">
-        {/* Left column */}
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight mb-1">
-            {matchup}
-          </h3>
-          <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 dark:text-neutral-500">
-            {sport && <span className="text-neutral-500 dark:text-neutral-400">{sport}</span>}
-            {betType && (
-              <>
-                <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                <span className="truncate">{betType}</span>
-              </>
-            )}
-            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-            <span className="font-mono tabular-nums">{formatMoney(amount)}</span>
-            {parseFloat(multiplier) >= 1.5 && (
-              <>
-                <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                <span className={cn(
-                  "font-mono font-semibold tabular-nums",
-                  parseFloat(multiplier) >= 3 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                )}>
-                  {multiplier}x
-                </span>
-              </>
-            )}
-            {bestBook && bestBookInfo?.image?.light && (
-              <>
-                <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                <img
-                  src={bestBookInfo.image.light}
-                  alt={bestBookInfo.name}
-                  className="h-3.5 w-3.5 rounded-sm object-contain opacity-50"
-                />
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Right column — stacked: odds on top, selection below */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="font-mono text-base font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none">
-            {formatOdds(price, oddsFormat)}
-          </span>
-          <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100/80 dark:bg-neutral-800/40 px-2 py-0.5 rounded border border-neutral-200/60 dark:border-neutral-700/30">
-            {selectionLabel}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 /**
- * Kelly Criterion calculator for Sharp Signals
+ * Kelly Criterion calculator for Sharp Intel
  */
 
 export interface KellyInput {

@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     if (!hasEliteAccess(plan)) {
       return NextResponse.json(
-        { error: "Elite tier required for Sharp Signals" },
+        { error: "Elite tier required for Sharp Intel" },
         { status: 403 }
       );
     }
@@ -94,8 +94,8 @@ export async function GET(req: NextRequest) {
       query = query.eq("resolved", true);
     } else if (resolvedFilter === "false") {
       query = query.eq("resolved", false);
-      // Filter out games that have already started (30min buffer)
-      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      // Filter out games that have already started — no longer actionable
+      const cutoff = new Date().toISOString();
       query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
     }
     if (todayOnly) {
@@ -218,6 +218,60 @@ export async function GET(req: NextRequest) {
         // Get token_id from first signal that has one
         const tokenId = data.signals.find(s => s.token_id)?.token_id || null;
 
+        // Build odds_key from first signal with odds data
+        const SPORT_MARKET_REMAP: Record<string, Record<string, string>> = {
+          nba: { game_total: "total_points" },
+          nhl: { game_total: "game_total_goals", game_spread: "game_puck_line" },
+          ncaab: { game_total: "total_points" },
+          mlb: { game_spread: "game_run_line" },
+        };
+        const oddsSig = data.signals.find(s => s.odds_event_id && s.odds_sport && s.odds_market_key);
+        let oddsKey = null;
+        if (oddsSig) {
+          let mkt = oddsSig.odds_market_key;
+          const remap = SPORT_MARKET_REMAP[oddsSig.odds_sport];
+          if (remap && remap[mkt]) mkt = remap[mkt];
+
+          let line: string | null = null;
+          const title = oddsSig.market_title || "";
+          if (mkt === "total_points" || mkt === "game_total_goals" || mkt === "game_total") {
+            const m = title.match(/O\/U\s+([\d.]+)/i);
+            if (m) line = m[1];
+          } else if (mkt === "game_spread" || mkt === "game_puck_line" || mkt === "game_run_line") {
+            const m = title.match(/\(([+-]?\d+\.?\d*)\)/);
+            let rawLine = m ? m[1] : null;
+            if (!rawLine) {
+              const alt = title.match(/Spread\s+([+-]?\d+\.?\d*)/i);
+              if (alt) rawLine = alt[1];
+            }
+            if (rawLine) {
+              const titleTeam = title.match(/Spread:\s*(.+?)\s*\(/i)?.[1]?.trim().toLowerCase();
+              const outcomeL = name.toLowerCase();
+              if (titleTeam && outcomeL && !outcomeL.includes(titleTeam) && !titleTeam.includes(outcomeL)) {
+                const num = parseFloat(rawLine);
+                line = !isNaN(num) ? (num > 0 ? `-${Math.abs(num)}` : `+${Math.abs(num)}`) : rawLine;
+              } else {
+                line = rawLine;
+              }
+            }
+          }
+
+          // Normalize outcome for totals: "Over 225.5" → "over"
+          let outcomeForOdds = name || null;
+          if (mkt === "total_points" || mkt === "game_total_goals" || mkt === "game_total") {
+            const ouMatch = (name || "").match(/^(over|under)/i);
+            if (ouMatch) outcomeForOdds = ouMatch[1].toLowerCase();
+          }
+
+          oddsKey = {
+            sport: oddsSig.odds_sport,
+            event_id: oddsSig.odds_event_id,
+            market: mkt,
+            outcome: outcomeForOdds,
+            line,
+          };
+        }
+
         return {
           outcome: name,
           total_dollars: data.total_dollars,
@@ -232,6 +286,7 @@ export async function GET(req: NextRequest) {
           losses,
           bets,
           token_id: tokenId,
+          odds_key: oddsKey,
         };
       });
 

@@ -94,7 +94,7 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
       </div>
 
       {/* Stats — 3-column grid, 2 rows */}
-      <div className="grid grid-cols-3 gap-x-4 gap-y-3 mb-5">
+      <div className="grid grid-cols-3 gap-x-4 gap-y-3 mb-5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         {[
           { label: "Rank", value: wallet.rank ? `#${wallet.rank}` : "—", color: "text-sky-600 dark:text-sky-400", tip: "Our internal ranking based on ROI, win rate, and sample size since we started tracking." },
           { label: "Avg stake", value: formatMoney(wallet.avg_stake), tip: "Average bet size across all tracked sports bets on Polymarket." },
@@ -124,7 +124,7 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
       </div>
 
       {/* Data transparency — Polymarket history vs our tracked */}
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800/40 divide-y divide-neutral-200 dark:divide-neutral-800/30 mb-5">
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 divide-y divide-neutral-200/60 dark:divide-neutral-700/30 mb-5">
         {wallet.poly_total_trades != null && (
           <Tooltip content="Total trades this wallet has made on Polymarket across all markets, backfilled from their public history." side="left">
             <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
@@ -172,9 +172,9 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
 
       {/* Sport Breakdown */}
       {sportEntries.length > 0 && (
-        <div className="mb-5">
+        <div className="mb-5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
           <p className="text-[11px] text-neutral-500 mb-2">Sport breakdown</p>
-          <div className="divide-y divide-neutral-200 dark:divide-neutral-800/20">
+          <div className="divide-y divide-neutral-200/60 dark:divide-neutral-700/30">
             {sportEntries.map(([sport, stats]) => {
               const sp = stats.roi >= 0
               return (
@@ -193,10 +193,8 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
         </div>
       )}
 
-      <div className="h-px bg-neutral-200 dark:bg-neutral-800/30 mb-5" />
-
       {/* Recent Bets */}
-      <div className="flex-1">
+      <div className="flex-1 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <p className="text-[11px] text-neutral-500 mb-2">Recent bets</p>
         {!recentBets?.signals ? (
           <div className="space-y-0 divide-y divide-neutral-200 dark:divide-neutral-800/15">

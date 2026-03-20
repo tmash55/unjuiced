@@ -9,7 +9,9 @@ import { TierBadge } from "./tier-badge"
 import { Tooltip } from "@/components/tooltip"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
-import { getSportsbookById } from "@/lib/data/sportsbooks"
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks"
+import { useSignalOdds } from "@/hooks/use-signal-odds"
+import { useIsMobile } from "@/hooks/use-media-query"
 import { formatDistanceToNow } from "date-fns"
 import useSWR from "swr"
 
@@ -56,14 +58,18 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
     fetcher
   )
 
-  const liveOdds = pick.live_odds
-  const allBooks = liveOdds?.all || []
-  const bestBookId = liveOdds?.best?.book
+  // Fetch live odds separately via dedicated endpoint
+  const { odds: allBooks, best: bestBook, isLoading: oddsLoading } = useSignalOdds(pick.odds_key)
+  const bestBookId = bestBook?.book
+  const isMobile = useIsMobile()
 
-  // Current Polymarket price from chart data (last data point)
-  const currentPolyPrice = priceData?.history?.length > 0
-    ? Math.round(priceData.history[priceData.history.length - 1].p * 100)
-    : null
+  // Current Polymarket price — prefer live odds from Redis, fallback to chart's last point
+  const polyOddsEntry = allBooks.find(b => b.book === "polymarket")
+  const currentPolyPrice = polyOddsEntry?.decimal
+    ? Math.round((1 / polyOddsEntry.decimal) * 100)
+    : priceData?.history?.length > 0
+      ? Math.round(priceData.history[priceData.history.length - 1].p * 100)
+      : null
   const entryPriceCents = Math.round(pick.entry_price * 100)
   const priceChange = currentPolyPrice != null ? currentPolyPrice - entryPriceCents : null
 
@@ -110,39 +116,45 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto pr-1">
+    <div data-tour="detail-panel" className="flex h-full flex-col gap-3 overflow-y-auto pr-1">
       {/* Header — game info */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <TierBadge tier={pick.tier} size="xs" />
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
-              className="font-mono text-xs font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
-            >
-              {walletDisplay}
-            </button>
-            {pick.wallet_record && (
-              <span className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">{pick.wallet_record}</span>
-            )}
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <TierBadge tier={pick.tier} size="xs" />
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
+                className="font-mono text-xs font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
+              >
+                {walletDisplay}
+              </button>
+              {pick.wallet_record && (
+                <span className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">{pick.wallet_record}</span>
+              )}
+            </div>
+            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200 leading-snug tracking-tight">{matchup}</h2>
+            {betType && <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{betType}</p>}
           </div>
-          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200 leading-snug tracking-tight">{matchup}</h2>
-          {betType && <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{betType}</p>}
+          {pick.token_id && (() => {
+            // Use deep link from odds data if available, fallback to event page
+            const polyOdds = allBooks.find(b => b.book === "polymarket")
+            const polyLink = polyOdds?.link || polyOdds?.mobile_link || `https://polymarket.com/event/${(pick as any).event_slug || (pick as any).condition_id || pick.token_id}`
+            return (
+              <button
+                className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700/40 px-2 py-1 text-[11px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
+                onClick={() => window.open(polyLink, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3" />
+                Polymarket
+              </button>
+            )
+          })()}
         </div>
-        {pick.token_id && (
-          <button
-            className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-[11px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
-            onClick={() => window.open(`https://polymarket.com/event/${(pick as any).event_slug || (pick as any).condition_id || pick.token_id}`, '_blank')}
-          >
-            <ExternalLink className="h-3 w-3" />
-            Polymarket
-          </button>
-        )}
-      </div>
 
-      {/* Split market banner */}
-      {isSplitMarket && (
-        <div className="flex items-center justify-between text-[11px] px-0.5">
+        {/* Split market banner — inside header card */}
+        {isSplitMarket && (
+          <div className="flex items-center justify-between text-[11px] mt-2.5 pt-2.5 border-t border-neutral-200/50 dark:border-neutral-700/30">
           <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
             <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
@@ -159,11 +171,12 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
           )}
         </div>
       )}
+      </div>
 
       {/* Signal details */}
-      <div>
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Signal</p>
-        <div className="divide-y divide-neutral-200 dark:divide-neutral-800/30">
+        <div className="divide-y divide-neutral-200/60 dark:divide-neutral-700/30">
           {/* Selection + Odds */}
           <div className="flex items-baseline justify-between pb-2">
             <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">{selection}</p>
@@ -231,77 +244,8 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
         </div>
       </div>
 
-      {/* Sportsbook Odds Comparison */}
-      {allBooks.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Where to bet</p>
-            {liveOdds?.updated_at && (
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-600">
-                Updated {formatDistanceToNow(new Date(liveOdds.updated_at), { addSuffix: true })}
-              </span>
-            )}
-          </div>
-          <div className="space-y-1">
-            {allBooks.map((book, i) => {
-              const sb = getSportsbookById(book.book)
-              const isBest = book.book === bestBookId
-
-              return (
-                <div
-                  key={`${book.book}-${i}`}
-                  className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
-                    isBest
-                      ? "bg-emerald-50 dark:bg-emerald-500/[0.06] border border-emerald-200 dark:border-emerald-500/15"
-                      : "bg-neutral-50 dark:bg-neutral-800/30 border border-transparent"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {sb?.image?.light ? (
-                      <img src={sb.image.light} alt={sb.name} className="h-5 w-5 rounded-sm object-contain" />
-                    ) : (
-                      <div className="h-5 w-5 rounded-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-[9px] font-bold text-neutral-500 dark:text-neutral-400">
-                        {book.book.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span className={cn("font-medium", isBest ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-700 dark:text-neutral-300")}>
-                      {sb?.name || book.book}
-                    </span>
-                    {isBest && (
-                      <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                        BEST
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={cn(
-                      "font-mono font-bold tabular-nums",
-                      isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-neutral-200"
-                    )}>
-                      {book.price}
-                    </span>
-                    {book.mobile_link && (
-                      <a
-                        href={book.mobile_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-md bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors hover:bg-sky-100 dark:hover:bg-sky-500/20 active:scale-95"
-                      >
-                        Bet
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Insider */}
-      <div>
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-1.5">
           {pick.tier === "sharp" ? "Sharp" : pick.tier === "whale" ? "Insider" : "New Account"}
         </p>
@@ -378,13 +322,13 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
       )}
 
       {/* Price Chart */}
-      <div>
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[11px] text-neutral-500 flex items-center gap-1.5">
             <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
             Polymarket price
           </p>
-          <div className="flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
+          <div className="flex gap-0.5 bg-white dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
             {["1D", "1W", "1M", "MAX"].map((interval) => (
               <button
                 key={interval}
@@ -413,7 +357,7 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
 
       {/* Fills Timeline */}
       {pick.fills && pick.fills.length > 1 && (
-        <div>
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
           <p className="text-[11px] text-neutral-500 mb-2 flex items-center gap-1.5">
             <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
             Order fills ({pick.fills.length})
@@ -452,8 +396,125 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
         </div>
       )}
 
+      {/* Sportsbook Odds — Where to bet */}
+      <div data-tour="where-to-bet" className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Where to bet</p>
+        {oddsLoading && allBooks.length === 0 ? (
+          <div className="space-y-1">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-800/20 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : allBooks.length === 0 ? (
+          <p className="text-xs text-neutral-400 dark:text-neutral-600 py-3 text-center">
+            {(() => {
+              const sport = pick.sport?.toLowerCase() || ""
+              if (sport.includes("soccer")) return "Soccer odds coming soon"
+              if (sport.includes("tennis")) return "Tennis odds coming soon"
+              if (sport.includes("ufc") || sport.includes("mma")) return "UFC odds coming soon"
+              return "No sportsbook odds available"
+            })()}
+          </p>
+        ) : (
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800/40 divide-y divide-neutral-200 dark:divide-neutral-800/30 overflow-hidden">
+            {allBooks.map((book, i) => {
+              const normalizedId = normalizeSportsbookId(book.book)
+              const sb = getSportsbookById(normalizedId)
+              const bestDecimal = allBooks[0]?.decimal
+              const isBest = book.decimal === bestDecimal
+              const bookLink = isMobile
+                ? (book.mobile_link || book.link)
+                : (book.link || book.mobile_link)
+
+              // Calculate slippage: how much better/worse is the sharp's entry vs this book's current price
+              // Positive = sharp got better odds than what the book offers now (edge captured)
+              // Negative = book currently offers better odds than the sharp's entry
+              let bookSlippage: number | null = null
+              if (book.decimal && book.decimal > 1 && price > 0) {
+                const entryDecimal = 100 / price
+                bookSlippage = ((entryDecimal - book.decimal) / book.decimal) * 100
+              }
+
+              // Get the right logo — try multiple image fields
+              const logo = sb?.image?.light || sb?.image?.dark || sb?.image?.square || null
+
+              return (
+                <div
+                  key={`${book.book}-${i}`}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2.5 text-xs transition-colors",
+                    isBest ? "bg-emerald-50/50 dark:bg-emerald-500/[0.04]" : ""
+                  )}
+                >
+                  {/* Left: Logo + Name + Best badge */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {logo ? (
+                      <img src={logo} alt={sb?.name || book.book} className="h-5 w-5 rounded object-contain shrink-0" />
+                    ) : (
+                      <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-[8px] font-bold text-neutral-500 dark:text-neutral-400 shrink-0">
+                        {(sb?.name || book.book).charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn(
+                          "font-medium truncate",
+                          isBest ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-700 dark:text-neutral-300"
+                        )}>
+                          {sb?.name || book.book}
+                        </span>
+                        {isBest && (
+                          <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-1 py-px rounded shrink-0">
+                            BEST
+                          </span>
+                        )}
+                      </div>
+                      {/* Slippage per book */}
+                      {bookSlippage != null && (
+                        <span className={cn(
+                          "text-[10px] font-mono tabular-nums",
+                          bookSlippage <= 0 ? "text-sky-500 dark:text-sky-400"
+                            : bookSlippage <= 3 ? "text-emerald-500 dark:text-emerald-400"
+                            : bookSlippage <= 5 ? "text-amber-500 dark:text-amber-400"
+                            : "text-red-500 dark:text-red-400"
+                        )}>
+                          {bookSlippage > 0 ? "+" : ""}{bookSlippage.toFixed(1)}% vs entry
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Odds + Bet link */}
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className={cn(
+                      "font-mono text-sm font-bold tabular-nums",
+                      isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-neutral-200"
+                    )}>
+                      {oddsFormat === "cents" && book.decimal
+                        ? `${Math.round((1 / book.decimal) * 100)}¢`
+                        : book.price}
+                    </span>
+                    {bookLink && (
+                      <a
+                        href={bookLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded-md bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 transition-colors hover:bg-sky-100 dark:hover:bg-sky-500/20 active:scale-95"
+                      >
+                        Bet
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Order Book */}
-      <div>
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <p className="text-[11px] text-neutral-500 mb-2 flex items-center gap-1.5">
           <img src="/images/sports-books/polymarket.png" alt="Polymarket" className="h-3.5 w-3.5 rounded-sm object-contain opacity-50" />
           Polymarket order book

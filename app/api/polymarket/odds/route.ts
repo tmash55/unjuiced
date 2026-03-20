@@ -4,7 +4,7 @@ import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 /**
  * POST /api/polymarket/odds
  *
- * Batch-fetch sportsbook odds from Redis for Sharp Signals.
+ * Batch-fetch sportsbook odds from Redis for Sharp Intel.
  * Accepts an array of odds keys, returns matched odds per key.
  *
  * Body: { keys: [{ sport, event_id, market, outcome?, line? }] }
@@ -14,6 +14,9 @@ import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 const BETTABLE_BOOKS = [
   "draftkings", "fanduel", "betmgm", "caesars", "bet365",
   "fanatics", "hard-rock", "espnbet", "betrivers",
+  "novig", "betparx", "bally-bet", "fliff",
+  "thescore", "sports-interaction",
+  "polymarket",
 ];
 
 interface OddsKey {
@@ -114,8 +117,14 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const outcome = (key.outcome || "").toLowerCase();
-      const isTotal = outcome === "over" || outcome === "under";
+      const rawOutcome = (key.outcome || "").toLowerCase();
+      // Detect totals from market key OR outcome containing over/under
+      const isTotalMarket = key.market === "total_points" || key.market === "game_total_goals" || key.market === "game_total";
+      const isTotal = isTotalMarket || rawOutcome === "over" || rawOutcome === "under" || rawOutcome.startsWith("over ") || rawOutcome.startsWith("under ");
+      // Normalize outcome: "Under 222.5" → "under", "Over" → "over"
+      const outcome = isTotal
+        ? (rawOutcome.startsWith("under") ? "under" : rawOutcome.startsWith("over") ? "over" : rawOutcome)
+        : rawOutcome;
       const entries: OddsEntry[] = [];
 
       for (const [book, data] of bookOdds) {
@@ -131,15 +140,32 @@ export async function POST(req: NextRequest) {
           const selSide = (sel.side || "").toLowerCase();
 
           if (isTotal) {
-            if (outcome !== selSide) continue;
+            // For totals, match on side field (over/under)
+            if (outcome !== selSide && !selSide.includes(outcome) && !outcome.includes(selSide)) continue;
           } else {
-            if (!selName || !(selName.includes(outcome) || outcome.includes(selName))) continue;
+            // For ML/spread, match team name — try multiple strategies
+            if (!selName) continue;
+            const nameMatch = selName.includes(outcome) || outcome.includes(selName);
+            // Also try matching just the last word (e.g., "rangers" from "new york rangers")
+            const selLastWord = selName.split(/\s+/).pop() || "";
+            const outcomeLastWord = outcome.split(/\s+/).pop() || "";
+            const lastWordMatch = selLastWord.length > 2 && outcomeLastWord.length > 2 &&
+              (selLastWord === outcomeLastWord || selName.endsWith(outcomeLastWord) || outcome.endsWith(selLastWord));
+            if (!nameMatch && !lastWordMatch) continue;
           }
 
-          // Spread: only main line
+          // Spread: match exact line if provided, otherwise use main line only
           if (selSide === "spread" || selSide === "puck_line" || selSide === "run_line") {
-            const isMain = sel.main === true || sel.main === "true" || sel.main === 1;
-            if (!isMain) continue;
+            if (key.line && sel.line != null) {
+              // Match the specific Polymarket spread line
+              const sigLine = Math.abs(parseFloat(key.line));
+              const selLine = Math.abs(parseFloat(sel.line));
+              if (!isNaN(sigLine) && !isNaN(selLine) && sigLine !== selLine) continue;
+            } else {
+              // No specific line — only show main line
+              const isMain = sel.main === true || sel.main === "true" || sel.main === 1;
+              if (!isMain) continue;
+            }
           }
 
           // Totals: match exact line if provided

@@ -171,6 +171,9 @@ export interface WhaleSignal {
     recency: number;
   };
 
+  // Split market detection — different wallets on opposing sides
+  is_split_market?: boolean;         // True if insiders bet opposing outcomes on same condition_id
+
   // Opposing position detection (hedge/arb warning)
   has_opposing_position?: boolean;   // Same wallet bet BOTH sides of this market
   opposing_position?: {

@@ -125,7 +125,7 @@ const edgeToolsLinks: NavItem[] = [
   { label: "Arbitrage", href: "/arbitrage", icon: IconScale },
   { label: "Positive EV", href: "/positive-ev", icon: IconPlus },
   { label: "Edge Finder", href: "/edge-finder", icon: IconRocket },
-  { label: "Sharp Signals", href: "/sharp-signals", icon: IconBulb },
+  { label: "Sharp Intel", href: "/sharp-intel", icon: IconBulb },
 ]
 
 // Research - Analysis and research tools

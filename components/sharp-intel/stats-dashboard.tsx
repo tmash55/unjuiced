@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Tooltip } from "@/components/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu"
 import useSWR from "swr"
 
 interface TierStats {
@@ -89,31 +93,27 @@ export function StatsDashboard() {
           >
             {positive ? "+" : ""}{overall.roi}%
           </span>
-          <Tooltip
-            content={
-              <div className="max-w-[280px] p-1 space-y-2">
-                <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">How we calculate these numbers</p>
-                <p className="text-neutral-600 dark:text-neutral-300 text-xs leading-relaxed">
-                  These stats reflect consensus picks only — markets where 60%+ of tracked insider money flows one direction. Split markets (no clear signal) are excluded.
-                </p>
-                <div className="space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-                  <p><span className="text-neutral-800 dark:text-neutral-200 font-medium">ROI</span> — Return on $100 flat bets per consensus pick</p>
-                  <p><span className="text-neutral-800 dark:text-neutral-200 font-medium">Record</span> — Wins and losses based on market resolution</p>
-                </div>
-                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-700">
-                  Insiders tracked: anonymous wallets from prediction market leaderboards, ranked by profitability, volume, and consistency.
-                </p>
-              </div>
-            }
-            side="bottom"
-            align="start"
-          >
-            <button className="text-neutral-300 dark:text-neutral-700 hover:text-neutral-500 dark:hover:text-neutral-500 transition-colors cursor-help">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="text-neutral-300 dark:text-neutral-700 hover:text-neutral-500 dark:hover:text-neutral-500 transition-colors outline-none">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
               </svg>
-            </button>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80 p-3 space-y-2.5">
+              <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-200">How we calculate these numbers</p>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                These stats reflect consensus picks only — markets where 70%+ of tracked insider money flows one direction. Split markets (no clear signal) are excluded.
+              </p>
+              <div className="space-y-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                <p><span className="text-neutral-800 dark:text-neutral-200 font-medium">ROI</span> — Return on $100 flat bets per consensus pick</p>
+                <p><span className="text-neutral-800 dark:text-neutral-200 font-medium">Record</span> — Wins and losses based on market resolution</p>
+                <p><span className="text-neutral-800 dark:text-neutral-200 font-medium">Sport breakdown</span> — Same methodology filtered by sport</p>
+              </div>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 pt-1.5 border-t border-neutral-200 dark:border-neutral-700 leading-relaxed">
+                Insiders tracked: anonymous wallets from prediction market leaderboards, ranked by profitability, volume, and consistency.
+              </p>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Divider */}

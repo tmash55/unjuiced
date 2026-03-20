@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import useSWRInfinite from "swr/infinite"
 import { cn } from "@/lib/utils"
 import { TierBadge } from "./tier-badge"
 import { FollowButton } from "./follow-button"
@@ -12,7 +13,8 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import type { WalletScore, LeaderboardResponse } from "@/lib/polymarket/types"
-import useSWR from "swr"
+
+const PAGE_SIZE = 50
 
 const SORT_OPTIONS = [
   { value: "rank", label: "Rank" },
@@ -55,16 +57,55 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
   const [sortBy, setSortBy] = useState("rank")
   const [sportFilter, setSportFilter] = useState("")
   const [minBets, setMinBets] = useState(10)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
-  const params = new URLSearchParams({ limit: "50", sortBy, minBets: String(minBets) })
-  if (sportFilter) params.set("sport", sportFilter)
+  // SWR Infinite — paginated leaderboard
+  const getKey = useCallback(
+    (pageIndex: number, previousPageData: LeaderboardResponse | null) => {
+      // Stop if previous page returned fewer than PAGE_SIZE
+      if (previousPageData && (previousPageData.wallets?.length ?? 0) < PAGE_SIZE) return null
 
-  const { data, isLoading } = useSWR<LeaderboardResponse>(
-    `/api/polymarket/leaderboard?${params}`,
-    fetcher
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(pageIndex * PAGE_SIZE),
+        sortBy,
+        minBets: String(minBets),
+      })
+      if (sportFilter) params.set("sport", sportFilter)
+      return `/api/polymarket/leaderboard?${params}`
+    },
+    [sortBy, sportFilter, minBets]
   )
 
-  const wallets = data?.wallets ?? []
+  const {
+    data: pages,
+    size,
+    setSize,
+    isLoading,
+    isValidating,
+  } = useSWRInfinite<LeaderboardResponse>(getKey, fetcher, {
+    revalidateFirstPage: true,
+    parallel: false,
+  })
+
+  const wallets = pages?.flatMap((p) => p.wallets || []) ?? []
+  const hasMore = pages ? (pages[pages.length - 1]?.wallets?.length ?? 0) >= PAGE_SIZE : false
+  const loadingMore = size > 1 && pages && typeof pages[size - 1] === "undefined"
+
+  // IntersectionObserver — trigger next page
+  useEffect(() => {
+    if (!sentinelRef.current) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isValidating) {
+          setSize((s) => s + 1)
+        }
+      },
+      { rootMargin: "300px" }
+    )
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMore, isValidating, setSize])
 
   // Auto-select first wallet when data loads and nothing is selected
   useEffect(() => {
@@ -145,7 +186,7 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
       {/* Wallet List */}
       {isLoading ? (
         <div className="space-y-0 divide-y divide-neutral-200 dark:divide-neutral-800/20">
-          {[...Array(6)].map((_, i) => (
+          {[...Array(8)].map((_, i) => (
             <div key={i} className="py-3 animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="h-3 w-5 bg-neutral-200/50 dark:bg-neutral-800/40 rounded" />
@@ -186,7 +227,7 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
                 {/* Row 1: Rank + Identity + Follow */}
                 <div className="flex items-center gap-2.5 mb-1">
                   <span className="text-neutral-400 dark:text-neutral-600 font-mono text-xs tabular-nums w-5 text-right shrink-0">
-                    {index + 1}
+                    {wallet.rank || index + 1}
                   </span>
                   <TierBadge tier={displayTier} size="xs" />
                   <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
@@ -236,6 +277,21 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
               </div>
             )
           })}
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="py-4 flex justify-center">
+            {hasMore && (loadingMore || isValidating) && wallets.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-neutral-500">
+                <div className="h-3.5 w-3.5 border-2 border-neutral-400 dark:border-neutral-600 border-t-transparent rounded-full animate-spin" />
+                Loading more...
+              </div>
+            )}
+            {!hasMore && wallets.length > 0 && (
+              <span className="text-xs text-neutral-400 dark:text-neutral-600">
+                All {wallets.length} insiders loaded
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>

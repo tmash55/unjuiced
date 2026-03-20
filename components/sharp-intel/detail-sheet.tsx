@@ -23,7 +23,7 @@ export function DetailSheet({ open, onClose, title, children }: DetailSheetProps
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <SheetContent
         side="bottom"
-        className="bg-neutral-950 border-neutral-800/50 rounded-t-2xl max-h-[85vh] flex flex-col p-0"
+        className="bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 rounded-t-2xl max-h-[85vh] flex flex-col p-0"
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">

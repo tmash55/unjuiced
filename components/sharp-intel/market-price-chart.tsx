@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
+  ReferenceDot,
 } from "recharts"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { format } from "date-fns"
@@ -16,6 +16,12 @@ import { format } from "date-fns"
 interface PriceDataPoint {
   t: number
   p: number
+}
+
+interface FillPoint {
+  time: number
+  price: number
+  outcome: string
 }
 
 interface MarketPriceChartProps {
@@ -26,6 +32,7 @@ interface MarketPriceChartProps {
   oddsFormat: OddsFormat
   sideAHistory?: PriceDataPoint[]
   sideBHistory?: PriceDataPoint[]
+  fills?: FillPoint[]
 }
 
 export function MarketPriceChart({
@@ -36,6 +43,7 @@ export function MarketPriceChart({
   oddsFormat,
   sideAHistory,
   sideBHistory,
+  fills,
 }: MarketPriceChartProps) {
   const chartData = useMemo(() => {
     const histA = sideAHistory || []
@@ -151,17 +159,42 @@ export function MarketPriceChart({
             fill="url(#sideBGrad)"
             animationDuration={600}
           />
+          {/* Fill dots — insider bets plotted on the chart */}
+          {fills && fills.length > 0 && chartData.length > 0 && fills.map((fill, i) => {
+            // Snap fill to nearest chart data point
+            const nearest = chartData.reduce((prev, curr) =>
+              Math.abs(curr.time - fill.time) < Math.abs(prev.time - fill.time) ? curr : prev
+            )
+            const isSideA = fill.outcome === sideAName
+            return (
+              <ReferenceDot
+                key={`fill-${i}`}
+                x={nearest.time}
+                y={fill.price}
+                r={3.5}
+                fill={isSideA ? "#38BDF8" : "#F87171"}
+                stroke="#0a0a0a"
+                strokeWidth={1.5}
+              />
+            )
+          })}
         </AreaChart>
       </ResponsiveContainer>
-      <div className="mt-2 flex items-center justify-center gap-6 text-xs">
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-sky-400" />
-          <span className="text-neutral-500">{sideAName}: {formatOdds(sideAPrice, oddsFormat)}</span>
+      <div className="mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/30 flex items-center justify-center gap-5 text-[10px]">
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+          <span className="text-neutral-400 dark:text-neutral-500">{sideAName}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-red-400" />
-          <span className="text-neutral-500">{sideBName}: {formatOdds(sideBPrice, oddsFormat)}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-red-400" />
+          <span className="text-neutral-400 dark:text-neutral-500">{sideBName}</span>
         </div>
+        {fills && fills.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 ring-1 ring-neutral-900" />
+            <span className="text-neutral-400 dark:text-neutral-500">{fills.length} position{fills.length !== 1 ? "s" : ""}</span>
+          </div>
+        )}
       </div>
     </div>
   )

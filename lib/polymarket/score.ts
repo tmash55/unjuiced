@@ -1,5 +1,5 @@
 /**
- * Sharp Signals — Composite Signal Score (0-100)
+ * Sharp Intel — Composite Signal Score (0-100)
  *
  * Inspired by OddsJam Insiders scoring:
  *   - Stake conviction (bet size × multiplier vs avg) is the #1 factor

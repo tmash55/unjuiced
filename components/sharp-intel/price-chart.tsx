@@ -124,7 +124,8 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
   const maxPrice = Math.min(100, Math.max(...allPrices) + padding)
 
   return (
-    <div className="h-[180px] w-full">
+    <div>
+      <div className="h-[180px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
@@ -214,18 +215,19 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice, loading
           />
         </AreaChart>
       </ResponsiveContainer>
-      <div className="mt-1.5 flex items-center justify-center gap-5 text-[10px]">
+      </div>
+      <div className="mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/30 flex items-center justify-center gap-5 text-[10px]">
         {fills && fills.length > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span className="text-neutral-500">
+            <span className="text-neutral-400 dark:text-neutral-500">
               {fills.length} fill{fills.length !== 1 ? "s" : ""} @ avg {formatOdds(entryPrice || currentPrice, oddsFormat)}
             </span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-          <span className="text-neutral-500">
+          <span className="text-neutral-400 dark:text-neutral-500">
             Current {formatOdds(currentPrice, oddsFormat)}
           </span>
         </div>
