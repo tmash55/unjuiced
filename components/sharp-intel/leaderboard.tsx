@@ -107,9 +107,9 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
     return () => observer.disconnect()
   }, [hasMore, isValidating, setSize])
 
-  // Auto-select first wallet when data loads and nothing is selected
+  // Auto-select first wallet on desktop only (mobile opens a drawer)
   useEffect(() => {
-    if (wallets.length > 0 && !selectedWallet) {
+    if (wallets.length > 0 && !selectedWallet && window.innerWidth >= 768) {
       onSelectWallet(wallets[0])
     }
   }, [wallets, selectedWallet, onSelectWallet])
