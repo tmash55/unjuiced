@@ -13,8 +13,12 @@ interface TourStep {
   title: string
   content: string | ((el: Element) => string)
   side?: "top" | "bottom" | "left" | "right"
+  /** Override side on mobile */
+  mobileSide?: "top" | "bottom" | "left" | "right"
   /** Run before showing this step — e.g. switch tabs */
   action?: () => void
+  /** Skip this step on mobile */
+  desktopOnly?: boolean
 }
 
 const TOUR_STEPS: TourStep[] = [
@@ -23,6 +27,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "Real-time insider picks",
     content: "Each card is one bet detected from a tracked Polymarket insider. The score (0-100) reflects their history, bet size, and timing. Higher is stronger.",
     side: "right",
+    mobileSide: "bottom",
     action: () => clickTab("picks"),
   },
   {
@@ -30,6 +35,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "The pick",
     content: "This is what the insider bet on and at what price. The odds shown are their entry price on Polymarket.",
     side: "left",
+    mobileSide: "bottom",
   },
   {
     target: "[data-tour='meta-row']",
@@ -52,6 +58,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "Full signal breakdown",
     content: "Click any pick for the full picture — entry vs current price, slippage, the insider's track record, a price chart, order fills, and live sportsbook odds matched to the best legal book price.",
     side: "left",
+    desktopOnly: true,
   },
   {
     target: "[data-tour-tab='markets']",
@@ -76,29 +83,39 @@ function clickTab(tabKey: string) {
 }
 
 const STORAGE_KEY = "sharp-intel-tour-v2"
-const TOOLTIP_WIDTH = 300
 const TOOLTIP_PAD = 16
+
+function getTooltipWidth() {
+  if (typeof window === "undefined") return 300
+  return window.innerWidth < 640 ? Math.min(280, window.innerWidth - 32) : 300
+}
+
+function isMobileViewport() {
+  if (typeof window === "undefined") return false
+  return window.innerWidth < 768
+}
 
 // ── Positioning ────────────────────────────────────────────────
 // Clamp tooltip to viewport. Never let it go offscreen.
 
 function getTooltipStyle(rect: DOMRect, side: string): React.CSSProperties {
   const gap = 14
+  const w = getTooltipWidth()
   let top = 0
   let left = 0
 
   switch (side) {
     case "top":
       top = rect.top - gap
-      left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2
+      left = rect.left + rect.width / 2 - w / 2
       break
     case "bottom":
       top = rect.bottom + gap
-      left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2
+      left = rect.left + rect.width / 2 - w / 2
       break
     case "left":
       top = rect.top + rect.height / 2
-      left = rect.left - gap - TOOLTIP_WIDTH
+      left = rect.left - gap - w
       break
     case "right":
       top = rect.top + rect.height / 2
@@ -107,20 +124,18 @@ function getTooltipStyle(rect: DOMRect, side: string): React.CSSProperties {
   }
 
   // Clamp horizontal
-  left = Math.max(TOOLTIP_PAD, Math.min(left, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_PAD))
-  // Clamp vertical — keep tooltip fully visible
+  left = Math.max(TOOLTIP_PAD, Math.min(left, window.innerWidth - w - TOOLTIP_PAD))
+  // Clamp vertical
   top = Math.max(TOOLTIP_PAD, Math.min(top, window.innerHeight - 200))
 
-  // For top/left, the tooltip extends upward/left, so adjust
   if (side === "top") {
-    top = Math.max(TOOLTIP_PAD, rect.top - gap - 160) // approximate tooltip height
+    top = Math.max(TOOLTIP_PAD, rect.top - gap - 160)
   }
   if (side === "left" || side === "right") {
-    // Vertically center but clamp
     top = Math.max(TOOLTIP_PAD, Math.min(rect.top + rect.height / 2 - 80, window.innerHeight - 200))
   }
 
-  return { position: "fixed" as const, top, left, width: TOOLTIP_WIDTH }
+  return { position: "fixed" as const, top, left, width: w }
 }
 
 // ── Sports with odds ───────────────────────────────────────────
@@ -144,6 +159,10 @@ export function OnboardingTour() {
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null)
   const rafRef = useRef<number>(0)
 
+  // Filter steps for mobile — skip desktop-only steps
+  const mobile = isMobileViewport()
+  const steps = mobile ? TOUR_STEPS.filter(s => !s.desktopOnly) : TOUR_STEPS
+
   // Auto-show on first visit
   useEffect(() => {
     const completed = localStorage.getItem(STORAGE_KEY)
@@ -166,20 +185,23 @@ export function OnboardingTour() {
 
   const updatePosition = useCallback(() => {
     if (!active) return
-    const current = TOUR_STEPS[step]
+    const current = steps[step]
+    if (!current) return
     const el = document.querySelector(current.target)
     if (!el) return
 
+    const side = (mobile && current.mobileSide) ? current.mobileSide : (current.side || "bottom")
     const rect = el.getBoundingClientRect()
     setHighlightRect(rect)
-    setTooltipStyle(getTooltipStyle(rect, current.side || "bottom"))
-  }, [active, step])
+    setTooltipStyle(getTooltipStyle(rect, side))
+  }, [active, step, steps, mobile])
 
   // Run action (e.g. switch tab) then position tooltip
   useEffect(() => {
     if (!active) return
 
-    const current = TOUR_STEPS[step]
+    const current = steps[step]
+    if (!current) return
 
     // Run action first (e.g. click tab), then wait for content to render
     if (current.action) current.action()
@@ -234,7 +256,7 @@ export function OnboardingTour() {
   }, [transitioning])
 
   const next = useCallback(() => {
-    if (step < TOUR_STEPS.length - 1) {
+    if (step < steps.length - 1) {
       goTo(step + 1)
     } else {
       finish()
@@ -259,8 +281,8 @@ export function OnboardingTour() {
 
   if (!active || !highlightRect) return null
 
-  const current = TOUR_STEPS[step]
-  const isLast = step === TOUR_STEPS.length - 1
+  const current = steps[step]
+  const isLast = step === steps.length - 1
   const targetEl = document.querySelector(current.target)
   const resolvedContent = typeof current.content === "function" && targetEl
     ? current.content(targetEl)
@@ -324,7 +346,7 @@ export function OnboardingTour() {
       >
         {/* Step counter */}
         <p className="text-[10px] text-neutral-400 dark:text-neutral-600 uppercase tracking-wider mb-1.5">
-          {step + 1} of {TOUR_STEPS.length}
+          {step + 1} of {steps.length}
         </p>
         <p className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">
           {current.title}
@@ -335,7 +357,7 @@ export function OnboardingTour() {
         <div className="flex items-center justify-between">
           {/* Progress dots */}
           <div className="flex items-center gap-1">
-            {TOUR_STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <div
                 key={i}
                 className={cn(
