@@ -73,6 +73,7 @@ interface NavItem {
   href: string
   icon: React.ElementType
   children?: NavChildItem[]
+  badge?: string
 }
 
 // Sport sub-items for Odds Screen (active first, then disabled/off-season)
@@ -125,7 +126,7 @@ const edgeToolsLinks: NavItem[] = [
   { label: "Arbitrage", href: "/arbitrage", icon: IconScale },
   { label: "Positive EV", href: "/positive-ev", icon: IconPlus },
   { label: "Edge Finder", href: "/edge-finder", icon: IconRocket },
-  { label: "Sharp Intel", href: "/sharp-intel", icon: IconBulb },
+  { label: "Sharp Intel", href: "/sharp-intel", icon: IconBulb, badge: "NEW" },
 ]
 
 // Research - Analysis and research tools
@@ -517,6 +518,11 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           >
             {link.label}
           </motion.span>
+          {link.badge && (
+            <span className="ml-auto text-[9px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-1.5 py-0.5 rounded shrink-0">
+              {link.badge}
+            </span>
+          )}
         </>
       )}
     </Link>

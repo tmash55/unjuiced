@@ -1,5 +1,6 @@
 import { PublicNav } from "@/components/nav/public-navbar";
 import { Footer } from "@/components/footer";
+import { SharpIntelBanner } from "@/components/sharp-intel-banner";
 import { ReactNode } from "react";
 
 /**
@@ -10,6 +11,7 @@ import { ReactNode } from "react";
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <main className="h-full bg-black antialiased">
+      <SharpIntelBanner />
       <PublicNav />
       {children}
       <Footer />
