@@ -285,50 +285,187 @@ export default function SharpSignalsPage() {
 
   if (!hasAccess) {
     return (
-      <AppPageLayout title="Sharp Intel" subtitle="Real-time insider tracking from prediction markets">
-        <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center px-4">
-          {/* Icon */}
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
-            <svg className="h-7 w-7 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-            </svg>
+      <AppPageLayout
+        title="Sharp Intel"
+        subtitle="Real-time insider tracking from prediction markets"
+        headerActions={
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-xs text-emerald-500 dark:text-emerald-400 font-medium">Live</span>
           </div>
-
-          <h2 className="text-2xl font-bold text-neutral-100 mb-2 tracking-tight">
-            Unlock Sharp Intel
-          </h2>
-          <p className="text-neutral-400 mb-8 max-w-lg text-sm leading-relaxed">
-            See what the sharpest prediction market bettors are doing — in real time.
-            Every signal scored, every bet matched to the best legal sportsbook odds.
-          </p>
-
-          {/* Feature grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mb-8 text-left">
-            {[
-              { icon: "M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z", text: "Real-time insider detection from 80+ wallets" },
-              { icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z", text: "65% win rate, +14% ROI track record" },
-              { icon: "M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: "Best odds from 15+ legal US sportsbooks" },
-              { icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z", text: "Follow sharps and build your own feed" },
-            ].map((f) => (
-              <div key={f.text} className="flex gap-3 items-start">
-                <svg className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={f.icon} />
-                </svg>
-                <span className="text-[13px] text-neutral-300 leading-snug">{f.text}</span>
+        }
+      >
+        <div className="relative">
+          {/* Blurred fake UI — gives users a preview of what they're missing */}
+          <div className="select-none pointer-events-none" aria-hidden="true">
+            {/* Stats bar */}
+            <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-4 py-3 mb-4 blur-[6px] opacity-50">
+              <div className="flex items-center gap-4">
+                <span className="font-mono text-xl font-bold text-neutral-900 dark:text-neutral-100">+13.5%</span>
+                <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
+                <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">378-213 (64%)</span>
+                <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
+                <span className="text-[11px] text-neutral-500">NBA <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+22.5%</span></span>
               </div>
-            ))}
+            </div>
+
+            {/* Tab bar */}
+            <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden mb-4 blur-[6px] opacity-50">
+              <div className="flex border-b border-neutral-200/60 dark:border-neutral-700/30 px-4">
+                {["Picks", "Markets", "Leaderboard"].map((t, i) => (
+                  <span key={t} className={cn("px-3 py-2 text-xs font-medium border-b-2 -mb-px", i === 0 ? "border-sky-500 text-neutral-900 dark:text-neutral-200" : "border-transparent text-neutral-400 dark:text-neutral-500")}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 px-4 py-2">
+                {["All", "NBA", "NHL", "NCAAB", "MLB"].map((s, i) => (
+                  <span key={s} className={cn("px-2 py-1 rounded-md text-[11px] font-medium", i === 0 ? "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-900 dark:text-neutral-100" : "text-neutral-500")}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Fake pick cards */}
+            <div className="flex gap-4">
+              <div className="flex-1 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-3 space-y-2 blur-[6px] opacity-40">
+                {[
+                  { score: "99", team: "Flyers vs. Kings", pick: "Kings", odds: "-163", amount: "$68.0k", mul: "15.9x" },
+                  { score: "97", team: "Saint Louis vs. Georgia", pick: "Georgia Bull...", odds: "+108", amount: "$19.8k", mul: "5.9x" },
+                  { score: "94", team: "Iowa vs. Clemson Tigers", pick: "Clemson Tigers", odds: "+122", amount: "$200.6k", mul: "8.6x" },
+                  { score: "92", team: "76ers vs. Kings", pick: "76ers", odds: "-133", amount: "$92.6k", mul: "9.4x" },
+                ].map((card) => (
+                  <div key={card.team} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50 dark:bg-neutral-800/40 p-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400">{card.score}</span>
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-px rounded">Sharp</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">{card.team}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">Moneyline · {card.amount} · <span className="text-emerald-600 dark:text-emerald-400 font-bold">{card.mul}</span></p>
+                      </div>
+                      <div className="w-[120px] text-center bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 rounded-lg px-3 py-2">
+                        <p className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100 truncate">{card.pick}</p>
+                        <p className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400">{card.odds}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Fake detail panel — desktop only */}
+              <div className="hidden md:block w-2/5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-4 blur-[6px] opacity-40">
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-px rounded">Sharp</span>
+                      <span className="font-mono text-xs font-bold text-neutral-900 dark:text-neutral-200">#0X37</span>
+                      <span className="font-mono text-[11px] text-neutral-500">249-114</span>
+                    </div>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">Flyers vs. Kings</p>
+                  </div>
+                  <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Signal</p>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">Kings</span>
+                      <span className="font-mono text-2xl font-bold text-sky-600 dark:text-sky-400">-163</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3 h-32" />
+                  <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Where to bet</p>
+                    <div className="space-y-2">
+                      {["Polymarket", "BetMGM", "FanDuel"].map((b) => (
+                        <div key={b} className="flex justify-between text-xs">
+                          <span className="text-neutral-700 dark:text-neutral-300">{b}</span>
+                          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-200">-163</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* CTA */}
-          <Link
-            href="/pricing"
-            className="px-8 py-3 bg-sky-600 hover:bg-sky-500 active:scale-[0.98] text-white font-semibold rounded-lg transition-all text-sm"
-          >
-            Upgrade to Elite — $70/mo
-          </Link>
-          <p className="text-xs text-neutral-600 mt-3">
-            Includes everything in Sharp plus Live Arbitrage, Custom Models, and more.
-          </p>
+          {/* Floating upgrade card — centered over the blurred UI */}
+          <div className="absolute inset-0 flex items-start justify-center pt-24 sm:pt-32">
+            <div className="w-full max-w-md mx-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 shadow-2xl overflow-hidden">
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-sky-500/10 to-emerald-500/10 border-b border-neutral-200/50 dark:border-neutral-700/30 px-6 pt-6 pb-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/20">
+                    <svg className="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                      Unlock Sharp Intel
+                    </h2>
+                    <p className="text-[12px] text-neutral-500 dark:text-neutral-400">
+                      Elite tier exclusive
+                    </p>
+                  </div>
+                </div>
+                {/* Stats */}
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="text-center">
+                    <p className="font-mono text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">65%</p>
+                    <p className="text-[9px] text-neutral-500 uppercase tracking-wider">Win Rate</p>
+                  </div>
+                  <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700/30" />
+                  <div className="text-center">
+                    <p className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+14%</p>
+                    <p className="text-[9px] text-neutral-500 uppercase tracking-wider">ROI</p>
+                  </div>
+                  <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700/30" />
+                  <div className="text-center">
+                    <p className="font-mono text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">80+</p>
+                    <p className="text-[9px] text-neutral-500 uppercase tracking-wider">Insiders</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="px-6 py-5 space-y-3">
+                {[
+                  "Real-time insider detection from 80+ tracked wallets",
+                  "Every signal scored 0-100 based on history and conviction",
+                  "Best odds from 15+ legal US sportsbooks with deep links",
+                  "Follow sharps, build a personalized feed, track their ROI",
+                ].map((text) => (
+                  <div key={text} className="flex gap-2.5 items-start">
+                    <svg className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <span className="text-[13px] text-neutral-600 dark:text-neutral-300 leading-snug">{text}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div className="px-6 pb-6">
+                <Link
+                  href="/pricing"
+                  className="flex items-center justify-center w-full px-6 py-3 bg-sky-600 hover:bg-sky-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all text-sm gap-2"
+                >
+                  Upgrade to Elite — $70/mo
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+                <p className="text-[11px] text-neutral-500 text-center mt-2.5">
+                  7-day free trial. Cancel anytime.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </AppPageLayout>
     );
