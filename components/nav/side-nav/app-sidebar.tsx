@@ -145,8 +145,8 @@ const researchLinks: NavItem[] = [
       { label: "Hit Rates", href: "/cheatsheets/nba/hit-rates" },
       { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
       { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
-      { label: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
-      { label: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet", badge: "NEW" },
+      { label: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet" },
+      { label: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet" },
       { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
   },
