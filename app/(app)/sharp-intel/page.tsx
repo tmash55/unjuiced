@@ -535,9 +535,9 @@ export default function SharpSignalsPage() {
         </div>
       }
     >
-      <div className="flex gap-4 h-[calc(100vh-4rem)] -mb-5">
+      <div className="flex gap-2 sm:gap-4 h-[calc(100vh-4rem)] -mb-5">
         {/* Left Panel — independent scroll */}
-        <div ref={leftPanelRef} className="flex-1 min-w-0 overflow-y-auto rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-3 space-y-2">
+        <div ref={leftPanelRef} className="flex-1 min-w-0 overflow-y-auto sm:rounded-xl bg-white dark:bg-neutral-900 sm:border border-neutral-200/60 dark:border-neutral-800/60 p-2 sm:p-3 space-y-3 sm:space-y-2">
           {/* Picks Tab */}
           {tab === "picks" && (
             <>
