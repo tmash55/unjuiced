@@ -56,13 +56,14 @@ export const tiers = [
   {
     title: TierName.ELITE,
     subtitle: "Every advantage",
-    description: "For serious bettors who want every edge. Everything in Sharp plus Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
+    description: "For serious bettors who want every edge. Everything in Sharp plus Sharp Intel, Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
     monthly: 70,
     yearly: 700,
     ctaText: "Go Elite",
     ctaLink: "/register",
     features: [
       "Everything in Sharp — plus:",
+      "Sharp Intel — real-time insider tracking",
       "Live Arbitrage alerts",
       "Custom Model builder",
       "EV-enhanced hit rates",
@@ -169,6 +170,14 @@ export const pricingTable = [
     ],
   },
   // Elite Features
+  {
+    title: "Sharp Intel",
+    tiers: [
+      { title: TierName.SCOUT, value: <CloseIcon /> },
+      { title: TierName.SHARP, value: <CloseIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
   {
     title: "Live Arbitrage",
     tiers: [

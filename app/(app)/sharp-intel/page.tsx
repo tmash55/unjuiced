@@ -286,23 +286,49 @@ export default function SharpSignalsPage() {
   if (!hasAccess) {
     return (
       <AppPageLayout title="Sharp Intel" subtitle="Real-time insider tracking from prediction markets">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-800/40 border border-neutral-700/30 mb-5">
-            <svg className="h-7 w-7 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+        <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center px-4">
+          {/* Icon */}
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
+            <svg className="h-7 w-7 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-neutral-200 mb-2">Elite feature</h2>
-          <p className="text-neutral-500 mb-6 max-w-md text-sm leading-relaxed">
-            Sharp Intel gives you real-time tracking of prediction market insiders.
-            Upgrade to Elite to unlock this feature.
+
+          <h2 className="text-2xl font-bold text-neutral-100 mb-2 tracking-tight">
+            Unlock Sharp Intel
+          </h2>
+          <p className="text-neutral-400 mb-8 max-w-lg text-sm leading-relaxed">
+            See what the sharpest prediction market bettors are doing — in real time.
+            Every signal scored, every bet matched to the best legal sportsbook odds.
           </p>
+
+          {/* Feature grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mb-8 text-left">
+            {[
+              { icon: "M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z", text: "Real-time insider detection from 80+ wallets" },
+              { icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z", text: "65% win rate, +14% ROI track record" },
+              { icon: "M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: "Best odds from 15+ legal US sportsbooks" },
+              { icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z", text: "Follow sharps and build your own feed" },
+            ].map((f) => (
+              <div key={f.text} className="flex gap-3 items-start">
+                <svg className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={f.icon} />
+                </svg>
+                <span className="text-[13px] text-neutral-300 leading-snug">{f.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
           <Link
             href="/pricing"
-            className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 active:scale-[0.98] text-white font-semibold rounded-lg transition-all"
+            className="px-8 py-3 bg-sky-600 hover:bg-sky-500 active:scale-[0.98] text-white font-semibold rounded-lg transition-all text-sm"
           >
-            Upgrade to Elite
+            Upgrade to Elite — $70/mo
           </Link>
+          <p className="text-xs text-neutral-600 mt-3">
+            Includes everything in Sharp plus Live Arbitrage, Custom Models, and more.
+          </p>
         </div>
       </AppPageLayout>
     );
