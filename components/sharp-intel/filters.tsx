@@ -162,10 +162,97 @@ export function Filters({
 }: FiltersProps) {
   const sports = buildSportsList(availableSports)
 
+  const activeSportLabel = sports.find(s => s.id === selectedSport || (selectedSport === "" && s.id === "all"))?.label || "All"
+  const activeTier = TIERS.find(t => t.id === selectedTier || (selectedTier === "" && t.id === "all"))
+  const activeTierLabel = activeTier?.label || "All"
+
   return (
-    <div className="px-4 py-2 space-y-1.5">
-      {/* Single row: Sports | divider | Tiers | info */}
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+    <div className="px-3 sm:px-4 py-2">
+      {/* ── Mobile: compact dropdowns ── */}
+      <div className="flex sm:hidden items-center gap-2">
+        {/* Sport dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none">
+            {activeSportLabel}
+            <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[140px] p-1">
+            {sports.map((sport) => {
+              const isActive = (selectedSport === sport.id) || (selectedSport === "" && sport.id === "all")
+              return (
+                <button
+                  key={sport.id}
+                  onClick={() => onSportChange(sport.id === "all" ? "" : sport.id)}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                    isActive
+                      ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  {sport.label}
+                </button>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Tier dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-1.5 bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none">
+            {activeTier?.dot && <span className={cn("h-1.5 w-1.5 rounded-full", activeTier.dot)} />}
+            {activeTierLabel}
+            <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[160px] p-1">
+            {TIERS.map((tier) => {
+              const isActive = (selectedTier === tier.id) || (selectedTier === "" && tier.id === "all")
+              return (
+                <button
+                  key={tier.id}
+                  onClick={() => onTierChange(tier.id === "all" ? "" : tier.id)}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-2",
+                    isActive
+                      ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  {tier.dot && <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tier.dot)} />}
+                  {tier.label}
+                </button>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex-1" />
+
+        {/* My Sharps — mobile */}
+        {followedCount > 0 && onToggleMySharps && (
+          <button
+            onClick={onToggleMySharps}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all border",
+              showMySharps
+                ? "bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20"
+                : "bg-white dark:bg-neutral-800/60 text-neutral-500 border-neutral-200 dark:border-neutral-700/30 hover:text-neutral-700 dark:hover:text-neutral-300"
+            )}
+          >
+            <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill={showMySharps ? "currentColor" : "none"} stroke="currentColor" strokeWidth={showMySharps ? 0 : 1.5}>
+              <path d="M8 14s-5.5-3.5-5.5-7A3.5 3.5 0 0 1 8 4a3.5 3.5 0 0 1 5.5 3c0 3.5-5.5 7-5.5 7Z" />
+            </svg>
+            My Sharps
+          </button>
+        )}
+      </div>
+
+      {/* ── Desktop: pill bar ── */}
+      <div className="hidden sm:flex items-center gap-1 overflow-x-auto scrollbar-none">
         {/* Sports */}
         {sports.map((sport) => {
           const isActive = (selectedSport === sport.id) || (selectedSport === "" && sport.id === "all")
@@ -191,13 +278,11 @@ export function Filters({
           )
         })}
 
-        {/* Divider */}
         <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-800/60 mx-1 shrink-0" />
 
         {/* Tiers */}
         {TIERS.map((tier) => {
           const isActive = (selectedTier === tier.id) || (selectedTier === "" && tier.id === "all")
-
           return (
             <button
               key={tier.id}
@@ -238,12 +323,10 @@ export function Filters({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* My Sharps — inline, only when user has followed wallets */}
+        {/* My Sharps — desktop */}
         {followedCount > 0 && onToggleMySharps && (
           <>
             <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-800/60 mx-1 shrink-0" />
-
-            {/* Toggle filter */}
             <button
               onClick={onToggleMySharps}
               className={cn(
@@ -258,8 +341,6 @@ export function Filters({
               </svg>
               My Sharps
             </button>
-
-            {/* Management sheet */}
             <Sheet>
               <SheetTrigger className={cn(
                 "pr-2 pl-0.5 py-1 rounded-r-md text-[11px] transition-all duration-150 outline-none",
@@ -277,7 +358,6 @@ export function Filters({
                     My Sharps ({followedWallets.length})
                   </SheetTitle>
                 </SheetHeader>
-
                 <div className="flex-1 overflow-y-auto px-5 pt-4 pb-8">
                   {followedWallets.length === 0 ? (
                     <div className="text-center py-12">
@@ -301,7 +381,6 @@ export function Filters({
             </Sheet>
           </>
         )}
-
       </div>
     </div>
   )
