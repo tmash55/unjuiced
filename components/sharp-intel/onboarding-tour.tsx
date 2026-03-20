@@ -151,7 +151,147 @@ export function hasOddsForSport(sport: string | null | undefined): boolean {
 
 const TOUR_EVENT = "sharp-intel:restart-tour"
 
+// ── Welcome Modal ──────────────────────────────────────────────
+
+const FEATURES = [
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+      </svg>
+    ),
+    title: "Real-time detection",
+    desc: "We track 80+ wallets on Polymarket — the sharpest, most profitable sports bettors in the world. When they bet, you know within seconds.",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      </svg>
+    ),
+    title: "Every signal scored",
+    desc: "Each bet gets a 0-100 signal score based on the trader's track record, bet size relative to their average, and market timing.",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    title: "Best legal odds",
+    desc: "Every signal is cross-referenced with live odds from 15+ legal US sportsbooks. We show you where to get the best price — and link you straight to the book.",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+      </svg>
+    ),
+    title: "Follow & personalize",
+    desc: "Build your own watchlist of sharps. Track their performance over time and filter your feed to only show picks from insiders you trust.",
+  },
+]
+
+function WelcomeModal({ onStartTour, onSkip }: { onStartTour: () => void; onSkip: () => void }) {
+  return createPortal(
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9998,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      {/* Backdrop */}
+      <div
+        onClick={onSkip}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+      />
+
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20">
+              <svg className="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                Welcome to Sharp Intel
+              </h2>
+              <p className="text-[12px] text-neutral-500 dark:text-neutral-400">
+                Real-time insider tracking from prediction markets
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="px-6 pb-2 space-y-4">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="flex gap-3">
+              <div className="shrink-0 mt-0.5 text-sky-400">
+                {f.icon}
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 mb-0.5">
+                  {f.title}
+                </p>
+                <p className="text-[12px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  {f.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Track record callout */}
+        <div className="mx-6 mt-4 mb-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <div className="flex items-center justify-center gap-6 text-center">
+            <div>
+              <p className="font-mono text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">65%</p>
+              <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Win Rate</p>
+            </div>
+            <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700/30" />
+            <div>
+              <p className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+14%</p>
+              <p className="text-[10px] text-neutral-500 uppercase tracking-wider">ROI</p>
+            </div>
+            <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700/30" />
+            <div>
+              <p className="font-mono text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">80+</p>
+              <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Insiders</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 pb-6 flex items-center justify-between gap-3">
+          <button
+            onClick={onSkip}
+            className="text-[12px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          >
+            Skip, I'll explore
+          </button>
+          <button
+            onClick={onStartTour}
+            className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[13px] font-semibold transition-colors active:scale-95"
+          >
+            Take the tour
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── Tour Component ─────────────────────────────────────────────
+
 export function OnboardingTour() {
+  const [showWelcome, setShowWelcome] = useState(false)
   const [active, setActive] = useState(false)
   const [step, setStep] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
@@ -163,11 +303,11 @@ export function OnboardingTour() {
   const mobile = isMobileViewport()
   const steps = mobile ? TOUR_STEPS.filter(s => !s.desktopOnly) : TOUR_STEPS
 
-  // Auto-show on first visit
+  // Auto-show welcome on first visit
   useEffect(() => {
     const completed = localStorage.getItem(STORAGE_KEY)
     if (!completed) {
-      const timer = setTimeout(() => setActive(true), 2000)
+      const timer = setTimeout(() => setShowWelcome(true), 1500)
       return () => clearTimeout(timer)
     }
   }, [])
@@ -177,7 +317,7 @@ export function OnboardingTour() {
     const handler = () => {
       setStep(0)
       setHighlightRect(null)
-      setActive(true)
+      setShowWelcome(true)
     }
     window.addEventListener(TOUR_EVENT, handler)
     return () => window.removeEventListener(TOUR_EVENT, handler)
@@ -278,6 +418,22 @@ export function OnboardingTour() {
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
   }, [active, next, back, finish])
+
+  // Show welcome modal first, then tour steps
+  if (showWelcome) {
+    return (
+      <WelcomeModal
+        onStartTour={() => {
+          setShowWelcome(false)
+          setActive(true)
+        }}
+        onSkip={() => {
+          setShowWelcome(false)
+          localStorage.setItem(STORAGE_KEY, "true")
+        }}
+      />
+    )
+  }
 
   if (!active || !highlightRect) return null
 
