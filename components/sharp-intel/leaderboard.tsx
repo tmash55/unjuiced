@@ -116,8 +116,90 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
 
   return (
     <div className="space-y-3">
-      {/* Controls */}
-      <div className="flex items-center gap-3 flex-wrap text-xs">
+      {/* ── Mobile controls: dropdowns ── */}
+      <div className="flex sm:hidden items-center gap-2 text-xs">
+        {/* Sort dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none">
+            {SORT_OPTIONS.find(o => o.value === sortBy)?.label || "Rank"}
+            <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[120px] p-1">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setSortBy(opt.value)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  sortBy === opt.value
+                    ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Sport dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none">
+            {SPORT_FILTERS.find(s => s.value === sportFilter)?.label || "All"}
+            <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[120px] p-1">
+            {SPORT_FILTERS.map((sf) => (
+              <button
+                key={sf.value}
+                onClick={() => setSportFilter(sf.value)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  sportFilter === sf.value
+                    ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                )}
+              >
+                {sf.label}
+              </button>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Min bets dropdown */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none">
+              {minBets === 0 ? "Any" : `${minBets}+ bets`}
+              <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[80px]">
+              <DropdownMenuRadioGroup value={String(minBets)} onValueChange={(v) => setMinBets(Number(v))}>
+                {[
+                  { value: "0", label: "Any" },
+                  { value: "5", label: "5+" },
+                  { value: "10", label: "10+" },
+                  { value: "25", label: "25+" },
+                  { value: "50", label: "50+" },
+                ].map((opt) => (
+                  <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
+                    {opt.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* ── Desktop controls: pill bars ── */}
+      <div className="hidden sm:flex items-center gap-3 flex-wrap text-xs">
         {/* Sort */}
         <div className="flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
           {SORT_OPTIONS.map((opt) => (
