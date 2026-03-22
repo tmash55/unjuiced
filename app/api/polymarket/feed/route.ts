@@ -253,6 +253,42 @@ export async function GET(req: NextRequest) {
     // Fetch lifetime stats from Polymarket leaderboard (cached)
     const leaderboardMap = await getLeaderboardMap();
 
+    // Build consensus map: per condition_id+outcome, count unique wallets
+    const consensusMap = new Map<
+      string,
+      { count: number; totalOnMarket: number }
+    >();
+    {
+      // First pass: count unique wallets per condition_id + outcome
+      const marketOutcomes = new Map<
+        string,
+        Map<string, Set<string>>
+      >(); // conditionId -> outcome -> Set<wallet>
+      for (const s of signals) {
+        if (!s.condition_id) continue;
+        if (!marketOutcomes.has(s.condition_id)) {
+          marketOutcomes.set(s.condition_id, new Map());
+        }
+        const outcomes = marketOutcomes.get(s.condition_id)!;
+        const oc = s.outcome || s.side || "unknown";
+        if (!outcomes.has(oc)) outcomes.set(oc, new Set());
+        outcomes.get(oc)!.add(s.wallet_address);
+      }
+      // Second pass: compute counts
+      for (const [condId, outcomes] of marketOutcomes) {
+        const totalWallets = new Set<string>();
+        for (const wallets of outcomes.values()) {
+          for (const w of wallets) totalWallets.add(w);
+        }
+        for (const [oc, wallets] of outcomes) {
+          consensusMap.set(`${condId}::${oc}`, {
+            count: wallets.size,
+            totalOnMarket: totalWallets.size,
+          });
+        }
+      }
+    }
+
     // Filter by tier if specified (applied after join since tier comes from wallet_scores)
     const enriched = signals
       .map((s) => {
@@ -264,6 +300,11 @@ export async function GET(req: NextRequest) {
             : null;
         const bookDecimal = s.best_book_decimal;
         const bookImplied = bookDecimal ? 1 / bookDecimal : null;
+
+        // Look up consensus for this signal
+        const outcomeKey = s.outcome || s.side || "unknown";
+        const consensusKey = `${s.condition_id}::${outcomeKey}`;
+        const consensusData = consensusMap.get(consensusKey);
 
         // Compute composite signal score
         const scoreResult = computeSignalScore({
@@ -281,6 +322,8 @@ export async function GET(req: NextRequest) {
           book_implied: bookImplied,
           quality_score: s.quality_score,
           created_at: s.created_at,
+          consensus_count: consensusData?.count ?? null,
+          consensus_total: consensusData?.totalOnMarket ?? null,
         });
 
         // Normalize market_type and outcome at read-time
@@ -398,6 +441,9 @@ export async function GET(req: NextRequest) {
         const ws = scoreMap.get(base.wallet_address);
         const bookDecimal = base.best_book_decimal;
         const bookImplied = bookDecimal ? 1 / bookDecimal : null;
+        const aggOutcomeKey = base.outcome || base.side || "unknown";
+        const aggConsensusKey = `${base.condition_id}::${aggOutcomeKey}`;
+        const aggConsensusData = consensusMap.get(aggConsensusKey);
         const scoreResult = computeSignalScore({
           tier: base.tier,
           bet_size: totalSize,
@@ -413,6 +459,8 @@ export async function GET(req: NextRequest) {
           book_implied: bookImplied,
           quality_score: base.quality_score,
           created_at: base.created_at,
+          consensus_count: aggConsensusData?.count ?? null,
+          consensus_total: aggConsensusData?.totalOnMarket ?? null,
         });
         base.signal_score = scoreResult.total;
         base.signal_label = scoreResult.label;
