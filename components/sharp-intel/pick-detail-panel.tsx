@@ -250,14 +250,8 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
           {pick.tier === "sharp" ? "Sharp" : pick.tier === "whale" ? "Insider" : "New Account"}
         </p>
         <div className="flex items-center gap-2 flex-wrap text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
-        {pick.wallet_total_trades != null && (
-          <span><span className="font-mono text-neutral-600 dark:text-neutral-400">{pick.wallet_total_trades.toLocaleString()}</span> trades</span>
-        )}
-        {pick.wallet_total_bets != null && (
-          <>
-            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-            <span><span className="font-mono text-neutral-600 dark:text-neutral-400">{pick.wallet_total_bets}</span> tracked {pick.wallet_record && <span className="text-neutral-500">({pick.wallet_record})</span>}</span>
-          </>
+        {(pick.wallet_total_trades != null || pick.wallet_total_bets != null) && (
+          <span><span className="font-mono text-neutral-600 dark:text-neutral-400">{((pick.wallet_total_trades ?? 0) + (pick.wallet_total_bets ?? 0)).toLocaleString()}</span> trades{pick.wallet_record && <span className="text-neutral-500"> ({pick.wallet_record})</span>}</span>
         )}
         {pick.wallet_roi != null && (
           <>
