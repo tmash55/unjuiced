@@ -125,17 +125,15 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
 
       {/* Data transparency — Polymarket history vs our tracked */}
       <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 divide-y divide-neutral-200/60 dark:divide-neutral-700/30 mb-5">
-        {wallet.poly_total_trades != null && (
-          <Tooltip content="Total trades this wallet has made on Polymarket across all markets, backfilled from their public history." side="left">
-            <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
-              <span className="text-neutral-500">All-time trades</span>
-              <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
-                {wallet.poly_total_trades.toLocaleString()}
-              </span>
-            </div>
-          </Tooltip>
-        )}
-        <Tooltip content="The number of sports bets we've tracked in real-time from this wallet. Win-loss record is based only on these tracked bets." side="left">
+        <Tooltip content="Total trades: historical from Polymarket + sports bets tracked by us in real-time. This number grows daily as we track new bets." side="left">
+          <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
+            <span className="text-neutral-500">Total trades</span>
+            <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
+              {((wallet.poly_total_trades ?? 0) + wallet.wins + wallet.losses).toLocaleString()}
+            </span>
+          </div>
+        </Tooltip>
+        <Tooltip content="Sports bets we've tracked in real-time from this wallet. Win-loss record is verified on-chain." side="left">
           <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
             <span className="text-neutral-500">Sports tracked</span>
             <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
