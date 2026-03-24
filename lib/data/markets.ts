@@ -590,18 +590,22 @@ export interface SportMarket {
     { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3_way", group: "Game", period: "full" },
     { value: "Home Team Total", label: "Home Team Total", apiKey: "team_total_home_team", group: "Game", period: "full" },
     { value: "Away Team Total", label: "Away Team Total", apiKey: "team_total_away_team", group: "Game", period: "full" },
+    { value: "Team Total Runs", label: "Team Total Runs", apiKey: "team_total_runs", group: "Game", period: "full" },
     { value: "Extra Innings", label: "Extra Innings?", apiKey: "extra_innings", group: "Game", period: "full", singleLine: true },
     { value: "First Team to Score", label: "First Team to Score", apiKey: "first_team_to_score", group: "Game", period: "full", singleLine: true },
+    { value: "Second Team to Score", label: "Second Team to Score", apiKey: "second_team_to_score", group: "Game", period: "full", singleLine: true },
 
     // 1st Inning (NRFI)
     { value: "1st Inning ML", label: "1st Inning ML", apiKey: "1st_inning_moneyline", group: "1st Inning", period: "full" },
     { value: "1st Inning Run Line", label: "1st Inning Run Line", apiKey: "1st_inning_run_line", group: "1st Inning", period: "full" },
     { value: "1st Inning Total", label: "1st Inning Total", apiKey: "1st_inning_total_runs", group: "1st Inning", period: "full" },
+    { value: "1st Inning 3-Way", label: "1st Inning 3-Way", apiKey: "1st_inning_moneyline_3_way", group: "1st Inning", period: "full" },
 
     // First 5 Innings
     { value: "F5 Moneyline", label: "F5 Moneyline", apiKey: "1st_5_innings_moneyline", group: "First 5", period: "full" },
     { value: "F5 Run Line", label: "F5 Run Line", apiKey: "1st_5_innings_run_line", group: "First 5", period: "full" },
     { value: "F5 Total Runs", label: "F5 Total Runs", apiKey: "1st_5_innings_total_runs", group: "First 5", period: "full" },
+    { value: "F5 3-Way", label: "F5 3-Way", apiKey: "1st_5_innings_moneyline_3_way", group: "First 5", period: "full" },
     { value: "F5 Home Total", label: "F5 Home Total", apiKey: "1st_5_innings_home_team_total_runs", group: "First 5", period: "full" },
     { value: "F5 Away Total", label: "F5 Away Total", apiKey: "1st_5_innings_away_team_total_runs", group: "First 5", period: "full" },
 
