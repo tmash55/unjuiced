@@ -71,17 +71,17 @@ const SPORTS: SportConfig[] = [
   { id: "tennis_utr_men", label: "UTR Men" },
   { id: "tennis_utr_women", label: "UTR Women" },
   { id: "ufc", label: "UFC" },
+  { id: "mlb", label: "MLB" },
   // Off season
-  { id: "mlb", label: "MLB", disabled: false },
   { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
   { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
 
-const LEADING_SPORT_IDS = ["nba", "ncaab", "nhl", "ncaabaseball"] as const;
+const LEADING_SPORT_IDS = ["nba", "mlb", "ncaab", "nhl", "ncaabaseball"] as const;
 const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
 const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
-const TRAILING_SPORT_IDS = ["ufc", "mlb", "wnba", "ncaaf", "nfl"] as const;
+const TRAILING_SPORT_IDS = ["ufc", "wnba", "ncaaf", "nfl"] as const;
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
 interface MarketTab {
@@ -183,7 +183,9 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
   tennis_utr_women: [],
   tennis_wta: [],
   ufc: [],
-  mlb: [],
+  mlb: [
+    { id: "total_bases", label: "Total Bases", apiKey: "player_total_bases", type: "player" },
+  ],
   wnba: [],
 };
 

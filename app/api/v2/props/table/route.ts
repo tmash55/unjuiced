@@ -792,6 +792,24 @@ const MARKET_SCAN_ALIASES: Record<string, string[]> = {
   
   // Steals + Blocks combo
   "player_steals_blocks": ["player_sb", "sb", "steals_blocks"],
+
+  // MLB - Redis uses batter_*/pitcher_* naming, UI uses player_* naming
+  "player_total_bases": ["batter_total_bases", "total_bases"],
+  "player_hits": ["batter_hits"],
+  "player_home_runs": ["batter_home_runs"],
+  "player_rbis": ["batter_rbis"],
+  "player_runs": ["batter_runs_scored", "batter_runs"],
+  "player_stolen_bases": ["batter_stolen_bases"],
+  "player_singles": ["batter_singles"],
+  "player_doubles": ["batter_doubles"],
+  "player_triples": ["batter_triples"],
+  "player_hits__runs__rbis": ["batter_hits_runs_rbis"],
+  "player_strikeouts": ["pitcher_strikeouts", "pitcher_ks"],
+  "player_earned_runs": ["pitcher_earned_runs"],
+  "player_hits_allowed": ["pitcher_hits_allowed"],
+  "player_walks_allowed": ["pitcher_walks_allowed"],
+  "player_outs": ["pitcher_outs", "pitcher_outs_recorded"],
+  "player_batting_strikeouts": ["batter_strikeouts", "batter_ks"],
 };
 
 /**
@@ -1175,6 +1193,22 @@ async function buildPropsRows(
     return { sids: [], rows: [], normalizedMarket: market };
   }
 
+  // 2b. Deduplicate events: some books (e.g., Bovada) use different event IDs
+  // for the same game. Merge by homeTeam + awayTeam + date so odds appear on one row.
+  const eventDedupMap = new Map<string, string>(); // duplicateId -> primaryId
+  const eventsByGame = new Map<string, string>(); // "homeTeam|awayTeam|date" -> primaryEventId
+  for (const [id, ev] of eventMap) {
+    const dateStr = ev.startTime ? ev.startTime.slice(0, 10) : "";
+    const gameKey = `${ev.homeTeam.toLowerCase()}|${ev.awayTeam.toLowerCase()}|${dateStr}`;
+    const existing = eventsByGame.get(gameKey);
+    if (existing) {
+      // This is a duplicate — map it to the primary event
+      eventDedupMap.set(id, existing);
+    } else {
+      eventsByGame.set(gameKey, id);
+    }
+  }
+
   // 3. OPTIMIZATION: Get odds keys scoped to active events + specific market
   // Uses focused per-event scans instead of a massive global odds_keys set
   // Pattern: odds:{sport}:{eventId}:{market}:* for each active event
@@ -1280,12 +1314,13 @@ async function buildPropsRows(
   // Also collect ALL available lines per entity+book for closest line fallback
   for (const [key, selections] of oddsDataMap) {
     const parts = key.split(":");
-    const eventId = parts[2];
+    const rawEventId = parts[2];
+    const eventId = eventDedupMap.get(rawEventId) || rawEventId;
     const rawBook = parts[4];
-    
+
     // Skip excluded books (Canada, regional variants)
     if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) continue;
-    
+
     const book = normalizeBookId(rawBook);
 
     if (!eventMap.has(eventId)) continue;
@@ -1356,12 +1391,13 @@ async function buildPropsRows(
   // PASS 2: Build rows using main lines OR canonical main line for books without main=true
   for (const [key, selections] of oddsDataMap) {
     const parts = key.split(":");
-    const eventId = parts[2];
+    const rawEventId = parts[2];
+    const eventId = eventDedupMap.get(rawEventId) || rawEventId;
     const rawBook = parts[4];
-    
+
     // Skip excluded books (Canada, regional variants)
     if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) continue;
-    
+
     const book = normalizeBookId(rawBook);
 
     const event = eventMap.get(eventId);
