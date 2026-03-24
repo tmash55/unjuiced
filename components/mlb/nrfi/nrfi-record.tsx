@@ -52,8 +52,23 @@ export function NRFIRecord({
     xl: "text-xs",
   }[size];
 
+  // Large sizes: stack record on top, label + pct below
+  if (size === "lg" || size === "xl") {
+    return (
+      <div className={cn("flex flex-col items-center gap-0.5", className)}>
+        <span className={cn("font-black tabular-nums text-neutral-900 dark:text-white leading-none", recordSize)}>
+          {record}
+        </span>
+        <span className={cn("text-neutral-400 dark:text-neutral-500", pctSize)}>
+          {label && <span className="font-semibold uppercase tracking-wider">{label}</span>}
+          {showPct && pct && <span className="ml-1 tabular-nums">({pct}%)</span>}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
+    <span className={cn("inline-flex items-baseline gap-1", className)}>
       <span className={cn("font-black tabular-nums text-neutral-900 dark:text-white leading-none", recordSize)}>
         {record}
       </span>
