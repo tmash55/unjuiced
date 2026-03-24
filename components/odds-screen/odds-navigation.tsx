@@ -624,7 +624,6 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "decision_only", label: "Decision Only", apiKey: "moneyline_decision_only", type: "game" },
     { id: "r1_finish", label: "1R Finish", apiKey: "1st_round_moneyline_finish_only", type: "game" },
   ],
-  mlb: [],
   wnba: [],
 };
 
