@@ -415,6 +415,38 @@ export async function GET(req: NextRequest) {
 
     // ── Step 3: Worker not populated yet → return 503 with retry hint ────────
     if (!workerDataFound && allRows.length === 0) {
+      // Check if the worker is alive globally — any sport/preset having data
+      // means the worker is running but the requested sports simply have no EV rows.
+      let workerAliveGlobally = false;
+      const WORKER_PROBE_SPORTS = ["nba", "nhl", "ncaab", "nfl", "mlb"];
+      for (const probeSport of WORKER_PROBE_SPORTS) {
+        try {
+          const count = await redis.hlen(`ev:${probeSport}:rows:pinnacle`);
+          if (typeof count === "number" && count > 0) {
+            workerAliveGlobally = true;
+            break;
+          }
+        } catch (_) { /* ignore */ }
+      }
+
+      // Worker is running but requested sports have no data — return empty, not 503
+      if (workerAliveGlobally) {
+        return NextResponse.json({
+          opportunities: [],
+          meta: {
+            totalFound: 0,
+            returned: 0,
+            sharpPreset: customSharpConfig ? "custom" : sharpPreset,
+            devigMethods,
+            minEV,
+            minBooksPerSide,
+            mode,
+            timestamp: new Date().toISOString(),
+            emptyReason: "no_data_for_sports",
+          },
+        });
+      }
+
       if (!customSharpConfig) {
         for (const sport of sports) {
           for (const preset of REFERENCE_PRESET_SUGGESTIONS) {

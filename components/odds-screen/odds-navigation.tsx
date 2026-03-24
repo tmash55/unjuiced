@@ -72,7 +72,7 @@ const SPORTS: SportConfig[] = [
   { id: "tennis_utr_women", label: "UTR Women" },
   { id: "ufc", label: "UFC" },
   // Off season
-  { id: "mlb", label: "MLB", disabled: true, disabledReason: "Off Season" },
+  { id: "mlb", label: "MLB", disabled: false },
   { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
   { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
@@ -421,13 +421,13 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
   ],
   mlb: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
-    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
   ],
   ncaabaseball: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
-    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
   ],
   soccer_epl: SOCCER_CORE_PRIMARY_GAME_MARKETS,
   soccer_laliga: SOCCER_CORE_PRIMARY_GAME_MARKETS,

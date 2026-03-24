@@ -100,7 +100,7 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
+  { label: "MLB", href: "/odds/mlb", disabled: false },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]

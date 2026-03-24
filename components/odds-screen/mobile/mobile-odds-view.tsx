@@ -29,7 +29,7 @@ const SPORTS = [
   { key: "tennis_utr_men", label: "UTR Men" },
   { key: "tennis_utr_women", label: "UTR Women" },
   { key: "ufc", label: "UFC" },
-  { key: "mlb", label: "MLB", disabled: true },
+  { key: "mlb", label: "MLB", disabled: false },
   { key: "wnba", label: "WNBA", disabled: true },
   { key: "ncaaf", label: "NCAAF", disabled: true },
   { key: "nfl", label: "NFL", disabled: true },
