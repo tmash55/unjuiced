@@ -318,47 +318,41 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
   return (
     <div
       className={cn(
-        "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 border-l-2 shadow-xl shadow-black/5 dark:shadow-black/30",
+        "rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 border-l-2",
         lm.accent
       )}
     >
       {/* ── Header ── */}
       <button
         onClick={onCollapse}
-        className="w-full text-left px-6 pt-5 pb-4 flex items-start justify-between gap-3 cursor-pointer group"
+        className="w-full text-left px-5 pt-4 pb-3 flex items-start justify-between gap-3 cursor-pointer group"
       >
         <div className="flex flex-col gap-1 min-w-0">
-          <span className={cn("text-sm font-black tracking-tight leading-none", lm.text)}>
+          <span className={cn("text-[11px] font-bold tracking-wide uppercase", lm.text)}>
             {getLeanLabel(game.lean)}
           </span>
-          <h3 className="flex items-center gap-2 text-lg font-bold text-neutral-900 dark:text-white tracking-tight leading-snug">
-            <TeamLogo abbr={game.awayTricode} size={24} />
+          <h3 className="flex items-center gap-1.5 text-base font-bold text-neutral-900 dark:text-white tracking-tight leading-snug">
+            <TeamLogo abbr={game.awayTricode} size={22} />
             {game.awayTeam}
-            <span className="font-normal text-neutral-400 dark:text-neutral-500">@</span>
-            <TeamLogo abbr={game.homeTricode} size={24} />
+            <span className="font-normal text-neutral-400 dark:text-neutral-500 text-xs">@</span>
+            <TeamLogo abbr={game.homeTricode} size={22} />
             {game.homeTeam}
           </h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <Clock className="w-3 h-3 text-neutral-400 shrink-0" />
-            <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{game.gameTime}</span>
-          </div>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{game.gameTime}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className={cn("px-3 py-1.5 rounded-lg text-2xl font-black tabular-nums leading-none", lm.badge)}>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={cn("px-2.5 py-1 rounded-lg text-xl font-black tabular-nums leading-none", lm.badge)}>
             {game.grade}
           </span>
-          <div className="flex items-center gap-1 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
-            <span className="text-xs font-medium">Collapse</span>
-            <ChevronUp className="w-3.5 h-3.5" />
-          </div>
+          <ChevronUp className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
         </div>
       </button>
 
       {/* ── Grade rationale strip ── */}
-      <div className={cn("mx-6 mb-5 rounded-xl border", lm.bg)}>
-        <div className="px-5 py-3 grid grid-cols-[1fr_auto] gap-6 items-center">
-          <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">{game.gradeExplanation}</p>
-          <div className="flex flex-col gap-1.5 min-w-[240px]">
+      <div className={cn("mx-5 mb-4 rounded-lg border p-4", lm.bg)}>
+        <div className="grid grid-cols-[1fr_auto] gap-5 items-center">
+          <p className="text-[13px] text-neutral-700 dark:text-neutral-300 leading-relaxed">{game.gradeExplanation}</p>
+          <div className="flex flex-col gap-1.5 min-w-[220px]">
             <ScoreMeter label="Pitching" value={game.componentScores.pitching} barColor={lm.bar} />
             <ScoreMeter label="Offense" value={game.componentScores.offense} barColor={lm.bar} />
             <ScoreMeter label="Environment" value={game.componentScores.environment} barColor={lm.bar} />
@@ -368,7 +362,7 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
       </div>
 
       {/* ── Main 3-column body ── */}
-      <div className="px-6 pb-6 grid grid-cols-3 gap-5">
+      <div className="px-5 pb-5 grid grid-cols-3 gap-4">
 
         {/* ── COL 1: Starting Pitchers ── */}
         <div className="flex flex-col gap-3">
@@ -416,7 +410,7 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
                     <span>— no weather impact</span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-px bg-neutral-200 dark:bg-neutral-700">
+                  <div className="grid grid-cols-2 gap-px bg-neutral-200/50 dark:bg-neutral-700/30">
                     {game.weather.temperatureF != null && (
                       <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800/80">
                         <Thermometer className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
@@ -481,7 +475,7 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
               )}
               {/* Wind direction label */}
               {game.weather && game.weather.roofType !== "dome" && game.weather.windLabel && game.weather.windSpeedMph != null && game.weather.windSpeedMph >= 5 && (
-                <div className="px-3 py-2 border-t border-neutral-200 dark:border-neutral-700 flex items-center gap-2">
+                <div className="px-3 py-2 border-t border-neutral-200/50 dark:border-neutral-700/30 flex items-center gap-2">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">Direction</span>
                   <span className={cn(
                     "text-[11px] font-semibold",
@@ -496,15 +490,15 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
             </div>
             {/* Park factor + status badges */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 whitespace-nowrap">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
                 {game.parkFactor}
               </span>
               <span
                 className={cn(
-                  "px-2 py-0.5 rounded text-[11px] font-medium border whitespace-nowrap",
+                  "px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap",
                   game.lineupStatus === "Confirmed"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400"
                 )}
               >
                 {game.lineupStatus} lineups
@@ -557,35 +551,35 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
 
             {/* Sportsbook rows */}
             {game.sportsbooks.length > 0 && (
-              <div className="flex flex-col px-2 pt-3 pb-2 flex-1 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-col px-2 pt-2 pb-1.5 flex-1">
                 {/* Column header */}
-                <div className="flex items-center px-3 pb-2 mb-1 border-b border-neutral-100 dark:border-neutral-800">
-                  <span className="text-[10px] text-neutral-400 uppercase tracking-widest font-semibold flex-1">Book</span>
-                  <span className="text-[10px] text-emerald-600/50 dark:text-emerald-400/50 uppercase tracking-widest font-semibold w-16 text-right">NRFI</span>
-                  <span className="text-[10px] text-red-500/50 dark:text-red-400/50 uppercase tracking-widest font-semibold w-16 text-right">YRFI</span>
-                  <span className="w-16" />
+                <div className="flex items-center px-3 pb-1.5 mb-1 border-b border-neutral-200/40 dark:border-neutral-700/20">
+                  <span className="text-[9px] text-neutral-400 uppercase tracking-widest font-semibold flex-1">Book</span>
+                  <span className="text-[9px] text-emerald-600/60 dark:text-emerald-400/60 uppercase tracking-widest font-semibold w-14 text-right">NRFI</span>
+                  <span className="text-[9px] text-red-500/60 dark:text-red-400/60 uppercase tracking-widest font-semibold w-14 text-right">YRFI</span>
+                  <span className="w-14" />
                 </div>
                 {game.sportsbooks.map((book) => (
                   <div
                     key={book.name}
-                    className="flex items-center py-2.5 px-3 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
+                    className="flex items-center py-2 px-3 rounded-md hover:bg-neutral-100/80 dark:hover:bg-neutral-800/30 transition-colors"
                   >
-                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 flex-1 min-w-0 truncate">
+                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 flex-1 min-w-0 truncate">
                       {book.name}
                     </span>
-                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-16 text-right shrink-0">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-14 text-right shrink-0 font-mono">
                       {book.nrfiOdds}
                     </span>
-                    <span className="text-sm font-bold text-red-500 dark:text-red-400 tabular-nums w-16 text-right shrink-0">
+                    <span className="text-xs font-bold text-red-500 dark:text-red-400 tabular-nums w-14 text-right shrink-0 font-mono">
                       {book.yrfiOdds}
                     </span>
-                    <div className="w-16 flex justify-end shrink-0">
+                    <div className="w-14 flex justify-end shrink-0">
                       <a
                         href={book.link}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-brand text-white hover:bg-brand/90 transition-opacity"
+                        className="rounded-md bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors"
                       >
-                        Bet <ExternalLink className="w-3 h-3" />
+                        Bet
                       </a>
                     </div>
                   </div>
