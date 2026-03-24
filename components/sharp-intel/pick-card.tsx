@@ -40,7 +40,11 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
   })()
   const selection = pick.outcome
   const amount = pick.bet_size
-  const price = Math.round(pick.entry_price * 100)
+  // For SELL trades on moneyline, the effective bet is AGAINST the outcome
+  const isSell = (pick.side || "").toUpperCase() === "SELL"
+  // For SELL trades, the effective price is the complement (betting on the other side)
+  const rawPrice = Math.round(pick.entry_price * 100)
+  const price = isSell ? (100 - rawPrice) : rawPrice
   const multiplier = pick.stake_vs_avg?.toFixed(1) || "1.0"
   const walletDisplay = pick.wallet_address
     ? `#${pick.wallet_address.slice(0, 4).toUpperCase()}`
@@ -71,8 +75,17 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
       // Use the outcome (selection) to determine Over/Under, not the side
       // On Polymarket, BUY just means they bought that token — could be Over or Under
       const selLower = selection.toLowerCase()
-      const ou = selLower.includes("under") || selLower === "no" ? "Under" : "Over"
+      const isUnder = selLower.includes("under") || selLower === "no"
+      // SELL flips: SELL Under = Over, SELL Over = Under
+      const ou = isSell ? (isUnder ? "Over" : "Under") : (isUnder ? "Under" : "Over")
       return line ? `${ou} ${line}` : ou
+    }
+    // For moneyline SELL, show opposing team if available
+    if (isSell) {
+      const opp = selection === pick.home_team ? pick.away_team
+        : selection === pick.away_team ? pick.home_team
+        : null
+      return opp || `Against ${selection}`
     }
     return selection
   })()

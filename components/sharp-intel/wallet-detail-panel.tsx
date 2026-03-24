@@ -214,7 +214,17 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
                   <div className="min-w-0 flex-1">
                     <p className="text-neutral-700 dark:text-neutral-300 truncate leading-snug">{bet.market_title}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-[11px]">
-                      <span className="text-neutral-500">{bet.outcome}</span>
+                      <span className="text-neutral-500">
+                        {bet.side === "SELL"
+                          ? (() => {
+                              // SELL = betting against this outcome, show opposing team
+                              const opp = bet.outcome === bet.home_team ? bet.away_team
+                                : bet.outcome === bet.away_team ? bet.home_team
+                                : null
+                              return opp ? `Against ${bet.outcome}` : bet.outcome
+                            })()
+                          : bet.outcome}
+                      </span>
                       {bet.result && (
                         <span className={cn(
                           "font-mono font-medium",
