@@ -38,32 +38,62 @@ function computeConsensus(signals: Array<{
   bet_size: number | null;
   result: string | null;
   entry_price: number | null;
+  outcome?: string | null;
+  home_team?: string | null;
+  away_team?: string | null;
   [key: string]: any;
 }>): TierStats {
-  const marketSides = new Map<string, { totalFlow: number; result: string; entries: number[] }>();
-  for (const s of signals) {
+  // Normalize signals: convert SELL trades to their effective direction
+  // SELL "Team A" = BUY "Team B" (opposing team)
+  // SELL result is inverted: SELL result=win means the outcome DIDN'T happen
+  const normalized = signals.map(s => {
+    if (s.side === "SELL") {
+      // Flip outcome to opposing team for grouping
+      const outcome = s.outcome || "";
+      let effectiveOutcome = outcome;
+      if (outcome === s.home_team && s.away_team) effectiveOutcome = s.away_team;
+      else if (outcome === s.away_team && s.home_team) effectiveOutcome = s.home_team;
+      else if (outcome.toLowerCase() === "over") effectiveOutcome = "Under";
+      else if (outcome.toLowerCase() === "under") effectiveOutcome = "Over";
+      else effectiveOutcome = `Against ${outcome}`;
+
+      // Flip result: SELL win = the outcome lost (game result perspective)
+      const effectiveResult = s.result === "win" ? "loss" : s.result === "loss" ? "win" : s.result;
+
+      // Effective entry price is complement
+      const effectiveEntry = s.entry_price != null ? 1 - s.entry_price : null;
+
+      return { ...s, outcome: effectiveOutcome, result: effectiveResult, entry_price: effectiveEntry, _isSell: true };
+    }
+    return { ...s, _isSell: false };
+  });
+
+  const marketSides = new Map<string, { totalFlow: number; result: string; entries: number[]; isSell: boolean[] }>();
+  for (const s of normalized) {
     if (!s.condition_id || !s.result) continue;
-    // Group by condition_id + outcome (team/side picked), NOT by BUY/SELL side
-    const outcomeKey = s.outcome || s.side || "unknown";
+    const outcomeKey = s.outcome || "unknown";
     const key = `${s.condition_id}::${outcomeKey}`;
     const existing = marketSides.get(key);
     if (existing) {
       existing.totalFlow += s.bet_size ?? 0;
       existing.entries.push(s.entry_price ?? 0);
+      existing.isSell.push(!!s._isSell);
+      // Use most recent result (all signals in same group should agree now)
     } else {
       marketSides.set(key, {
         totalFlow: s.bet_size ?? 0,
         result: s.result,
         entries: [s.entry_price ?? 0],
+        isSell: [!!s._isSell],
       });
     }
   }
 
-  const markets = new Map<string, { sides: { side: string; flow: number; result: string; entries: number[] }[] }>();
+  const markets = new Map<string, { sides: { side: string; flow: number; result: string; entries: number[]; isSell: boolean[] }[] }>();
   for (const [key, val] of marketSides) {
     const [condId, side] = key.split("::");
     if (!markets.has(condId)) markets.set(condId, { sides: [] });
-    markets.get(condId)!.sides.push({ side, flow: val.totalFlow, result: val.result, entries: val.entries });
+    markets.get(condId)!.sides.push({ side, flow: val.totalFlow, result: val.result, entries: val.entries, isSell: val.isSell });
   }
 
   let wins = 0, losses = 0, totalRoiSum = 0, totalPnl100 = 0;
@@ -150,7 +180,7 @@ export async function GET(req: NextRequest) {
     // Fetch all resolved signals
     let query = supabase
       .from("polymarket_signals")
-      .select("condition_id, side, outcome, bet_size, result, entry_price, created_at, tier, sport, wallet_address")
+      .select("condition_id, side, outcome, bet_size, result, entry_price, created_at, tier, sport, wallet_address, home_team, away_team")
       .eq("resolved", true)
       .not("result", "is", null);
 
