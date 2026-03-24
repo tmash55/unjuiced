@@ -238,61 +238,54 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
       onClick={onExpand}
       className={cn(
         "w-full text-left group",
-        "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 border-l-2",
+        "rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 border-l-2",
         lm.accent,
-        "p-5 flex flex-col gap-4",
-        "transition-all duration-200",
-        "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/10 dark:hover:shadow-black/30 hover:border-neutral-300 dark:hover:border-neutral-700",
-        "cursor-pointer"
+        "p-4 flex flex-col gap-3",
+        "transition-colors duration-150",
+        "hover:border-neutral-300 dark:hover:border-neutral-700/60",
+        "cursor-pointer active:scale-[0.998]"
       )}
     >
       {/* Row 1: Lean + matchup + grade */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1 min-w-0">
-          <span className={cn("text-sm font-black tracking-tight leading-none", lm.text)}>
+          <span className={cn("text-[11px] font-bold tracking-wide uppercase", lm.text)}>
             {getLeanLabel(game.lean)}
           </span>
-          <h3 className="flex items-center gap-1.5 text-base font-bold text-neutral-900 dark:text-white tracking-tight leading-snug">
-            <TeamLogo abbr={game.awayTricode} size={22} />
+          <h3 className="flex items-center gap-1.5 text-sm font-bold text-neutral-900 dark:text-white tracking-tight leading-snug">
+            <TeamLogo abbr={game.awayTricode} size={20} />
             {game.awayTeam}
-            <span className="font-normal text-neutral-400 dark:text-neutral-500">@</span>
-            <TeamLogo abbr={game.homeTricode} size={22} />
+            <span className="font-normal text-neutral-400 dark:text-neutral-500 text-xs">@</span>
+            <TeamLogo abbr={game.homeTricode} size={20} />
             {game.homeTeam}
           </h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <Clock className="w-3 h-3 text-neutral-400 shrink-0" />
-            <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{game.gameTime}</span>
-          </div>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{game.gameTime}</span>
         </div>
-        <span className={cn("px-3 py-1.5 rounded-lg text-2xl font-black tabular-nums leading-none shrink-0", lm.badge)}>
+        <span className={cn("px-2.5 py-1 rounded-lg text-xl font-black tabular-nums leading-none shrink-0", lm.badge)}>
           {game.grade}
         </span>
       </div>
 
-      {/* Row 2: Pitcher pairing — W-L format */}
-      <div className="flex items-stretch rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30">
-        <div className="flex-1 flex flex-col items-center gap-1 px-3 py-2.5">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate">{game.awayPitcher.name}</span>
-          <NRFIRecord record={game.awayPitcher.scorelessRecord} showPct={false} size="md" className="justify-center" />
-          <StreakBadge recentStarts={game.awayPitcher.recentStarts} />
+      {/* Row 2: Pitcher pairing — W-L records */}
+      <div className="flex items-center rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30">
+        <div className="flex-1 text-center py-2.5 px-3">
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate mb-1">{game.awayPitcher.name}</p>
+          <NRFIRecord record={game.awayPitcher.scorelessRecord} showPct={false} size="sm" className="justify-center" />
         </div>
-        <div className="flex flex-col items-center justify-center px-2 border-x border-neutral-200/50 dark:border-neutral-700/30">
-          <span className="text-[10px] text-neutral-400 font-medium">vs</span>
-        </div>
-        <div className="flex-1 flex flex-col items-center gap-1 px-3 py-2.5">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate">{game.homePitcher.name}</span>
-          <NRFIRecord record={game.homePitcher.scorelessRecord} showPct={false} size="md" className="justify-center" />
-          <StreakBadge recentStarts={game.homePitcher.recentStarts} />
+        <span className="text-[10px] text-neutral-300 dark:text-neutral-600 px-1">vs</span>
+        <div className="flex-1 text-center py-2.5 px-3">
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate mb-1">{game.homePitcher.name}</p>
+          <NRFIRecord record={game.homePitcher.scorelessRecord} showPct={false} size="sm" className="justify-center" />
         </div>
       </div>
 
-      {/* Row 3: Tags */}
+      {/* Row 3: Tags — compact */}
       {game.reasonTags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1">
           {game.reasonTags.map((tag) => (
             <span
               key={tag}
-              className="px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 tracking-tight whitespace-nowrap"
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400 whitespace-nowrap"
             >
               {tag}
             </span>
@@ -301,34 +294,19 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
       )}
 
       {/* Row 4: Odds + expand cue */}
-      <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-3">
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-              {lm.isNrfi ? "Rec. NRFI" : lm.isYrfi ? "Rec. YRFI" : "NRFI"}
-            </span>
-            <span
-              className={cn(
-                "text-xl font-black tabular-nums leading-none",
-                lm.text
-              )}
-            >
-              {lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds}
-            </span>
-          </div>
-          <div className="flex flex-col gap-0.5 opacity-40">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-widest">
-              {lm.isNrfi ? "YRFI" : "NRFI"}
-            </span>
-            <span className="text-sm font-semibold tabular-nums text-neutral-500">
-              {lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds}
-            </span>
-          </div>
+      <div className="flex items-center justify-between pt-2 border-t border-neutral-200/40 dark:border-neutral-700/20">
+        <div className="flex items-center gap-3">
+          <span className={cn("font-mono text-lg font-black tabular-nums leading-none", lm.text)}>
+            {lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds}
+          </span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">
+            {lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI"}
+          </span>
+          <span className="font-mono text-xs text-neutral-400 dark:text-neutral-600 tabular-nums">
+            {lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds}
+          </span>
         </div>
-        <div className="flex items-center gap-1 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
-          <span className="text-xs font-medium tracking-wide">Details</span>
-          <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-        </div>
+        <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
       </div>
     </button>
   );
