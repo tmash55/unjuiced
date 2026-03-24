@@ -37,9 +37,10 @@ const QuerySchema = z.object({
 // ── Helpers (same as game-matchup) ──────────────────────────────────────────
 
 function getCurrentSeason(): number {
+  // Use prior year until April to avoid spring training data pollution.
   const now = new Date();
-  const month = now.getMonth();
-  return month < 2 ? now.getFullYear() - 1 : now.getFullYear();
+  const month = now.getMonth(); // 0-indexed: 0=Jan, 3=Apr
+  return month < 3 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
 function getSampleDateCutoff(sample: string): string | null {

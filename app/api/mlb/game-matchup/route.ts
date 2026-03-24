@@ -247,9 +247,12 @@ function getETDate(): string {
 }
 
 function getCurrentSeason(): number {
+  // Use prior year until April to avoid spring training data pollution.
+  // Spring training batted balls have tiny samples that produce misleading stats.
+  // Regular season data typically starts flowing late March / early April.
   const now = new Date();
-  const month = now.getMonth();
-  return month < 2 ? now.getFullYear() - 1 : now.getFullYear();
+  const month = now.getMonth(); // 0-indexed: 0=Jan, 3=Apr
+  return month < 3 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
 /**
