@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown, X } from "lucide-react";
-import { type NbaGame } from "@/hooks/use-nba-games";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import {
   DropdownMenu,
@@ -20,8 +19,24 @@ export const normalizeGameId = (id: string | number | null | undefined): string 
   return String(id).replace(/^0+/, "") || "0";
 };
 
+interface HitRateGame {
+  game_id: string;
+  game_date: string;
+  home_team_name: string;
+  away_team_name: string;
+  home_team_tricode: string;
+  away_team_tricode: string;
+  home_team_score: number | null;
+  away_team_score: number | null;
+  game_status: string;
+  is_primetime: boolean | null;
+  national_broadcast: string | null;
+  neutral_site: boolean | null;
+  season_type: string | null;
+}
+
 // Check if a game has started
-export const hasGameStarted = (game: NbaGame): boolean => {
+export const hasGameStarted = (game: HitRateGame): boolean => {
   const status = game.game_status?.toLowerCase() || "";
   if (status.includes("final")) return true;
   if (/^\d+-\d+$/.test(status) || /^q[1-4]/i.test(status) || status.includes("halftime") || status.includes("ot")) {
@@ -88,7 +103,8 @@ const getDayLabel = (gameDate: string): string => {
 };
 
 interface GamesFilterDropdownProps {
-  games: NbaGame[];
+  sport?: "nba" | "mlb";
+  games: HitRateGame[];
   className?: string;
   // Multi-select mode (default)
   selectedGameIds?: string[];
@@ -103,6 +119,7 @@ interface GamesFilterDropdownProps {
 }
 
 export function GamesFilterDropdown({
+  sport = "nba",
   games,
   className,
   // Multi-select props
@@ -121,7 +138,7 @@ export function GamesFilterDropdown({
 
   // Group games by date
   const gamesByDate = useMemo(() => {
-    const grouped: Record<string, NbaGame[]> = {};
+    const grouped: Record<string, HitRateGame[]> = {};
     games.forEach((game) => {
       const date = game.game_date || "Unknown";
       if (!grouped[date]) grouped[date] = [];
@@ -290,8 +307,8 @@ export function GamesFilterDropdown({
                   >
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
-                        <img
-                          src={getTeamLogoUrl(game.away_team_tricode || "", "nba")}
+                          <img
+                          src={getTeamLogoUrl(game.away_team_tricode || "", sport)}
                           alt={game.away_team_tricode || ""}
                           className="h-4 w-4 object-contain"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -302,8 +319,8 @@ export function GamesFilterDropdown({
                       </div>
                       <span className="text-xs text-neutral-400">@</span>
                       <div className="flex items-center gap-1">
-                        <img
-                          src={getTeamLogoUrl(game.home_team_tricode || "", "nba")}
+                          <img
+                          src={getTeamLogoUrl(game.home_team_tricode || "", sport)}
                           alt={game.home_team_tricode || ""}
                           className="h-4 w-4 object-contain"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}

@@ -86,6 +86,21 @@ export interface BoxScoreGame {
   pa: number;
   ra: number;
   bs: number;
+  // Optional MLB stats (used by MLB drilldown with shared GameLogChart)
+  mlbHits?: number;
+  mlbHomeRuns?: number;
+  mlbRunsScored?: number;
+  mlbRbi?: number;
+  mlbTotalBases?: number;
+  mlbPitcherStrikeouts?: number;
+  mlbAtBats?: number;
+  mlbPlateAppearances?: number;
+  mlbWalks?: number;
+  mlbInningsPitched?: number;
+  mlbHitsAllowed?: number;
+  mlbEarnedRuns?: number;
+  mlbEraGame?: number;
+  mlbWhipGame?: number;
 }
 
 export interface PlayerBoxScoresResponse {
@@ -145,4 +160,3 @@ export function usePlayerBoxScores(options: UsePlayerBoxScoresOptions) {
     refetch: query.refetch,
   };
 }
-

@@ -2,103 +2,197 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { 
-  BarChart3, 
-  TrendingUp, 
+import {
+  BarChart3,
+  TrendingUp,
   UserMinus,
   LayoutGrid,
   Trophy,
-  Medal
+  Medal,
+  CloudSun,
+  Zap,
+  Target,
+  ShieldOff,
+  Crosshair,
 } from "lucide-react";
+import Chart from "@/icons/chart";
 
 interface CheatSheetTab {
   slug: string;
   label: string;
   shortLabel: string;
   icon: React.ElementType;
-  description: string;
+  href?: string; // Override for non-cheatsheet routes (e.g. hit-rates)
   comingSoon?: boolean;
 }
 
-const CHEAT_SHEET_TABS: CheatSheetTab[] = [
+const NBA_TABS: CheatSheetTab[] = [
   {
     slug: "hit-rates",
     label: "Hit Rates",
     shortLabel: "Hit Rates",
+    icon: Chart,
+    href: "/hit-rates/nba",
+  },
+  {
+    slug: "hit-rates-sheet",
+    label: "Top Props",
+    shortLabel: "Top Props",
     icon: BarChart3,
-    description: "High-confidence props",
+    href: "/cheatsheets/nba/hit-rates",
   },
   {
     slug: "hit-rate-matrix",
     label: "Hit Rate Matrix",
     shortLabel: "Matrix",
     icon: LayoutGrid,
-    description: "Compare thresholds",
   },
   {
     slug: "alt-hit-matrix",
     label: "Alt Hit Matrix",
     shortLabel: "Alt Matrix",
     icon: TrendingUp,
-    description: "Best alternate lines",
   },
   {
     slug: "injury-impact",
     label: "Injury Impact",
     shortLabel: "Injuries",
     icon: UserMinus,
-    description: "Injury-affected props",
   },
   {
     slug: "triple-double-sheet",
     label: "Triple Double",
     shortLabel: "TD Sheet",
     icon: Trophy,
-    description: "SGP vs TD prices",
   },
   {
     slug: "double-double-sheet",
     label: "Double Double",
     shortLabel: "DD Sheet",
     icon: Medal,
-    description: "SGP vs DD prices",
+  },
+  {
+    slug: "dvp",
+    label: "Def vs Position",
+    shortLabel: "DVP",
+    icon: ShieldOff,
+  },
+  {
+    slug: "king-of-the-court",
+    label: "King of the Court",
+    shortLabel: "KOTC",
+    icon: Trophy,
+    href: "/stats/nba/king-of-the-court",
   },
 ];
+
+const MLB_TABS: CheatSheetTab[] = [
+  {
+    slug: "hit-rates",
+    label: "Hit Rates",
+    shortLabel: "Hit Rates",
+    icon: Chart,
+    href: "/hit-rates/mlb",
+  },
+  {
+    slug: "slate-insights",
+    label: "Slate Insights",
+    shortLabel: "Slate",
+    icon: BarChart3,
+  },
+  {
+    slug: "weather-report",
+    label: "Weather Report",
+    shortLabel: "Weather",
+    icon: CloudSun,
+  },
+  {
+    slug: "exit-velocity",
+    label: "Exit Velocity",
+    shortLabel: "Exit Velo",
+    icon: Zap,
+  },
+  {
+    slug: "nrfi",
+    label: "NRFI",
+    shortLabel: "NRFI",
+    icon: ShieldOff,
+  },
+  {
+    slug: "hr-command-center",
+    label: "HR Command Center",
+    shortLabel: "HR Center",
+    icon: Target,
+  },
+  {
+    slug: "batter-vs-pitcher",
+    label: "Batter vs Pitcher",
+    shortLabel: "BvP",
+    icon: Crosshair,
+    comingSoon: true,
+  },
+];
+
+const SPORT_TABS: Record<string, CheatSheetTab[]> = {
+  nba: NBA_TABS,
+  mlb: MLB_TABS,
+};
 
 interface CheatSheetNavProps {
   sport: string;
   currentSheet: string;
   isMobile?: boolean;
+  /** Set to true when rendering on a /cheatsheets/ page (maps "hit-rates" to "hit-rates-sheet" tab) */
+  isCheatSheetPage?: boolean;
 }
 
-export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSheetNavProps) {
+export function CheatSheetNav({ sport, currentSheet, isMobile = false, isCheatSheetPage = false }: CheatSheetNavProps) {
+  const tabs = SPORT_TABS[sport] ?? [];
+  if (tabs.length === 0) return null;
+
+  // On cheat sheet pages, "hit-rates" in the URL is the Top Props sheet (slug "hit-rates-sheet")
+  // On the hit rates tool page, "hit-rates" should stay as-is to highlight the Hit Rates tab
+  const activeSlug = isCheatSheetPage && currentSheet === "hit-rates" ? "hit-rates-sheet" : currentSheet;
+
   if (isMobile) {
     return (
       <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
         <nav className="flex overflow-x-auto scrollbar-hide">
-          {CHEAT_SHEET_TABS.map((tab) => {
-            const isActive = currentSheet === tab.slug;
-            const href = `/cheatsheets/${sport}/${tab.slug}`;
+          {tabs.map((tab) => {
+            const isActive = activeSlug === tab.slug;
+            const href = tab.href ?? `/cheatsheets/${sport}/${tab.slug}`;
             const Icon = tab.icon;
+
+            if (tab.comingSoon) {
+              return (
+                <div
+                  key={tab.slug}
+                  className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 text-center border-b-2 border-transparent text-neutral-400 min-w-[80px] cursor-not-allowed"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[11px] font-semibold whitespace-nowrap">
+                    {tab.shortLabel}
+                  </span>
+                  <span className="text-[9px] text-neutral-400">Soon</span>
+                </div>
+              );
+            }
 
             return (
               <Link
                 key={tab.slug}
                 href={href}
                 className={cn(
-                  "flex-1 flex flex-col items-center gap-1 px-3 py-2.5 text-center border-b-2 transition-all min-w-[100px]",
+                  "flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 text-center border-b-2 transition-all min-w-[80px]",
                   isActive
                     ? "border-brand text-brand bg-brand/5"
                     : "border-transparent text-neutral-500"
                 )}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4" />
                 <span className="text-[11px] font-semibold whitespace-nowrap">
                   {tab.shortLabel}
                 </span>
-                {tab.comingSoon && (
-                  <span className="text-[9px] text-neutral-400">Soon</span>
-                )}
               </Link>
             );
           })}
@@ -110,36 +204,45 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSh
   // Desktop version
   return (
     <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-      <div className="container mx-auto px-4">
-        <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
-          {CHEAT_SHEET_TABS.map((tab) => {
-            const isActive = currentSheet === tab.slug;
-            const href = `/cheatsheets/${sport}/${tab.slug}`;
-            const Icon = tab.icon;
+      <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide px-4">
+        {tabs.map((tab) => {
+          const isActive = currentSheet === tab.slug ||
+            (tab.href && currentSheet === tab.slug);
+          const href = tab.href ?? `/cheatsheets/${sport}/${tab.slug}`;
+          const Icon = tab.icon;
 
+          if (tab.comingSoon) {
             return (
-              <Link
+              <div
                 key={tab.slug}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap",
-                  isActive
-                    ? "border-brand text-brand"
-                    : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
-                )}
+                className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-neutral-400 whitespace-nowrap cursor-not-allowed"
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
-                {tab.comingSoon && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                    SOON
-                  </span>
-                )}
-              </Link>
+                <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                  SOON
+                </span>
+              </div>
             );
-          })}
-        </nav>
-      </div>
+          }
+
+          return (
+            <Link
+              key={tab.slug}
+              href={href}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap",
+                isActive
+                  ? "border-brand text-brand"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

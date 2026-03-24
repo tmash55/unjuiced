@@ -361,21 +361,27 @@ function MobileNav({ domain }: { domain: string }) {
   
   const mobileNavGroups: MobileNavGroup[] = [
     {
-      group: "Cheat Sheets",
+      group: "NBA",
       items: [
-        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
-        { title: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix", badge: "NEW" },
-        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", badge: "NEW" },
-        { title: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
-        { title: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet", badge: "NEW" },
-        { title: "Alt Line Matrix", href: "/cheatsheets/nba/alt-hit-matrix", disabled: true },
+        { title: "Hit Rates", href: "/hit-rates/nba" },
+        { title: "Top Props", href: "/cheatsheets/nba/hit-rates" },
+        { title: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
+        { title: "Alt Hit Matrix", href: "/cheatsheets/nba/alt-hit-matrix" },
+        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+        { title: "Triple Double", href: "/cheatsheets/nba/triple-double-sheet" },
+        { title: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
+        { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
       ],
     },
     {
-      group: "NBA Stats",
+      group: "MLB",
       items: [
-        { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
-        { title: "Defense vs Position", href: "/cheatsheets/nba/dvp", badge: "NEW" },
+        { title: "Hit Rates", href: "/hit-rates/mlb" },
+        { title: "Slate Insights", href: "/cheatsheets/mlb/slate-insights" },
+        { title: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
+        { title: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
+        { title: "NRFI", href: "/cheatsheets/mlb/nrfi" },
+        { title: "HR Command Center", href: "/cheatsheets/mlb/hr-command-center" },
       ],
     },
     {
