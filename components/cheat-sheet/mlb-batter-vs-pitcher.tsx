@@ -1916,9 +1916,13 @@ export function MlbBatterVsPitcher() {
       }
     }
 
-    // Layer pitch filter (overrides hand filter for display)
+    // Layer pitch filter — use cross-filtered data when hand filter is also active
     if (pitchFilter) {
-      const split = b.pitch_splits.find((s) => s.pitch_type === pitchFilter);
+      let splits = b.pitch_splits;
+      if (handFilter !== "all" && b.pitch_hand_splits) {
+        splits = handFilter === "rhp" ? b.pitch_hand_splits.vs_rhp : b.pitch_hand_splits.vs_lhp;
+      }
+      const split = splits.find((s) => s.pitch_type === pitchFilter);
       if (!split) {
         return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
       }

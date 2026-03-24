@@ -192,6 +192,11 @@ export interface BatterMatchup {
     vs_rhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
     vs_lhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
   };
+  // Pitch splits crossed with pitcher handedness (for combined filters)
+  pitch_hand_splits?: {
+    vs_rhp: BatterPitchSplit[];
+    vs_lhp: BatterPitchSplit[];
+  };
 }
 
 export interface GameMatchupResponse {
@@ -1184,6 +1189,35 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      // Pitch splits crossed with pitcher handedness
+      function computePitchSplitsForHand(hand: string): BatterPitchSplit[] {
+        return pitcherPitchTypes.map((pt) => {
+          const ptBBs = bbs.filter((b: any) => b.pitch_type === pt && b.pitcher_hand === hand);
+          const ptAvg = computeAVGFromBBs(ptBBs);
+          const ptSlg = computeSLGFromEvents(ptBBs);
+          const ptWoba = computeWOBA(ptBBs);
+          const ptEV = computeAvgEV(ptBBs);
+          const ptHardHit = computeHardHitPct(ptBBs);
+          return {
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            avg: ptAvg != null ? Math.round(ptAvg * 1000) / 1000 : null,
+            slg: ptSlg != null ? Math.round(ptSlg * 1000) / 1000 : null,
+            iso: ptAvg != null && ptSlg != null ? Math.round((ptSlg - ptAvg) * 1000) / 1000 : null,
+            batted_balls: ptBBs.length,
+            hrs: ptBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
+            barrel_pct: computeBarrelPct(ptBBs),
+            woba: ptWoba != null ? Math.round(ptWoba * 1000) / 1000 : null,
+            avg_ev: ptEV != null ? Math.round(ptEV * 10) / 10 : null,
+            hard_hit_pct: ptHardHit != null ? Math.round(ptHardHit * 10) / 10 : null,
+          };
+        });
+      }
+      const pitchHandSplits = {
+        vs_rhp: computePitchSplitsForHand("R"),
+        vs_lhp: computePitchSplitsForHand("L"),
+      };
+
       // H2H
       const h2hPlayerBBs = h2hMap.get(p.player_id) || [];
       let h2h: BatterMatchup["h2h"] = null;
@@ -1324,6 +1358,7 @@ export async function GET(req: NextRequest) {
         woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
         total_batted_balls: bbs.length,
         pitch_splits: pitchSplits,
+        pitch_hand_splits: pitchHandSplits,
         h2h,
         matchup_grade: grade,
         matchup_reason: reason,
@@ -1439,6 +1474,7 @@ function buildEmptyBatter(p: any): BatterMatchup {
     woba: null,
     total_batted_balls: 0,
     pitch_splits: [],
+    pitch_hand_splits: { vs_rhp: [], vs_lhp: [] },
     h2h: null,
     matchup_grade: "neutral",
     matchup_reason: "No pitcher data available",
