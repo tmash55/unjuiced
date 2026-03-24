@@ -428,7 +428,7 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
                           "font-medium",
                           isMainOutcome ? "text-sky-600 dark:text-sky-400" : "text-neutral-400"
                         )}>
-                          {bet.side === "SELL" ? `Against ${bet.outcome}` : bet.outcome}
+                          {bet.outcome}
                         </span>
                         {bet.result && (
                           <span className={cn(
