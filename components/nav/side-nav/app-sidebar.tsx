@@ -77,6 +77,7 @@ interface NavItem {
 // Sport sub-items for Odds Screen (active first, then disabled/off-season)
 const oddsScreenSports: NavChildItem[] = [
   // Active
+  { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
@@ -98,7 +99,6 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]
