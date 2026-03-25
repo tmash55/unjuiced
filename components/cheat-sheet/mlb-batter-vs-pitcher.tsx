@@ -925,6 +925,8 @@ interface DisplayStats {
   ev: number | null;
   brl: number | null;
   bbs: number;
+  k_pct?: number | null;
+  bb_pct?: number | null;
 }
 
 function BatterRow({
@@ -951,6 +953,7 @@ function BatterRow({
     avg: batter.avg, slg: batter.slg, woba: batter.woba, iso: batter.iso,
     hr: batter.hr_count, ev: batter.avg_exit_velo, brl: batter.barrel_pct,
     bbs: batter.total_batted_balls,
+    k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
   const badge = gradeBadge(batter.matchup_grade);
   const hasPlatoon =
@@ -1081,22 +1084,22 @@ function BatterRow({
         <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.woba, { green: 0.370, yellow: 0.320, red: 0.280, higher: "good" }))}>
           <span className={cn("font-medium", wobaColor(ds.woba))}>{fmtAvg(ds.woba)}</span>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(batter.k_pct, { green: 15, yellow: 22, red: 30, higher: "bad" }))}>
+        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.k_pct ?? null, { green: 15, yellow: 22, red: 30, higher: "bad" }))}>
           <span className={cn(
             "font-medium",
-            batter.k_pct != null && batter.k_pct >= 30 ? "text-red-500" :
-            batter.k_pct != null && batter.k_pct <= 15 ? "text-emerald-600" : ""
+            ds.k_pct != null && ds.k_pct >= 30 ? "text-red-500" :
+            ds.k_pct != null && ds.k_pct <= 15 ? "text-emerald-600" : ""
           )}>
-            {batter.k_pct != null ? `${batter.k_pct}%` : "-"}
+            {ds.k_pct != null ? `${ds.k_pct}%` : "-"}
           </span>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(batter.bb_pct, { green: 12, yellow: 8, red: 5, higher: "good" }))}>
+        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.bb_pct ?? null, { green: 12, yellow: 8, red: 5, higher: "good" }))}>
           <span className={cn(
             "font-medium",
-            batter.bb_pct != null && batter.bb_pct >= 12 ? "text-emerald-600" :
-            batter.bb_pct != null && batter.bb_pct <= 5 ? "text-red-500" : ""
+            ds.bb_pct != null && ds.bb_pct >= 12 ? "text-emerald-600" :
+            ds.bb_pct != null && ds.bb_pct <= 5 ? "text-red-500" : ""
           )}>
-            {batter.bb_pct != null ? `${batter.bb_pct}%` : "-"}
+            {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
           </span>
         </td>
         <td className="pr-3 pl-1 py-2">
@@ -1588,8 +1591,8 @@ function ComparisonView({
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
 
-  const [sortKey, setSortKey] = useState<CompSortKey>("hr_score");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [sortKey, setSortKey] = useState<CompSortKey>("lineup");
+  const [sortAsc, setSortAsc] = useState(true);
 
   const handleSort = useCallback((key: CompSortKey) => {
     if (sortKey === key) {
@@ -1919,19 +1922,24 @@ export function MlbBatterVsPitcher() {
   // Helper: get effective stats for a batter (filtered by hand and/or pitch type)
   const getBatterStats = useCallback((b: BatterMatchup) => {
     // Start with overall stats
-    let base = {
+    let base: any = {
       avg: b.avg, slg: b.slg, woba: b.woba, iso: b.iso,
       hr: b.hr_count, ev: b.avg_exit_velo, brl: b.barrel_pct,
       bbs: b.total_batted_balls,
+      k_pct: b.k_pct, bb_pct: b.bb_pct,
     };
 
     // Layer hand filter
     if (handFilter !== "all") {
       const hs = handFilter === "rhp" ? b.hand_splits?.vs_rhp : b.hand_splits?.vs_lhp;
       if (hs) {
-        base = { avg: hs.avg, slg: hs.slg, woba: hs.woba, iso: hs.iso, hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.bbs };
+        base = {
+          avg: hs.avg, slg: hs.slg, woba: hs.woba, iso: hs.iso,
+          hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.bbs,
+          k_pct: (hs as any).k_pct ?? null, bb_pct: (hs as any).bb_pct ?? null,
+        };
       } else {
-        base = { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
+        base = { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
       }
     }
 
