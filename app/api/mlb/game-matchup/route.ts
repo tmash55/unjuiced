@@ -69,6 +69,7 @@ export interface ArsenalHandSplit {
   slg: number | null;
   iso: number | null;
   woba: number | null;
+  whiff_pct: number | null;
   bbs: number;
 }
 
@@ -757,6 +758,15 @@ export async function GET(req: NextRequest) {
         .eq("season_year", s)
     );
 
+    // Pitcher pitch type hand splits (whiff% vs LHB/RHB per pitch type)
+    const pitcherHandSplitQueries = seasonsToTry.map((s) =>
+      supabase
+        .from("mlb_pitcher_pitchtype_hand_splits")
+        .select("pitch_type, opponent_hand, whiff_percent, ba, slg, woba, hard_hit_percent, pitches")
+        .eq("player_id", pitcherId)
+        .eq("season_year", s)
+    );
+
     // Pitcher hot zone (3x3 grid) — always season for stable zone distribution
     const pitcherHotZoneQuery = supabase.rpc("get_mlb_hot_zone_matchup", {
       p_batter_id: batterIds[0] ?? 0, // required param, we only use pitcher zones
@@ -786,7 +796,8 @@ export async function GET(req: NextRequest) {
       ...pitcherL30Queries,   // [9, 10] = pitcher L30 BBs for season, season-1
       ...pitchTypeSummaryQueries, // [11, 12] = pitch type summary for season, season-1
       pitcherHotZoneQuery,     // [13] = pitcher hot zone grid
-      ...batterGameLogQueries, // [14..14+N-1] = batter game logs (one per batter)
+      ...pitcherHandSplitQueries, // [14, 15] = pitcher pitchtype hand splits for season, season-1
+      ...batterGameLogQueries, // [16..16+N-1] = batter game logs (one per batter)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -855,7 +866,17 @@ export async function GET(req: NextRequest) {
 
     // Build batter game log lookup: batterId -> { k_pct, bb_pct } (respects sample filter)
     const batterDisciplineMap = new Map<number, { k_pct: number | null; bb_pct: number | null }>();
-    const BATTER_LOG_START_IDX = 14;
+    // Pitcher pitchtype hand splits (whiff% vs LHB/RHB)
+    const pitcherHandSplitsCurrent = (allResults[14].data ?? []) as any[];
+    const pitcherHandSplitsFallback = (allResults[15].data ?? []) as any[];
+    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent.length > 0 ? pitcherHandSplitsCurrent : pitcherHandSplitsFallback;
+    // Build lookup: "pitch_type:hand" -> whiff_percent
+    const pitcherHandWhiffMap = new Map<string, number | null>();
+    for (const row of pitcherHandSplitsRaw) {
+      pitcherHandWhiffMap.set(`${row.pitch_type}:${row.opponent_hand}`, row.whiff_percent);
+    }
+
+    const BATTER_LOG_START_IDX = 16;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
       const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
@@ -1100,6 +1121,7 @@ export async function GET(req: NextRequest) {
           slg: slg != null ? Math.round(slg * 1000) / 1000 : null,
           iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
           woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
+          whiff_pct: pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null,
           bbs: bbs.length,
         });
       }
