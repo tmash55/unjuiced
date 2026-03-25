@@ -8,13 +8,10 @@ import {
   getPlayerHeadshotDimensions,
   getPlayerHeadshotUrl,
   PlayerHeadshotSize,
-  PlayerHeadshotSport,
 } from "@/lib/utils/player-headshot";
 
 interface PlayerHeadshotProps {
   nbaPlayerId: number | string | null;
-  mlbPlayerId?: number | string | null;
-  sport?: PlayerHeadshotSport;
   name: string;
   size?: PlayerHeadshotSize;
   className?: string;
@@ -23,19 +20,16 @@ interface PlayerHeadshotProps {
 
 export function PlayerHeadshot({
   nbaPlayerId,
-  mlbPlayerId,
-  sport = "nba",
   name,
   size = "small",
   className,
   priority = false,
 }: PlayerHeadshotProps) {
-  const headshotId = sport === "mlb" ? (mlbPlayerId ?? nbaPlayerId) : nbaPlayerId;
-  const [src, setSrc] = useState(() => getPlayerHeadshotUrl(headshotId, size, sport));
+  const [src, setSrc] = useState(() => getPlayerHeadshotUrl(nbaPlayerId, size));
 
   useEffect(() => {
-    setSrc(getPlayerHeadshotUrl(headshotId, size, sport));
-  }, [headshotId, size, sport]);
+    setSrc(getPlayerHeadshotUrl(nbaPlayerId, size));
+  }, [nbaPlayerId, size]);
 
   const { width, height } = getPlayerHeadshotDimensions(size);
 
@@ -49,7 +43,7 @@ export function PlayerHeadshot({
       className={cn("object-cover", className)}
       sizes={size === "small" ? "(max-width: 768px) 120px, 260px" : "50vw"}
       onError={() => {
-        const fallback = getFallbackHeadshotUrl(size, sport);
+        const fallback = getFallbackHeadshotUrl(size);
         if (src !== fallback) {
           setSrc(fallback);
         }
@@ -57,3 +51,4 @@ export function PlayerHeadshot({
     />
   );
 }
+

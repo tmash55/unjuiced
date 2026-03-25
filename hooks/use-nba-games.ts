@@ -34,11 +34,10 @@ async function fetchNbaGames(): Promise<GamesResponse> {
   return res.json();
 }
 
-export function useNbaGames(enabled = true) {
+export function useNbaGames() {
   const query = useQuery<GamesResponse>({
     queryKey: ["nba-games"],
     queryFn: fetchNbaGames,
-    enabled,
     staleTime: 60_000, // 1 minute
     gcTime: 5 * 60_000, // 5 minutes
     refetchOnWindowFocus: false,
@@ -53,3 +52,4 @@ export function useNbaGames(enabled = true) {
     refetch: query.refetch,
   };
 }
+

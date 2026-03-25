@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
-import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useFavorites, type AddFavoriteParams } from "@/hooks/use-favorites";
 import { useOddsLine } from "@/hooks/use-odds-line";
@@ -19,7 +18,6 @@ const getBookLogo = (bookId?: string): string | null => {
 };
 
 interface PlayerCardProps {
-  sport?: "nba" | "mlb";
   profile: HitRateProfile;
   odds?: {
     bestOver?: { price: number; book: string; url?: string | null; mobileUrl?: string | null } | null;
@@ -189,15 +187,7 @@ function DvpBadge({ rank }: { rank: number | null }) {
   );
 }
 
-export function PlayerCard({
-  sport = "nba",
-  profile,
-  odds,
-  onCardClick,
-  onAddToSlip,
-  isFirst = false,
-  isBlurred = false,
-}: PlayerCardProps) {
+export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = false, isBlurred = false }: PlayerCardProps) {
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [isFavoriteToggling, setIsFavoriteToggling] = useState(false);
   const { isFavorited, toggleFavorite, isLoggedIn } = useFavorites();
@@ -264,7 +254,7 @@ export function PlayerCard({
     const oddsSelectionId = profile.selKey && lineValue !== null
       ? `${profile.selKey}:${lineValue}:over`
       : profile.oddsSelectionId ?? null;
-    const oddsKey = profile.eventId ? `odds:${sport}:${profile.eventId}:${profile.market}` : null;
+    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
     const bestOver = displayBestOver;
     const booksSnapshot = bestOver?.book && bestOver?.price !== undefined
       ? {
@@ -279,7 +269,7 @@ export function PlayerCard({
 
     return {
       type: "player",
-      sport,
+      sport: "nba",
       event_id: eventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
@@ -461,9 +451,7 @@ export function PlayerCard({
                   {!isBlurred && (
                     <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
                       <PlayerHeadshot
-                        sport={sport}
                         nbaPlayerId={playerId}
-                        mlbPlayerId={playerId}
                         name={playerName}
                         size="small"
                         className="w-full h-auto"
@@ -476,7 +464,7 @@ export function PlayerCard({
               {!isBlurred && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
                   <img
-                    src={getTeamLogoUrl(teamAbbr || "", sport)}
+                    src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
                     alt={teamAbbr ?? ""}
                     className="h-2.5 w-2.5 object-contain"
                     onError={(e) => { 
@@ -585,9 +573,7 @@ export function PlayerCard({
                     >
                       <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
                         <PlayerHeadshot
-                          sport={sport}
                           nbaPlayerId={playerId}
-                          mlbPlayerId={playerId}
                           name={playerName}
                           size="small"
                           className="w-full h-auto"
@@ -598,7 +584,7 @@ export function PlayerCard({
                   {/* Team logo overlay */}
                   <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
                     <img
-                      src={getTeamLogoUrl(teamAbbr || "", sport)}
+                      src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
                       alt={teamAbbr ?? ""}
                       className="h-3 w-3 object-contain"
                       onError={(e) => { 

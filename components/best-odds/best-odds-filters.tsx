@@ -395,7 +395,7 @@ export function BestOddsFilters({
             groups.Football.push(market);
           } else if (m.includes('goal') || m.includes('shot') || m.includes('save') || m.includes('puck')) {
             groups.Hockey.push(market);
-          } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run') || m.includes('run_line') || m.includes('total_runs') || m.includes('innings') || m.includes('earned_run') || m.includes('hits_allowed') || m.includes('walks_allowed') || m.includes('stolen_base') || m.includes('total_base') || m.includes('singles') || m.includes('doubles') || m.includes('triples')) {
+          } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run')) {
             groups.Baseball.push(market);
           } else {
             groups.Basketball.push(market);
@@ -449,7 +449,7 @@ export function BestOddsFilters({
             groups.Football.push(market);
           } else if (m.includes('goal') || m.includes('shot') || m.includes('save') || m.includes('puck')) {
             groups.Hockey.push(market);
-          } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run') || m.includes('run_line') || m.includes('total_runs') || m.includes('innings') || m.includes('earned_run') || m.includes('hits_allowed') || m.includes('walks_allowed') || m.includes('stolen_base') || m.includes('total_base') || m.includes('singles') || m.includes('doubles') || m.includes('triples')) {
+          } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run')) {
             groups.Baseball.push(market);
           } else if (m.includes('set') || m.includes('tiebreak') || m.includes('breaks')) {
             groups.Tennis.push(market);

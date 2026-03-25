@@ -12,7 +12,6 @@ import {
   IconTable,
   IconFileText,
   IconHeart,
-  IconBulb,
 } from "@tabler/icons-react";
 import Chart from "@/icons/chart";
 import {
@@ -67,12 +66,6 @@ const sharpTools = [
     title: "Arbitrage",
     description: "Risk-free opportunities across books",
     href: "/features/arbitrage",
-  },
-  {
-    icon: IconBulb,
-    title: "Sharp Intel",
-    description: "Real-time insider signals from prediction markets",
-    href: "/features/sharp-intel",
   },
 ];
 
