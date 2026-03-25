@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { redis } from "@/lib/redis";
 import {
   deriveLean,
   calculateGradeScore,
@@ -310,6 +311,83 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 2b. Fetch 1st inning total runs odds from Redis ────────────────
+    // Redis key: odds:mlb:{oddsblaze_event_id}:1st_inning_total_runs:{book}
+    // Selections: "game_total|over|0.5" (YRFI) and "game_total|under|0.5" (NRFI)
+
+    const NRFI_BOOKS = [
+      "draftkings", "fanduel", "betmgm", "caesars", "bet365",
+      "fanatics", "hard-rock", "fliff", "betrivers", "espnbet",
+      "betparx", "bally-bet", "thescore", "superbook", "circa",
+    ] as const;
+    const NRFI_SHARP_BOOKS = ["pinnacle", "novig", "prophetx"] as const;
+    const ALL_NRFI_BOOKS = [...NRFI_BOOKS, ...NRFI_SHARP_BOOKS];
+
+    // Get odds_game_id for each game
+    const { data: oddsGameRows } = await sb
+      .from("mlb_games")
+      .select("game_id, odds_game_id")
+      .in("game_id", gameIds);
+
+    const gameToEvent = new Map<number, string>();
+    for (const g of oddsGameRows ?? []) {
+      if (g.odds_game_id) gameToEvent.set(g.game_id, g.odds_game_id);
+    }
+
+    // Build Redis keys for all event+book combos
+    const uniqueEventIds = [...new Set(gameToEvent.values())];
+    const nrfiRedisKeys: string[] = [];
+    const nrfiKeyMeta: { eventId: string; book: string }[] = [];
+    for (const eid of uniqueEventIds) {
+      for (const book of ALL_NRFI_BOOKS) {
+        nrfiRedisKeys.push(`odds:mlb:${eid}:1st_inning_total_runs:${book}`);
+        nrfiKeyMeta.push({ eventId: eid, book });
+      }
+    }
+
+    // Batch fetch from Redis
+    type OddsVal = Record<string, any> | string | null;
+    let nrfiRedisValues: OddsVal[] = [];
+    if (nrfiRedisKeys.length > 0) {
+      try {
+        const CHUNK = 50;
+        for (let i = 0; i < nrfiRedisKeys.length; i += CHUNK) {
+          const chunk = nrfiRedisKeys.slice(i, i + CHUNK);
+          const vals = await redis.mget<OddsVal[]>(...chunk);
+          nrfiRedisValues.push(...vals);
+        }
+      } catch (e) {
+        console.error("[NRFI] Redis mget error:", e);
+      }
+    }
+
+    // Parse into: eventId → book → { nrfi, yrfi } odds objects
+    interface InningOdds {
+      nrfi: { price: string; price_decimal: number; link?: string; mobile_link?: string } | null;
+      yrfi: { price: string; price_decimal: number; link?: string; mobile_link?: string } | null;
+    }
+    const inningOddsIndex = new Map<string, Map<string, InningOdds>>();
+    for (let i = 0; i < nrfiRedisValues.length; i++) {
+      const raw = nrfiRedisValues[i];
+      if (!raw) continue;
+      const { eventId, book } = nrfiKeyMeta[i];
+      try {
+        const parsed: Record<string, any> = typeof raw === "string" ? JSON.parse(raw) : raw;
+        const nrfiSel = parsed["game_total|under|0.5"] ?? null;
+        const yrfiSel = parsed["game_total|over|0.5"] ?? null;
+        if (!nrfiSel && !yrfiSel) continue;
+
+        if (!inningOddsIndex.has(eventId)) inningOddsIndex.set(eventId, new Map());
+        inningOddsIndex.get(eventId)!.set(book, { nrfi: nrfiSel, yrfi: yrfiSel });
+      } catch {
+        // skip
+      }
+    }
+
+    console.log(
+      `[NRFI] 1st inning odds: ${inningOddsIndex.size}/${uniqueEventIds.length} events with odds data`
+    );
+
     // 3. Assemble game cards
     const cards: GameCard[] = rows.map((r) => {
       const homeAbbr = teamAbbrMap.get(r.home_team_id) ?? "???";
@@ -402,6 +480,40 @@ export async function GET(req: NextRequest) {
       const reasonTags = generateReasonTags(awayPitcher, homePitcher, awayOffense, homeOffense, parkFactorVal, weatherObj);
       const explanation = generateExplanation(grade, awayPitcher, homePitcher, awayOffense, homeOffense);
 
+      // ── 1st inning odds enrichment ──
+      const eventId = gameToEvent.get(r.game_id);
+      const eventOdds = eventId ? inningOddsIndex.get(eventId) : undefined;
+
+      let bestNrfi: { price: string; decimal: number; book: string; link?: string } | null = null;
+      let bestYrfi: { price: string; decimal: number; book: string; link?: string } | null = null;
+      const sportsbooks: Sportsbook[] = [];
+
+      if (eventOdds) {
+        for (const [book, odds] of eventOdds) {
+          const isSharp = (["pinnacle", "novig", "prophetx"] as string[]).includes(book);
+
+          // Build sportsbook entry
+          if (odds.nrfi || odds.yrfi) {
+            sportsbooks.push({
+              name: book,
+              nrfiOdds: odds.nrfi?.price ?? "-",
+              yrfiOdds: odds.yrfi?.price ?? "-",
+              link: odds.nrfi?.link ?? odds.yrfi?.link ?? "",
+            });
+          }
+
+          // Track best consumer odds (exclude sharp books for display)
+          if (!isSharp) {
+            if (odds.nrfi?.price_decimal && (!bestNrfi || odds.nrfi.price_decimal > bestNrfi.decimal)) {
+              bestNrfi = { price: odds.nrfi.price, decimal: odds.nrfi.price_decimal, book, link: odds.nrfi.link };
+            }
+            if (odds.yrfi?.price_decimal && (!bestYrfi || odds.yrfi.price_decimal > bestYrfi.decimal)) {
+              bestYrfi = { price: odds.yrfi.price, decimal: odds.yrfi.price_decimal, book, link: odds.yrfi.link };
+            }
+          }
+        }
+      }
+
       return {
         gameId: r.game_id,
         gameDate: r.game_date,
@@ -423,15 +535,15 @@ export async function GET(req: NextRequest) {
           pitching: clamp(pitchingScore, 0, 100),
           offense: clamp(offenseScore, 0, 100),
           environment: clamp(weatherScore, 0, 100),
-          price: 50, // Placeholder until odds data
+          price: 50,
         },
-        bestNrfiOdds: "-",
-        bestYrfiOdds: "-",
+        bestNrfiOdds: bestNrfi?.price ?? "-",
+        bestYrfiOdds: bestYrfi?.price ?? "-",
         parkFactor: parkFactorVal != null ? `Park Factor: ${parkFactorVal.toFixed(2)}` : "Park Factor: N/A",
         weather: weatherObj,
         weatherFlag: weatherObj ? buildWeatherFlag(weatherObj) : undefined,
         lineupStatus: "Pending",
-        sportsbooks: [],
+        sportsbooks,
         nrfiResult: null,
         home1stRuns: null,
         away1stRuns: null,
