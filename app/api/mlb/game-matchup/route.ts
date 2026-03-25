@@ -802,7 +802,7 @@ export async function GET(req: NextRequest) {
     const batterHandSplitQueries = seasonsToTry.map((s) =>
       supabase
         .from("mlb_batter_pitchtype_hand_splits")
-        .select("player_id, opponent_hand, pitch_type, pa, ab, hits, home_runs, strikeouts, ba, obp, slg, iso, woba, k_percent, bb_percent, whiff_percent, barrel_rate, hard_hit_percent, avg_exit_velocity")
+        .select("player_id, opponent_hand, pitch_type, pa, ab, hits, home_runs, strikeouts, ba, obp, slg, iso, woba, k_percent, bb_percent, whiff_percent, barrel_percent, hard_hit_percent, avg_exit_velocity")
         .in("player_id", batterIds)
         .eq("season_year", s)
     );
@@ -952,7 +952,7 @@ export async function GET(req: NextRequest) {
           if (r.iso != null && ab > 0) weightedISO += Number(r.iso) * ab;
           if (r.woba != null && pa > 0) weightedWOBA += Number(r.woba) * pa;
           if (r.avg_exit_velocity != null) { weightedEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
-          if (r.barrel_rate != null) { weightedBrl += Number(r.barrel_rate) * pa; brlW += pa; }
+          if (r.barrel_percent != null) { weightedBrl += Number(r.barrel_percent) * pa; brlW += pa; }
         }
 
         batterHandSplitMap.set(key, {
