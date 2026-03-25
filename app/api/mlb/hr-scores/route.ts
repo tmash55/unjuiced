@@ -375,12 +375,13 @@ export async function GET(req: NextRequest) {
         model_implied_prob: modelImpliedProb ?? p.model_implied_prob ?? null,
         edge_pct: edgePct ?? p.edge_pct ?? null,
         all_book_odds: Object.keys(allBookOdds).length > 0 ? allBookOdds : p.all_book_odds ?? null,
-        // Live surge/streak
-        surge_barrel_pct_7d: surge?.barrel_pct_7d ?? p.surge_barrel_pct_7d ?? null,
-        surge_hr_7d: surge?.hr_7d ?? p.surge_hr_7d ?? null,
-        surge_direction: surge?.direction ?? p.surge_direction ?? null,
-        hr_streak: surge?.hr_streak ?? p.hr_streak ?? null,
-        hr_last_3_games: surge?.hr_last_3 ?? p.hr_last_3_games ?? null,
+        // Live surge/streak — NEVER fall back to pre-computed values (they have bugs)
+        // If no recent batted balls exist, show 0/null (not stale data)
+        surge_barrel_pct_7d: surge?.barrel_pct_7d ?? 0,
+        surge_hr_7d: surge?.hr_7d ?? 0,
+        surge_direction: surge?.direction ?? "flat",
+        hr_streak: surge?.hr_streak ?? 0,
+        hr_last_3_games: surge?.hr_last_3 ?? 0,
       } as HRScorePlayer;
     });
 
