@@ -689,7 +689,7 @@ export async function GET(req: NextRequest) {
     // Try current season first; if no data, fall back to prior season
     const seasonsToTry = [season, season - 1];
 
-    const bbSelect = "batter_id, pitcher_id, exit_velocity, launch_angle, total_distance, trajectory, hardness, pitch_type, pitch_speed, event_type, is_hit, is_barrel, is_out, game_date, pitcher_hand, batter_hand, batter_name";
+    const bbSelect = "batter_id, pitcher_id, exit_velocity, launch_angle, total_distance, trajectory, hardness, pitch_type, pitch_speed, event_type, is_hit, is_barrel, is_out, game_date, pitcher_hand, batter_hand";
 
     // Query both seasons in parallel for pitcher + batter BBs to pick the one with data
     // Always fetch all season data; sample filtering is applied post-query by game count
