@@ -15,18 +15,21 @@ interface UseGameMatchupParams {
   gameId: number | null;
   battingSide: "home" | "away";
   sample?: "season" | "30" | "15" | "7";
+  statSeason?: number;
 }
 
 async function fetchGameMatchup(
   gameId: number,
   battingSide: string,
-  sample: string
+  sample: string,
+  statSeason?: number
 ): Promise<GameMatchupResponse> {
   const params = new URLSearchParams({
     gameId: String(gameId),
     battingSide,
     sample,
   });
+  if (statSeason) params.set("statSeason", String(statSeason));
   const res = await fetch(`/api/mlb/game-matchup?${params.toString()}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -35,10 +38,10 @@ async function fetchGameMatchup(
   return res.json();
 }
 
-export function useMlbGameMatchup({ gameId, battingSide, sample = "season" }: UseGameMatchupParams) {
+export function useMlbGameMatchup({ gameId, battingSide, sample = "season", statSeason }: UseGameMatchupParams) {
   const query = useQuery<GameMatchupResponse>({
-    queryKey: ["mlb-game-matchup", gameId, battingSide, sample],
-    queryFn: () => fetchGameMatchup(gameId!, battingSide, sample),
+    queryKey: ["mlb-game-matchup", gameId, battingSide, sample, statSeason],
+    queryFn: () => fetchGameMatchup(gameId!, battingSide, sample, statSeason),
     enabled: gameId != null,
     staleTime: 60_000,
     gcTime: 10 * 60_000,

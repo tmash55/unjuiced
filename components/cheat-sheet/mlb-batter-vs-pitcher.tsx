@@ -1858,6 +1858,7 @@ export function MlbBatterVsPitcher() {
   const [pitchFilter, setPitchFilter] = useState<string | null>(null); // null = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
+  const [statSeason, setStatSeason] = useState<number>(2025);
   const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
   const [stdSortAsc, setStdSortAsc] = useState(true);
   const [showBench, setShowBench] = useState(false);
@@ -1885,6 +1886,7 @@ export function MlbBatterVsPitcher() {
     gameId: selectedGameId,
     battingSide,
     sample,
+    statSeason,
   });
 
   // Auto-default hand filter to pitcher's handedness
@@ -2134,6 +2136,26 @@ export function MlbBatterVsPitcher() {
                 {/* Row 2: Filters — Sample | View | Pitch arsenal | Hand */}
                 {pitcher && (
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    {/* Season */}
+                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+                      {[2025, 2026].map((yr) => (
+                        <button
+                          key={yr}
+                          onClick={() => setStatSeason(yr)}
+                          className={cn(
+                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            statSeason === yr
+                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                          )}
+                        >
+                          {yr}
+                        </button>
+                      ))}
+                    </div>
+
+                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
+
                     {/* Sample */}
                     <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
                       {SAMPLE_OPTIONS.map((opt) => (

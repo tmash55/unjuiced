@@ -239,6 +239,7 @@ const QuerySchema = z.object({
   gameId: z.coerce.number().int().positive(),
   battingSide: z.enum(["home", "away"]).optional().default("away"),
   sample: z.enum(["season", "30", "15", "7"]).optional().default("season"),
+  statSeason: z.coerce.number().int().optional(),
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -518,9 +519,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { gameId, battingSide, sample } = parsed.data;
+    const { gameId, battingSide, sample, statSeason } = parsed.data;
     const supabase = createServerSupabaseClient();
-    const season = getCurrentSeason();
+    const season = statSeason ?? getCurrentSeason();
     // ── Round 1: Game info + Lineup (parallel) ──────────────────────────────
 
     const [gameResult, lineupResult] = await Promise.all([
