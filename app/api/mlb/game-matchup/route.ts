@@ -687,6 +687,7 @@ export async function GET(req: NextRequest) {
     // ── Round 2: Pitcher data + Batter data (parallel) ──────────────────────
 
     // Try current season first; if no data, fall back to prior season
+    // When user explicitly selects a season, we still query both but skip fallback below
     const seasonsToTry = [season, season - 1];
 
     const bbSelect = "batter_id, pitcher_id, exit_velocity, launch_angle, total_distance, trajectory, hardness, pitch_type, pitch_speed, event_type, is_hit, is_barrel, is_out, game_date, pitcher_hand, batter_hand";
@@ -818,22 +819,22 @@ export async function GET(req: NextRequest) {
     const pitchSummaryCurrent = (allResults[11].data ?? []) as any[];
     const pitchSummaryFallback = (allResults[12].data ?? []) as any[];
 
-    // Use current season if it has data, otherwise fall back
-    // Then apply sample filter (by game count) to batted balls
+    // Use current season if it has data, otherwise fall back (unless user explicitly picked a season)
+    const noFallback = !!statSeason;
     const pitcherBBs = filterBBsBySample(
-      pitcherBBsCurrent.length > 0 ? pitcherBBsCurrent : pitcherBBsFallback,
+      pitcherBBsCurrent.length > 0 ? pitcherBBsCurrent : (noFallback ? [] : pitcherBBsFallback),
       sample
     );
     const batterBBsRaw = filterBBsBySample(
-      batterBBsCurrent.length > 0 ? batterBBsCurrent : batterBBsFallback,
+      batterBBsCurrent.length > 0 ? batterBBsCurrent : (noFallback ? [] : batterBBsFallback),
       sample
     );
-    const allLogs = pitcherLogsCurrent.length > 0 ? pitcherLogsCurrent : pitcherLogsFallback;
+    const allLogs = pitcherLogsCurrent.length > 0 ? pitcherLogsCurrent : (noFallback ? [] : pitcherLogsFallback);
     // Apply sample filter to pitcher game logs (sorted by date desc from RPC)
     const logs = sample !== "season" ? allLogs.slice(0, Number(sample)) : allLogs;
-    const recentBBsRaw = recentBBsCurrent.length > 0 ? recentBBsCurrent : recentBBsFallback;
-    const pitcherL30BBs = pitcherL30Current.length > 0 ? pitcherL30Current : pitcherL30Fallback;
-    const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : pitchSummaryFallback;
+    const recentBBsRaw = recentBBsCurrent.length > 0 ? recentBBsCurrent : (noFallback ? [] : recentBBsFallback);
+    const pitcherL30BBs = pitcherL30Current.length > 0 ? pitcherL30Current : (noFallback ? [] : pitcherL30Fallback);
+    const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
 
     // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away }
     const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null }>();

@@ -1866,10 +1866,19 @@ export function MlbBatterVsPitcher() {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { games, isLoading: gamesLoading } = useMlbGames();
 
-  // Auto-select first game
+  // Auto-select first upcoming game; if all today's games are done, pick first game of next day
   useEffect(() => {
     if (games.length > 0 && selectedGameId == null) {
-      setSelectedGameId(Number(games[0].game_id));
+      // Find first game that isn't "Final"
+      const upcoming = games.find((g) => !g.game_status?.toLowerCase().includes("final"));
+      if (upcoming) {
+        setSelectedGameId(Number(upcoming.game_id));
+      } else {
+        // All games are final — find the first game from a future date
+        const todayGames = games.filter((g) => g.game_date === games[0].game_date);
+        const futureGame = games.find((g) => g.game_date !== todayGames[0]?.game_date);
+        setSelectedGameId(Number((futureGame ?? games[0]).game_id));
+      }
     }
   }, [games, selectedGameId]);
 

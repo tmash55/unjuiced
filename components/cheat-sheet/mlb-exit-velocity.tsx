@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbExitVelocity } from "@/hooks/use-mlb-exit-velocity";
@@ -803,10 +804,16 @@ function EvScatterPlot({
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbExitVelocity() {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = getETDate(0);
-    return today < "2026-03-26" ? "2026-03-26" : today;
-  });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate(0));
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [sampleSize, setSampleSize] = useState(15);
   const [pitcherHand, setPitcherHand] = useState<string>("");
   const [pitchType, setPitchType] = useState<string>("");

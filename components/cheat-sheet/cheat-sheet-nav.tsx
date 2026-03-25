@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   BarChart3,
@@ -148,13 +149,18 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false, isCheatSh
   // On the hit rates tool page, "hit-rates" should stay as-is to highlight the Hit Rates tab
   const activeSlug = isCheatSheetPage && currentSheet === "hit-rates" ? "hit-rates-sheet" : currentSheet;
 
+  // Preserve date param across tab navigation
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("date");
+  const appendDate = (url: string) => dateParam ? `${url}?date=${dateParam}` : url;
+
   if (isMobile) {
     return (
       <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
         <nav className="flex overflow-x-auto scrollbar-hide">
           {tabs.map((tab) => {
             const isActive = activeSlug === tab.slug;
-            const href = tab.href ?? `/cheatsheets/${sport}/${tab.slug}`;
+            const href = appendDate(tab.href ?? `/cheatsheets/${sport}/${tab.slug}`);
             const Icon = tab.icon;
 
             if (tab.comingSoon) {
@@ -200,9 +206,8 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false, isCheatSh
     <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
       <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide px-4">
         {tabs.map((tab) => {
-          const isActive = currentSheet === tab.slug ||
-            (tab.href && currentSheet === tab.slug);
-          const href = tab.href ?? `/cheatsheets/${sport}/${tab.slug}`;
+          const isActive = activeSlug === tab.slug;
+          const href = appendDate(tab.href ?? `/cheatsheets/${sport}/${tab.slug}`);
           const Icon = tab.icon;
 
           if (tab.comingSoon) {

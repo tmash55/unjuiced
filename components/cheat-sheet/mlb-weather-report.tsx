@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ArrowUpDown, Check, ChevronDown } from "lucide-react";
 import { SheetFilterBar, FilterCount, SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
@@ -204,10 +205,16 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function MlbWeatherReport() {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = getETDate(0);
-    return today < "2026-03-26" ? "2026-03-26" : today;
-  });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate(0));
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [sortKey, setSortKey] = useState<SortKey>("envScore");
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
   const { rows, isLoading, error, isFetching } = useMlbWeatherReport(selectedDate);

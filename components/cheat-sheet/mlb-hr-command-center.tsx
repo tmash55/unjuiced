@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -311,10 +312,16 @@ function MobileCard({ player, rank }: { player: HRScorePlayer; rank: number }) {
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbHRCommandCenter() {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = getETDate();
-    return today < "2026-03-26" ? "2026-03-26" : today;
-  });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate());
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [minScore, setMinScore] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("hr_score");

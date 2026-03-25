@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useNrfiGames } from "@/hooks/use-nrfi-games";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
 import { getLeanColor, type GameCard } from "@/lib/nrfi-data";
@@ -21,10 +22,16 @@ export function MlbNrfiSheet() {
   const [sort, setSort] = useState<SortOption>("best-grade");
   const [filter, setFilter] = useState<FilterOption>("all");
   const [season, setSeason] = useState<SeasonOption>("2025");
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = getTodayET();
-    return today < "2026-03-26" ? "2026-03-26" : today;
-  });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState<string>(() => searchParams.get("date") || getTodayET());
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [expandedGameId, setExpandedGameId] = useState<number | null>(null);
 
   const { games, meta, isLoading, isFetching, error } = useNrfiGames({
