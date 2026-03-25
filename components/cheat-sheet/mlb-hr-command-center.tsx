@@ -214,15 +214,24 @@ function SurgeIcon({ direction }: { direction: string | null }) {
   return <Minus className="w-3.5 h-3.5 text-neutral-400" />;
 }
 
+const TIER_TIPS: Record<string, string> = {
+  Elite: "Best HR opportunities of the day",
+  Strong: "Above-average HR conditions",
+  Solid: "Typical matchup, moderate opportunity",
+  Longshot: "Unfavorable conditions for HRs",
+};
+
 function ScorePill({ score }: { score: number }) {
   const config = getTierFromScore(score);
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div className={cn("relative w-12 h-12 rounded-full flex items-center justify-center border-2", config.border, config.bg)}>
-        <span className={cn("text-base font-black tabular-nums", config.color)}>{Math.round(score)}</span>
+    <Tooltip content={`${config.label}: ${TIER_TIPS[config.label] ?? ""}`} side="top">
+      <div className="flex flex-col items-center gap-0.5 cursor-help">
+        <div className={cn("relative w-12 h-12 rounded-full flex items-center justify-center border-2", config.border, config.bg)}>
+          <span className={cn("text-base font-black tabular-nums", config.color)}>{Math.round(score)}</span>
+        </div>
+        <span className={cn("text-[9px] font-bold uppercase tracking-wider", config.color)}>{config.label}</span>
       </div>
-      <span className={cn("text-[9px] font-bold uppercase tracking-wider", config.color)}>{config.label}</span>
-    </div>
+    </Tooltip>
   );
 }
 
@@ -521,6 +530,14 @@ export function MlbHRCommandCenter() {
 
   const displayPlayers = isGated ? sortedPlayers.slice(0, FREE_MAX_ROWS) : sortedPlayers;
 
+  // Rank by HR score (stable regardless of sort column)
+  const rankMap = useMemo(() => {
+    const ranked = [...filteredPlayers].sort((a, b) => b.hr_score - a.hr_score);
+    const map = new Map<number | null, number>();
+    ranked.forEach((p, i) => map.set(p.player_id, i + 1));
+    return map;
+  }, [filteredPlayers]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
@@ -610,27 +627,49 @@ export function MlbHRCommandCenter() {
                         <SortBtn field="player" current={sortField} dir={sortDirection} onClick={handleSort}>Player</SortBtn>
                       </Th>
                       <Th className="min-w-[70px]">
-                        <SortBtn field="hr_score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn>
-                      </Th>
-                      <Th>Surge</Th>
-                      <Th>
-                        <SortBtn field="batter_power" current={sortField} dir={sortDirection} onClick={handleSort}>Power</SortBtn>
+                        <Tooltip content="Composite HR score (0-100) combining batter power, pitcher vulnerability, park factors, environment, and matchup context. 90+ is elite." side="top">
+                          <span className="cursor-help"><SortBtn field="hr_score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn></span>
+                        </Tooltip>
                       </Th>
                       <Th>
-                        <SortBtn field="pitcher_vuln" current={sortField} dir={sortDirection} onClick={handleSort}>P.Vuln</SortBtn>
+                        <Tooltip content="Last 7 days barrel rate and HR count vs season average. Hot = locked in, Cold = slumping." side="top">
+                          <span className="cursor-help">Surge</span>
+                        </Tooltip>
                       </Th>
                       <Th>
-                        <SortBtn field="barrel_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Brl%</SortBtn>
+                        <Tooltip content="Batter Power — barrel rate, exit velo, ISO, and hard-hit %. Measures raw power output." side="top">
+                          <span className="cursor-help"><SortBtn field="batter_power" current={sortField} dir={sortDirection} onClick={handleSort}>Power</SortBtn></span>
+                        </Tooltip>
                       </Th>
                       <Th>
-                        <SortBtn field="max_ev" current={sortField} dir={sortDirection} onClick={handleSort}>Max EV</SortBtn>
-                      </Th>
-                      <Th>Env</Th>
-                      <Th>
-                        <SortBtn field="best_odds" current={sortField} dir={sortDirection} onClick={handleSort}>Odds</SortBtn>
+                        <Tooltip content="Pitcher Vulnerability — opposing pitcher's HR/9, fly ball rate, and hard contact allowed. Higher = gives up more HRs." side="top">
+                          <span className="cursor-help"><SortBtn field="pitcher_vuln" current={sortField} dir={sortDirection} onClick={handleSort}>P.Vuln</SortBtn></span>
+                        </Tooltip>
                       </Th>
                       <Th>
-                        <SortBtn field="edge_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Edge</SortBtn>
+                        <Tooltip content="Season barrel rate — percentage of batted balls classified as barrels (ideal exit velo + launch angle)." side="top">
+                          <span className="cursor-help"><SortBtn field="barrel_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Brl%</SortBtn></span>
+                        </Tooltip>
+                      </Th>
+                      <Th>
+                        <Tooltip content="Maximum exit velocity this season. Higher = more raw power on contact." side="top">
+                          <span className="cursor-help"><SortBtn field="max_ev" current={sortField} dir={sortDirection} onClick={handleSort}>Max EV</SortBtn></span>
+                        </Tooltip>
+                      </Th>
+                      <Th>
+                        <Tooltip content="Environment — temperature, wind, humidity, and elevation. Wind blowing out in warm weather = big boost." side="top">
+                          <span className="cursor-help">Env</span>
+                        </Tooltip>
+                      </Th>
+                      <Th>
+                        <Tooltip content="Best available HR odds (Over 0.5 Home Runs) across 14+ sportsbooks. Click to see all books." side="top">
+                          <span className="cursor-help"><SortBtn field="best_odds" current={sortField} dir={sortDirection} onClick={handleSort}>Odds</SortBtn></span>
+                        </Tooltip>
+                      </Th>
+                      <Th>
+                        <Tooltip content="Model edge over the market. Positive = our model thinks this HR is more likely than the odds imply. Edge = (Model Prob - Market Prob) / Market Prob." side="top">
+                          <span className="cursor-help"><SortBtn field="edge_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Edge</SortBtn></span>
+                        </Tooltip>
                       </Th>
                       <Th className="w-8" />
                     </tr>
@@ -650,13 +689,18 @@ export function MlbHRCommandCenter() {
                                 : "hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20"
                             )}
                           >
-                            {/* Rank */}
+                            {/* Rank (by HR score, not current sort) */}
                             <td className="px-3 py-2.5 text-center">
-                              <span className={cn("inline-flex w-6 h-6 items-center justify-center rounded-full text-[11px] font-black",
-                                idx < 3 ? "bg-amber-500/20 text-amber-400" : idx < 10 ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-500" : "text-neutral-400"
-                              )}>
-                                {idx + 1}
-                              </span>
+                              {(() => {
+                                const rank = rankMap.get(player.player_id) ?? idx + 1;
+                                return (
+                                  <span className={cn("inline-flex w-6 h-6 items-center justify-center rounded-full text-[11px] font-black",
+                                    rank <= 3 ? "bg-amber-500/20 text-amber-400" : rank <= 10 ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-500" : "text-neutral-400"
+                                  )}>
+                                    {rank}
+                                  </span>
+                                );
+                              })()}
                             </td>
 
                             {/* Player */}
@@ -758,11 +802,16 @@ export function MlbHRCommandCenter() {
                             {/* Edge */}
                             <td className="px-3 py-2.5 text-center">
                               {player.edge_pct != null ? (
-                                <span className={cn("text-xs font-bold tabular-nums",
-                                  player.edge_pct > 0 ? "text-emerald-400" : player.edge_pct < 0 ? "text-red-400" : "text-neutral-400"
-                                )}>
-                                  {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
-                                </span>
+                                <Tooltip
+                                  content={player.edge_pct > 0 ? "Our model sees value — HR is more likely than odds imply" : "Market is pricing this about right or better"}
+                                  side="top"
+                                >
+                                  <span className={cn("text-xs font-bold tabular-nums cursor-help",
+                                    player.edge_pct > 0 ? "text-emerald-400" : player.edge_pct < 0 ? "text-red-400" : "text-neutral-400"
+                                  )}>
+                                    {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
+                                  </span>
+                                </Tooltip>
                               ) : (
                                 <span className="text-xs text-neutral-500">-</span>
                               )}

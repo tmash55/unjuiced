@@ -304,20 +304,40 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
       )}
 
       {/* Row 4: Odds + expand cue */}
-      <div className="flex items-center justify-between pt-2 border-t border-neutral-200/40 dark:border-neutral-700/20">
-        <div className="flex items-center gap-3">
-          <span className={cn("font-mono text-lg font-black tabular-nums leading-none", lm.text)}>
-            {lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds}
-          </span>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">
-            {lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI"}
-          </span>
-          <span className="font-mono text-xs text-neutral-400 dark:text-neutral-600 tabular-nums">
-            {lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds}
-          </span>
-        </div>
-        <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
-      </div>
+      {(() => {
+        const primaryOdds = lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds;
+        const altOdds = lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds;
+        const primarySide = lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI";
+        // Find the book with the best odds for the primary side
+        const bestBook = game.sportsbooks.length > 0
+          ? game.sportsbooks.reduce((best, b) => {
+              const price = primarySide === "NRFI" ? b.nrfiOdds : b.yrfiOdds;
+              const bestPrice = primarySide === "NRFI" ? best.nrfiOdds : best.yrfiOdds;
+              if (price === "-") return best;
+              if (bestPrice === "-") return b;
+              return parseFloat(price) > parseFloat(bestPrice) ? b : best;
+            })
+          : null;
+        const bestLogo = bestBook ? getBookLogo(bestBook.name) : null;
+
+        return (
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-200/40 dark:border-neutral-700/20">
+            <div className="flex items-center gap-2.5">
+              {bestLogo && <img src={bestLogo} alt={bestBook?.name ?? ""} className="h-4 w-auto shrink-0 opacity-70" />}
+              <span className={cn("text-lg font-black tabular-nums leading-none", lm.text)}>
+                {primaryOdds}
+              </span>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">
+                {primarySide}
+              </span>
+              <span className="text-xs text-neutral-400 dark:text-neutral-600 tabular-nums">
+                {altOdds}
+              </span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+          </div>
+        );
+      })()}
     </button>
   );
 }
