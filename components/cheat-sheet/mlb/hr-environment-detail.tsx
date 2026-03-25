@@ -360,13 +360,13 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
                 >
                   {/* Label */}
                   <p className={cn(
-                    "text-[10px] font-semibold mb-1",
+                    "text-[10px] font-semibold mb-0.5",
                     isFirst ? "text-brand" : "text-neutral-500"
                   )}>
-                    {entry.label}
+                    {isFirst ? "First Pitch" : `+${i} hr${i > 1 ? "s" : ""}`}
                   </p>
                   <p className="text-[9px] text-neutral-400 mb-1.5">
-                    {entry.inning_estimate}
+                    {isFirst ? "1st Inning" : `~${i * 2 + 1}th Inning`}
                   </p>
 
                   {/* Temp */}
