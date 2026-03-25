@@ -18,7 +18,7 @@ import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import { getAllLeagues } from "@/lib/data/sports";
 import type { MarketType, ArbMarketOption } from "@/lib/arb-filters";
-import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { formatMarketLabel } from "@/lib/data/markets";
 
 // Available leagues for arbitrage
@@ -128,7 +128,7 @@ export default function ArbsPage() {
     return FALLBACK_MARKETS.map((market) => ({
       key: market,
       label: formatMarketLabel(market),
-      sports: [],
+      sports: FALLBACK_MARKET_SPORTS[market] || [],
     }));
   }, [marketsData?.aggregatedMarkets]);
 

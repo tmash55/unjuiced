@@ -44,7 +44,7 @@ import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
-import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
 
@@ -142,6 +142,7 @@ export default function EdgeFinderPage() {
     return FALLBACK_MARKETS.map((market) => ({
       key: market,
       label: formatMarketLabel(market),
+      sports: FALLBACK_MARKET_SPORTS[market],
     }));
   }, [marketsData?.aggregatedMarkets]);
   const availableMarkets = useMemo(

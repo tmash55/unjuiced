@@ -87,7 +87,7 @@ import { MobilePositiveEV } from "@/components/positive-ev/mobile";
 import { X } from "lucide-react";
 import LockIcon from "@/icons/lock";
 import { ButtonLink } from "@/components/button-link";
-import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { usePositiveEvPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
@@ -487,6 +487,7 @@ export default function PositiveEVPage() {
     return FALLBACK_MARKETS.map((market) => ({
       key: market,
       label: formatMarketLabel(market),
+      sports: FALLBACK_MARKET_SPORTS[market],
     }));
   }, [marketsData?.aggregatedMarkets]);
 
