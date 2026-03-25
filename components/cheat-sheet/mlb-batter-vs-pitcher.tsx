@@ -2096,17 +2096,17 @@ export function MlbBatterVsPitcher() {
                   </div>
                 </div>
 
-                {/* Row 2: Filters — Sample | View | Pitch arsenal | Hand */}
+                {/* Pitcher controls — season + sample */}
                 {pitcher && (
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    {/* Season */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {[2025, 2026].map((yr) => (
                         <button
                           key={yr}
                           onClick={() => setStatSeason(yr)}
                           className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
                             statSeason === yr
                               ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -2116,75 +2116,14 @@ export function MlbBatterVsPitcher() {
                         </button>
                       ))}
                     </div>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Sample */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {SAMPLE_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => setSample(opt.value)}
                           className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
                             sample === opt.value
-                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Pitch type pills — multi-select */}
-                    {pitcher.arsenal.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          onClick={() => setPitchFilters([])}
-                          className={cn(
-                            "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                            pitchFilters.length === 0
-                              ? "bg-brand/10 border-brand/20 text-brand"
-                              : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                          )}
-                        >
-                          All
-                        </button>
-                        {pitcher.arsenal.map((a) => (
-                          <button
-                            key={a.pitch_type}
-                            onClick={() => setPitchFilters(pitchFilters.includes(a.pitch_type) ? pitchFilters.filter(p => p !== a.pitch_type) : [...pitchFilters, a.pitch_type])}
-                            className={cn(
-                              "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                              pitchFilters.includes(a.pitch_type)
-                                ? "bg-brand/10 border-brand/20 text-brand"
-                                : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                            )}
-                          >
-                            {a.pitch_name} <span className="text-neutral-400 font-normal">{a.usage_pct}%</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Hand filter */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
-                      {([
-                        { value: "all" as const, label: "All" },
-                        { value: "rhp" as const, label: "vs RHP" },
-                        { value: "lhp" as const, label: "vs LHP" },
-                      ]).map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => { setHandFilter(opt.value); setHandAutoSet(false); }}
-                          className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
-                            handFilter === opt.value
                               ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                           )}
@@ -2225,27 +2164,82 @@ export function MlbBatterVsPitcher() {
 
                 {/* Right: Lineup Column */}
                 <div className="xl:w-[62%] space-y-3">
-                  {/* View toggle — above batter table */}
-                  {batters.length > 0 && (
-                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 w-fit">
-                      {([
-                        { value: "standard" as const, label: "Standard", icon: TableProperties },
-                        { value: "comparison" as const, label: "Matchup", icon: GitCompare },
-                      ] as const).map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setViewMode(opt.value)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
-                            viewMode === opt.value
-                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                          )}
-                        >
-                          <opt.icon className="w-3.5 h-3.5" />
-                          {opt.label}
-                        </button>
-                      ))}
+                  {/* Batter controls — view toggle + pitch pills + hand filter */}
+                  {batters.length > 0 && pitcher && (
+                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-3 py-2.5 space-y-2">
+                      {/* Row 1: View toggle + hand filter */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {([
+                            { value: "standard" as const, label: "Standard", icon: TableProperties },
+                            { value: "comparison" as const, label: "Matchup", icon: GitCompare },
+                          ] as const).map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setViewMode(opt.value)}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5",
+                                viewMode === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              <opt.icon className="w-3 h-3" />
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {([
+                            { value: "all" as const, label: "All" },
+                            { value: "rhp" as const, label: "vs RHP" },
+                            { value: "lhp" as const, label: "vs LHP" },
+                          ]).map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => { setHandFilter(opt.value); setHandAutoSet(false); }}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
+                                handFilter === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Row 2: Pitch pills */}
+                      {pitcher.arsenal.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <button
+                            onClick={() => setPitchFilters([])}
+                            className={cn(
+                              "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
+                              pitchFilters.length === 0
+                                ? "bg-brand/10 border-brand/20 text-brand"
+                                : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            All Pitches
+                          </button>
+                          {pitcher.arsenal.map((a) => (
+                            <button
+                              key={a.pitch_type}
+                              onClick={() => setPitchFilters(pitchFilters.includes(a.pitch_type) ? pitchFilters.filter(p => p !== a.pitch_type) : [...pitchFilters, a.pitch_type])}
+                              className={cn(
+                                "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
+                                pitchFilters.includes(a.pitch_type)
+                                  ? "bg-brand/10 border-brand/20 text-brand"
+                                  : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {a.pitch_name} <span className="text-neutral-400 font-normal">{a.usage_pct}%</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
