@@ -324,7 +324,7 @@ const getTeamLogoUrl = (teamName: string, sport: string): string => {
 
 // Check if sport has team logos
 const hasTeamLogos = (sportKey: string): boolean => {
-  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab'];
+  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab', 'mlb'];
   return sportsWithLogos.includes(sportKey.toLowerCase());
 };
 
