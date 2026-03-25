@@ -1004,7 +1004,7 @@ export async function GET(req: NextRequest) {
     const batterPitchHandMap = new Map<string, {
       ba: number | null; slg: number | null; iso: number | null; woba: number | null;
       whiff_pct: number | null; hard_hit_pct: number | null; avg_ev: number | null;
-      hrs: number; pa: number;
+      barrel_pct: number | null; hrs: number; pa: number;
     }>();
     for (const row of batterHandSplitsRaw) {
       const key = `${row.player_id}:${row.pitch_type}:${row.opponent_hand}`;
@@ -1016,6 +1016,7 @@ export async function GET(req: NextRequest) {
         whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
         hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
         avg_ev: row.avg_exit_velocity != null ? Number(row.avg_exit_velocity) : null,
+        barrel_pct: row.barrel_percent != null ? Number(row.barrel_percent) : null,
         hrs: Number(row.home_runs ?? 0),
         pa: Number(row.pa ?? 0),
       });
@@ -1506,7 +1507,7 @@ export async function GET(req: NextRequest) {
               iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
               batted_balls: realData.pa,
               hrs: realData.hrs,
-              barrel_pct: null, // not in hand splits table
+              barrel_pct: realData.barrel_pct != null ? Math.round(realData.barrel_pct * 10) / 10 : null,
               woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
               avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
               hard_hit_pct: realData.hard_hit_pct != null ? Math.round(realData.hard_hit_pct * 10) / 10 : null,
