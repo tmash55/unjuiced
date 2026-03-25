@@ -376,12 +376,22 @@ function MobileNav({ domain }: { domain: string }) {
     {
       group: "MLB",
       items: [
-        { title: "Hit Rates", href: "/hit-rates/mlb", disabled: true },
         { title: "Slate Insights", href: "/cheatsheets/mlb/slate-insights" },
         { title: "HR Command Center", href: "/cheatsheets/mlb/hr-command-center" },
         { title: "NRFI", href: "/cheatsheets/mlb/nrfi" },
         { title: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
         { title: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
+      ],
+    },
+    {
+      group: "Sharp Tools",
+      items: [
+        { title: "Edge Finder", href: "/edge-finder" },
+        { title: "Positive EV", href: "/positive-ev" },
+        { title: "Arbitrage", href: "/arbitrage" },
+        { title: "Sharp Intel", href: "/sharp-intel" },
+        { title: "Odds Screen", href: "/odds/mlb" },
+        { title: "My Slips", href: "/my-slips" },
       ],
     },
     {
