@@ -807,6 +807,15 @@ export async function GET(req: NextRequest) {
         .eq("season_year", s)
     );
 
+    // Batter pitch type summary (real stats per pitch type, NOT split by hand)
+    const batterPitchSummaryQueries = seasonsToTry.map((s) =>
+      supabase
+        .from("mlb_batter_pitchtype_summary")
+        .select("player_id, pitch_type, pa, ba, slg, iso, obp, woba, k_percent, whiff_percent, hard_hit_percent, barrel_batted_rate, exit_velocity_avg, pitches, home_runs")
+        .in("player_id", batterIds)
+        .eq("season_year", s)
+    );
+
     // Fire all queries in parallel
     const allResults = await Promise.all([
       ...pitcherBBQueries,    // [0, 1] = pitcher BBs for season, season-1
@@ -819,7 +828,8 @@ export async function GET(req: NextRequest) {
       pitcherHotZoneQuery,     // [13] = pitcher hot zone grid
       ...pitcherHandSplitQueries, // [14, 15] = pitcher pitchtype hand splits for season, season-1
       ...batterHandSplitQueries,  // [16, 17] = batter hand splits for season, season-1
-      ...batterGameLogQueries, // [18..18+N-1] = batter game logs (one per batter)
+      ...batterPitchSummaryQueries, // [18, 19] = batter pitch type summary for season, season-1
+      ...batterGameLogQueries, // [20..20+N-1] = batter game logs (one per batter)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -960,7 +970,58 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const BATTER_LOG_START_IDX = 18;
+    // Batter pitch type summary (real Savant stats, no hand split)
+    const batterPitchSumCurrent = (allResults[18].data ?? []) as any[];
+    const batterPitchSumFallback = (allResults[19].data ?? []) as any[];
+    const batterPitchSumRaw = batterPitchSumCurrent.length > 0 ? batterPitchSumCurrent : batterPitchSumFallback;
+
+    // Build lookup: "playerId:pitchType" -> real stats
+    const batterPitchSumMap = new Map<string, {
+      ba: number | null; slg: number | null; iso: number | null; woba: number | null;
+      obp: number | null; k_pct: number | null; whiff_pct: number | null;
+      hard_hit_pct: number | null; barrel_pct: number | null; avg_ev: number | null;
+      hrs: number; pa: number;
+    }>();
+    for (const row of batterPitchSumRaw) {
+      const key = `${row.player_id}:${row.pitch_type}`;
+      batterPitchSumMap.set(key, {
+        ba: row.ba != null ? Number(row.ba) : null,
+        slg: row.slg != null ? Number(row.slg) : null,
+        iso: row.iso != null ? Number(row.iso) : null,
+        woba: row.woba != null ? Number(row.woba) : null,
+        obp: row.obp != null ? Number(row.obp) : null,
+        k_pct: row.k_percent != null ? Number(row.k_percent) : null,
+        whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
+        hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
+        barrel_pct: row.barrel_batted_rate != null ? Number(row.barrel_batted_rate) : null,
+        avg_ev: row.exit_velocity_avg != null ? Number(row.exit_velocity_avg) : null,
+        hrs: Number(row.home_runs ?? 0),
+        pa: Number(row.pa ?? 0),
+      });
+    }
+
+    // Also build hand-split pitch lookup: "playerId:pitchType:hand" -> real stats
+    const batterPitchHandMap = new Map<string, {
+      ba: number | null; slg: number | null; iso: number | null; woba: number | null;
+      whiff_pct: number | null; hard_hit_pct: number | null; avg_ev: number | null;
+      hrs: number; pa: number;
+    }>();
+    for (const row of batterHandSplitsRaw) {
+      const key = `${row.player_id}:${row.pitch_type}:${row.opponent_hand}`;
+      batterPitchHandMap.set(key, {
+        ba: row.ba != null ? Number(row.ba) : null,
+        slg: row.slg != null ? Number(row.slg) : null,
+        iso: row.iso != null ? Number(row.iso) : null,
+        woba: row.woba != null ? Number(row.woba) : null,
+        whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
+        hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
+        avg_ev: row.avg_exit_velocity != null ? Number(row.avg_exit_velocity) : null,
+        hrs: Number(row.home_runs ?? 0),
+        pa: Number(row.pa ?? 0),
+      });
+    }
+
+    const BATTER_LOG_START_IDX = 20;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
       const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
@@ -1385,7 +1446,25 @@ export async function GET(req: NextRequest) {
       const woba = computeWOBA(bbs);
 
       // Pitch type splits for this batter (only pitcher's pitch types)
+      // Use real Savant data from mlb_batter_pitchtype_summary, with batted ball fallback
       const pitchSplits: BatterPitchSplit[] = pitcherPitchTypes.map((pt) => {
+        const realData = batterPitchSumMap.get(`${p.player_id}:${pt}`);
+        if (realData && realData.pa >= 3) {
+          return {
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            avg: realData.ba != null ? Math.round(realData.ba * 1000) / 1000 : null,
+            slg: realData.slg != null ? Math.round(realData.slg * 1000) / 1000 : null,
+            iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
+            batted_balls: realData.pa,
+            hrs: realData.hrs,
+            barrel_pct: realData.barrel_pct != null ? Math.round(realData.barrel_pct * 10) / 10 : null,
+            woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
+            avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
+            hard_hit_pct: realData.hard_hit_pct != null ? Math.round(realData.hard_hit_pct * 10) / 10 : null,
+          };
+        }
+        // Fallback: compute from batted balls
         const ptBBs = bbs.filter((b: any) => b.pitch_type === pt);
         const ptAvg = computeAVGFromBBs(ptBBs);
         const ptSlg = computeSLGFromEvents(ptBBs);
@@ -1407,9 +1486,27 @@ export async function GET(req: NextRequest) {
         };
       });
 
-      // Pitch splits crossed with pitcher handedness
+      // Pitch splits crossed with pitcher handedness — use real Savant hand splits data
       function computePitchSplitsForHand(hand: string): BatterPitchSplit[] {
         return pitcherPitchTypes.map((pt) => {
+          // Use real data from mlb_batter_pitchtype_hand_splits
+          const realData = batterPitchHandMap.get(`${p.player_id}:${pt}:${hand}`);
+          if (realData && realData.pa >= 3) {
+            return {
+              pitch_type: pt,
+              pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+              avg: realData.ba != null ? Math.round(realData.ba * 1000) / 1000 : null,
+              slg: realData.slg != null ? Math.round(realData.slg * 1000) / 1000 : null,
+              iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
+              batted_balls: realData.pa,
+              hrs: realData.hrs,
+              barrel_pct: null, // not in hand splits table
+              woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
+              avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
+              hard_hit_pct: realData.hard_hit_pct != null ? Math.round(realData.hard_hit_pct * 10) / 10 : null,
+            };
+          }
+          // Fallback: compute from batted balls
           const ptBBs = bbs.filter((b: any) => b.pitch_type === pt && b.pitcher_hand === hand);
           const ptAvg = computeAVGFromBBs(ptBBs);
           const ptSlg = computeSLGFromEvents(ptBBs);
