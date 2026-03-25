@@ -769,7 +769,7 @@ export async function GET(req: NextRequest) {
     const pitchTypeSummaryQueries = seasonsToTry.map((s) =>
       supabase
         .from("mlb_pitcher_pitchtype_summary")
-        .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches")
+        .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches, ba, slg, woba")
         .eq("player_id", pitcherId)
         .eq("season_year", s)
     );
@@ -870,13 +870,16 @@ export async function GET(req: NextRequest) {
     const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
 
     // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away }
-    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null }>();
+    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null; ba: number | null; slg: number | null; woba: number | null }>();
     for (const row of pitchSummaryRows) {
       if (row.pitch_type) {
         pitchSummaryMap.set(row.pitch_type, {
           whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
           k_pct: row.k_percent != null ? Number(row.k_percent) : null,
           put_away: row.put_away != null ? Number(row.put_away) : null,
+          ba: row.ba != null ? Number(row.ba) : null,
+          slg: row.slg != null ? Number(row.slg) : null,
+          woba: row.woba != null ? Number(row.woba) : null,
         });
       }
     }
@@ -1137,8 +1140,8 @@ export async function GET(req: NextRequest) {
         pitch_name: PITCH_TYPE_NAMES[pt] || pt,
         usage_pct: seasonUsage,
         avg_speed: speeds.length > 0 ? Math.round(speeds.reduce((a: number, b: number) => a + b, 0) / speeds.length * 10) / 10 : null,
-        baa: computeAVGFromBBs(bbs),
-        slg: computeSLGFromEvents(bbs),
+        baa: summary?.ba != null ? Math.round(summary.ba * 1000) / 1000 : computeAVGFromBBs(bbs),
+        slg: summary?.slg != null ? Math.round(summary.slg * 1000) / 1000 : computeSLGFromEvents(bbs),
         whiff_pct: summary?.whiff_pct ?? null,
         k_pct: summary?.k_pct ?? null,
         put_away: summary?.put_away ?? null,
@@ -1147,7 +1150,7 @@ export async function GET(req: NextRequest) {
         fb_pct: bbs.length >= 5 ? Math.round((fbCount / bbs.length) * 1000) / 10 : null,
         hard_hit_pct: bbs.length >= 5 ? Math.round((hardCount / bbs.length) * 1000) / 10 : null,
         avg_ev: evs.length > 0 ? Math.round(evs.reduce((a: number, b: number) => a + b, 0) / evs.length * 10) / 10 : null,
-        woba: computeWOBA(bbs),
+        woba: summary?.woba != null ? Math.round(summary.woba * 1000) / 1000 : computeWOBA(bbs),
         l30_usage_pct: l30Usage,
         l30_baa: l30Bbs.length > 0 ? computeAVGFromBBs(l30Bbs) : null,
         l30_slg: l30Bbs.length > 0 ? computeSLGFromEvents(l30Bbs) : null,
