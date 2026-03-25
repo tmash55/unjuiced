@@ -1,258 +1,107 @@
 import { cn } from "@/lib/utils";
 import { Link as NavigationMenuLink } from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
-import { CSSProperties } from "react";
-import { Grid } from "@/components/grid";
-import { getUtmParams, createHref } from "./shared";
-import { Link2, TrendingUp } from "lucide-react";
-import { LinksGraphic } from "./graphics/links-graphic";
-import { EdgeFinderGraphic } from "./graphics/edge-finder-graphic";
-import { HitRatesGraphic } from "./graphics/hit-rates-graphic";
-import Chart from "@/icons/chart";
+import { createHref, getUtmParams } from "./shared";
+import { SportIcon } from "@/components/icons/sport-icons";
 
+interface NavTool {
+  title: string;
+  description: string;
+  href: string;
+  badge?: string;
+  free?: boolean;
+}
 
-const tools = [
-  {
-    icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
-        <Link2 className="size-2.5 text-blue-900" />
-      </div>
-    ),
-    title: "Arbitrage",
-    description: "Risk-free opportunities across books with automatic leg matching and sizing.",
-    href: "/arbitrage",
-    color: "#2563eb", // blue-600
-    graphicsContainerClassName: "px-2",
-    graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
-    comingSoon: false,
-  },
-  {
-    icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-emerald-400">
-        <Chart className="size-2.5 text-emerald-900" />
-      </div>
-    ),
-    title: "Hit Rates",
-    description: "Player prop hit rates with L5, L10, L20, season stats and matchup analysis.",
-    href: "/hit-rates/nba",
-    color: "#10b981",
-    graphicsContainerClassName: "h-[170%] bottom-0 top-[unset]",
-    graphic: (
-      <HitRatesGraphic className="absolute bottom-0 left-0 size-full" />
-    ),
-    comingSoon: false,
-    badge: "NEW",
-  },
-  {
-    icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-amber-400">
-        <TrendingUp className="size-2.5 text-amber-900" />
-      </div>
-    ),
-    title: "Edge Finder",
-    description: "Find mispriced odds across every sportsbook in seconds.",
-    href: "/edge-finder",
-    color: "#f59e0b",
-    graphicsContainerClassName: "px-2",
-    graphic: <EdgeFinderGraphic className="absolute left-0 top-0 h-auto w-full" />,
-    comingSoon: false,
-  },
+const NBA_TOOLS: NavTool[] = [
+  { title: "Hit Rates", description: "L5, L10, L20 player prop analysis", href: "/hit-rates/nba" },
+  { title: "Cheat Sheets", description: "Pre-built game-day research pages", href: "/cheatsheets/nba/hit-rates" },
+  { title: "Odds Screen", description: "Compare lines across 20+ books", href: "/odds/nba" },
 ];
 
-const largeLinks = [
-  {
-    title: "Odds Screen",
-    description: "Live market odds with fast updates, line movement, and best-price highlights.",
-    href: "/odds/nfl",
-    comingSoon: false,
-    graphic: null,
-    color: "#00b4d8",
-  },
-  {
-    title: "Positive EV",
-    description: "Data-driven edges with expected ROI on every bet.",
-    href: "/positive-ev",
-    comingSoon: true,
-    graphic: null,
-    color: "#8b5cf6", // violet-500
-  },
+const MLB_TOOLS: NavTool[] = [
+  { title: "Slate Insights", description: "Batter vs pitcher matchup breakdowns", href: "/cheatsheets/mlb/slate-insights", badge: "NEW" },
+  { title: "HR Command Center", description: "5-layer HR scoring with live odds", href: "/cheatsheets/mlb/hr-command-center", badge: "NEW" },
+  { title: "NRFI", description: "No Run First Inning grades & odds", href: "/cheatsheets/mlb/nrfi", badge: "NEW" },
+  { title: "Exit Velocity", description: "Statcast hard-hit leaders", href: "/cheatsheets/mlb/exit-velocity", badge: "NEW" },
+  { title: "Weather Report", description: "Park & weather impact scores", href: "/cheatsheets/mlb/weather-report", free: true },
+  { title: "Odds Screen", description: "MLB lines across 20+ books", href: "/odds/mlb" },
 ];
+
+const SHARP_TOOLS: NavTool[] = [
+  { title: "Edge Finder", description: "Spot soft lines and value bets", href: "/edge-finder" },
+  { title: "Positive EV", description: "Find +EV bets with true odds", href: "/positive-ev" },
+  { title: "Arbitrage", description: "Risk-free opportunities across books", href: "/arbitrage" },
+  { title: "Sharp Intel", description: "Real-time insider signals from prediction markets", href: "/sharp-intel" },
+  { title: "My Slips", description: "Saved plays and bet tracking", href: "/my-slips" },
+];
+
+function NavSection({ title, icon, tools, domain }: { title: string; icon?: React.ReactNode; tools: NavTool[]; domain: string }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 px-3 mb-2">
+        {icon}
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+          {title}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {tools.map((tool) => (
+          <NavigationMenuLink asChild key={tool.title}>
+            <Link
+              href={createHref(tool.href, domain, getUtmParams({ domain, utm_content: tool.title }))}
+              className="flex items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-neutral-100 dark:hover:bg-white/5"
+            >
+              <div className="flex-1 min-w-0">
+                <span className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
+                  {tool.title}
+                  {tool.badge && (
+                    <span className="rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                      {tool.badge}
+                    </span>
+                  )}
+                  {tool.free && (
+                    <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                      FREE
+                    </span>
+                  )}
+                </span>
+                <p className="text-xs text-neutral-500 dark:text-white/50 mt-0.5 leading-snug">
+                  {tool.description}
+                </p>
+              </div>
+            </Link>
+          </NavigationMenuLink>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ProductContent({ domain }: { domain: string }) {
   return (
-    <div className="grid w-[1020px] grid-cols-1 gap-4 p-4">
-      <div className="grid grid-cols-3 gap-4">
-        {tools.map(
-          ({
-            title,
-            description,
-            icon,
-            href,
-            color,
-            graphicsContainerClassName,
-            graphic,
-            comingSoon,
-            badge,
-          }) => (
-            comingSoon ? (
-              <div
-                key={title}
-                aria-disabled
-                className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 opacity-80 grayscale cursor-not-allowed dark:border-white/20 dark:bg-white/10"
-              >
-                <Grid
-                  className="[mask-image:linear-gradient(transparent,black,transparent)] dark:text-white/5"
-                  cellSize={60}
-                  patternOffset={[-51, -23]}
-                />
-                <div className="relative p-5 pb-0">
-                  {icon}
-                  <span className="mt-3 block text-sm font-medium text-neutral-900 dark:text-white">
-                    {title}
-                  </span>
-                  <p className="mt-2 max-w-56 text-sm text-neutral-500 dark:text-white/60">
-                    {description}
-                  </p>
-                  <span className="mt-2 inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-white/20 dark:text-white/80">
-                    Coming soon
-                  </span>
-                </div>
-                {/* graphic intentionally removed for coming soon */}
-                <div
-                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,var(--color),transparent)] opacity-[0.07]"
-                  style={
-                    {
-                      "--color": color,
-                    } as CSSProperties
-                  }
-                />
-              </div>
-            ) : (
-              <NavigationMenuLink asChild key={title}>
-                <Link
-                  href={createHref(
-                    href,
-                    domain,
-                    getUtmParams({ domain, utm_content: title }),
-                  )}
-                  className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 dark:border-white/20 dark:bg-white/10"
-                >
-                  <Grid
-                    className="[mask-image:linear-gradient(transparent,black,transparent)] dark:text-white/5"
-                    cellSize={60}
-                    patternOffset={[-51, -23]}
-                  />
-                  <div className="relative p-5 pb-0">
-                    {icon}
-                    <span className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
-                      {title}
-                      {badge && (
-                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                          {badge}
-                        </span>
-                      )}
-                    </span>
-                    <p className="mt-2 max-w-56 text-sm text-neutral-500 dark:text-white/60">
-                      {description}
-                    </p>
-                  </div>
-                  <div className="relative mt-10 h-40 grow">
-                    <div
-                      className={cn(
-                        "absolute left-0 top-0 size-full grow overflow-hidden [mask-image:linear-gradient(black_50%,transparent)]",
-                        graphicsContainerClassName,
-                      )}
-                    >
-                      <div className="relative size-full">{graphic}</div>
-                    </div>
-                  </div>
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,var(--color),transparent)] opacity-[0.07] transition-opacity duration-150 group-hover:opacity-15"
-                    style={
-                      {
-                        "--color": color,
-                      } as CSSProperties
-                    }
-                  />
-                </Link>
-              </NavigationMenuLink>
-            )
-          ),
-        )}
-      </div>
-      <div className="grid grow grid-cols-2 gap-4">
-        {largeLinks.map(({ title, description, href, graphic, comingSoon, color }) => (
-          comingSoon ? (
-            <div
-              key={title}
-              aria-disabled
-              className="group relative flex flex-col justify-center rounded-xl border border-neutral-100 bg-neutral-50 opacity-80 grayscale cursor-not-allowed dark:border-white/20 dark:bg-white/10"
-            >
-              <Grid
-                className="[mask-image:linear-gradient(90deg,transparent,black)] dark:text-white/5"
-                cellSize={60}
-                patternOffset={[-39, -49]}
-              />
-              {/* graphic intentionally removed for coming soon */}
-              <div className="relative flex items-center justify-between px-5 py-4">
-                <div>
-                  <span className="text-sm font-medium leading-none text-neutral-900 dark:text-white">
-                    {title}
-                  </span>
-                  <p className="mt-1 text-sm text-neutral-500 dark:text-white/60">
-                    {description}
-                  </p>
-                  <span className="mt-2 inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-white/20 dark:text-white/80">
-                    Coming soon
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <NavigationMenuLink asChild key={title}>
-              <Link
-                href={createHref(
-                  href,
-                  domain,
-                  getUtmParams({ domain, utm_content: title }),
-                )}
-                className="group relative flex flex-col justify-center rounded-xl border border-neutral-100 bg-neutral-50 transition-colors duration-150 hover:bg-neutral-100 active:bg-neutral-200 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/15 dark:active:bg-white/20"
-              >
-                <Grid
-                  className="[mask-image:linear-gradient(90deg,transparent,black)] dark:text-white/5"
-                  cellSize={60}
-                  patternOffset={[-39, -49]}
-                />
-                {graphic && (
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                    {graphic}
-                  </div>
-                )}
-                {color && (
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,var(--color),transparent)] opacity-0 transition-opacity duration-150 group-hover:opacity-15"
-                    style={
-                      {
-                        "--color": color,
-                      } as CSSProperties
-                    }
-                  />
-                )}
-                <div className="relative flex items-center justify-between px-5 py-4">
-                  <div>
-                    <span className="text-sm font-medium leading-none text-neutral-900 dark:text-white">
-                      {title}
-                    </span>
-                    <p className="mt-1 text-sm text-neutral-500 dark:text-white/60">
-                      {description}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            </NavigationMenuLink>
-          )
-        ))}
-      </div>
+    <div className="grid w-[720px] grid-cols-3 gap-6 p-5">
+      {/* Column 1: NBA */}
+      <NavSection
+        title="NBA"
+        icon={<SportIcon sport="nba" className="h-3.5 w-3.5 text-orange-500" />}
+        tools={NBA_TOOLS}
+        domain={domain}
+      />
+
+      {/* Column 2: MLB */}
+      <NavSection
+        title="MLB"
+        icon={<SportIcon sport="mlb" className="h-3.5 w-3.5 text-red-500" />}
+        tools={MLB_TOOLS}
+        domain={domain}
+      />
+
+      {/* Column 3: Sharp Tools */}
+      <NavSection
+        title="Sharp Tools"
+        tools={SHARP_TOOLS}
+        domain={domain}
+      />
     </div>
   );
 }
