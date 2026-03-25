@@ -925,6 +925,8 @@ interface DisplayStats {
   ev: number | null;
   brl: number | null;
   bbs: number;
+  k_pct?: number | null;
+  bb_pct?: number | null;
 }
 
 function BatterRow({
@@ -951,6 +953,7 @@ function BatterRow({
     avg: batter.avg, slg: batter.slg, woba: batter.woba, iso: batter.iso,
     hr: batter.hr_count, ev: batter.avg_exit_velo, brl: batter.barrel_pct,
     bbs: batter.total_batted_balls,
+    k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
   const badge = gradeBadge(batter.matchup_grade);
   const hasPlatoon =
@@ -1081,22 +1084,22 @@ function BatterRow({
         <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.woba, { green: 0.370, yellow: 0.320, red: 0.280, higher: "good" }))}>
           <span className={cn("font-medium", wobaColor(ds.woba))}>{fmtAvg(ds.woba)}</span>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(batter.k_pct, { green: 15, yellow: 22, red: 30, higher: "bad" }))}>
+        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.k_pct ?? null, { green: 15, yellow: 22, red: 30, higher: "bad" }))}>
           <span className={cn(
             "font-medium",
-            batter.k_pct != null && batter.k_pct >= 30 ? "text-red-500" :
-            batter.k_pct != null && batter.k_pct <= 15 ? "text-emerald-600" : ""
+            ds.k_pct != null && ds.k_pct >= 30 ? "text-red-500" :
+            ds.k_pct != null && ds.k_pct <= 15 ? "text-emerald-600" : ""
           )}>
-            {batter.k_pct != null ? `${batter.k_pct}%` : "-"}
+            {ds.k_pct != null ? `${ds.k_pct}%` : "-"}
           </span>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(batter.bb_pct, { green: 12, yellow: 8, red: 5, higher: "good" }))}>
+        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.bb_pct ?? null, { green: 12, yellow: 8, red: 5, higher: "good" }))}>
           <span className={cn(
             "font-medium",
-            batter.bb_pct != null && batter.bb_pct >= 12 ? "text-emerald-600" :
-            batter.bb_pct != null && batter.bb_pct <= 5 ? "text-red-500" : ""
+            ds.bb_pct != null && ds.bb_pct >= 12 ? "text-emerald-600" :
+            ds.bb_pct != null && ds.bb_pct <= 5 ? "text-red-500" : ""
           )}>
-            {batter.bb_pct != null ? `${batter.bb_pct}%` : "-"}
+            {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
           </span>
         </td>
         <td className="pr-3 pl-1 py-2">
@@ -1242,7 +1245,7 @@ function BatterExpansion({
   }, [pitchFilter]);
 
   // Fetch hot zone data lazily when expanded
-  const { data: hotZone, isLoading: hotZoneLoading } = useMlbHotZone(
+  const { data: hotZone, isLoading: hotZoneLoading, isFetching: hotZoneFetching } = useMlbHotZone(
     batter.player_id,
     pitcher.player_id,
     true, // always enabled when rendered (only rendered when expanded)
@@ -1250,60 +1253,51 @@ function BatterExpansion({
   );
 
   return (
-    <div className={cn("space-y-3", isMobile ? "px-3 pb-3" : "ml-8")}>
-      {/* Row 1: Pitch splits + HR probability */}
-      <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
-        {/* Full Pitch Type Table */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
-          <div className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-700">
-            <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500">
-              {batter.player_name.split(" ").pop()} vs {pitcher.name.split(" ").pop()} — Pitch Types
-            </h5>
+    <div className={cn("pt-3", isMobile ? "px-3 pb-3" : "ml-8")}>
+      {/* Top section: Pitch splits + HR Score side by side */}
+      <div className={cn("grid gap-4 mb-4", isMobile ? "grid-cols-1" : "grid-cols-5")}>
+        {/* Pitch Type Table — 3 cols wide */}
+        <div className={cn(isMobile ? "" : "col-span-3")}>
+          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">
+            vs {pitcher.name.split(" ").pop()} — Pitch Splits
+          </h5>
+          <div className="space-y-1">
+            {pitcher.arsenal.map((a) => {
+              const split = batter.pitch_splits.find((s) => s.pitch_type === a.pitch_type);
+              const isHittable = (split?.slg ?? 0) >= 0.450;
+              return (
+                <div key={a.pitch_type} className={cn(
+                  "flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-xs tabular-nums transition-colors",
+                  isHittable ? "bg-emerald-500/5 dark:bg-emerald-500/[0.04]" : "hover:bg-neutral-50 dark:hover:bg-neutral-800/20"
+                )}>
+                  <span className="font-semibold text-neutral-900 dark:text-white w-20 truncate">{a.pitch_name}</span>
+                  <span className="text-neutral-400 w-10 text-right">{a.usage_pct}%</span>
+                  <div className="flex-1 flex items-center gap-4 justify-end">
+                    <div className="text-right">
+                      <span className="text-[9px] text-neutral-400 block">AVG</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">{fmtAvg(split?.avg ?? null)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] text-neutral-400 block">SLG</span>
+                      <span className={cn("font-bold", slgColor(split?.slg ?? null))}>{fmtAvg(split?.slg ?? null)}</span>
+                    </div>
+                    <div className="text-right w-6">
+                      <span className="text-[9px] text-neutral-400 block">HR</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">{split?.hrs ?? 0}</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400 w-8 text-right">{split?.batted_balls ?? 0} PA</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[10px] text-neutral-500 border-b border-neutral-100 dark:border-neutral-800">
-                <th className="text-left pl-3 pr-2 py-1.5 font-medium">Pitch</th>
-                <th className="px-2 py-1.5 font-medium text-right">Usage</th>
-                <th className="px-2 py-1.5 font-medium text-right">SLG vs</th>
-                <th className="px-2 py-1.5 font-medium text-right">AVG vs</th>
-                <th className="px-2 py-1.5 font-medium text-right">HR</th>
-                <th className="pr-3 pl-2 py-1.5 font-medium text-right">BBs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pitcher.arsenal.map((a) => {
-                const split = batter.pitch_splits.find((s) => s.pitch_type === a.pitch_type);
-                return (
-                  <tr key={a.pitch_type} className="border-b border-neutral-50 dark:border-neutral-800/30">
-                    <td className="pl-3 pr-2 py-1.5 font-semibold text-neutral-900 dark:text-white">{a.pitch_name}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-neutral-500">{a.usage_pct}%</td>
-                    <td className={cn("px-2 py-1.5 text-right tabular-nums font-semibold", slgColor(split?.slg ?? null))}>
-                      {fmtAvg(split?.slg ?? null)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">
-                      {fmtAvg(split?.avg ?? null)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">
-                      {split?.hrs ?? 0}
-                    </td>
-                    <td className="pr-3 pl-2 py-1.5 text-right tabular-nums text-neutral-500">
-                      {split?.batted_balls ?? 0}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {/* Overlap score */}
           {batter.overlap_score != null && (
-            <div className="px-3 py-2 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 flex items-center justify-between">
-              <span className="text-[10px] text-neutral-500 font-medium">Pitch Overlap Score</span>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/40 px-2.5">
+              <span className="text-[10px] text-neutral-400">Pitch Overlap</span>
               <span className={cn(
                 "text-xs font-bold tabular-nums",
-                (batter.overlap_score ?? 0) >= 60 ? "text-emerald-600 dark:text-emerald-400" :
-                (batter.overlap_score ?? 0) >= 30 ? "text-yellow-600 dark:text-yellow-400" :
-                "text-red-500 dark:text-red-400"
+                (batter.overlap_score ?? 0) >= 60 ? "text-emerald-500" :
+                (batter.overlap_score ?? 0) >= 30 ? "text-amber-500" : "text-red-400"
               )}>
                 {batter.overlap_score}%
               </span>
@@ -1311,114 +1305,93 @@ function BatterExpansion({
           )}
         </div>
 
-        {/* HR Score */}
-        <div className="space-y-3">
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-            <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500 mb-2">HR Score</h5>
-            <HRScoreBar score={batter.hr_probability_score} />
-            {hrFactors.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {hrFactors.map((f, i) => (
-                  <div key={i} className="flex items-center gap-1.5 text-[10px]">
-                    <span className={f.positive ? "text-emerald-500" : "text-red-400"}>
-                      {f.positive ? "+" : "-"}
-                    </span>
-                    <span className="text-neutral-600 dark:text-neutral-400">{f.label}</span>
+        {/* HR Score + Factors — 2 cols wide */}
+        <div className={cn(isMobile ? "" : "col-span-2")}>
+          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">HR Score</h5>
+          <HRScoreBar score={batter.hr_probability_score} />
+          {hrFactors.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {hrFactors.map((f, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  <span className={cn("mt-0.5 shrink-0", f.positive ? "text-emerald-500" : "text-red-400")}>
+                    {f.positive ? "+" : "-"}
+                  </span>
+                  <span className="text-neutral-600 dark:text-neutral-400 leading-tight">{f.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom section: H2H + Recent Form — single row, no card borders */}
+      <div className={cn("grid gap-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/40", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+        {/* H2H */}
+        <div>
+          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Head-to-Head</h5>
+          {batter.h2h && batter.h2h.pa > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-6 text-center">
+                {[
+                  { label: "PA", value: batter.h2h.pa, color: "" },
+                  { label: "AVG", value: fmtAvg(batter.h2h.avg), color: "" },
+                  { label: "SLG", value: fmtAvg(batter.h2h.slg), color: slgColor(batter.h2h.slg) },
+                  { label: "HR", value: batter.h2h.hrs, color: batter.h2h.hrs > 0 ? "text-emerald-500" : "" },
+                ].map((s) => (
+                  <div key={s.label}>
+                    <p className="text-[9px] text-neutral-400">{s.label}</p>
+                    <p className={cn("text-sm font-bold tabular-nums", s.color || "text-neutral-900 dark:text-white")}>{s.value}</p>
                   </div>
                 ))}
+              </div>
+              {h2hMeetings.length > 0 && (
+                <div className="space-y-0.5">
+                  {h2hMeetings.map((m) => (
+                    <div key={m.date} className="flex items-center justify-between text-[10px] tabular-nums">
+                      <span className="text-neutral-400">{m.date?.slice(5)}</span>
+                      <span className="text-neutral-600 dark:text-neutral-300">
+                        {m.hits}/{m.pa}
+                        {m.hrs > 0 && <span className="text-emerald-500 font-bold ml-1">{m.hrs} HR</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {batter.h2h.pa < 10 && (
+                <p className="text-[10px] text-amber-500">Small sample ({batter.h2h.pa} PA)</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11px] text-neutral-500">No career data vs this pitcher</p>
+          )}
+        </div>
+
+        {/* Recent Form */}
+        <div>
+          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Recent Form (60d)</h5>
+          <div className="flex items-center gap-6">
+            {[
+              { label: "Brl%", value: batter.recent_barrel_pct != null ? `${batter.recent_barrel_pct}%` : "-", color: barrelColor(batter.recent_barrel_pct) },
+              { label: "Avg EV", value: batter.recent_avg_ev?.toFixed(1) ?? "-", color: evColor(batter.recent_avg_ev) },
+              { label: "HR", value: batter.recent_hr_count, color: batter.recent_hr_count >= 3 ? "text-emerald-500" : "" },
+            ].map((s) => (
+              <div key={s.label}>
+                <p className="text-[9px] text-neutral-400">{s.label}</p>
+                <p className={cn("text-sm font-bold tabular-nums", s.color || "text-neutral-900 dark:text-white")}>{s.value}</p>
+              </div>
+            ))}
+            {sparkline.length >= 2 && (
+              <div className="ml-auto">
+                <MiniSparkline values={sparkline} width={80} height={24} />
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Row 2: H2H + Recent Form */}
-      <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
-        {/* H2H */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-          <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500 mb-2">Head-to-Head</h5>
-          {batter.h2h && batter.h2h.pa > 0 ? (
-            <>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <p className="text-[10px] text-neutral-500">PA</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white tabular-nums">{batter.h2h.pa}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-neutral-500">AVG</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white tabular-nums">{fmtAvg(batter.h2h.avg)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-neutral-500">SLG</p>
-                  <p className={cn("text-sm font-bold tabular-nums", slgColor(batter.h2h.slg))}>{fmtAvg(batter.h2h.slg)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-neutral-500">HR</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white tabular-nums">{batter.h2h.hrs}</p>
-                </div>
-              </div>
-              {/* Last meetings */}
-              {h2hMeetings.length > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                  <p className="text-[10px] text-neutral-400 font-medium mb-1">Last Meetings</p>
-                  <div className="space-y-1">
-                    {h2hMeetings.map((m) => (
-                      <div key={m.date} className="flex items-center justify-between text-[10px] tabular-nums">
-                        <span className="text-neutral-500">{m.date}</span>
-                        <span className="text-neutral-700 dark:text-neutral-300">
-                          {m.hits}/{m.pa}
-                          {m.hrs > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-semibold ml-1">{m.hrs} HR</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {batter.h2h.pa < 10 && (
-                <p className="text-[10px] text-yellow-600 dark:text-yellow-400 mt-1.5">Small sample ({batter.h2h.pa} PA)</p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-neutral-400">No head-to-head data</p>
-          )}
-        </div>
-
-        {/* Recent Form */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-          <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500 mb-2">Recent Form (60 days)</h5>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-[10px] text-neutral-500">Brl%</p>
-              <p className={cn("text-sm font-bold tabular-nums", barrelColor(batter.recent_barrel_pct))}>
-                {batter.recent_barrel_pct != null ? `${batter.recent_barrel_pct}%` : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-neutral-500">Avg EV</p>
-              <p className={cn("text-sm font-bold tabular-nums", evColor(batter.recent_avg_ev))}>
-                {batter.recent_avg_ev != null ? batter.recent_avg_ev.toFixed(1) : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-neutral-500">HR</p>
-              <p className="text-sm font-bold text-neutral-900 dark:text-white tabular-nums">{batter.recent_hr_count}</p>
-            </div>
-          </div>
-          {/* EV Sparkline */}
-          {sparkline.length >= 2 && (
-            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] text-neutral-400 font-medium">EV Trend (last {sparkline.length} games)</p>
-                <MiniSparkline values={sparkline} width={100} height={28} />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Row 3: Zone Analysis */}
       {hotZone && (hotZone.batterZones.length > 0 || hotZone.pitcherZones.length > 0 || hotZone.overlay.length > 0) && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 space-y-3">
+        <div className={cn("rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 space-y-3 transition-opacity duration-200", hotZoneFetching && "opacity-50")}>
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div>
               <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500">
@@ -1512,10 +1485,24 @@ function BatterExpansion({
           })()}
         </div>
       )}
-      {hotZoneLoading && (
-        <div className="flex items-center gap-2 text-xs text-neutral-400 py-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          Loading zone analysis...
+      {hotZoneLoading && !hotZone && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+          <div className="flex items-center gap-2 text-[10px] text-neutral-400 mb-3">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="uppercase tracking-wider font-semibold">Loading Strike Zone</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-1">
+                <div className="h-3 w-20 rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+                <div className="grid grid-cols-3 gap-1">
+                  {Array.from({ length: 9 }).map((_, j) => (
+                    <div key={j} className="aspect-square rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -1578,18 +1565,20 @@ function ComparisonView({
   expandedBatterId,
   onToggleExpand,
   pitchFilter,
+  getStats,
 }: {
   batters: BatterMatchup[];
   pitcher: PitcherProfile;
   expandedBatterId: number | null;
   onToggleExpand: (id: number) => void;
   pitchFilter: string | null;
+  getStats: (b: BatterMatchup) => DisplayStats;
 }) {
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
 
-  const [sortKey, setSortKey] = useState<CompSortKey>("hr_score");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [sortKey, setSortKey] = useState<CompSortKey>("lineup");
+  const [sortAsc, setSortAsc] = useState(true);
 
   const handleSort = useCallback((key: CompSortKey) => {
     if (sortKey === key) {
@@ -1616,211 +1605,145 @@ function ComparisonView({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[10px] text-neutral-400 px-1">
-        <span>Season stats vs Recent (60d). Arrows show trend direction.</span>
+      {/* Sort controls */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[10px] text-neutral-400">Sort by</span>
+        <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+          {([
+            { key: "lineup" as CompSortKey, label: "Order" },
+            { key: "hr_score" as CompSortKey, label: "HR Score" },
+            { key: "grade" as CompSortKey, label: "Grade" },
+            { key: "overlap" as CompSortKey, label: "Overlap" },
+          ]).map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => handleSort(opt.key)}
+              className={cn(
+                "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                sortKey === opt.key
+                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              )}
+            >
+              {opt.label}{sortIcon(opt.key)}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-x-auto">
-        <table className="w-full min-w-[950px] text-xs">
-          <thead>
-            <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200/60 dark:border-neutral-700/30">
-              <th className={cn(thCls, "text-left pl-3")} onClick={() => handleSort("lineup")}>#</th>
-              <th className={cn(thCls, "text-left")}>Batter</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("grade")}>Grade{sortIcon("grade")}</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("hr_score")}>HR{sortIcon("hr_score")}</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("overlap")}>Ovlp{sortIcon("overlap")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("slg")}>SLG{sortIcon("slg")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("woba")}>wOBA{sortIcon("woba")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("iso")}>ISO{sortIcon("iso")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("ev")}>EV{sortIcon("ev")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("brl")}>Brl%{sortIcon("brl")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("k_pct")}>K%{sortIcon("k_pct")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("bb_pct")}>BB%{sortIcon("bb_pct")}</th>
-              {primary && (
-                <th className={cn(thCls, "text-center")} onClick={() => handleSort("primary_slg")}>
-                  vs {primary.pitch_name}{sortIcon("primary_slg")}
-                </th>
-              )}
-              {secondary && (
-                <th className={cn(thCls, "text-center")} onClick={() => handleSort("secondary_slg")}>
-                  vs {secondary.pitch_name}{sortIcon("secondary_slg")}
-                </th>
-              )}
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("h2h")}>H2H{sortIcon("h2h")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((b) => {
-              const badge = gradeBadge(b.matchup_grade);
-              const primarySplit = primary ? b.pitch_splits.find((s) => s.pitch_type === primary.pitch_type) : null;
-              const secondarySplit = secondary ? b.pitch_splits.find((s) => s.pitch_type === secondary.pitch_type) : null;
-              const hasPlatoon =
-                (b.batting_hand === "L" && pitcher.hand === "R") ||
-                (b.batting_hand === "R" && pitcher.hand === "L");
-              const hrScore = b.hr_probability_score ?? 0;
-              const overlap = b.overlap_score ?? 0;
 
-              const isExpanded = expandedBatterId === b.player_id;
+      {/* Matchup cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        {sorted.map((b) => {
+          const hrScore = b.hr_probability_score ?? 0;
+          const overlap = b.overlap_score ?? 0;
+          const hasPlatoon =
+            (b.batting_hand === "L" && pitcher.hand === "R") ||
+            (b.batting_hand === "R" && pitcher.hand === "L");
+          const isExpanded = expandedBatterId === b.player_id;
 
-              return (
-                <React.Fragment key={b.player_id}>
-                <tr
-                  className={cn(
-                    "border-b border-neutral-100/80 dark:border-neutral-800/30 hover:bg-neutral-50/80 dark:hover:bg-neutral-800/20 transition-all duration-150 cursor-pointer",
-                    isExpanded && "bg-sky-50/40 dark:bg-sky-500/[0.04]"
-                  )}
-                  onClick={() => onToggleExpand(b.player_id)}
-                >
-                  <td className="pl-3 pr-1 py-2 text-neutral-400 tabular-nums text-center text-[10px]">
-                    {b.lineup_position ?? "-"}
-                  </td>
-                  <td className="px-1.5 py-2">
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", isExpanded && "rotate-90")} />
-                      <img
-                        src={getMlbHeadshotUrl(b.player_id, "tiny")}
-                        alt={b.player_name}
-                        className="w-6 h-6 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
-                      />
-                      <span className="font-semibold text-neutral-900 dark:text-white truncate">{b.player_name}</span>
-                      <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>{b.batting_hand}</span>
-                    </div>
-                  </td>
-                  <td className="px-1.5 py-2 text-center">
-                    <span className={cn(
-                      "inline-flex items-center justify-center text-[8px] font-bold px-1.5 py-0.5 rounded border leading-none",
-                      b.matchup_grade === "strong" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
-                        : b.matchup_grade === "weak" ? "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/20"
-                        : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700/30"
-                    )}>
-                      {b.matchup_grade === "strong" ? "STR" : b.matchup_grade === "weak" ? "WK" : "NEU"}
+          // Pitch vulnerability
+          const topPitchSplits = pitcher.arsenal.slice(0, 3).map((a) => {
+            const split = b.pitch_splits.find((s) => s.pitch_type === a.pitch_type);
+            return { name: a.pitch_name, slg: split?.slg ?? null, pa: split?.batted_balls ?? 0 };
+          });
+
+          return (
+            <div
+              key={b.player_id}
+              className={cn(
+                "rounded-xl border transition-all duration-150 overflow-hidden",
+                isExpanded
+                  ? "border-brand/40 bg-brand/5 dark:bg-brand/5 sm:col-span-2 xl:col-span-3"
+                  : "border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-neutral-900"
+              )}
+            >
+            <button
+              onClick={() => onToggleExpand(b.player_id)}
+              className="text-left w-full p-3 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-colors"
+            >
+              {/* Header: name + grade */}
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-[10px] font-bold text-neutral-400 tabular-nums w-4 shrink-0">
+                  {b.lineup_position ?? "-"}
+                </span>
+                <img
+                  src={getMlbHeadshotUrl(b.player_id, "tiny")}
+                  alt={b.player_name}
+                  className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-bold text-neutral-900 dark:text-white truncate block">{b.player_name}</span>
+                  <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>
+                    {b.batting_hand}{hasPlatoon ? " PLT" : ""}
+                  </span>
+                </div>
+                <span className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0",
+                  b.matchup_grade === "strong" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                    : b.matchup_grade === "weak" ? "bg-red-500/10 text-red-500 border-red-500/20"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 border-neutral-200 dark:border-neutral-700"
+                )}>
+                  {b.matchup_grade === "strong" ? "STRONG" : b.matchup_grade === "weak" ? "WEAK" : "NEUTRAL"}
+                </span>
+              </div>
+
+              {/* HR Score bar */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[9px] text-neutral-400 uppercase tracking-wider w-12 shrink-0">HR Score</span>
+                <div className="flex-1 h-2 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all", hrScore >= 60 ? "bg-emerald-500" : hrScore >= 40 ? "bg-amber-500" : "bg-red-400")}
+                    style={{ width: `${hrScore}%` }}
+                  />
+                </div>
+                <span className={cn("text-xs font-black tabular-nums w-6 text-right", hrScore >= 60 ? "text-emerald-500" : hrScore >= 40 ? "text-amber-500" : "text-red-400")}>
+                  {hrScore}
+                </span>
+              </div>
+
+              {/* Pitch vulnerability + overlap */}
+              <div className="flex items-center gap-3 mb-2">
+                {overlap > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-neutral-400">Overlap</span>
+                    <span className={cn("text-[11px] font-bold tabular-nums", overlap >= 60 ? "text-emerald-500" : overlap >= 30 ? "text-amber-500" : "text-neutral-500")}>
+                      {overlap}%
                     </span>
-                  </td>
-                  <td className="px-1.5 py-2">
-                    <div className="flex items-center gap-1.5 min-w-[60px]">
-                      <div className="flex-1 h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", hrScore >= 60 ? "bg-emerald-500" : hrScore >= 40 ? "bg-yellow-500" : "bg-red-400")}
-                          style={{ width: `${hrScore}%` }}
-                        />
-                      </div>
-                      <span className={cn("text-xs font-bold tabular-nums w-6 text-right", hrScore >= 60 ? "text-emerald-600 dark:text-emerald-400" : hrScore >= 40 ? "text-yellow-600 dark:text-yellow-400" : "text-red-500 dark:text-red-400")}>
-                        {hrScore}
-                      </span>
-                    </div>
-                  </td>
-                  <td className={cn("px-1.5 py-2 text-center", overlap > 0 ? heatBg(overlap, { green: 60, yellow: 30, red: 10, higher: "good" }, true) : "")}>
-                    {overlap > 0 ? (
-                      <span className={cn("font-bold tabular-nums", overlap >= 60 ? "text-emerald-600 dark:text-emerald-400" : overlap >= 30 ? "text-yellow-600 dark:text-yellow-400" : "text-neutral-500")}>
-                        {overlap}%
-                      </span>
-                    ) : (
-                      <span className="text-neutral-300 dark:text-neutral-600">—</span>
-                    )}
-                  </td>
-                  {/* SLG with recent trend */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", slgColor(b.slg))}>{fmtAvg(b.slg)}</span>
-                  </td>
-                  {/* wOBA */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", wobaColor(b.woba))}>{fmtAvg(b.woba)}</span>
-                  </td>
-                  {/* ISO */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", isoColor(b.iso))}>{fmtAvg(b.iso)}</span>
-                  </td>
-                  {/* EV with recent delta */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", evColor(b.avg_exit_velo))}>
-                      {b.avg_exit_velo != null ? b.avg_exit_velo.toFixed(1) : "-"}
-                    </span>
-                    <DeltaArrow current={b.recent_avg_ev} baseline={b.avg_exit_velo} higherGood />
-                  </td>
-                  {/* Barrel% with recent delta */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-medium", barrelColor(b.barrel_pct))}>
-                      {fmtPct(b.barrel_pct)}
-                    </span>
-                    <DeltaArrow current={b.recent_barrel_pct} baseline={b.barrel_pct} higherGood />
-                  </td>
-                  {/* K% (lower is better) */}
-                  <td className={cn("px-1.5 py-2 text-right tabular-nums")}>
-                    <span className={cn(
-                      "font-medium",
-                      b.k_pct != null && b.k_pct <= 15 ? "text-emerald-600 dark:text-emerald-400" :
-                      b.k_pct != null && b.k_pct >= 28 ? "text-red-500 dark:text-red-400" : ""
-                    )}>
-                      {fmtPct(b.k_pct)}
-                    </span>
-                  </td>
-                  {/* BB% */}
-                  <td className={cn("px-1.5 py-2 text-right tabular-nums")}>
-                    <span className={cn(
-                      "font-medium",
-                      b.bb_pct != null && b.bb_pct >= 12 ? "text-emerald-600 dark:text-emerald-400" :
-                      b.bb_pct != null && b.bb_pct <= 5 ? "text-red-500 dark:text-red-400" : ""
-                    )}>
-                      {fmtPct(b.bb_pct)}
-                    </span>
-                  </td>
-                  {/* vs Primary pitch */}
-                  {primary && (() => {
-                    const bbs = primarySplit?.batted_balls ?? 0;
-                    const hasSample = bbs >= 20;
-                    return (
-                      <td className={cn("px-1.5 py-2 text-center tabular-nums", hasSample && heatBg(primarySplit?.slg ?? null, { green: 0.500, yellow: 0.400, red: 0.300, higher: "good" }, true))}>
-                        <div className="flex flex-col items-center">
-                          <span className={cn("font-semibold", hasSample ? slgColor(primarySplit?.slg ?? null) : "text-neutral-500")}>
-                            {fmtAvg(primarySplit?.slg ?? null)}
-                          </span>
-                          {bbs > 0 && (
-                            <span className="text-neutral-400 dark:text-neutral-600 text-[9px] leading-none mt-0.5">{bbs} BB</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })()}
-                  {/* vs Secondary pitch */}
-                  {secondary && (() => {
-                    const bbs = secondarySplit?.batted_balls ?? 0;
-                    const hasSample = bbs >= 20;
-                    return (
-                      <td className={cn("px-1.5 py-2 text-center tabular-nums", hasSample && heatBg(secondarySplit?.slg ?? null, { green: 0.500, yellow: 0.400, red: 0.300, higher: "good" }, true))}>
-                        <div className="flex flex-col items-center">
-                          <span className={cn("font-semibold", hasSample ? slgColor(secondarySplit?.slg ?? null) : "text-neutral-500")}>
-                            {fmtAvg(secondarySplit?.slg ?? null)}
-                          </span>
-                          {bbs > 0 && (
-                            <span className="text-neutral-400 dark:text-neutral-600 text-[9px] leading-none mt-0.5">{bbs} BB</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })()}
-                  {/* H2H */}
-                  <td className="px-1.5 py-2 text-center tabular-nums">
-                    {b.h2h && b.h2h.pa > 0 ? (
-                      <span className="text-neutral-700 dark:text-neutral-300">
-                        {b.h2h.hits}/{b.h2h.pa}
-                        {b.h2h.hrs > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-semibold ml-0.5">({b.h2h.hrs} HR)</span>}
-                      </span>
-                    ) : (
-                      <span className="text-neutral-400">-</span>
-                    )}
-                  </td>
-                </tr>
-                {isExpanded && (
-                  <tr>
-                    <td colSpan={13 + (primary ? 1 : 0) + (secondary ? 1 : 0)} className="px-3 pb-4 bg-neutral-50/50 dark:bg-neutral-800/20">
-                      <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
-                    </td>
-                  </tr>
+                  </div>
                 )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                {topPitchSplits.filter(s => s.pa > 0).slice(0, 2).map((s) => (
+                  <div key={s.name} className="flex items-center gap-1">
+                    <span className="text-[9px] text-neutral-400">vs {s.name}</span>
+                    <span className={cn("text-[11px] font-bold tabular-nums", slgColor(s.slg))}>
+                      {fmtAvg(s.slg)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* H2H + HR factors */}
+              <div className="flex items-center gap-3 text-[10px]">
+                {b.h2h && b.h2h.pa > 0 && (
+                  <span className="text-neutral-500">
+                    H2H: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{b.h2h.hits}/{b.h2h.pa}</span>
+                    {b.h2h.hrs > 0 && <span className="text-emerald-500 font-bold ml-0.5">{b.h2h.hrs} HR</span>}
+                  </span>
+                )}
+                {b.hr_factors.filter(f => f.positive).slice(0, 2).map((f, i) => (
+                  <span key={i} className="text-emerald-600 dark:text-emerald-400 font-medium truncate">{f.label}</span>
+                ))}
+              </div>
+            </button>
+
+            {/* Expanded drilldown */}
+            {isExpanded && (
+              <div className="border-t border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 pb-3">
+                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
+              </div>
+            )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1855,7 +1778,7 @@ export function MlbBatterVsPitcher() {
   const [sample, setSample] = useState<"season" | "30" | "15" | "7">("season");
   const [expandedBatterId, setExpandedBatterId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"standard" | "comparison">("standard");
-  const [pitchFilter, setPitchFilter] = useState<string | null>(null); // null = "All Pitches"
+  const [pitchFilters, setPitchFilters] = useState<string[]>([]); // empty = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
   const [statSeason, setStatSeason] = useState<number>(2025);
@@ -1885,7 +1808,7 @@ export function MlbBatterVsPitcher() {
   // Reset expanded batter and filters when changing game/side
   useEffect(() => {
     setExpandedBatterId(null);
-    setPitchFilter(null);
+    setPitchFilters([]);
     setHandFilter("all");
     setHandAutoSet(false);
     setShowBench(false);
@@ -1919,41 +1842,56 @@ export function MlbBatterVsPitcher() {
   // Helper: get effective stats for a batter (filtered by hand and/or pitch type)
   const getBatterStats = useCallback((b: BatterMatchup) => {
     // Start with overall stats
-    let base = {
+    let base: any = {
       avg: b.avg, slg: b.slg, woba: b.woba, iso: b.iso,
       hr: b.hr_count, ev: b.avg_exit_velo, brl: b.barrel_pct,
       bbs: b.total_batted_balls,
+      k_pct: b.k_pct, bb_pct: b.bb_pct,
     };
 
     // Layer hand filter
     if (handFilter !== "all") {
       const hs = handFilter === "rhp" ? b.hand_splits?.vs_rhp : b.hand_splits?.vs_lhp;
       if (hs) {
-        base = { avg: hs.avg, slg: hs.slg, woba: hs.woba, iso: hs.iso, hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.bbs };
+        base = {
+          avg: hs.avg, slg: hs.slg, woba: hs.woba, iso: hs.iso,
+          hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.bbs,
+          k_pct: (hs as any).k_pct ?? null, bb_pct: (hs as any).bb_pct ?? null,
+        };
       } else {
-        base = { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
+        base = { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
       }
     }
 
-    // Layer pitch filter — use cross-filtered data when hand filter is also active
-    if (pitchFilter) {
+    // Layer pitch filter(s) — aggregate stats across selected pitches
+    if (pitchFilters.length > 0) {
       let splits = b.pitch_splits;
       if (handFilter !== "all" && b.pitch_hand_splits) {
         splits = handFilter === "rhp" ? b.pitch_hand_splits.vs_rhp : b.pitch_hand_splits.vs_lhp;
       }
-      const split = splits.find((s) => s.pitch_type === pitchFilter);
-      if (!split) {
-        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
+      const matched = splits.filter((s) => pitchFilters.includes(s.pitch_type));
+      if (matched.length === 0) {
+        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
       }
+      // Weighted average across selected pitches (by PA/batted balls)
+      const totalBBs = matched.reduce((sum, s) => sum + s.batted_balls, 0);
+      if (totalBBs === 0) {
+        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
+      }
+      const wavg = (fn: (s: typeof matched[0]) => number | null) => {
+        let sum = 0, w = 0;
+        for (const s of matched) { const v = fn(s); if (v != null && s.batted_balls > 0) { sum += v * s.batted_balls; w += s.batted_balls; } }
+        return w > 0 ? sum / w : null;
+      };
       return {
-        avg: split.avg, slg: split.slg, woba: split.woba ?? null, iso: split.iso,
-        hr: split.hrs, ev: split.avg_ev ?? null, brl: split.barrel_pct,
-        bbs: split.batted_balls,
+        avg: wavg((s) => s.avg), slg: wavg((s) => s.slg), woba: wavg((s) => s.woba ?? null), iso: wavg((s) => s.iso),
+        hr: matched.reduce((sum, s) => sum + s.hrs, 0), ev: wavg((s) => s.avg_ev ?? null), brl: wavg((s) => s.barrel_pct),
+        bbs: totalBBs, k_pct: null, bb_pct: null,
       };
     }
 
     return base;
-  }, [pitchFilter, handFilter]);
+  }, [pitchFilters, handFilter]);
 
   // Lineup totals (respects pitch filter) — computed per group: all, lefties, righties
   const lineupTotals = useMemo(() => {
@@ -2143,17 +2081,17 @@ export function MlbBatterVsPitcher() {
                   </div>
                 </div>
 
-                {/* Row 2: Filters — Sample | View | Pitch arsenal | Hand */}
+                {/* Pitcher controls — season + sample */}
                 {pitcher && (
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    {/* Season */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {[2025, 2026].map((yr) => (
                         <button
                           key={yr}
                           onClick={() => setStatSeason(yr)}
                           className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
                             statSeason === yr
                               ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -2163,107 +2101,14 @@ export function MlbBatterVsPitcher() {
                         </button>
                       ))}
                     </div>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Sample */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {SAMPLE_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => setSample(opt.value)}
                           className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
                             sample === opt.value
-                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* View toggle */}
-                    <TooltipProvider delayDuration={300}>
-                      <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
-                        {([
-                          { value: "standard" as const, label: "Standard", icon: TableProperties, tip: "Season stats with color-coded key metrics" },
-                          { value: "comparison" as const, label: "Compare", icon: GitCompare, tip: "Sortable view with HR Score, pitch overlap, and per-pitch SLG" },
-                        ]).map((opt) => (
-                          <Tooltip key={opt.value}>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => setViewMode(opt.value)}
-                                className={cn(
-                                  "px-2 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1",
-                                  viewMode === opt.value
-                                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                                )}
-                              >
-                                <opt.icon className="w-3 h-3" />
-                                {opt.label}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-[200px] text-xs">
-                              {opt.tip}
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
-                      </div>
-                    </TooltipProvider>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Pitch type pills */}
-                    {pitcher.arsenal.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          onClick={() => setPitchFilter(null)}
-                          className={cn(
-                            "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                            pitchFilter === null
-                              ? "bg-brand/10 border-brand/20 text-brand"
-                              : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                          )}
-                        >
-                          All
-                        </button>
-                        {pitcher.arsenal.map((a) => (
-                          <button
-                            key={a.pitch_type}
-                            onClick={() => setPitchFilter(pitchFilter === a.pitch_type ? null : a.pitch_type)}
-                            className={cn(
-                              "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                              pitchFilter === a.pitch_type
-                                ? "bg-brand/10 border-brand/20 text-brand"
-                                : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                            )}
-                          >
-                            {a.pitch_name} <span className="text-neutral-400 font-normal">{a.usage_pct}%</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Hand filter */}
-                    <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
-                      {([
-                        { value: "all" as const, label: "All" },
-                        { value: "rhp" as const, label: "vs RHP" },
-                        { value: "lhp" as const, label: "vs LHP" },
-                      ]).map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => { setHandFilter(opt.value); setHandAutoSet(false); }}
-                          className={cn(
-                            "px-2 py-1 rounded text-[11px] font-medium transition-all",
-                            handFilter === opt.value
                               ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                           )}
@@ -2303,16 +2148,96 @@ export function MlbBatterVsPitcher() {
                 </div>
 
                 {/* Right: Lineup Column */}
-                <div className="xl:w-[62%] space-y-4">
+                <div className="xl:w-[62%] space-y-3">
+                  {/* Batter controls — view toggle + pitch pills + hand filter */}
+                  {batters.length > 0 && pitcher && (
+                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-3 py-2.5 space-y-2">
+                      {/* Row 1: View toggle + hand filter */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {([
+                            { value: "standard" as const, label: "Standard", icon: TableProperties },
+                            { value: "comparison" as const, label: "Matchup", icon: GitCompare },
+                          ] as const).map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setViewMode(opt.value)}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5",
+                                viewMode === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              <opt.icon className="w-3 h-3" />
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {([
+                            { value: "all" as const, label: "All" },
+                            { value: "rhp" as const, label: "vs RHP" },
+                            { value: "lhp" as const, label: "vs LHP" },
+                          ]).map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => { setHandFilter(opt.value); setHandAutoSet(false); }}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
+                                handFilter === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Row 2: Pitch pills */}
+                      {pitcher.arsenal.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <button
+                            onClick={() => setPitchFilters([])}
+                            className={cn(
+                              "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
+                              pitchFilters.length === 0
+                                ? "bg-brand/10 border-brand/20 text-brand"
+                                : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            All Pitches
+                          </button>
+                          {pitcher.arsenal.map((a) => (
+                            <button
+                              key={a.pitch_type}
+                              onClick={() => setPitchFilters(pitchFilters.includes(a.pitch_type) ? pitchFilters.filter(p => p !== a.pitch_type) : [...pitchFilters, a.pitch_type])}
+                              className={cn(
+                                "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
+                                pitchFilters.includes(a.pitch_type)
+                                  ? "bg-brand/10 border-brand/20 text-brand"
+                                  : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {a.pitch_name} <span className="text-neutral-400 font-normal">{a.usage_pct}%</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Lineup Table */}
                   {batters.length > 0 ? (
                     viewMode === "comparison" && pitcher ? (
                       <ComparisonView
-                        batters={batters}
+                        batters={displayBatters}
                         pitcher={pitcher}
                         expandedBatterId={expandedBatterId}
                         onToggleExpand={(id) => setExpandedBatterId(expandedBatterId === id ? null : id)}
-                        pitchFilter={pitchFilter}
+                        pitchFilter={pitchFilters[0] ?? null}
+                        getStats={getBatterStats}
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
@@ -2325,8 +2250,8 @@ export function MlbBatterVsPitcher() {
                             onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                             isMobile
                             viewMode={viewMode}
-                            displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                            pitchFilter={pitchFilter}
+                            displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                            pitchFilter={pitchFilters[0] ?? null}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
@@ -2349,8 +2274,8 @@ export function MlbBatterVsPitcher() {
                                 onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                 isMobile
                                 viewMode={viewMode}
-                                displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                pitchFilter={pitchFilter}
+                                displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                pitchFilter={pitchFilters[0] ?? null}
                               />
                             ))}
                           </>
@@ -2423,8 +2348,8 @@ export function MlbBatterVsPitcher() {
                                 onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                 isMobile={false}
                                 viewMode={viewMode}
-                                displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                pitchFilter={pitchFilter}
+                                displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                pitchFilter={pitchFilters[0] ?? null}
                               />
                             ))}
                             {/* Bench expand row */}
@@ -2452,8 +2377,8 @@ export function MlbBatterVsPitcher() {
                                     onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                     isMobile={false}
                                     viewMode={viewMode}
-                                    displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                    pitchFilter={pitchFilter}
+                                    displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                    pitchFilter={pitchFilters[0] ?? null}
                                   />
                                 ))}
                               </>

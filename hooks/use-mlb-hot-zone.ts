@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 export interface BatterZoneCell {
   zone: number;
@@ -112,11 +112,13 @@ export function useMlbHotZone(
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
   return {
     data: query.data ?? null,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: query.error as Error | null,
   };
 }
