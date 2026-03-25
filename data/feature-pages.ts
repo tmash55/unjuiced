@@ -774,6 +774,247 @@ export const featurePages: FeaturePage[] = [
         "Save plays from any tool, track real-time odds across books, build parlays, compare prices, and place bets with sportsbook deeplinks.",
     },
   },
+  // ── MLB Tools ───────────────────────────────────────────────────────────
+  {
+    slug: "slate-insights",
+    title: "Slate Insights",
+    tagline: "Every MLB matchup broken down pitch by pitch",
+    description:
+      "See exactly how every batter matches up against today's starting pitcher. Filter by pitch type, handedness, and sample size to find home run opportunities, strikeout risks, and hidden value in player props — all backed by Statcast data.",
+    category: "MLB Research",
+    badge: "NEW",
+    accentColor: "#EF4444",
+    toolPath: "/cheatsheets/mlb/slate-insights",
+    benefits: [
+      "Pitch-level matchup splits",
+      "Real Statcast BA/SLG/wOBA",
+      "HR Score & factors",
+      "Strike zone heat maps",
+      "Multi-pitch filtering",
+    ],
+    features: [
+      {
+        title: "Pitcher arsenal breakdown",
+        description:
+          "See every pitch in the starter's arsenal with real Statcast batting average against, slugging, whiff rate, and velocity. Toggle between overall, vs LHB, and vs RHB to find the weak spots. Hittable pitches are highlighted automatically.",
+      },
+      {
+        title: "Batter-vs-pitcher matchup table",
+        description:
+          "Full batting lineup sorted by order with BA, HR, SLG, ISO, EV, barrel rate, wOBA, K%, and BB% — all from real game logs, not inflated batted-ball-only stats. Filter by pitcher handedness to see how each batter performs vs lefties or righties.",
+      },
+      {
+        title: "Multi-pitch filtering",
+        description:
+          "Select one or multiple pitch types (e.g. Sinker + Changeup) to see weighted average stats against those specific pitches. Find batters who crush the pitcher's primary offerings or struggle against his best stuff.",
+      },
+      {
+        title: "HR Score & matchup factors",
+        description:
+          "Every batter gets an HR probability score (0-100) combining power metrics, pitcher vulnerability, park factors, and environment. See exactly why a batter is rated — platoon advantage, recent surge, ISO, barrel rate, and more.",
+      },
+      {
+        title: "Strike zone analysis",
+        description:
+          "9-zone heat maps from the catcher's view showing where the batter makes contact (hot/cold zones), where the pitcher locates, and a matchup overlay revealing who wins each zone. Filter by pitch type for granular reads.",
+      },
+      {
+        title: "Head-to-head history",
+        description:
+          "Career batter-vs-pitcher stats with PA, AVG, SLG, HR count, and last 3 meeting results. Small sample warnings included so you don't overweight fluky outcomes.",
+      },
+    ],
+    steps: [
+      {
+        title: "Pick a game",
+        description:
+          "Select from today's MLB slate. Games are sorted by start time with the next upcoming game auto-selected.",
+      },
+      {
+        title: "Scan the matchups",
+        description:
+          "Review the pitcher's arsenal and splits, then scan the batting lineup for strong matchup grades and high HR scores.",
+      },
+      {
+        title: "Filter by pitch type",
+        description:
+          "Select specific pitches to see how batters perform against the pitcher's primary offerings. Multi-select to combine pitch types.",
+      },
+      {
+        title: "Find your edge",
+        description:
+          "Expand any batter for the full drilldown — pitch splits, HR factors, zone analysis, and H2H history. Build your case for player props.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Where does the data come from?",
+        answer:
+          "All batting and pitching stats come from MLB Statcast via Baseball Savant. We use real plate appearance data (not just batted balls) for accurate BA, OBP, SLG, and K/BB rates.",
+      },
+      {
+        question: "How is the HR Score calculated?",
+        answer:
+          "The HR Score (0-100) is a composite of batter power metrics, pitcher vulnerability, park factors, weather/environment conditions, and matchup context. It's not a probability — it's a relative ranking of HR opportunity.",
+      },
+      {
+        question: "What does the pitch filter do?",
+        answer:
+          "When you select a pitch type (e.g. Sinker), the entire batting table updates to show stats against that specific pitch only. Select multiple pitches for a weighted average. This helps you find batters who crush a pitcher's go-to pitch.",
+      },
+      {
+        question: "Why do the stats change when I toggle vs RHP / vs LHP?",
+        answer:
+          "The hand filter shows each batter's career splits against right-handed or left-handed pitching from Statcast data. K%, BB%, BA, SLG, and wOBA all update to reflect the handedness split.",
+      },
+      {
+        question: "Are lineups confirmed?",
+        answer:
+          "We pull lineups from multiple sources. A green 'Confirmed' badge means the lineup has been officially announced. An amber 'Projected' badge means it's based on projected/expected lineups. Use the refresh button to check for updates.",
+      },
+      {
+        question: "What plan do I need?",
+        answer:
+          "Slate Insights requires a Scout plan or higher. The Weather Report is free for all users.",
+      },
+    ],
+    seo: {
+      title: "Slate Insights | Unjuiced - MLB Batter vs Pitcher Matchup Tool",
+      description:
+        "Break down every MLB matchup pitch by pitch. See Statcast batting splits, HR scores, strike zone analysis, and pitcher arsenal data to find the best player prop bets.",
+    },
+  },
+  {
+    slug: "hr-command-center",
+    title: "HR Command Center",
+    tagline: "Find today's best home run bets with our 5-layer scoring model",
+    description:
+      "Our HR Command Center ranks every batter by home run probability using a composite score of power metrics, pitcher vulnerability, park factors, weather, and matchup context — with live odds from 14+ sportsbooks.",
+    category: "MLB Research",
+    badge: "NEW",
+    accentColor: "#EF4444",
+    toolPath: "/cheatsheets/mlb/hr-command-center",
+    benefits: [
+      "5-layer HR scoring",
+      "Live odds comparison",
+      "Edge % calculation",
+      "Sportsbook deeplinks",
+    ],
+    features: [
+      {
+        title: "Composite HR Score (0-100)",
+        description:
+          "Weighs batter power, pitcher vulnerability, park factor, environment, and matchup context into a single score. Elite (90+), Strong (80+), Solid (70+), and Longshot tiers.",
+      },
+      {
+        title: "Live HR odds across 14+ books",
+        description:
+          "Best available Over 0.5 HR odds updated in real time. Click to see all books with prices and direct bet links.",
+      },
+      {
+        title: "Edge % vs market",
+        description:
+          "See where our model disagrees with the market. Positive edge means we think the HR is more likely than the odds imply.",
+      },
+    ],
+    steps: [
+      { title: "Sort by HR Score", description: "Find the highest-scoring opportunities at the top." },
+      { title: "Check the odds", description: "Compare prices across books and find the best value." },
+      { title: "Place your bet", description: "Click through to your sportsbook with deeplinks." },
+    ],
+    faqs: [
+      { question: "How is the HR Score different from the odds?", answer: "The HR Score is our model's assessment of HR likelihood. The odds are the market's assessment. When they disagree (positive edge), there may be value." },
+      { question: "What plan do I need?", answer: "HR Command Center requires a Scout plan or higher." },
+    ],
+    seo: {
+      title: "HR Command Center | Unjuiced - MLB Home Run Betting Tool",
+      description: "Find the best MLB home run bets with our 5-layer scoring model. Live odds, edge calculation, and sportsbook deeplinks.",
+    },
+  },
+  {
+    slug: "nrfi-analysis",
+    title: "NRFI Analysis",
+    tagline: "No Run First Inning probabilities with pitcher grades and live odds",
+    description:
+      "Grade every game's NRFI/YRFI probability using pitcher scoreless rates, first-inning offense data, and multi-year trends. Live odds from 14+ sportsbooks with direct bet links.",
+    category: "MLB Research",
+    badge: "NEW",
+    accentColor: "#EF4444",
+    toolPath: "/cheatsheets/mlb/nrfi",
+    benefits: ["Pitcher NRFI grades", "Live NRFI/YRFI odds", "Multi-year data", "Sportsbook logos"],
+    features: [
+      { title: "NRFI/YRFI grades per game", description: "Every game graded A+ through D based on pitcher scoreless rates, team offense, and historical first-inning data." },
+      { title: "Live odds with sportsbook logos", description: "See NRFI and YRFI prices across all major books. Click any row to bet." },
+    ],
+    steps: [
+      { title: "Sort by grade", description: "Find the highest-graded NRFI or YRFI games." },
+      { title: "Compare odds", description: "Expand any game to see all sportsbook prices." },
+      { title: "Place the bet", description: "Click through to your book." },
+    ],
+    faqs: [
+      { question: "What plan do I need?", answer: "NRFI Analysis requires a Scout plan or higher." },
+    ],
+    seo: {
+      title: "NRFI Analysis | Unjuiced - No Run First Inning Betting Tool",
+      description: "Grade every MLB game for NRFI/YRFI probability with pitcher data, live odds, and sportsbook deeplinks.",
+    },
+  },
+  {
+    slug: "exit-velocity",
+    title: "Exit Velocity Leaders",
+    tagline: "Find the hardest-hitting batters against today's pitchers",
+    description:
+      "Statcast exit velocity and barrel rate leaders for today's MLB slate. Filter by pitcher hand, pitch type, and sample size to find power hitters in favorable matchups.",
+    category: "MLB Research",
+    badge: "NEW",
+    accentColor: "#EF4444",
+    toolPath: "/cheatsheets/mlb/exit-velocity",
+    benefits: ["Statcast EV data", "Barrel rate leaders", "Pitcher hand splits", "Scatter plot view"],
+    features: [
+      { title: "Exit velocity leaderboard", description: "Today's batters ranked by hard-hit metrics with real Statcast data." },
+      { title: "Pitcher hand and pitch type filters", description: "See how batters perform against specific pitch types and handedness." },
+    ],
+    steps: [
+      { title: "Pick your date", description: "Select today or navigate to upcoming games." },
+      { title: "Filter and sort", description: "Use pitch type and hand filters to narrow the field." },
+      { title: "Find hard hitters", description: "Target batters with elite barrel rates in favorable matchups." },
+    ],
+    faqs: [
+      { question: "What plan do I need?", answer: "Exit Velocity requires a Scout plan or higher." },
+    ],
+    seo: {
+      title: "Exit Velocity Leaders | Unjuiced - MLB Statcast Batting Tool",
+      description: "Find the hardest-hitting MLB batters with Statcast exit velocity, barrel rate, and hard-hit data.",
+    },
+  },
+  {
+    slug: "weather-report",
+    title: "Weather Report",
+    tagline: "How weather and park conditions impact today's games",
+    description:
+      "Environment scores for every MLB game combining temperature, wind speed and direction, humidity, elevation, and park factors. Find games where weather boosts or suppresses scoring.",
+    category: "MLB Research",
+    accentColor: "#EF4444",
+    toolPath: "/cheatsheets/mlb/weather-report",
+    benefits: ["Env Score per game", "Wind compass", "Park factors", "Hourly forecast"],
+    features: [
+      { title: "Environment Score (0-100)", description: "Composite score weighing temperature, wind, humidity, and park factors. High-impact games highlighted." },
+      { title: "Game weather timeline", description: "Hour-by-hour forecast showing temperature, wind, and precipitation changes throughout the game." },
+      { title: "Field profile with wind overlay", description: "Outfield dimensions with wall heights and wind direction overlay. See where the ball carries." },
+    ],
+    steps: [
+      { title: "Check the scores", description: "Games sorted by environment score — high-impact games at the top." },
+      { title: "Review the forecast", description: "Click any game for the full weather timeline and field profile." },
+      { title: "Factor it in", description: "Use environment data to adjust over/under and HR prop bets." },
+    ],
+    faqs: [
+      { question: "Is the Weather Report free?", answer: "Yes. The Weather Report is free for all users." },
+    ],
+    seo: {
+      title: "Weather Report | Unjuiced - MLB Weather & Park Factor Tool",
+      description: "Check how weather and park conditions impact today's MLB games. Environment scores, wind analysis, and hourly forecasts.",
+    },
+  },
 ];
 
 export function getFeatureBySlug(slug: string) {
