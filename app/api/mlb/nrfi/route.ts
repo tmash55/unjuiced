@@ -160,6 +160,13 @@ function generateExplanation(
   return parts.join(" ");
 }
 
+interface Sportsbook {
+  name: string;
+  nrfiOdds: string;
+  yrfiOdds: string;
+  link: string;
+}
+
 // ── RPC row shape from get_nrfi_cheatsheet(p_game_date) ────────────────────
 
 interface RpcRow {

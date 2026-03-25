@@ -9,7 +9,17 @@ import type {
   RecentStart,
 } from "@/lib/nrfi-data";
 import { getLeanLabel, getLeanClasses } from "@/lib/nrfi-data";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { NRFIRecord, StreakBadge } from "./nrfi-record";
+
+function getBookLogo(bookId: string): string | null {
+  const sb = getSportsbookById(bookId);
+  return sb?.image?.light || null;
+}
+function getBookName(bookId: string): string {
+  const sb = getSportsbookById(bookId);
+  return sb?.name || bookId;
+}
 
 function TeamLogo({ abbr, size = 20 }: { abbr: string; size?: number }) {
   return (
@@ -559,31 +569,34 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
                   <span className="text-[9px] text-red-500/60 dark:text-red-400/60 uppercase tracking-widest font-semibold w-14 text-right">YRFI</span>
                   <span className="w-14" />
                 </div>
-                {game.sportsbooks.map((book) => (
-                  <div
+                {game.sportsbooks.map((book) => {
+                  const logo = getBookLogo(book.name);
+                  return (
+                  <a
                     key={book.name}
-                    className="flex items-center py-2 px-3 rounded-md hover:bg-neutral-100/80 dark:hover:bg-neutral-800/30 transition-colors"
+                    href={book.link || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center py-2 px-3 rounded-lg hover:bg-neutral-100/80 dark:hover:bg-neutral-800/30 transition-colors"
                   >
-                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 flex-1 min-w-0 truncate">
-                      {book.name}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-14 text-right shrink-0 font-mono">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {logo ? (
+                        <img src={logo} alt={book.name} className="h-4 w-auto shrink-0" />
+                      ) : null}
+                      <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 truncate">
+                        {getBookName(book.name)}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-14 text-right shrink-0">
                       {book.nrfiOdds}
                     </span>
-                    <span className="text-xs font-bold text-red-500 dark:text-red-400 tabular-nums w-14 text-right shrink-0 font-mono">
+                    <span className="text-xs font-bold text-red-500 dark:text-red-400 tabular-nums w-14 text-right shrink-0">
                       {book.yrfiOdds}
                     </span>
-                    <div className="w-14 flex justify-end shrink-0">
-                      <a
-                        href={book.link}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-md bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors"
-                      >
-                        Bet
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  </a>
+                  );
+                })}
               </div>
             )}
 

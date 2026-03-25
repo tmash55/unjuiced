@@ -223,9 +223,8 @@ export async function GET(req: NextRequest) {
             mobile_link: sel.mobile_link,
           };
 
-          // Track best consumer odds (exclude sharp books)
-          const isSharp = (SHARP_BOOKS as readonly string[]).includes(book);
-          if (!isSharp && sel.price_decimal) {
+          // Track best odds across all books (including sharp)
+          if (sel.price_decimal) {
             if (!bestOdds || sel.price_decimal > bestOdds.price_decimal) {
               bestOdds = sel;
               bestBook = book;

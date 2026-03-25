@@ -11,6 +11,7 @@ import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { SheetFilterBar, SegmentedControl, FilterDivider, FilterSearch, FilterCount } from "@/components/cheat-sheet/sheet-filter-bar";
 import {
   ChevronDown,
@@ -74,14 +75,126 @@ function getScoreBg(score: number): string {
   return "bg-neutral-500";
 }
 
-function formatOdds(odds: number | null): string {
+function formatOdds(odds: number | string | null): string {
   if (odds == null) return "-";
+  if (typeof odds === "string") return odds.startsWith("+") || odds.startsWith("-") ? odds : `+${odds}`;
   return odds > 0 ? `+${odds}` : String(odds);
 }
 
 function formatPct(val: number | null, decimals = 1): string {
   if (val == null) return "-";
   return `${val.toFixed(decimals)}%`;
+}
+
+function getBookLogo(bookId: string): string | null {
+  const sb = getSportsbookById(bookId);
+  return sb?.image?.light || null;
+}
+
+function getBookName(bookId: string): string {
+  const sb = getSportsbookById(bookId);
+  return sb?.name || bookId;
+}
+
+/** Inline odds cell — sportsbook logo + price on same line, expandable dropdown */
+function HROddsCell({ player }: { player: HRScorePlayer }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const bestPrice = player.best_odds_american;
+  const bestBook = player.best_odds_book;
+  const allBooks = player.all_book_odds;
+  const hasOdds = bestPrice != null;
+
+  if (!hasOdds) return <span className="text-xs text-neutral-500">—</span>;
+
+  const logo = bestBook ? getBookLogo(bestBook) : null;
+  const bookEntries = allBooks
+    ? Object.entries(allBooks)
+        .filter(([, d]) => d?.price != null)
+        .sort((a, b) => (b[1]?.price ?? -9999) - (a[1]?.price ?? -9999))
+    : [];
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all",
+          "hover:bg-neutral-100 dark:hover:bg-neutral-800/60",
+          isOpen && "bg-neutral-100 dark:bg-neutral-800/60 ring-1 ring-brand/30"
+        )}
+      >
+        {logo ? (
+          <img src={logo} alt={bestBook ?? ""} className="h-4 w-auto shrink-0" />
+        ) : null}
+        <span className="text-xs font-bold tabular-nums text-emerald-400">{formatOdds(bestPrice)}</span>
+        <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && bookEntries.length > 0 && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-800">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">HR 0.5+</span>
+            <span className="text-[10px] text-neutral-400">{bookEntries.length} books</span>
+          </div>
+          {/* Book list */}
+          <div className="max-h-64 overflow-y-auto">
+            {bookEntries.map(([book, data]) => {
+              const bLogo = getBookLogo(book);
+              const price = data?.price;
+              const link = data?.link || data?.mobile_link;
+              const isBest = book === bestBook;
+              return (
+                <a
+                  key={book}
+                  href={link ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2 transition-colors",
+                    "hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
+                    isBest && "bg-emerald-500/5"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {bLogo ? (
+                      <img src={bLogo} alt={book} className="h-4 w-auto shrink-0" />
+                    ) : null}
+                    <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                      {getBookName(book)}
+                    </span>
+                    {isBest && (
+                      <span className="text-[9px] font-bold text-emerald-500 uppercase shrink-0">Best</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={cn(
+                      "text-xs font-bold tabular-nums",
+                      isBest ? "text-emerald-400" : "text-neutral-600 dark:text-neutral-300"
+                    )}>
+                      {price != null ? formatOdds(price) : "—"}
+                    </span>
+                    {link && <ExternalLink className="w-2.5 h-2.5 text-neutral-400" />}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -298,7 +411,7 @@ function MobileCard({ player, rank }: { player: HRScorePlayer; rank: number }) {
               <span className="text-neutral-500">Max EV</span>
               <span className="font-bold text-neutral-200 tabular-nums">{player.max_exit_velo?.toFixed(1) ?? "-"}</span>
               <span className="text-neutral-500">Best Odds</span>
-              <span className="font-bold text-emerald-400 tabular-nums">{formatOdds(player.best_odds_american)}</span>
+              <span className="font-bold text-emerald-400 tabular-nums">{player.best_odds_american != null ? (typeof player.best_odds_american === "string" ? player.best_odds_american : formatOdds(player.best_odds_american)) : "-"}</span>
               <span className="text-neutral-500">Park</span>
               <span className="font-bold text-neutral-200 tabular-nums">{player.park_hr_factor?.toFixed(2) ?? "-"}x</span>
             </div>
@@ -639,24 +752,7 @@ export function MlbHRCommandCenter() {
 
                             {/* Best Odds */}
                             <td className="px-3 py-2.5 text-center">
-                              {player.best_odds_american != null ? (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <a
-                                    href={player.best_odds_link ?? "#"}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-xs font-black tabular-nums text-emerald-400 hover:underline"
-                                  >
-                                    {formatOdds(player.best_odds_american)}
-                                  </a>
-                                  {player.best_odds_book && (
-                                    <span className="text-[9px] text-neutral-500 capitalize">{player.best_odds_book}</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-neutral-500">-</span>
-                              )}
+                              <HROddsCell player={player} />
                             </td>
 
                             {/* Edge */}
