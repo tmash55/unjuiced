@@ -53,19 +53,45 @@ export function useAvailableMarkets(sports: string[]) {
       // Single API call for all sports (much faster!)
       const aggregatedMarkets = await fetchMarketsForSports(sports);
 
+      // Merge fallback MLB markets into API results if MLB markets are missing
+      // This ensures MLB markets always show in filters even before Redis is populated
+      const hasMlbMarkets = aggregatedMarkets.some((m) => m.sports?.includes("mlb"));
+      let mergedMarkets = aggregatedMarkets;
+      if (!hasMlbMarkets && sports.includes("mlb")) {
+        const mlbFallbackKeys = Object.entries(FALLBACK_MARKET_SPORTS)
+          .filter(([, sports]) => sports.includes("mlb"))
+          .map(([key]) => key);
+        for (const key of mlbFallbackKeys) {
+          const existing = aggregatedMarkets.find((m) => m.key === key);
+          if (existing) {
+            // Add mlb to the sports list
+            if (!existing.sports?.includes("mlb")) {
+              existing.sports = [...(existing.sports || []), "mlb"];
+            }
+          } else {
+            mergedMarkets.push({
+              key,
+              display: key,
+              totalEvents: 0,
+              sports: ["mlb"],
+            });
+          }
+        }
+      }
+
       // Build lookup map
       const marketMap = new Map<string, AggregatedMarket>();
-      for (const market of aggregatedMarkets) {
+      for (const market of mergedMarkets) {
         marketMap.set(market.key, market);
       }
 
       // Return just the keys for the filters component (backwards compatible)
-      const marketKeys = aggregatedMarkets.map((m) => m.key);
+      const marketKeys = mergedMarkets.map((m) => m.key);
 
       return {
         markets: marketKeys,
         marketsByKey: marketMap,
-        aggregatedMarkets,
+        aggregatedMarkets: mergedMarkets,
       };
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - markets don't change often
