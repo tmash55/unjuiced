@@ -665,7 +665,38 @@ export async function GET(req: NextRequest) {
         const order = orderMap.get(p.player_id);
         if (order != null) p.lineup_position = order;
       }
-      // Filter to only starters (batting_order 1-9) + any lineup players not in profiles
+
+      // Inject players from daily lineups that are missing from profiles
+      // (e.g. new players, traded players not yet in mlb_hit_rate_profiles)
+      const existingIds = new Set(lineup.map((p: any) => p.player_id));
+      const missingDailyIds = dailyLineup
+        .filter((dl: any) => dl.batting_order >= 1 && dl.batting_order <= 9 && !existingIds.has(dl.player_id))
+        .map((dl: any) => dl.player_id);
+
+      if (missingDailyIds.length > 0) {
+        // Fetch player info from mlb_players_hr
+        const { data: missingPlayers } = await supabase
+          .from("mlb_players_hr")
+          .select("mlb_player_id, name, team_id, bat_hand")
+          .in("mlb_player_id", missingDailyIds);
+
+        if (missingPlayers && missingPlayers.length > 0) {
+          for (const mp of missingPlayers) {
+            const dlEntry = dailyLineup.find((dl: any) => dl.player_id === mp.mlb_player_id);
+            lineup.push({
+              player_id: mp.mlb_player_id,
+              player_name: mp.name,
+              team_id: mp.team_id || battingTeamId,
+              team_abbr: battingTeamAbbr,
+              batting_hand: mp.bat_hand || "R",
+              lineup_position: dlEntry ? dlEntry.batting_order : null,
+            });
+          }
+          console.log(`[game-matchup] Injected ${missingPlayers.length} players from daily lineups: ${missingPlayers.map((p: any) => p.name).join(", ")}`);
+        }
+      }
+
+      // Filter to only starters (batting_order 1-9)
       // Keep all if no one matched (fallback)
       const starters = lineup.filter((p: any) => p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9);
       if (starters.length >= 5) {
