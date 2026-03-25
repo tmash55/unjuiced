@@ -272,10 +272,7 @@ export const FALLBACK_MARKETS = [
  */
 export const FALLBACK_MARKET_SPORTS: Record<string, string[]> = (() => {
   const map: Record<string, string[]> = {};
-  const assign = (keys: string[], sports: string[]) => {
-    keys.forEach(k => { map[k] = [...(map[k] || []), ...sports]; });
-  };
-  assign([
+  const mlbMarkets = [
     "run_line", "total_runs", "team_total_runs", "team_total_home_team", "team_total_away_team",
     "extra_innings", "1st_inning_moneyline", "1st_inning_moneyline_3_way", "1st_inning_total_runs",
     "1st_inning_run_line", "1st_5_innings_moneyline", "1st_5_innings_run_line", "1st_5_innings_total_runs",
@@ -285,15 +282,15 @@ export const FALLBACK_MARKET_SPORTS: Record<string, string[]> = (() => {
     "player_hits__runs__rbis", "player_batting_strikeouts", "player_strikeouts",
     "player_hits_allowed", "player_walks_allowed", "player_earned_runs", "player_outs",
     "batter_hits", "batter_total_bases", "batter_rbis", "batter_home_runs", "pitcher_strikeouts",
-  ], ["mlb"]);
-  assign([
+  ];
+  const basketballMarkets = [
     "player_points", "player_rebounds", "player_assists", "player_threes_made", "player_fgm",
     "player_steals", "player_blocks", "player_turnovers", "player_pra", "player_pr", "player_pa",
     "player_ra", "player_bs", "player_double_double", "player_triple_double", "first_field_goal",
     "team_first_basket", "top_points_scorer", "1st_quarter_player_points", "1st_quarter_player_rebounds",
     "1st_quarter_player_assists", "1st_3_minutes_player_points",
-  ], ["nba", "ncaab"]);
-  assign([
+  ];
+  const footballMarkets = [
     "player_passing_yards", "player_passing_tds", "player_passing_completions", "player_passing_attempts",
     "player_rushing_yards", "player_rushing_attempts", "player_receiving_yards", "player_receptions",
     "player_interceptions_thrown", "player_touchdowns", "player_first_td", "player_last_td",
@@ -303,21 +300,28 @@ export const FALLBACK_MARKET_SPORTS: Record<string, string[]> = (() => {
     "game_total_touchdowns", "1st_half_player_passing_yards", "1st_half_player_rushing_yards",
     "1st_half_player_touchdowns", "1st_quarter_player_passing_yards", "1st_quarter_player_rushing_yards",
     "1st_quarter_player_receiving_yards",
-  ], ["nfl", "ncaaf"]);
-  assign([
+  ];
+  const hockeyMarkets = [
     "player_goals", "player_assists", "player_points", "player_shots_on_goal", "player_blocked_shots",
     "player_hits", "player_plus_minus", "player_pp_points", "player_first_goal", "player_last_goal",
     "home_team_first_goalscorer", "away_team_first_goalscorer", "second_goalscorer", "third_goalscorer",
     "player_saves", "player_goals_against", "player_shutout", "1st_period_player_goals",
     "1st_period_player_assists", "1st_period_player_points", "1st_period_player_shots_on_goal",
     "1st_period_player_saves", "game_total_goals", "both_teams_to_score",
-  ], ["nhl"]);
-  assign([
-    "anytime_goalscorer", "first_goalscorer", "player_shots_on_target",
-  ], ["soccer_epl"]);
-  assign([
-    "game_moneyline", "game_spread", "total_points", "team_total", "overtime",
-    "first_team_to_score", "second_team_to_score", "moneyline_3_way",
-  ], ["nba", "nfl", "nhl", "ncaab", "mlb"]);
+  ];
+  const soccerMarkets = [
+    "player_goals", "anytime_goalscorer", "first_goalscorer", "player_shots_on_target",
+  ];
+  // Shared game markets
+  const sharedGameMarkets = ["game_moneyline", "game_spread", "total_points", "team_total", "overtime", "first_team_to_score", "second_team_to_score", "moneyline_3_way"];
+
+  mlbMarkets.forEach(k => { map[k] = [...(map[k] || []), "mlb"]; });
+  basketballMarkets.forEach(k => { map[k] = [...(map[k] || []), "nba", "ncaab"]; });
+  footballMarkets.forEach(k => { map[k] = [...(map[k] || []), "nfl", "ncaaf"]; });
+  hockeyMarkets.forEach(k => { map[k] = [...(map[k] || []), "nhl"]; });
+  soccerMarkets.forEach(k => { map[k] = [...(map[k] || []), "soccer_epl"]; });
+  sharedGameMarkets.forEach(k => {
+    map[k] = [...(map[k] || []), "nba", "nfl", "nhl", "ncaab", "mlb"];
+  });
   return map;
 })();

@@ -16,6 +16,8 @@ export interface RawHitRateProfile {
   team_id: number | null;
   team_name: string | null;
   team_abbr: string | null;
+  player_name?: string | null;
+  player_position?: string | null;
   opponent_team_id: number | null;
   opponent_team_name: string | null;
   opponent_team_abbr: string | null;
@@ -37,6 +39,7 @@ export interface RawHitRateProfile {
   last_10_avg: number | null;
   last_20_avg: number | null;
   season_avg: number | null;
+  previous_season_avg?: number | null;
   hit_streak: number | null;
   spread: number | null;
   total: number | null;
@@ -44,6 +47,9 @@ export interface RawHitRateProfile {
   injury_notes: string | null;
   position: string | null;
   jersey_number: number | null;
+  batting_hand?: string | null;
+  season_batting_avg?: number | null;
+  lineup_position?: number | null;
   game_logs: unknown[] | null;
   is_primetime: boolean | null;
   national_broadcast: string | null;
@@ -106,12 +112,16 @@ export interface HitRateProfile {
   last10Avg: number | null;
   last20Avg: number | null;
   seasonAvg: number | null;
+  previousSeasonAvg: number | null;
   spread: number | null;
   total: number | null;
   injuryStatus: string | null;
   injuryNotes: string | null;
   position: string | null;
   jerseyNumber: number | null;
+  battingHand: string | null;
+  seasonBattingAvg: number | null;
+  lineupPosition: number | null;
   gameDate: string | null;
   startTime: string | null;
   gameStatus: string | null;

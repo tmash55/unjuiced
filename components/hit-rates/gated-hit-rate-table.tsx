@@ -18,6 +18,7 @@ const TOTAL_PREVIEW_ROWS = 20;
 const UPGRADE_URL = "/pricing";
 
 interface GatedHitRateTableProps {
+  sport?: "nba" | "mlb";
   rows: HitRateProfile[];
   loading?: boolean;
   error?: string | null;
@@ -27,6 +28,7 @@ interface GatedHitRateTableProps {
   isLoadingMore?: boolean;
   totalCount?: number;
   selectedMarkets: string[];
+  marketOptions?: Array<{ value: string; label: string }>;
   onMarketsChange: (markets: string[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -106,6 +108,7 @@ function BottomCTA() {
 }
 
 export function GatedHitRateTable({
+  sport = "nba",
   rows,
   loading,
   error,
@@ -115,6 +118,7 @@ export function GatedHitRateTable({
   isLoadingMore,
   totalCount,
   selectedMarkets,
+  marketOptions,
   onMarketsChange,
   searchQuery,
   onSearchChange,
@@ -134,6 +138,7 @@ export function GatedHitRateTable({
   if (isLoadingAccess || hasAccess) {
     return (
       <HitRateTable
+        sport={sport}
         rows={rows}
         loading={loading}
         error={error}
@@ -143,6 +148,7 @@ export function GatedHitRateTable({
         isLoadingMore={isLoadingMore}
         totalCount={totalCount}
         selectedMarkets={selectedMarkets}
+        marketOptions={marketOptions}
         onMarketsChange={onMarketsChange}
         searchQuery={searchQuery}
         onSearchChange={onSearchChange}
@@ -165,6 +171,7 @@ export function GatedHitRateTable({
 
   return (
     <HitRateTable
+      sport={sport}
       rows={previewRows}
       loading={loading}
       error={error}
@@ -174,6 +181,7 @@ export function GatedHitRateTable({
       isLoadingMore={false}
       totalCount={previewRows.length}
       selectedMarkets={selectedMarkets}
+      marketOptions={marketOptions}
       onMarketsChange={onMarketsChange}
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}

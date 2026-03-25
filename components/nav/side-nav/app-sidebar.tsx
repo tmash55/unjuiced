@@ -77,7 +77,6 @@ interface NavItem {
 // Sport sub-items for Odds Screen (active first, then disabled/off-season)
 const oddsScreenSports: NavChildItem[] = [
   // Active
-  { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
@@ -99,6 +98,7 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
+  { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]
@@ -1062,26 +1062,19 @@ export function AppSidebar() {
           
           {/* Navigation sections */}
           <div className="flex flex-col gap-6">
-            {/* Edge Tools */}
+            {/* Sharp Tools */}
             <div className="flex flex-col gap-0.5">
-              <SectionLabel>Edge Tools</SectionLabel>
+              <SectionLabel>Sharp Tools</SectionLabel>
               {edgeToolsLinks.map((link, idx) => (
                 <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
               ))}
             </div>
-            
-            {/* NBA */}
+
+            {/* Research — Sports + Odds */}
             <div className="flex flex-col gap-0.5">
+              <SectionLabel>Research</SectionLabel>
               <NavLink link={nbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-            </div>
-
-            {/* MLB */}
-            <div className="flex flex-col gap-0.5">
               <NavLink link={mlbLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-            </div>
-
-            {/* Odds Screen */}
-            <div className="flex flex-col gap-0.5">
               <NavLink link={oddsScreenLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
             </div>
             
