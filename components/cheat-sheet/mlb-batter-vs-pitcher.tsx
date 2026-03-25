@@ -1245,7 +1245,7 @@ function BatterExpansion({
   }, [pitchFilter]);
 
   // Fetch hot zone data lazily when expanded
-  const { data: hotZone, isLoading: hotZoneLoading } = useMlbHotZone(
+  const { data: hotZone, isLoading: hotZoneLoading, isFetching: hotZoneFetching } = useMlbHotZone(
     batter.player_id,
     pitcher.player_id,
     true, // always enabled when rendered (only rendered when expanded)
@@ -1391,7 +1391,7 @@ function BatterExpansion({
 
       {/* Row 3: Zone Analysis */}
       {hotZone && (hotZone.batterZones.length > 0 || hotZone.pitcherZones.length > 0 || hotZone.overlay.length > 0) && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 space-y-3">
+        <div className={cn("rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 space-y-3 transition-opacity duration-200", hotZoneFetching && "opacity-50")}>
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div>
               <h5 className="text-[10px] uppercase tracking-wide font-semibold text-neutral-500">
@@ -1485,10 +1485,24 @@ function BatterExpansion({
           })()}
         </div>
       )}
-      {hotZoneLoading && (
-        <div className="flex items-center gap-2 text-xs text-neutral-400 py-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          Loading zone analysis...
+      {hotZoneLoading && !hotZone && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+          <div className="flex items-center gap-2 text-[10px] text-neutral-400 mb-3">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="uppercase tracking-wider font-semibold">Loading Strike Zone</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-1">
+                <div className="h-3 w-20 rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+                <div className="grid grid-cols-3 gap-1">
+                  {Array.from({ length: 9 }).map((_, j) => (
+                    <div key={j} className="aspect-square rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
