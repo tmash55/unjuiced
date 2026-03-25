@@ -636,9 +636,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Enrich with batting order from mlb_daily_lineups ─────────────────
+    const lineupSide = battingSide === "home" ? "home" : "away";
+    const { data: dailyLineup } = await supabase
+      .from("mlb_daily_lineups")
+      .select("player_id, batting_order, is_confirmed")
+      .eq("game_id", gameId)
+      .eq("side", lineupSide)
+      .gt("batting_order", 0)
+      .order("batting_order", { ascending: true });
+
+    if (dailyLineup && dailyLineup.length > 0) {
+      const orderMap = new Map<number, number>();
+      for (const dl of dailyLineup) {
+        orderMap.set(dl.player_id, dl.batting_order);
+      }
+      // Set lineup_position from daily lineups
+      for (const p of lineup) {
+        const order = orderMap.get(p.player_id);
+        if (order != null) p.lineup_position = order;
+      }
+      // Filter to only starters (batting_order 1-9) + any lineup players not in profiles
+      // Keep all if no one matched (fallback)
+      const starters = lineup.filter((p: any) => p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9);
+      if (starters.length >= 5) {
+        lineup = starters;
+      }
+    }
+
     const batterIds = lineup.map((p: any) => p.player_id);
 
-    console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
+    console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} (dailyLineup=${dailyLineup?.length ?? 0}) batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
 
     if (!pitcherId) {
       // No probable pitcher set — return basic structure
