@@ -707,6 +707,7 @@ export async function GET(req: NextRequest) {
         .select(bbSelect)
         .eq("pitcher_id", pitcherId)
         .eq("season", s)
+        .limit(5000) // Pitcher can have ~800 BBs/season
     );
 
     const batterBBQueries = seasonsToTry.map((s) =>
@@ -715,6 +716,7 @@ export async function GET(req: NextRequest) {
         .select(bbSelect)
         .in("batter_id", batterIds.length > 0 ? batterIds : [0])
         .eq("season", s)
+        .limit(10000) // 9 batters * ~500 BBs = ~4500; must exceed Supabase default of 1000
     );
 
     // H2H: all-time batter vs pitcher (no season filter)
@@ -791,7 +793,7 @@ export async function GET(req: NextRequest) {
       supabase.rpc("get_mlb_batter_game_logs", {
         p_player_id: bid,
         p_season: season,
-        p_limit: 50,
+        p_limit: 200, // Full season is ~162 games; need all for accurate season stats
         p_include_prior: false,
       })
     );
