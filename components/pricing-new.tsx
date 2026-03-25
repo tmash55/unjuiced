@@ -65,16 +65,16 @@ const plans: PlanTier[] = [
   },
   {
     name: "Scout",
-    description: "Hit rate research tools",
+    description: "NBA & MLB research tools",
     monthlyPrice: 15,
     yearlyPrice: 150,
     features: [
-      "All hit rate tools",
-      "Injury Impact analysis",
-      "L5, L10, L20, Season stats",
-      "Player correlations",
-      "Head-to-head matchups",
-      "Deep linking to books",
+      "All NBA hit rate tools",
+      "MLB Slate Insights (BvP)",
+      "HR Command Center & NRFI",
+      "Exit Velocity leaders",
+      "Pitch type filtering",
+      "Strike zone heat maps",
     ],
     previousTier: "Free",
     productType: "scout",
@@ -134,17 +134,30 @@ interface FeatureRow {
 
 const featureCategories: { category: string; features: FeatureRow[] }[] = [
   {
-    category: "Hit Rate Tools",
+    category: "NBA Research Tools",
     features: [
       { name: "Dashboard Overview", free: true, scout: true, sharp: true, elite: true },
       { name: "Defense vs Position", free: true, scout: true, sharp: true, elite: true },
-      { name: "Hit Rate Matrix", free: true, scout: true, sharp: true, elite: true },
+      { name: "Hit Rate Matrix & Cheat Sheets", free: true, scout: true, sharp: true, elite: true },
       { name: "My Slips & Betslip", free: true, scout: true, sharp: true, elite: true },
       { name: "Injury Impact Analysis", free: false, scout: true, sharp: true, elite: true },
       { name: "Player Correlations", free: false, scout: true, sharp: true, elite: true },
       { name: "Head-to-Head Matchups", free: false, scout: true, sharp: true, elite: true },
       { name: "Game Logs & Box Scores", free: false, scout: true, sharp: true, elite: true },
       { name: "Deep Linking to Books", free: false, scout: true, sharp: true, elite: true },
+    ],
+  },
+  {
+    category: "MLB Research Tools",
+    features: [
+      { name: "Weather Report", free: true, scout: true, sharp: true, elite: true },
+      { name: "Slate Insights (BvP Matchups)", free: false, scout: true, sharp: true, elite: true },
+      { name: "HR Command Center", free: false, scout: true, sharp: true, elite: true },
+      { name: "NRFI Analysis", free: false, scout: true, sharp: true, elite: true },
+      { name: "Exit Velocity Leaders", free: false, scout: true, sharp: true, elite: true },
+      { name: "Pitch Type Filtering", free: false, scout: true, sharp: true, elite: true },
+      { name: "Strike Zone Heat Maps", free: false, scout: true, sharp: true, elite: true },
+      { name: "HR Odds Across 14+ Books", free: false, scout: true, sharp: true, elite: true },
     ],
   },
   {
