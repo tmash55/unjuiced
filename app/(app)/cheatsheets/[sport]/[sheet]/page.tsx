@@ -47,6 +47,71 @@ const UPGRADE_URL = "/pricing";
 // Sheets that are free for all users (no Scout+ required)
 const FREE_SHEETS = ["dvp", "hit-rate-matrix"] as const;
 
+// MLB sheets that are free (weather report)
+const FREE_MLB_SHEETS = ["weather-report"] as const;
+
+/**
+ * MLB upgrade CTA — glassmorphism overlay per taste-skill
+ */
+function MlbUpgradeCTA({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="relative z-10 flex flex-col items-center gap-4 py-10 px-6 text-center">
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/20">
+        <Lock className="w-6 h-6 text-white" />
+      </div>
+      <div>
+        <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">{title}</h3>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm">
+          {subtitle || "Unlock all MLB tools with a Scout plan or higher."}
+        </p>
+      </div>
+      <ButtonLink
+        href={UPGRADE_URL}
+        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand text-white font-semibold text-sm shadow-lg shadow-brand/25 hover:shadow-brand/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+      >
+        Upgrade to Scout
+        <ArrowRight className="w-4 h-4" />
+      </ButtonLink>
+    </div>
+  );
+}
+
+/**
+ * Wraps MLB tool content — shows partial preview for free users with blurred overflow
+ */
+function MlbGatedSection({
+  sheet,
+  previewHeight,
+  title,
+  subtitle,
+  children,
+}: {
+  sheet: string;
+  previewHeight?: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  const { hasAccess, isLoading } = useHasHitRateAccess();
+  const isFree = (FREE_MLB_SHEETS as readonly string[]).includes(sheet);
+
+  if (isFree || isLoading || hasAccess) return <>{children}</>;
+
+  return (
+    <div className="relative">
+      <div className="pointer-events-none select-none overflow-hidden" style={{ maxHeight: previewHeight || "500px" }}>
+        <div className="opacity-40 blur-[1px]">
+          {children}
+        </div>
+      </div>
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-white dark:from-neutral-950 via-white/90 dark:via-neutral-950/90 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0">
+        <MlbUpgradeCTA title={title} subtitle={subtitle} />
+      </div>
+    </div>
+  );
+}
+
 // Upgrade CTA component for gated users
 function CheatSheetUpgradeCTA() {
   return (
@@ -264,7 +329,9 @@ function MlbExitVelocitySheet({ sport, sheet }: { sport: SupportedSport; sheet: 
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
     >
-      <MlbExitVelocity />
+      <MlbGatedSection sheet={sheet} title="Exit Velocity Leaders" subtitle="See which batters are hitting the ball hardest against today's pitchers." previewHeight="400px">
+        <MlbExitVelocity />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }
@@ -279,7 +346,9 @@ function MlbBatterVsPitcherPage({ sport, sheet }: { sport: SupportedSport; sheet
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
     >
-      <MlbBatterVsPitcher />
+      <MlbGatedSection sheet={sheet} title="Slate Insights" subtitle="Deep-dive every batter vs pitcher matchup with pitch splits, H2H, and zone analysis." previewHeight="600px">
+        <MlbBatterVsPitcher />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }
@@ -294,7 +363,9 @@ function MlbIndividualMatchupPage({ sport, sheet }: { sport: SupportedSport; she
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
     >
-      <MlbIndividualMatchup />
+      <MlbGatedSection sheet={sheet} title="Batter vs Pitcher" subtitle="Individual matchup breakdown with hot zones, spray charts, and pitch-level splits.">
+        <MlbIndividualMatchup />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }
@@ -309,7 +380,9 @@ function MlbNrfiPage({ sport, sheet }: { sport: SupportedSport; sheet: Supported
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
     >
-      <MlbNrfiSheet />
+      <MlbGatedSection sheet={sheet} title="NRFI Analysis" subtitle="Find the best No Run First Inning bets with pitcher scoreless rates and odds." previewHeight="450px">
+        <MlbNrfiSheet />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }
@@ -324,7 +397,9 @@ function MlbHRCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
     >
-      <MlbHRCommandCenter />
+      <MlbGatedSection sheet={sheet} title="HR Command Center" subtitle="Our 5-layer HR scoring model with live odds across 14+ sportsbooks." previewHeight="450px">
+        <MlbHRCommandCenter />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }
