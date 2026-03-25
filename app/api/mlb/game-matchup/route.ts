@@ -811,7 +811,7 @@ export async function GET(req: NextRequest) {
     const batterPitchSummaryQueries = seasonsToTry.map((s) =>
       supabase
         .from("mlb_batter_pitchtype_summary")
-        .select("player_id, pitch_type, pa, ba, slg, iso, obp, woba, k_percent, whiff_percent, hard_hit_percent, barrel_batted_rate, exit_velocity_avg, pitches, home_runs")
+        .select("player_id, pitch_type, pa, ba, slg, iso, obp, woba, k_percent, whiff_percent, hard_hit_percent, barrel_batted_rate, exit_velocity_avg, pitches")
         .in("player_id", batterIds)
         .eq("season_year", s)
     );
@@ -995,7 +995,7 @@ export async function GET(req: NextRequest) {
         hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
         barrel_pct: row.barrel_batted_rate != null ? Number(row.barrel_batted_rate) : null,
         avg_ev: row.exit_velocity_avg != null ? Number(row.exit_velocity_avg) : null,
-        hrs: Number(row.home_runs ?? 0),
+        hrs: 0, // not available in pitchtype_summary; HR count from batted balls added below
         pa: Number(row.pa ?? 0),
       });
     }
@@ -1454,6 +1454,8 @@ export async function GET(req: NextRequest) {
       const pitchSplits: BatterPitchSplit[] = pitcherPitchTypes.map((pt) => {
         const realData = batterPitchSumMap.get(`${p.player_id}:${pt}`);
         if (realData && realData.pa >= 3) {
+          // Get HR count from batted balls since pitchtype_summary doesn't have it
+          const ptHRs = bbs.filter((b: any) => b.pitch_type === pt && (b.event_type || "").toLowerCase() === "home_run").length;
           return {
             pitch_type: pt,
             pitch_name: PITCH_TYPE_NAMES[pt] || pt,
@@ -1461,7 +1463,7 @@ export async function GET(req: NextRequest) {
             slg: realData.slg != null ? Math.round(realData.slg * 1000) / 1000 : null,
             iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
             batted_balls: realData.pa,
-            hrs: realData.hrs,
+            hrs: ptHRs,
             barrel_pct: realData.barrel_pct != null ? Math.round(realData.barrel_pct * 10) / 10 : null,
             woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
             avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
