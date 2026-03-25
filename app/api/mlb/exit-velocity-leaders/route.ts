@@ -516,6 +516,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (probablePitcherIds.size > 0) {
+      // Try batted balls first
       const { data: pitcherBBs } = await supabase
         .from("mlb_batted_balls")
         .select("pitcher_id, pitcher_hand")
@@ -527,6 +528,22 @@ export async function GET(req: NextRequest) {
         for (const bb of pitcherBBs) {
           if (bb.pitcher_hand && !pitcherHandMap.has(bb.pitcher_id)) {
             pitcherHandMap.set(bb.pitcher_id, bb.pitcher_hand);
+          }
+        }
+      }
+
+      // Fallback: check mlb_players for any still-missing pitcher hands
+      const stillMissing = Array.from(probablePitcherIds).filter(id => !pitcherHandMap.has(id));
+      if (stillMissing.length > 0) {
+        const { data: playerRows } = await supabase
+          .from("mlb_players")
+          .select("mlb_player_id, throw_hand")
+          .in("mlb_player_id", stillMissing);
+        if (playerRows) {
+          for (const p of playerRows) {
+            if (p.throw_hand && !pitcherHandMap.has(p.mlb_player_id)) {
+              pitcherHandMap.set(p.mlb_player_id, String(p.throw_hand).trim().toUpperCase().slice(0, 1));
+            }
           }
         }
       }
