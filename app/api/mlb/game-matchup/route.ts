@@ -1066,17 +1066,16 @@ export async function GET(req: NextRequest) {
         console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}`);
       }
 
-      // Filter out spring training / preseason games when user explicitly selected a season
+      // Filter spring training only for current/future seasons (2026+)
       let filtered = gameLogs;
-      if (statSeason) {
-        // Regular season typically starts late March. Exclude anything before March 25.
+      const currentYear = new Date().getFullYear();
+      if (statSeason && statSeason >= currentYear) {
         const regularSeasonStart = `${statSeason}-03-25`;
         filtered = filtered.filter((g: any) => {
-          const gameDate = g.game_date || "";
-          // Also filter by game_type if available
           const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
           if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
-          return gameDate >= regularSeasonStart;
+          const d = g.game_date ?? g.date ?? "";
+          return !d || d >= regularSeasonStart;
         });
       }
 
@@ -1204,16 +1203,19 @@ export async function GET(req: NextRequest) {
     // RPC columns: strike_outs, base_on_balls, innings_numeric, hits_allowed, earned_runs, game_result
     let pitcherSeasonStats: any = {};
     if (logs.length > 0) {
-      // Filter out spring training / non-regular-season games
-      const regularSeasonStart = statSeason ? `${statSeason}-03-25` : null;
-      const regularSeasonLogs = logs.filter((log: any) => {
-        const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
-        if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
-        if (regularSeasonStart && (log.game_date || "") < regularSeasonStart) return false;
-        return true;
-      });
-      // When user explicitly selected a season, don't fall back to unfiltered logs
-      const statsLogs = regularSeasonLogs.length > 0 ? regularSeasonLogs : (noFallback ? [] : logs);
+      // Filter spring training only for current/future seasons (2026+)
+      // 2025 and earlier are complete seasons — no filtering needed
+      const currentYear = new Date().getFullYear();
+      const needsSpringFilter = statSeason && statSeason >= currentYear;
+      const statsLogs = needsSpringFilter
+        ? logs.filter((log: any) => {
+            const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
+            if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+            const d = log.game_date ?? log.date ?? "";
+            if (d && d < `${statSeason}-03-25`) return false;
+            return true;
+          })
+        : logs;
 
       let totalIP = 0, totalER = 0, totalH = 0, totalBB = 0, totalK = 0, totalGS = 0;
       let wins = 0, losses = 0;
