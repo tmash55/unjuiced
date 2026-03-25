@@ -152,6 +152,92 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // ── 1b. Live surge & streak enrichment from mlb_batted_balls ─────
+    // Pull last 14 days of batted balls for all players to compute fresh values
+    const playerIds = rawPlayers.map((p: any) => p.player_id as number).filter(Boolean);
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString().split("T")[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+    const { data: recentBBs } = await sb
+      .from("mlb_batted_balls")
+      .select("batter_id, game_date, event, is_barrel, exit_velocity, event_type")
+      .in("batter_id", playerIds)
+      .gte("game_date", fourteenDaysAgo)
+      .order("game_date", { ascending: false })
+      .limit(20000);
+
+    // Build per-player surge & streak maps
+    interface LiveSurge {
+      barrel_pct_7d: number | null;
+      hr_7d: number;
+      hr_streak: number;
+      hr_last_3: number;
+      direction: string;
+    }
+    const surgeMap = new Map<number, LiveSurge>();
+
+    if (recentBBs && recentBBs.length > 0) {
+      // Group by player
+      const byPlayer = new Map<number, any[]>();
+      for (const bb of recentBBs) {
+        const arr = byPlayer.get(bb.batter_id) || [];
+        arr.push(bb);
+        byPlayer.set(bb.batter_id, arr);
+      }
+
+      for (const [pid, bbs] of byPlayer) {
+        // 7-day batted balls
+        const bbs7d = bbs.filter((bb: any) => bb.game_date >= sevenDaysAgo);
+        const barrels7d = bbs7d.filter((bb: any) => bb.is_barrel).length;
+        const barrel_pct_7d = bbs7d.length > 0 ? (barrels7d / bbs7d.length) * 100 : null;
+        const hr_7d = bbs7d.filter((bb: any) =>
+          (bb.event || bb.event_type || "").toLowerCase().includes("home_run") ||
+          (bb.event || bb.event_type || "") === "Home Run"
+        ).length;
+
+        // All unique game dates (sorted desc)
+        const allDates = [...new Set(bbs.map((bb: any) => bb.game_date))].sort(
+          (a, b) => new Date(b).getTime() - new Date(a).getTime()
+        );
+        const hrDates = new Set(
+          bbs
+            .filter((bb: any) =>
+              (bb.event || bb.event_type || "").toLowerCase().includes("home_run") ||
+              (bb.event || bb.event_type || "") === "Home Run"
+            )
+            .map((bb: any) => bb.game_date)
+        );
+
+        // Streak: consecutive most-recent games with HR
+        let hr_streak = 0;
+        for (const d of allDates) {
+          if (hrDates.has(d)) hr_streak++;
+          else break;
+        }
+
+        // Last 3 games: count HRs in 3 most recent games
+        const last3Dates = new Set(allDates.slice(0, 3));
+        const hr_last_3 = bbs.filter(
+          (bb: any) =>
+            last3Dates.has(bb.game_date) &&
+            ((bb.event || bb.event_type || "").toLowerCase().includes("home_run") ||
+              (bb.event || bb.event_type || "") === "Home Run")
+        ).length;
+
+        // Direction
+        const precomputed = rawPlayers.find((p: any) => p.player_id === pid);
+        const seasonBarrel = precomputed?.barrel_pct ?? 0;
+        const direction =
+          barrel_pct_7d != null && barrel_pct_7d - seasonBarrel > 2
+            ? "up"
+            : barrel_pct_7d != null && barrel_pct_7d - seasonBarrel < -2
+              ? "down"
+              : "flat";
+
+        surgeMap.set(pid, { barrel_pct_7d, hr_7d, hr_streak, hr_last_3, direction });
+      }
+    }
+
     // ── 2. Get OddsBlaze event IDs from mlb_games ─────────────────────
     const gameIds = [...new Set(rawPlayers.map((p: any) => p.game_id).filter(Boolean))];
     const { data: gameRows } = await sb
@@ -274,8 +360,12 @@ export async function GET(req: NextRequest) {
           ? ((modelImpliedProb - oddsImpliedProb) / oddsImpliedProb) * 100
           : null;
 
+      // Live surge/streak override (prefer fresh data over pre-computed)
+      const surge = surgeMap.get(p.player_id);
+
       return {
         ...p,
+        // Odds
         best_odds_american: hasOdds ? bestOdds.price : p.best_odds_american ?? null,
         best_odds_decimal: hasOdds ? bestOdds.price_decimal : null,
         best_odds_book: hasOdds ? bestBook : p.best_odds_book ?? null,
@@ -285,6 +375,12 @@ export async function GET(req: NextRequest) {
         model_implied_prob: modelImpliedProb ?? p.model_implied_prob ?? null,
         edge_pct: edgePct ?? p.edge_pct ?? null,
         all_book_odds: Object.keys(allBookOdds).length > 0 ? allBookOdds : p.all_book_odds ?? null,
+        // Live surge/streak
+        surge_barrel_pct_7d: surge?.barrel_pct_7d ?? p.surge_barrel_pct_7d ?? null,
+        surge_hr_7d: surge?.hr_7d ?? p.surge_hr_7d ?? null,
+        surge_direction: surge?.direction ?? p.surge_direction ?? null,
+        hr_streak: surge?.hr_streak ?? p.hr_streak ?? null,
+        hr_last_3_games: surge?.hr_last_3 ?? p.hr_last_3_games ?? null,
       } as HRScorePlayer;
     });
 
