@@ -669,8 +669,33 @@ export async function GET(req: NextRequest) {
         const order = orderMap.get(p.player_id);
         if (order != null) p.lineup_position = order;
       }
-      // Filter to only starters (batting_order 1-9) + any lineup players not in profiles
-      // Keep all if no one matched (fallback)
+
+      // Add players from daily lineups that are missing from hit_rate_profiles
+      const existingIds = new Set(lineup.map((p: any) => p.player_id));
+      const missingFromLineup = dailyLineup.filter((dl: any) => !existingIds.has(dl.player_id));
+      if (missingFromLineup.length > 0) {
+        // Look up names from mlb_daily_lineups (has player_name)
+        const { data: missingPlayers } = await supabase
+          .from("mlb_daily_lineups")
+          .select("player_id, player_name, position, batting_order, bats")
+          .eq("game_id", gameId)
+          .eq("side", lineupSide)
+          .in("player_id", missingFromLineup.map((dl: any) => dl.player_id));
+
+        for (const mp of (missingPlayers ?? [])) {
+          lineup.push({
+            player_id: mp.player_id,
+            player_name: mp.player_name || `Player ${mp.player_id}`,
+            team_id: battingTeamId,
+            team_abbr: battingTeamAbbr,
+            batting_hand: mp.bats ? String(mp.bats).trim().toUpperCase().slice(0, 1) : "R",
+            lineup_position: mp.batting_order > 0 ? mp.batting_order : null,
+          });
+        }
+      }
+
+      // Filter to only starters (batting_order 1-9)
+      // Keep all if fewer than 5 matched (fallback)
       const starters = lineup.filter((p: any) => p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9);
       if (starters.length >= 5) {
         lineup = starters;
