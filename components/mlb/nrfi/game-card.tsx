@@ -545,39 +545,57 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
           <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 overflow-hidden h-full flex flex-col">
 
             {/* Rec / Alt hero */}
-            <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
-              <div
-                className={cn(
-                  "px-5 py-4 flex flex-col gap-1",
-                  lm.isNrfi
-                    ? "bg-emerald-500/5 dark:bg-emerald-500/10"
-                    : lm.isYrfi
-                    ? "bg-red-500/5 dark:bg-red-500/10"
-                    : "bg-amber-500/5 dark:bg-amber-500/10"
-                )}
-              >
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-                  Recommended
-                </span>
-                <span className={cn("text-xs font-bold mt-0.5", lm.text)}>
-                  {lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI"}
-                </span>
-                <span className={cn("text-3xl font-black tabular-nums leading-none mt-0.5", lm.text)}>
-                  {lm.isNrfi ? game.bestNrfiOdds : game.bestYrfiOdds}
-                </span>
+            {lm.isNrfi || lm.isYrfi ? (
+              <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
+                <div
+                  className={cn(
+                    "px-5 py-4 flex flex-col gap-1",
+                    lm.isNrfi ? "bg-emerald-500/5 dark:bg-emerald-500/10" : "bg-red-500/5 dark:bg-red-500/10"
+                  )}
+                >
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    Recommended
+                  </span>
+                  <span className={cn("text-xs font-bold mt-0.5", lm.text)}>
+                    {lm.isNrfi ? "NRFI" : "YRFI"}
+                  </span>
+                  <span className={cn("text-3xl font-black tabular-nums leading-none mt-0.5", lm.text)}>
+                    {lm.isNrfi ? game.bestNrfiOdds : game.bestYrfiOdds}
+                  </span>
+                </div>
+                <div className="px-5 py-4 flex flex-col gap-1 opacity-40">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    Alt side
+                  </span>
+                  <span className="text-xs text-neutral-500 mt-0.5">
+                    {lm.isNrfi ? "YRFI" : "NRFI"}
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-0.5 text-neutral-500">
+                    {lm.isNrfi ? game.bestYrfiOdds : game.bestNrfiOdds}
+                  </span>
+                </div>
               </div>
-              <div className="px-5 py-4 flex flex-col gap-1 opacity-40">
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-                  Alt side
-                </span>
-                <span className="text-xs text-neutral-500 mt-0.5">
-                  {lm.isNrfi ? "YRFI" : "NRFI"}
-                </span>
-                <span className="text-3xl font-black tabular-nums leading-none mt-0.5 text-neutral-500">
-                  {lm.isNrfi ? game.bestYrfiOdds : game.bestNrfiOdds}
-                </span>
+            ) : (
+              /* Neutral — show both sides equally, no recommendation */
+              <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
+                <div className="px-5 py-4 flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    NRFI
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-1 text-emerald-500">
+                    {game.bestNrfiOdds}
+                  </span>
+                </div>
+                <div className="px-5 py-4 flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    YRFI
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-1 text-red-400">
+                    {game.bestYrfiOdds}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Sportsbook rows */}
             {game.sportsbooks.length > 0 && (

@@ -550,6 +550,7 @@ export function MlbHRCommandCenter() {
   return (
     <div className="space-y-0">
       {/* ── Filter Bar ─────────────────────────────────────────────────── */}
+      <div data-tour="hr-filter-bar">
       <SheetFilterBar
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
@@ -592,6 +593,7 @@ export function MlbHRCommandCenter() {
           </>
         )}
       </SheetFilterBar>
+      </div>
 
       {/* ── Table / Cards ─────────────────────────────────────────────── */}
       <div className="relative">
@@ -619,7 +621,7 @@ export function MlbHRCommandCenter() {
               </div>
             ) : (
               <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[400px]">
-                <table className="w-full border-collapse text-sm">
+                <table data-tour="hr-table" className="w-full border-collapse text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
                       <Th className="w-10 text-center">#</Th>

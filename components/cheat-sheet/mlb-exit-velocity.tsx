@@ -901,7 +901,7 @@ export function MlbExitVelocity() {
   return (
     <div className="space-y-3">
       {/* ── Filter Bar ─────────────────────────────────────────────────── */}
-      <div className="overflow-hidden">
+      <div data-tour="ev-filter-bar" className="overflow-hidden">
         <SheetFilterBar
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
@@ -1063,7 +1063,7 @@ export function MlbExitVelocity() {
       </div>
 
       {/* ── Table / Cards / Scatter ────────────────────────────────────── */}
-      <div className="relative">
+      <div data-tour="ev-table" className="relative">
         {viewMode === "scatter" && !isLoading && sortedLeaders.length > 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden p-4">
             <div className="max-w-5xl mx-auto">

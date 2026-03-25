@@ -1982,7 +1982,7 @@ export function MlbBatterVsPitcher() {
         ) : (
           <>
             {/* ── Section A: Horizontal Game Bar ── */}
-            <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-2 py-2">
+            <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-2 py-2">
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1">
                 {(() => {
                   let lastDate = "";
@@ -2137,7 +2137,7 @@ export function MlbBatterVsPitcher() {
             ) : (
               <div className="flex flex-col xl:flex-row gap-4">
                 {/* Left: Pitcher Column */}
-                <div className="xl:w-[38%] xl:sticky xl:top-0 xl:self-start">
+                <div data-tour="pitcher-card" className="xl:w-[38%] xl:sticky xl:top-0 xl:self-start">
                   {pitcher && (
                     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-4">
                       <PitcherProfileCard
@@ -2154,10 +2154,10 @@ export function MlbBatterVsPitcher() {
                 <div className="xl:w-[62%] space-y-3">
                   {/* Batter controls — view toggle + pitch pills + hand filter */}
                   {batters.length > 0 && pitcher && (
-                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-3 py-2.5 space-y-2">
+                    <div data-tour="batter-controls" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-3 py-2.5 space-y-2">
                       {/* Row 1: View toggle + hand filter */}
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                        <div data-tour="view-toggle" className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                           {([
                             { value: "standard" as const, label: "Standard", icon: TableProperties },
                             { value: "comparison" as const, label: "Matchup", icon: GitCompare },
@@ -2232,6 +2232,7 @@ export function MlbBatterVsPitcher() {
                   )}
 
                   {/* Lineup Table */}
+                  <div data-tour="batter-table">
                   {batters.length > 0 ? (
                     viewMode === "comparison" && pitcher ? (
                       <ComparisonView
@@ -2445,6 +2446,7 @@ export function MlbBatterVsPitcher() {
                       <p className="text-xs text-neutral-400 mt-1">Lineups typically post 2-4 hours before game time</p>
                     </div>
                   ) : null}
+                  </div>
                 </div>
               </div>
             )}

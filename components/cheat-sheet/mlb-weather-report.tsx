@@ -256,6 +256,7 @@ export function MlbWeatherReport() {
   return (
     <div className="space-y-3">
       {/* Controls bar */}
+      <div data-tour="weather-filter">
       <SheetFilterBar
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
@@ -276,6 +277,7 @@ export function MlbWeatherReport() {
           options={SORT_OPTIONS.map((o) => ({ label: o.label, value: o.key }))}
         />
       </SheetFilterBar>
+      </div>
 
       {/* Loading/Error states */}
       {isLoading ? (
@@ -296,7 +298,7 @@ export function MlbWeatherReport() {
           {/* Two-panel layout */}
           <div className="flex flex-col xl:flex-row gap-3">
             {/* Left panel: Game list */}
-            <div className="xl:w-[35%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 flex flex-col overflow-hidden">
+            <div data-tour="weather-game-list" className="xl:w-[35%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 flex flex-col overflow-hidden">
               {/* List header with date + game count */}
               <div className="px-3 py-2.5 border-b border-neutral-200/60 dark:border-neutral-700/30 flex items-center justify-between">
                 <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 dark:text-neutral-500">
@@ -324,7 +326,7 @@ export function MlbWeatherReport() {
             </div>
 
             {/* Right panel: Detail */}
-            <div className="xl:w-[65%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+            <div data-tour="weather-detail" className="xl:w-[65%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
               <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)]">
                 {selectedRow ? (
                   <HREnvironmentDetail row={selectedRow} date={selectedDate} />

@@ -518,6 +518,7 @@ export async function GET(req: NextRequest) {
       gameId: searchParams.get("gameId"),
       battingSide: searchParams.get("battingSide") ?? undefined,
       sample: searchParams.get("sample") ?? undefined,
+      statSeason: searchParams.get("statSeason") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -530,6 +531,7 @@ export async function GET(req: NextRequest) {
     const { gameId, battingSide, sample, statSeason } = parsed.data;
     const supabase = createServerSupabaseClient();
     const season = statSeason ?? getCurrentSeason();
+    console.log(`[game-matchup] statSeason=${statSeason}, season=${season}, noFallback=${!!statSeason}`);
     // ── Round 1: Game info + Lineup (parallel) ──────────────────────────────
 
     const [gameResult, lineupResult] = await Promise.all([
@@ -940,7 +942,7 @@ export async function GET(req: NextRequest) {
     // Pitcher pitchtype hand splits (whiff% vs LHB/RHB)
     const pitcherHandSplitsCurrent = (allResults[14].data ?? []) as any[];
     const pitcherHandSplitsFallback = (allResults[15].data ?? []) as any[];
-    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent.length > 0 ? pitcherHandSplitsCurrent : pitcherHandSplitsFallback;
+    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent.length > 0 ? pitcherHandSplitsCurrent : (noFallback ? [] : pitcherHandSplitsFallback);
     // Build lookup: "pitch_type:hand" -> whiff_percent
     const pitcherHandWhiffMap = new Map<string, number | null>();
     for (const row of pitcherHandSplitsRaw) {
@@ -949,7 +951,7 @@ export async function GET(req: NextRequest) {
     // Batter hand splits from real Savant data
     const batterHandSplitsCurrent = (allResults[16].data ?? []) as any[];
     const batterHandSplitsFallback = (allResults[17].data ?? []) as any[];
-    const batterHandSplitsRaw = batterHandSplitsCurrent.length > 0 ? batterHandSplitsCurrent : batterHandSplitsFallback;
+    const batterHandSplitsRaw = batterHandSplitsCurrent.length > 0 ? batterHandSplitsCurrent : (noFallback ? [] : batterHandSplitsFallback);
 
     // Build batter hand splits lookup: playerId -> { L: aggregate, R: aggregate }
     interface BatterHandSplitAgg {
@@ -1005,7 +1007,7 @@ export async function GET(req: NextRequest) {
     // Batter pitch type summary (real Savant stats, no hand split)
     const batterPitchSumCurrent = (allResults[18].data ?? []) as any[];
     const batterPitchSumFallback = (allResults[19].data ?? []) as any[];
-    const batterPitchSumRaw = batterPitchSumCurrent.length > 0 ? batterPitchSumCurrent : batterPitchSumFallback;
+    const batterPitchSumRaw = batterPitchSumCurrent.length > 0 ? batterPitchSumCurrent : (noFallback ? [] : batterPitchSumFallback);
 
     // Build lookup: "playerId:pitchType" -> real stats
     const batterPitchSumMap = new Map<string, {
@@ -1064,11 +1066,24 @@ export async function GET(req: NextRequest) {
         console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}`);
       }
 
-      // Apply sample filter (game logs come sorted by date desc)
+      // Filter out spring training / preseason games when user explicitly selected a season
       let filtered = gameLogs;
+      if (statSeason) {
+        // Regular season typically starts late March. Exclude anything before March 25.
+        const regularSeasonStart = `${statSeason}-03-25`;
+        filtered = filtered.filter((g: any) => {
+          const gameDate = g.game_date || "";
+          // Also filter by game_type if available
+          const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
+          if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+          return gameDate >= regularSeasonStart;
+        });
+      }
+
+      // Apply sample filter (game logs come sorted by date desc)
       if (sample !== "season") {
         const limit = Number(sample);
-        filtered = gameLogs.slice(0, limit);
+        filtered = filtered.slice(0, limit);
       }
 
       let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, total2B = 0, total3B = 0;
@@ -1190,14 +1205,15 @@ export async function GET(req: NextRequest) {
     let pitcherSeasonStats: any = {};
     if (logs.length > 0) {
       // Filter out spring training / non-regular-season games
+      const regularSeasonStart = statSeason ? `${statSeason}-03-25` : null;
       const regularSeasonLogs = logs.filter((log: any) => {
         const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
-        // Exclude spring training (S, ST, E for exhibition)
         if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+        if (regularSeasonStart && (log.game_date || "") < regularSeasonStart) return false;
         return true;
       });
-      const statsLogs = regularSeasonLogs.length > 0 ? regularSeasonLogs : logs;
-      console.log(`[game-matchup] pitcher logs: ${logs.length} total, ${regularSeasonLogs.length} regular season, sample first game_type: ${logs[0]?.game_type ?? logs[0]?.season_type ?? "unknown"}`);
+      // When user explicitly selected a season, don't fall back to unfiltered logs
+      const statsLogs = regularSeasonLogs.length > 0 ? regularSeasonLogs : (noFallback ? [] : logs);
 
       let totalIP = 0, totalER = 0, totalH = 0, totalBB = 0, totalK = 0, totalGS = 0;
       let wins = 0, losses = 0;

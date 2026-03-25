@@ -32,6 +32,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type EdgeFinderSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
+import { EdgeFinderTour, EdgeFinderTourTrigger } from "@/components/opportunities/sharp-tools-tours";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
 
@@ -682,6 +683,7 @@ export default function EdgeFinderPage() {
       <div className="flex justify-end mb-2 min-h-4">
         {headerActions}
       </div>
+      <div data-tour="edge-filter-bar">
       <UnifiedFilterBar
         tool="edge-finder"
         className="mb-6"
@@ -778,6 +780,7 @@ export default function EdgeFinderPage() {
         isPro={effectiveIsPro}
         hasCustomModelsAccess={hasElite}
       />
+      </div>
     </>
   );
 
@@ -788,6 +791,7 @@ export default function EdgeFinderPage() {
       subtitle={subtitle}
       contextBar={contextBar}
       stickyContextBar={true}
+      headerActions={<EdgeFinderTourTrigger />}
     >
 
       {/* Error */}
@@ -798,7 +802,7 @@ export default function EdgeFinderPage() {
       )}
 
       {/* Results Table */}
-      <div className="rounded-2xl">
+      <div data-tour="edge-table" className="rounded-2xl">
           <OpportunitiesTable
             opportunities={displayOpportunities}
             isLoading={isLoading}
@@ -974,6 +978,7 @@ export default function EdgeFinderPage() {
         onOpenChange={setShowPresetForm}
         onSuccess={() => refetch()}
       />
+      <EdgeFinderTour />
     </AppPageLayout>
   );
 }

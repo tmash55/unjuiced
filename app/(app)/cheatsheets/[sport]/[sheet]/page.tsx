@@ -36,9 +36,11 @@ import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 import { MlbWeatherReport } from "@/components/cheat-sheet/mlb-weather-report";
 import { MlbExitVelocity } from "@/components/cheat-sheet/mlb-exit-velocity";
 import { MlbBatterVsPitcher } from "@/components/cheat-sheet/mlb-batter-vs-pitcher";
+import { SlateInsightsTour, TourTrigger as SlateInsightsTourTrigger } from "@/components/cheat-sheet/slate-insights-tour";
 import { MlbIndividualMatchup } from "@/components/cheat-sheet/mlb-individual-matchup";
 import { MlbNrfiSheet } from "@/components/mlb/nrfi/nrfi-sheet";
 import { MlbHRCommandCenter } from "@/components/cheat-sheet/mlb-hr-command-center";
+import { HRCommandCenterTour, HRCommandCenterTourTrigger, NRFITour, NRFITourTrigger, ExitVelocityTour, ExitVelocityTourTrigger, WeatherReportTour, WeatherReportTourTrigger } from "@/components/cheat-sheet/mlb-tours";
 
 // Gating constants
 const FREE_USER_MAX_ROWS = 7;
@@ -313,8 +315,10 @@ function MlbWeatherReportSheet({ sport, sheet }: { sport: SupportedSport; sheet:
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<WeatherReportTourTrigger />}
     >
       <MlbWeatherReport />
+      <WeatherReportTour />
     </AppPageLayout>
   );
 }
@@ -328,10 +332,12 @@ function MlbExitVelocitySheet({ sport, sheet }: { sport: SupportedSport; sheet: 
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<ExitVelocityTourTrigger />}
     >
       <MlbGatedSection sheet={sheet} title="Exit Velocity Leaders" subtitle="See which batters are hitting the ball hardest against today's pitchers." previewHeight="400px">
         <MlbExitVelocity />
       </MlbGatedSection>
+      <ExitVelocityTour />
     </AppPageLayout>
   );
 }
@@ -345,10 +351,12 @@ function MlbBatterVsPitcherPage({ sport, sheet }: { sport: SupportedSport; sheet
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<SlateInsightsTourTrigger />}
     >
       <MlbGatedSection sheet={sheet} title="Slate Insights" subtitle="Deep-dive every batter vs pitcher matchup with pitch splits, H2H, and zone analysis." previewHeight="600px">
         <MlbBatterVsPitcher />
       </MlbGatedSection>
+      <SlateInsightsTour />
     </AppPageLayout>
   );
 }
@@ -379,10 +387,12 @@ function MlbNrfiPage({ sport, sheet }: { sport: SupportedSport; sheet: Supported
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<NRFITourTrigger />}
     >
       <MlbGatedSection sheet={sheet} title="NRFI Analysis" subtitle="Find the best No Run First Inning bets with pitcher scoreless rates and odds." previewHeight="450px">
         <MlbNrfiSheet />
       </MlbGatedSection>
+      <NRFITour />
     </AppPageLayout>
   );
 }
@@ -396,10 +406,12 @@ function MlbHRCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<HRCommandCenterTourTrigger />}
     >
       <MlbGatedSection sheet={sheet} title="HR Command Center" subtitle="Our 5-layer HR scoring model with live odds across 14+ sportsbooks." previewHeight="450px">
         <MlbHRCommandCenter />
       </MlbGatedSection>
+      <HRCommandCenterTour />
     </AppPageLayout>
   );
 }

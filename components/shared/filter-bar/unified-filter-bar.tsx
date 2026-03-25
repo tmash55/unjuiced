@@ -479,7 +479,7 @@ export function UnifiedFilterBar({
           {/* Custom Models Button - Edge Finder (Animated Border) */}
           {tool === "edge-finder" && onManageModels && (
             canUseCustomModels ? (
-              <div className="flex items-center gap-1">
+              <div data-tour="custom-models-btn" className="flex items-center gap-1">
                 <Tooltip content="Manage custom models">
                   <div className="relative">
                     <button
@@ -539,7 +539,7 @@ export function UnifiedFilterBar({
           {/* Custom EV Models Button - Positive EV (Animated Border) */}
           {tool === "positive-ev" && onManageEvModels && (
             canUseCustomModels ? (
-              <div className="flex items-center gap-1">
+              <div data-tour="custom-models-btn" className="flex items-center gap-1">
                 <Tooltip content="Manage custom EV models">
                   <div className="relative">
                     <button

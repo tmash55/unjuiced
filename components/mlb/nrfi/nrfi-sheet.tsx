@@ -139,17 +139,19 @@ export function MlbNrfiSheet() {
 
   return (
     <div>
-      <StickyControlBar
-        sort={sort}
-        filter={filter}
-        season={season}
-        selectedDate={selectedDate}
-        onSortChange={setSort}
-        onFilterChange={setFilter}
-        onSeasonChange={setSeason}
-        onDateChange={setSelectedDate}
-        lastUpdated={lastUpdated}
-      />
+      <div data-tour="nrfi-controls">
+        <StickyControlBar
+          sort={sort}
+          filter={filter}
+          season={season}
+          selectedDate={selectedDate}
+          onSortChange={setSort}
+          onFilterChange={setFilter}
+          onSeasonChange={setSeason}
+          onDateChange={setSelectedDate}
+          lastUpdated={lastUpdated}
+        />
+      </div>
 
       {summaryStats && (
         <SummaryStrip
@@ -175,7 +177,7 @@ export function MlbNrfiSheet() {
               : `No ${filter === "nrfi" ? "NRFI" : "YRFI"} leans found — try "All Games"`}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div data-tour="nrfi-cards" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {filteredGames.map((game) => (
               <GameCardComponent
                 key={game.gameId}

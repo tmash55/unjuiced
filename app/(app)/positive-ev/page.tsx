@@ -91,6 +91,7 @@ import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@
 import { usePositiveEvPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
+import { PositiveEVTour, PositiveEVTourTrigger } from "@/components/opportunities/sharp-tools-tours";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
@@ -1342,6 +1343,7 @@ export default function PositiveEVPage() {
       <div className="flex justify-end mb-2 min-h-4">
         {headerActions}
       </div>
+      <div data-tour="ev-filter-bar">
       <UnifiedFilterBar
         tool="positive-ev"
         className=""
@@ -1437,6 +1439,7 @@ export default function PositiveEVPage() {
         locked={locked}
         isPro={hasElite}
       />
+      </div>
     </>
   );
 
@@ -1446,6 +1449,7 @@ export default function PositiveEVPage() {
       subtitle={subtitle}
       contextBar={contextBar}
       stickyContextBar={true}
+      headerActions={<PositiveEVTourTrigger />}
     >
 
       {/* Method Info Panel */}
@@ -1557,7 +1561,7 @@ export default function PositiveEVPage() {
       )}
 
       {/* Results Table - Premium Design */}
-      <div className="rounded-2xl">
+      <div data-tour="ev-table" className="rounded-2xl">
         <div className="relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-[5]">
@@ -3228,6 +3232,7 @@ export default function PositiveEVPage() {
         }}
         context={lineHistoryContext}
       />
+      <PositiveEVTour />
     </AppPageLayout>
   );
 }
