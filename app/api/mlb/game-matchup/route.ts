@@ -1089,9 +1089,19 @@ export async function GET(req: NextRequest) {
     // RPC columns: strike_outs, base_on_balls, innings_numeric, hits_allowed, earned_runs, game_result
     let pitcherSeasonStats: any = {};
     if (logs.length > 0) {
+      // Filter out spring training / non-regular-season games
+      const regularSeasonLogs = logs.filter((log: any) => {
+        const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
+        // Exclude spring training (S, ST, E for exhibition)
+        if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+        return true;
+      });
+      const statsLogs = regularSeasonLogs.length > 0 ? regularSeasonLogs : logs;
+      console.log(`[game-matchup] pitcher logs: ${logs.length} total, ${regularSeasonLogs.length} regular season, sample first game_type: ${logs[0]?.game_type ?? logs[0]?.season_type ?? "unknown"}`);
+
       let totalIP = 0, totalER = 0, totalH = 0, totalBB = 0, totalK = 0, totalGS = 0;
       let wins = 0, losses = 0;
-      for (const log of logs) {
+      for (const log of statsLogs) {
         const ip = Number(log.innings_numeric ?? 0);
         totalIP += ip;
         totalER += Number(log.earned_runs ?? 0);
