@@ -76,23 +76,26 @@ export function getLeanClasses(lean: Lean) {
 /** Derive lean from grade_score (0-100, higher = more NRFI) */
 export function deriveLean(grade: string | null, gradeScore: number | null): Lean {
   const s = gradeScore ?? 50;
-  if (s >= 80) return "strong_nrfi";
-  if (s >= 65) return "nrfi";
-  if (s >= 55) return "lean_nrfi";
-  if (s >= 45) return "neutral";
-  if (s >= 35) return "lean_yrfi";
-  if (s >= 20) return "yrfi";
+  if (s >= 82) return "strong_nrfi";
+  if (s >= 68) return "nrfi";
+  if (s >= 58) return "lean_nrfi";
+  if (s >= 42) return "neutral";
+  if (s >= 32) return "lean_yrfi";
+  if (s >= 18) return "yrfi";
   return "strong_yrfi";
 }
 
 /**
  * Calculate NRFI grade score (0-100) using defined weights:
- *   35% home SP scoreless %
- *   35% away SP scoreless %
- *   10% home team scoring rate (inverted — lower scoring = higher score)
- *   10% away team scoring rate (inverted)
- *    5% park factor (inverted — lower factor = more pitcher-friendly)
- *    5% weather (inverted — less hitter-friendly = higher score)
+ *   27.5% home SP scoreless %
+ *   27.5% away SP scoreless %
+ *   12.5% home team scoring rate (inverted — lower scoring = higher score)
+ *   12.5% away team scoring rate (inverted)
+ *   10% park factor (inverted — lower factor = more pitcher-friendly)
+ *   10% weather (inverted — less hitter-friendly = higher score)
+ *
+ * v2: Rebalanced — offense matters more for NRFI. Two top-5 offenses
+ * should meaningfully drag down the grade even with good pitchers.
  */
 export function calculateGradeScore(inputs: {
   homeSPScorelessPct: number;   // 0-100
@@ -109,17 +112,18 @@ export function calculateGradeScore(inputs: {
   const awaySP = Math.min(100, Math.max(0, awaySPScorelessPct));
 
   // Offense: invert — lower scoring rate = better for NRFI
-  // Scoring rates typically 20-40%, map to 0-100 inverted
-  const homeOff = Math.min(100, Math.max(0, 100 - homeTeamScoringPct * 2));
-  const awayOff = Math.min(100, Math.max(0, 100 - awayTeamScoringPct * 2));
+  // Scoring rates typically 20-40%. Use steeper curve so high-scoring teams
+  // (35%+) get penalized harder. 20%→60, 30%→40, 40%→20, 50%→0
+  const homeOff = Math.min(100, Math.max(0, 100 - homeTeamScoringPct * 2.5 + 10));
+  const awayOff = Math.min(100, Math.max(0, 100 - awayTeamScoringPct * 2.5 + 10));
 
   // Park: factor ~1.0 is neutral, <1.0 is pitcher-friendly, >1.0 is hitter-friendly
-  // Map 0.8→100, 1.0→50, 1.2→0
+  // Map 0.85→100, 1.0→50, 1.15→0 (tighter range for more differentiation)
   const park = parkFactor != null
-    ? Math.min(100, Math.max(0, (1.2 - parkFactor) * 250))
+    ? Math.min(100, Math.max(0, (1.15 - parkFactor) / 0.30 * 100))
     : 50;
 
-  const raw = homeSP * 0.35 + awaySP * 0.35 + homeOff * 0.10 + awayOff * 0.10 + park * 0.05 + weatherScore * 0.05;
+  const raw = homeSP * 0.275 + awaySP * 0.275 + homeOff * 0.125 + awayOff * 0.125 + park * 0.10 + weatherScore * 0.10;
   return Math.round(Math.min(100, Math.max(0, raw)));
 }
 
