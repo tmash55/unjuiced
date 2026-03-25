@@ -32,6 +32,13 @@ import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import { DoubleDoubleSheet } from "@/components/cheat-sheet/double-double-sheet";
 import { Lock, ArrowRight, ChevronDown, HelpCircle, LayoutGrid, BarChart3, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
+import { MlbWeatherReport } from "@/components/cheat-sheet/mlb-weather-report";
+import { MlbExitVelocity } from "@/components/cheat-sheet/mlb-exit-velocity";
+import { MlbBatterVsPitcher } from "@/components/cheat-sheet/mlb-batter-vs-pitcher";
+import { MlbIndividualMatchup } from "@/components/cheat-sheet/mlb-individual-matchup";
+import { MlbNrfiSheet } from "@/components/mlb/nrfi/nrfi-sheet";
+import { MlbHRCommandCenter } from "@/components/cheat-sheet/mlb-hr-command-center";
 
 // Gating constants
 const FREE_USER_MAX_ROWS = 7;
@@ -95,8 +102,8 @@ function MobileUpgradeBanner() {
   );
 }
 
-const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet"] as const;
+const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet", "slate-insights", "weather-report", "exit-velocity", "nrfi", "hr-command-center", "batter-vs-pitcher"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -104,7 +111,7 @@ type SupportedSheet = typeof SUPPORTED_SHEETS[number];
 // Sheet display names and descriptions
 const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }> = {
   "hit-rates": {
-    title: "Hit Rate Cheat Sheet",
+    title: "Top Props",
     description: "High-confidence props ranked by our scoring system",
   },
   "hit-rate-matrix": {
@@ -131,6 +138,30 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
     title: "Double Double Sheet",
     description: "SGP (P+R / P+A) and Double-Double pricing in one view",
   },
+  "slate-insights": {
+    title: "Slate Insights",
+    description: "Full game scoring environment and slate overview",
+  },
+  "weather-report": {
+    title: "Weather Report",
+    description: "Weather conditions and their impact on game totals",
+  },
+  "exit-velocity": {
+    title: "Exit Velocity",
+    description: "Exit velocity leaders and hard-hit rate analysis",
+  },
+  "nrfi": {
+    title: "NRFI",
+    description: "No Run First Inning probabilities and trends",
+  },
+  "hr-command-center": {
+    title: "HR Command Center",
+    description: "Home run environment scores and power metrics",
+  },
+  "batter-vs-pitcher": {
+    title: "Batter vs Pitcher",
+    description: "Head-to-head batter vs pitcher matchup analysis",
+  },
 };
 
 export default function CheatSheetPage({ 
@@ -154,7 +185,27 @@ export default function CheatSheetPage({
 
   const sheetInfo = SHEET_INFO[sheet];
 
-  // Route to appropriate sheet component
+  // MLB sheet routing
+  if (sport === "mlb" && sheet === "weather-report") {
+    return <MlbWeatherReportSheet sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "exit-velocity") {
+    return <MlbExitVelocitySheet sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "slate-insights") {
+    return <MlbBatterVsPitcherPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "batter-vs-pitcher") {
+    return <MlbIndividualMatchupPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "nrfi") {
+    return <MlbNrfiPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "hr-command-center") {
+    return <MlbHRCommandCenterPage sport={sport} sheet={sheet} />;
+  }
+
+  // NBA / shared sheet routing
   if (sheet === "hit-rates") {
     return <HitRatesCheatSheet sport={sport} sheet={sheet} />;
   }
@@ -187,19 +238,113 @@ export default function CheatSheetPage({
   return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
 }
 
-function ComingSoonSheet({ 
-  sport, 
-  sheet, 
-  sheetInfo 
-}: { 
-  sport: SupportedSport; 
-  sheet: SupportedSheet; 
-  sheetInfo: { title: string; description: string } 
+// MLB sheet wrapper components
+function MlbWeatherReportSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbWeatherReport />
+    </AppPageLayout>
+  );
+}
+
+function MlbExitVelocitySheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbExitVelocity />
+    </AppPageLayout>
+  );
+}
+
+function MlbBatterVsPitcherPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbBatterVsPitcher />
+    </AppPageLayout>
+  );
+}
+
+function MlbIndividualMatchupPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbIndividualMatchup />
+    </AppPageLayout>
+  );
+}
+
+function MlbNrfiPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbNrfiSheet />
+    </AppPageLayout>
+  );
+}
+
+function MlbHRCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbHRCommandCenter />
+    </AppPageLayout>
+  );
+}
+
+function ComingSoonSheet({
+  sport,
+  sheet,
+  sheetInfo
+}: {
+  sport: SupportedSport;
+  sheet: SupportedSheet;
+  sheetInfo: { title: string; description: string }
 }) {
   return (
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
     >
       <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
         <span className="px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold">
@@ -219,6 +364,9 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
     >
       <div className="relative">
         {isGated && (
@@ -257,6 +405,9 @@ function TripleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet:
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
     >
       <TripleDoubleSheet />
     </AppPageLayout>
@@ -269,6 +420,9 @@ function DoubleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet:
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
     >
       <DoubleDoubleSheet />
     </AppPageLayout>
@@ -304,6 +458,9 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
     >
       <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
         {/* Mobile View Mode Tabs - shown above filters on mobile only */}
@@ -416,6 +573,9 @@ function HitRateMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
       headerActions={
         <div className="flex items-center gap-3">
           <div className="relative z-[80]">
@@ -568,6 +728,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
       headerActions={
         <div className="flex items-center gap-3">
           <div className="text-xs text-neutral-500">
@@ -597,7 +758,9 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
         </div>
       }
       contextBar={
-        <div className="flex items-center gap-4 px-4 py-2.5 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <>
+        <CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />
+        <div className="flex items-center gap-4 px-4 py-2.5 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 mt-2">
           {/* Date Filter */}
           {isGated ? (
             <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 opacity-50 cursor-not-allowed">
@@ -684,6 +847,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           )}
 
         </div>
+        </>
       }
       stickyContextBar
     >
@@ -930,6 +1094,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      sport={sport}
       headerActions={
         <div className="flex items-center gap-3">
           <div className="text-xs text-neutral-500">
@@ -945,6 +1110,8 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
         </div>
       }
       contextBar={
+        <>
+        <CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />
         <CheatSheetFilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -955,6 +1122,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
           noOddsCount={noOddsCount}
           isGated={isGated}
         />
+        </>
       }
       stickyContextBar
     >
