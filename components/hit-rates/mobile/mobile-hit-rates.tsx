@@ -7,10 +7,9 @@ import { MobileHeader } from "./mobile-header";
 import { PlayerCard } from "./player-card";
 import { MobileGlossarySheet } from "./mobile-glossary-sheet";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
-import type { NbaGame } from "@/hooks/use-nba-games";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 
-const MARKET_OPTIONS = [
+const DEFAULT_MARKET_OPTIONS = [
   { value: "player_points", label: "Points" },
   { value: "player_rebounds", label: "Rebounds" },
   { value: "player_assists", label: "Assists" },
@@ -43,13 +42,29 @@ const SORT_OPTIONS: Array<{ value: string; label: string; field: string; dir: "a
 ];
 
 interface MobileHitRatesProps {
+  sport?: "nba" | "mlb";
   rows: HitRateProfile[];
-  games: NbaGame[];
+  games: Array<{
+    game_id: string;
+    game_date: string;
+    home_team_name: string;
+    away_team_name: string;
+    home_team_tricode: string;
+    away_team_tricode: string;
+    home_team_score: number | null;
+    away_team_score: number | null;
+    game_status: string;
+    is_primetime: boolean | null;
+    national_broadcast: string | null;
+    neutral_site: boolean | null;
+    season_type: string | null;
+  }>;
   loading: boolean;
   error?: string | null;
   onPlayerClick: (player: HitRateProfile) => void;
   // Controlled state from parent (to persist across drilldown navigation)
   selectedMarkets: string[];
+  marketOptions?: Array<{ value: string; label: string }>;
   onMarketsChange: (markets: string[]) => void;
   sortField: string;
   onSortChange: (sort: string) => void;
@@ -75,12 +90,14 @@ interface MobileHitRatesProps {
 }
 
 export function MobileHitRates({
+  sport = "nba",
   rows,
   games,
   loading,
   error,
   onPlayerClick,
   selectedMarkets,
+  marketOptions,
   onMarketsChange,
   sortField,
   onSortChange,
@@ -97,6 +114,8 @@ export function MobileHitRates({
   hideNoOdds = false, // Default OFF - show all players while odds load
   onHideNoOddsChange,
 }: MobileHitRatesProps) {
+  const effectiveMarketOptions =
+    marketOptions && marketOptions.length > 0 ? marketOptions : DEFAULT_MARKET_OPTIONS;
   // Filter state (only local state for game selection and visible count)
   // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
   const [visibleCount, setVisibleCount] = useState(50);
@@ -135,7 +154,7 @@ export function MobileHitRates({
     }
     
     // Market filter
-    if (selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length) {
+    if (selectedMarkets.length > 0 && selectedMarkets.length < effectiveMarketOptions.length) {
       result = result.filter(r => selectedMarkets.includes(r.market));
     }
     
@@ -203,12 +222,13 @@ export function MobileHitRates({
     });
     
     return result;
-  }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField, startedGameIds]);
+  }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField, startedGameIds, effectiveMarketOptions.length]);
 
   // Fetch odds for ALL filtered rows (not just visible ones)
   // This matches desktop behavior - we need to know which players have odds
   // before we can properly paginate/display them
   const { getOdds, isLoading: oddsLoading, isLoadingMore } = useHitRateOdds({
+    sport,
     rows: filteredRows.map((r) => ({ 
       oddsSelectionId: r.oddsSelectionId, 
       line: r.line 
@@ -301,12 +321,12 @@ export function MobileHitRates({
       {/* Fixed Header - stays at top when scrolling - below layout's h-12 mobile header */}
       <div className="fixed top-12 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg shadow-lg shadow-black/[0.03] dark:shadow-black/20 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <MobileHeader
-          sport="nba"
+          sport={sport}
           selectedGameIds={selectedGameIds}
           games={gameOptions}
           onGamesChange={onGameIdsChange}
           selectedMarkets={selectedMarkets}
-          marketOptions={MARKET_OPTIONS}
+          marketOptions={effectiveMarketOptions}
           onMarketsChange={onMarketsChange}
           sortField={sortField}
           sortOptions={SORT_OPTIONS}
@@ -341,7 +361,7 @@ export function MobileHitRates({
             <button
               type="button"
               onClick={() => {
-                onMarketsChange(["player_points"]); // Reset to just Points
+                onMarketsChange([effectiveMarketOptions[0]?.value || "player_points"]); // Reset default
                 onGameIdsChange([]);
                 onSearchChange("");
               }}
@@ -379,6 +399,7 @@ export function MobileHitRates({
               return (
               <PlayerCard
                 key={`${row.id}-${row.market}`}
+                sport={sport}
                 profile={row}
                   odds={odds}
                 onCardClick={() => onPlayerClick(row)}
