@@ -397,7 +397,9 @@ export async function GET(req: NextRequest) {
           if (allFields && Object.keys(allFields).length > 0) break;
         }
 
-        if (!allFields || Object.keys(allFields).length === 0) return;
+        const fieldCount = allFields ? Object.keys(allFields).length : 0;
+        console.log(`[opportunities] ${sport}: key=${rowsKey} fields=${fieldCount}`);
+        if (!allFields || fieldCount === 0) return;
         workerDataFound = true;
 
         for (const [seid, rawValue] of Object.entries(allFields)) {
