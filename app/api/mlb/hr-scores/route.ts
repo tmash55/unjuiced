@@ -85,6 +85,30 @@ function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+/**
+ * Map HR score (0-100) to a realistic implied HR probability (%).
+ *
+ * Calibration anchors (based on typical HR rates for players with similar profiles):
+ *   Score  0  → ~2.5%  (replacement-level, ~1 HR per 40 PA)
+ *   Score 50  → ~10.4% (league average hitter in neutral matchup)
+ *   Score 70  → ~16.5% (good power hitter, decent matchup)
+ *   Score 85  → ~19.5% (elite power, favorable park/pitcher)
+ *   Score 95  → ~20.6% (perfect storm — Judge vs lefty at Coors)
+ *   Score 100 → ~21.0% (theoretical ceiling)
+ *
+ * Uses a logistic (sigmoid) curve fit to these anchors:
+ *   prob = floor + (ceiling - floor) / (1 + e^(-k*(score - midpoint)))
+ */
+function hrScoreToImpliedProb(score: number): number {
+  const floor = 2.0;    // minimum implied prob %
+  const ceiling = 22.0; // maximum implied prob %
+  const midpoint = 55;  // score where prob = ~halfway between floor and ceiling
+  const k = 0.065;      // steepness of the curve
+
+  const prob = floor + (ceiling - floor) / (1 + Math.exp(-k * (score - midpoint)));
+  return Math.round(prob * 100) / 100; // round to 2 decimals
+}
+
 /** Normalize player name to Redis selection key format: "Aaron Judge" → "aaron_judge" */
 function normalizePlayerName(name: string): string {
   return name
@@ -242,7 +266,7 @@ export async function GET(req: NextRequest) {
 
       // Model implied probability: hr_score maps to HR likelihood
       const modelImpliedProb = p.hr_score != null
-        ? (p.hr_score / 100) * 3.5 // ~3.5% league avg HR rate
+        ? hrScoreToImpliedProb(p.hr_score)
         : null;
 
       const edgePct =
