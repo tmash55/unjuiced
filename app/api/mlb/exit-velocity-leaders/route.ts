@@ -125,40 +125,43 @@ function classifyTrend(evDiff: number): ExitVeloLeader["ev_trend"] {
 }
 
 /**
- * Find the best date with data — tries the requested date first,
- * then falls back to the most recent date that has hit rate profiles.
+ * Find the best date with data — checks mlb_games for scheduled games,
+ * falls back to mlb_hit_rate_profiles if no games found.
  */
 async function findBestDate(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   requestedDate: string
 ): Promise<string | null> {
+  // Check if requested date has games
   const { data: exact } = await supabase
-    .from("mlb_hit_rate_profiles")
+    .from("mlb_games")
     .select("game_date")
     .eq("game_date", requestedDate)
     .limit(1);
 
   if (exact && exact.length > 0) return requestedDate;
 
+  // Fall back to most recent date with games
   const { data: recent } = await supabase
-    .from("mlb_hit_rate_profiles")
+    .from("mlb_games")
     .select("game_date")
     .lte("game_date", requestedDate)
     .order("game_date", { ascending: false })
-    .limit(200);
+    .limit(50);
 
   if (recent && recent.length > 0) {
-    return [...new Set(recent.map((r) => r.game_date))][0] ?? null;
+    return [...new Set(recent.map((r: any) => r.game_date))][0] ?? null;
   }
 
+  // Last resort: any date with hit_rate_profiles
   const { data: anyDate } = await supabase
     .from("mlb_hit_rate_profiles")
     .select("game_date")
     .order("game_date", { ascending: false })
-    .limit(200);
+    .limit(50);
 
   if (anyDate && anyDate.length > 0) {
-    return [...new Set(anyDate.map((r) => r.game_date))][0] ?? null;
+    return [...new Set(anyDate.map((r: any) => r.game_date))][0] ?? null;
   }
 
   return null;
@@ -226,26 +229,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Get players for that date using the RPC
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
-      "get_mlb_hit_rate_profiles_v3",
-      {
-        p_dates: [date],
-        p_market: null,
-        p_has_odds: false,
-        p_limit: 3000,
-        p_offset: 0,
-      }
-    );
+    // 2. Get players for that date from daily lineups + games + teams
+    //    (mlb_hit_rate_profiles had stale team assignments from seed data)
 
-    if (rpcError) {
-      return NextResponse.json(
-        { error: "Failed to fetch players", details: rpcError.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
-      );
-    }
+    // 2a. Get all games for this date
+    const { data: gamesForDate, error: gamesError } = await supabase
+      .from("mlb_games")
+      .select("game_id, home_id, away_id, home_name, away_name")
+      .eq("game_date", date);
 
-    if (!rpcData || rpcData.length === 0) {
+    if (gamesError || !gamesForDate || gamesForDate.length === 0) {
       return NextResponse.json(
         {
           leaders: [],
@@ -262,7 +255,39 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Dedupe players
+    const dateGameIds = gamesForDate.map((g: any) => g.game_id);
+
+    // 2b. Get lineups for these games
+    const { data: lineupRows } = await supabase
+      .from("mlb_daily_lineups")
+      .select("player_id, player_name, team_id, game_id, batting_order, side, position, bats")
+      .in("game_id", dateGameIds)
+      .gt("player_id", 0); // exclude LINEUP_PENDING markers
+
+    // 2c. Get team abbreviations + names
+    const allTeamIds = [
+      ...new Set([
+        ...gamesForDate.map((g: any) => g.home_id),
+        ...gamesForDate.map((g: any) => g.away_id),
+      ]),
+    ];
+    const { data: teamRows } = await supabase
+      .from("mlb_teams")
+      .select("team_id, name, abbreviation")
+      .in("team_id", allTeamIds);
+
+    const teamLookup = new Map<number, { name: string; abbr: string }>();
+    for (const t of teamRows ?? []) {
+      teamLookup.set(t.team_id, { name: t.name, abbr: t.abbreviation });
+    }
+
+    // Build game lookup: game_id → { home_id, away_id, home_name, away_name }
+    const gameLookup = new Map<number, any>();
+    for (const g of gamesForDate) {
+      gameLookup.set(g.game_id, g);
+    }
+
+    // Dedupe players — prefer lineup data, fall back to hit_rate_profiles if no lineups
     const playerMap = new Map<
       number,
       {
@@ -282,34 +307,63 @@ export async function GET(req: NextRequest) {
       }
     >();
 
-    for (const row of rpcData) {
-      if (!row.player_id || playerMap.has(row.player_id)) continue;
-      const battingHandRaw = row.batting_hand ?? row.bats ?? row.batter_hand ?? null;
-      const battingHand =
-        typeof battingHandRaw === "string"
-          ? battingHandRaw.trim().toUpperCase().slice(0, 1)
-          : "R";
-      const lineupPosRaw = row.lineup_position ?? row.batting_order ?? null;
-      const lineupPosition =
-        lineupPosRaw != null && Number.isInteger(Number(lineupPosRaw)) && Number(lineupPosRaw) > 0
-          ? Number(lineupPosRaw)
-          : null;
+    if (lineupRows && lineupRows.length > 0) {
+      // Use lineups — correct team assignments
+      for (const row of lineupRows) {
+        if (!row.player_id || playerMap.has(row.player_id)) continue;
+        const team = teamLookup.get(row.team_id);
+        const game = gameLookup.get(row.game_id);
+        if (!team || !game) continue;
 
-      playerMap.set(row.player_id, {
-        player_id: row.player_id,
-        player_name: row.player_name,
-        team_id: row.team_id,
-        team_name: row.team_name,
-        team_abbr: row.team_abbr,
-        position: row.player_depth_chart_pos || row.player_position || "",
-        batting_hand: battingHand,
-        opponent_team_abbr: row.opponent_team_abbr,
-        opponent_team_name: row.opponent_team_name,
-        home_away: row.home_away || "",
-        game_id: row.game_id,
-        game_date: row.game_date,
-        lineup_position: lineupPosition,
-      });
+        const isHome = row.team_id === game.home_id;
+        const oppTeamId = isHome ? game.away_id : game.home_id;
+        const oppTeam = teamLookup.get(oppTeamId);
+
+        playerMap.set(row.player_id, {
+          player_id: row.player_id,
+          player_name: row.player_name,
+          team_id: row.team_id,
+          team_name: team.name,
+          team_abbr: team.abbr,
+          position: row.position || "",
+          batting_hand: row.bats ? String(row.bats).trim().toUpperCase().slice(0, 1) : "R",
+          opponent_team_abbr: oppTeam?.abbr ?? "???",
+          opponent_team_name: oppTeam?.name ?? "",
+          home_away: isHome ? "home" : "away",
+          game_id: String(row.game_id),
+          game_date: date,
+          lineup_position: row.batting_order > 0 ? row.batting_order : null,
+        });
+      }
+    } else {
+      // Fallback: use hit_rate_profiles RPC when no lineups available
+      const { data: rpcData } = await supabase.rpc(
+        "get_mlb_hit_rate_profiles_v3",
+        { p_dates: [date], p_market: null, p_has_odds: false, p_limit: 3000, p_offset: 0 }
+      );
+
+      for (const row of rpcData ?? []) {
+        if (!row.player_id || playerMap.has(row.player_id)) continue;
+
+        // Override team from mlb_teams if available (profiles may have stale team_abbr)
+        const team = teamLookup.get(row.team_id);
+
+        playerMap.set(row.player_id, {
+          player_id: row.player_id,
+          player_name: row.player_name,
+          team_id: row.team_id,
+          team_name: team?.name ?? row.team_name,
+          team_abbr: team?.abbr ?? row.team_abbr,
+          position: row.player_depth_chart_pos || row.player_position || "",
+          batting_hand: typeof row.batting_hand === "string" ? row.batting_hand.trim().toUpperCase().slice(0, 1) : "R",
+          opponent_team_abbr: row.opponent_team_abbr,
+          opponent_team_name: row.opponent_team_name,
+          home_away: row.home_away || "",
+          game_id: row.game_id,
+          game_date: row.game_date,
+          lineup_position: row.batting_order > 0 ? row.batting_order : null,
+        });
+      }
     }
 
     const playerIds = Array.from(playerMap.keys());
