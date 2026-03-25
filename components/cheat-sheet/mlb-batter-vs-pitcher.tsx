@@ -1581,12 +1581,14 @@ function ComparisonView({
   expandedBatterId,
   onToggleExpand,
   pitchFilter,
+  getStats,
 }: {
   batters: BatterMatchup[];
   pitcher: PitcherProfile;
   expandedBatterId: number | null;
   onToggleExpand: (id: number) => void;
   pitchFilter: string | null;
+  getStats: (b: BatterMatchup) => DisplayStats;
 }) {
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
@@ -1619,211 +1621,145 @@ function ComparisonView({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[10px] text-neutral-400 px-1">
-        <span>Season stats vs Recent (60d). Arrows show trend direction.</span>
+      {/* Sort controls */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[10px] text-neutral-400">Sort by</span>
+        <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
+          {([
+            { key: "lineup" as CompSortKey, label: "Order" },
+            { key: "hr_score" as CompSortKey, label: "HR Score" },
+            { key: "grade" as CompSortKey, label: "Grade" },
+            { key: "overlap" as CompSortKey, label: "Overlap" },
+          ]).map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => handleSort(opt.key)}
+              className={cn(
+                "px-2 py-1 rounded text-[11px] font-medium transition-all",
+                sortKey === opt.key
+                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              )}
+            >
+              {opt.label}{sortIcon(opt.key)}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-x-auto">
-        <table className="w-full min-w-[950px] text-xs">
-          <thead>
-            <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200/60 dark:border-neutral-700/30">
-              <th className={cn(thCls, "text-left pl-3")} onClick={() => handleSort("lineup")}>#</th>
-              <th className={cn(thCls, "text-left")}>Batter</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("grade")}>Grade{sortIcon("grade")}</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("hr_score")}>HR{sortIcon("hr_score")}</th>
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("overlap")}>Ovlp{sortIcon("overlap")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("slg")}>SLG{sortIcon("slg")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("woba")}>wOBA{sortIcon("woba")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("iso")}>ISO{sortIcon("iso")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("ev")}>EV{sortIcon("ev")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("brl")}>Brl%{sortIcon("brl")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("k_pct")}>K%{sortIcon("k_pct")}</th>
-              <th className={cn(thCls, "text-right")} onClick={() => handleSort("bb_pct")}>BB%{sortIcon("bb_pct")}</th>
-              {primary && (
-                <th className={cn(thCls, "text-center")} onClick={() => handleSort("primary_slg")}>
-                  vs {primary.pitch_name}{sortIcon("primary_slg")}
-                </th>
-              )}
-              {secondary && (
-                <th className={cn(thCls, "text-center")} onClick={() => handleSort("secondary_slg")}>
-                  vs {secondary.pitch_name}{sortIcon("secondary_slg")}
-                </th>
-              )}
-              <th className={cn(thCls, "text-center")} onClick={() => handleSort("h2h")}>H2H{sortIcon("h2h")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((b) => {
-              const badge = gradeBadge(b.matchup_grade);
-              const primarySplit = primary ? b.pitch_splits.find((s) => s.pitch_type === primary.pitch_type) : null;
-              const secondarySplit = secondary ? b.pitch_splits.find((s) => s.pitch_type === secondary.pitch_type) : null;
-              const hasPlatoon =
-                (b.batting_hand === "L" && pitcher.hand === "R") ||
-                (b.batting_hand === "R" && pitcher.hand === "L");
-              const hrScore = b.hr_probability_score ?? 0;
-              const overlap = b.overlap_score ?? 0;
 
-              const isExpanded = expandedBatterId === b.player_id;
+      {/* Matchup cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        {sorted.map((b) => {
+          const hrScore = b.hr_probability_score ?? 0;
+          const overlap = b.overlap_score ?? 0;
+          const hasPlatoon =
+            (b.batting_hand === "L" && pitcher.hand === "R") ||
+            (b.batting_hand === "R" && pitcher.hand === "L");
+          const isExpanded = expandedBatterId === b.player_id;
 
-              return (
-                <React.Fragment key={b.player_id}>
-                <tr
-                  className={cn(
-                    "border-b border-neutral-100/80 dark:border-neutral-800/30 hover:bg-neutral-50/80 dark:hover:bg-neutral-800/20 transition-all duration-150 cursor-pointer",
-                    isExpanded && "bg-sky-50/40 dark:bg-sky-500/[0.04]"
-                  )}
-                  onClick={() => onToggleExpand(b.player_id)}
-                >
-                  <td className="pl-3 pr-1 py-2 text-neutral-400 tabular-nums text-center text-[10px]">
-                    {b.lineup_position ?? "-"}
-                  </td>
-                  <td className="px-1.5 py-2">
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", isExpanded && "rotate-90")} />
-                      <img
-                        src={getMlbHeadshotUrl(b.player_id, "tiny")}
-                        alt={b.player_name}
-                        className="w-6 h-6 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
-                      />
-                      <span className="font-semibold text-neutral-900 dark:text-white truncate">{b.player_name}</span>
-                      <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>{b.batting_hand}</span>
-                    </div>
-                  </td>
-                  <td className="px-1.5 py-2 text-center">
-                    <span className={cn(
-                      "inline-flex items-center justify-center text-[8px] font-bold px-1.5 py-0.5 rounded border leading-none",
-                      b.matchup_grade === "strong" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
-                        : b.matchup_grade === "weak" ? "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/20"
-                        : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700/30"
-                    )}>
-                      {b.matchup_grade === "strong" ? "STR" : b.matchup_grade === "weak" ? "WK" : "NEU"}
+          // Pitch vulnerability
+          const topPitchSplits = pitcher.arsenal.slice(0, 3).map((a) => {
+            const split = b.pitch_splits.find((s) => s.pitch_type === a.pitch_type);
+            return { name: a.pitch_name, slg: split?.slg ?? null, pa: split?.batted_balls ?? 0 };
+          });
+
+          return (
+            <div
+              key={b.player_id}
+              className={cn(
+                "rounded-xl border transition-all duration-150 overflow-hidden",
+                isExpanded
+                  ? "border-brand/40 bg-brand/5 dark:bg-brand/5 sm:col-span-2 xl:col-span-3"
+                  : "border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-neutral-900"
+              )}
+            >
+            <button
+              onClick={() => onToggleExpand(b.player_id)}
+              className="text-left w-full p-3 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-colors"
+            >
+              {/* Header: name + grade */}
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-[10px] font-bold text-neutral-400 tabular-nums w-4 shrink-0">
+                  {b.lineup_position ?? "-"}
+                </span>
+                <img
+                  src={getMlbHeadshotUrl(b.player_id, "tiny")}
+                  alt={b.player_name}
+                  className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-bold text-neutral-900 dark:text-white truncate block">{b.player_name}</span>
+                  <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>
+                    {b.batting_hand}{hasPlatoon ? " PLT" : ""}
+                  </span>
+                </div>
+                <span className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0",
+                  b.matchup_grade === "strong" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                    : b.matchup_grade === "weak" ? "bg-red-500/10 text-red-500 border-red-500/20"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 border-neutral-200 dark:border-neutral-700"
+                )}>
+                  {b.matchup_grade === "strong" ? "STRONG" : b.matchup_grade === "weak" ? "WEAK" : "NEUTRAL"}
+                </span>
+              </div>
+
+              {/* HR Score bar */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[9px] text-neutral-400 uppercase tracking-wider w-12 shrink-0">HR Score</span>
+                <div className="flex-1 h-2 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all", hrScore >= 60 ? "bg-emerald-500" : hrScore >= 40 ? "bg-amber-500" : "bg-red-400")}
+                    style={{ width: `${hrScore}%` }}
+                  />
+                </div>
+                <span className={cn("text-xs font-black tabular-nums w-6 text-right", hrScore >= 60 ? "text-emerald-500" : hrScore >= 40 ? "text-amber-500" : "text-red-400")}>
+                  {hrScore}
+                </span>
+              </div>
+
+              {/* Pitch vulnerability + overlap */}
+              <div className="flex items-center gap-3 mb-2">
+                {overlap > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-neutral-400">Overlap</span>
+                    <span className={cn("text-[11px] font-bold tabular-nums", overlap >= 60 ? "text-emerald-500" : overlap >= 30 ? "text-amber-500" : "text-neutral-500")}>
+                      {overlap}%
                     </span>
-                  </td>
-                  <td className="px-1.5 py-2">
-                    <div className="flex items-center gap-1.5 min-w-[60px]">
-                      <div className="flex-1 h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", hrScore >= 60 ? "bg-emerald-500" : hrScore >= 40 ? "bg-yellow-500" : "bg-red-400")}
-                          style={{ width: `${hrScore}%` }}
-                        />
-                      </div>
-                      <span className={cn("text-xs font-bold tabular-nums w-6 text-right", hrScore >= 60 ? "text-emerald-600 dark:text-emerald-400" : hrScore >= 40 ? "text-yellow-600 dark:text-yellow-400" : "text-red-500 dark:text-red-400")}>
-                        {hrScore}
-                      </span>
-                    </div>
-                  </td>
-                  <td className={cn("px-1.5 py-2 text-center", overlap > 0 ? heatBg(overlap, { green: 60, yellow: 30, red: 10, higher: "good" }, true) : "")}>
-                    {overlap > 0 ? (
-                      <span className={cn("font-bold tabular-nums", overlap >= 60 ? "text-emerald-600 dark:text-emerald-400" : overlap >= 30 ? "text-yellow-600 dark:text-yellow-400" : "text-neutral-500")}>
-                        {overlap}%
-                      </span>
-                    ) : (
-                      <span className="text-neutral-300 dark:text-neutral-600">—</span>
-                    )}
-                  </td>
-                  {/* SLG with recent trend */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", slgColor(b.slg))}>{fmtAvg(b.slg)}</span>
-                  </td>
-                  {/* wOBA */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", wobaColor(b.woba))}>{fmtAvg(b.woba)}</span>
-                  </td>
-                  {/* ISO */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", isoColor(b.iso))}>{fmtAvg(b.iso)}</span>
-                  </td>
-                  {/* EV with recent delta */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-semibold", evColor(b.avg_exit_velo))}>
-                      {b.avg_exit_velo != null ? b.avg_exit_velo.toFixed(1) : "-"}
-                    </span>
-                    <DeltaArrow current={b.recent_avg_ev} baseline={b.avg_exit_velo} higherGood />
-                  </td>
-                  {/* Barrel% with recent delta */}
-                  <td className="px-1.5 py-2 text-right tabular-nums">
-                    <span className={cn("font-medium", barrelColor(b.barrel_pct))}>
-                      {fmtPct(b.barrel_pct)}
-                    </span>
-                    <DeltaArrow current={b.recent_barrel_pct} baseline={b.barrel_pct} higherGood />
-                  </td>
-                  {/* K% (lower is better) */}
-                  <td className={cn("px-1.5 py-2 text-right tabular-nums")}>
-                    <span className={cn(
-                      "font-medium",
-                      b.k_pct != null && b.k_pct <= 15 ? "text-emerald-600 dark:text-emerald-400" :
-                      b.k_pct != null && b.k_pct >= 28 ? "text-red-500 dark:text-red-400" : ""
-                    )}>
-                      {fmtPct(b.k_pct)}
-                    </span>
-                  </td>
-                  {/* BB% */}
-                  <td className={cn("px-1.5 py-2 text-right tabular-nums")}>
-                    <span className={cn(
-                      "font-medium",
-                      b.bb_pct != null && b.bb_pct >= 12 ? "text-emerald-600 dark:text-emerald-400" :
-                      b.bb_pct != null && b.bb_pct <= 5 ? "text-red-500 dark:text-red-400" : ""
-                    )}>
-                      {fmtPct(b.bb_pct)}
-                    </span>
-                  </td>
-                  {/* vs Primary pitch */}
-                  {primary && (() => {
-                    const bbs = primarySplit?.batted_balls ?? 0;
-                    const hasSample = bbs >= 20;
-                    return (
-                      <td className={cn("px-1.5 py-2 text-center tabular-nums", hasSample && heatBg(primarySplit?.slg ?? null, { green: 0.500, yellow: 0.400, red: 0.300, higher: "good" }, true))}>
-                        <div className="flex flex-col items-center">
-                          <span className={cn("font-semibold", hasSample ? slgColor(primarySplit?.slg ?? null) : "text-neutral-500")}>
-                            {fmtAvg(primarySplit?.slg ?? null)}
-                          </span>
-                          {bbs > 0 && (
-                            <span className="text-neutral-400 dark:text-neutral-600 text-[9px] leading-none mt-0.5">{bbs} BB</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })()}
-                  {/* vs Secondary pitch */}
-                  {secondary && (() => {
-                    const bbs = secondarySplit?.batted_balls ?? 0;
-                    const hasSample = bbs >= 20;
-                    return (
-                      <td className={cn("px-1.5 py-2 text-center tabular-nums", hasSample && heatBg(secondarySplit?.slg ?? null, { green: 0.500, yellow: 0.400, red: 0.300, higher: "good" }, true))}>
-                        <div className="flex flex-col items-center">
-                          <span className={cn("font-semibold", hasSample ? slgColor(secondarySplit?.slg ?? null) : "text-neutral-500")}>
-                            {fmtAvg(secondarySplit?.slg ?? null)}
-                          </span>
-                          {bbs > 0 && (
-                            <span className="text-neutral-400 dark:text-neutral-600 text-[9px] leading-none mt-0.5">{bbs} BB</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })()}
-                  {/* H2H */}
-                  <td className="px-1.5 py-2 text-center tabular-nums">
-                    {b.h2h && b.h2h.pa > 0 ? (
-                      <span className="text-neutral-700 dark:text-neutral-300">
-                        {b.h2h.hits}/{b.h2h.pa}
-                        {b.h2h.hrs > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-semibold ml-0.5">({b.h2h.hrs} HR)</span>}
-                      </span>
-                    ) : (
-                      <span className="text-neutral-400">-</span>
-                    )}
-                  </td>
-                </tr>
-                {isExpanded && (
-                  <tr>
-                    <td colSpan={13 + (primary ? 1 : 0) + (secondary ? 1 : 0)} className="px-3 pb-4 bg-neutral-50/50 dark:bg-neutral-800/20">
-                      <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
-                    </td>
-                  </tr>
+                  </div>
                 )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                {topPitchSplits.filter(s => s.pa > 0).slice(0, 2).map((s) => (
+                  <div key={s.name} className="flex items-center gap-1">
+                    <span className="text-[9px] text-neutral-400">vs {s.name}</span>
+                    <span className={cn("text-[11px] font-bold tabular-nums", slgColor(s.slg))}>
+                      {fmtAvg(s.slg)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* H2H + HR factors */}
+              <div className="flex items-center gap-3 text-[10px]">
+                {b.h2h && b.h2h.pa > 0 && (
+                  <span className="text-neutral-500">
+                    H2H: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{b.h2h.hits}/{b.h2h.pa}</span>
+                    {b.h2h.hrs > 0 && <span className="text-emerald-500 font-bold ml-0.5">{b.h2h.hrs} HR</span>}
+                  </span>
+                )}
+                {b.hr_factors.filter(f => f.positive).slice(0, 2).map((f, i) => (
+                  <span key={i} className="text-emerald-600 dark:text-emerald-400 font-medium truncate">{f.label}</span>
+                ))}
+              </div>
+            </button>
+
+            {/* Expanded drilldown */}
+            {isExpanded && (
+              <div className="border-t border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 pb-3">
+                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
+              </div>
+            )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2315,11 +2251,12 @@ export function MlbBatterVsPitcher() {
                   {batters.length > 0 ? (
                     viewMode === "comparison" && pitcher ? (
                       <ComparisonView
-                        batters={batters}
+                        batters={displayBatters}
                         pitcher={pitcher}
                         expandedBatterId={expandedBatterId}
                         onToggleExpand={(id) => setExpandedBatterId(expandedBatterId === id ? null : id)}
                         pitchFilter={pitchFilter}
+                        getStats={getBatterStats}
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
