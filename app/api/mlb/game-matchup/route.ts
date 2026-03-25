@@ -1337,34 +1337,59 @@ export async function GET(req: NextRequest) {
 
     // Arsenal splits by batter handedness
     function computeArsenalHandSplits(hand: string): ArsenalHandSplit[] {
-      const hBBs = pitcherBBs.filter((b: any) => b.batter_hand === hand);
-      if (hBBs.length < 5) return [];
-      const groups = new Map<string, any[]>();
-      for (const bb of hBBs) {
-        if (!bb.pitch_type) continue;
-        const arr = groups.get(bb.pitch_type) || [];
-        arr.push(bb);
-        groups.set(bb.pitch_type, arr);
+      // Use real Savant data from pitcherHandSplitsRaw first, batted ball fallback
+      const handRows = pitcherHandSplitsRaw.filter((r: any) => r.opponent_hand === hand);
+      const handRowMap = new Map<string, any>();
+      for (const r of handRows) {
+        if (r.pitch_type) handRowMap.set(r.pitch_type, r);
       }
-      const totalH = hBBs.length;
+
+      const hBBs = pitcherBBs.filter((b: any) => b.batter_hand === hand);
+      if (hBBs.length < 5 && handRows.length === 0) return [];
+
+      // Get pitch types from arsenal order
+      const pitchTypes = arsenal.map((a) => a.pitch_type);
       const results: ArsenalHandSplit[] = [];
-      for (const [pt, bbs] of groups.entries()) {
-        const speeds = bbs.map((b: any) => b.pitch_speed).filter((s: any) => s != null && s > 0);
-        const avg = computeAVGFromBBs(bbs);
-        const slg = computeSLGFromEvents(bbs);
-        const woba = computeWOBA(bbs);
-        results.push({
-          pitch_type: pt,
-          pitch_name: PITCH_TYPE_NAMES[pt] || pt,
-          usage_pct: totalH > 0 ? Math.round((bbs.length / totalH) * 100) : 0,
-          avg_speed: speeds.length > 0 ? Math.round(speeds.reduce((a: number, b: number) => a + b, 0) / speeds.length * 10) / 10 : null,
-          baa: avg != null ? Math.round(avg * 1000) / 1000 : null,
-          slg: slg != null ? Math.round(slg * 1000) / 1000 : null,
-          iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
-          woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
-          bbs: bbs.length,
-          whiff_pct: pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null,
-        });
+
+      for (const pt of pitchTypes) {
+        const real = handRowMap.get(pt);
+        const ptBBs = hBBs.filter((b: any) => b.pitch_type === pt);
+        const speeds = ptBBs.map((b: any) => b.pitch_speed).filter((s: any) => s != null && s > 0);
+
+        if (real && (real.pa ?? 0) >= 3) {
+          // Use real Savant stats
+          results.push({
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            usage_pct: real.pitches != null && handRows.reduce((s: number, r: any) => s + (r.pitches ?? 0), 0) > 0
+              ? Math.round((real.pitches / handRows.reduce((s: number, r: any) => s + (r.pitches ?? 0), 0)) * 100)
+              : (hBBs.length > 0 ? Math.round((ptBBs.length / hBBs.length) * 100) : 0),
+            avg_speed: speeds.length > 0 ? Math.round(speeds.reduce((a: number, b: number) => a + b, 0) / speeds.length * 10) / 10 : null,
+            baa: real.ba != null ? Math.round(Number(real.ba) * 1000) / 1000 : null,
+            slg: real.slg != null ? Math.round(Number(real.slg) * 1000) / 1000 : null,
+            iso: real.iso != null ? Math.round(Number(real.iso) * 1000) / 1000 : null,
+            woba: real.woba != null ? Math.round(Number(real.woba) * 1000) / 1000 : null,
+            bbs: real.pa ?? ptBBs.length,
+            whiff_pct: real.whiff_percent != null ? Number(real.whiff_percent) : (pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null),
+          });
+        } else if (ptBBs.length > 0) {
+          // Fallback to batted balls
+          const avg = computeAVGFromBBs(ptBBs);
+          const slg = computeSLGFromEvents(ptBBs);
+          const woba = computeWOBA(ptBBs);
+          results.push({
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            usage_pct: hBBs.length > 0 ? Math.round((ptBBs.length / hBBs.length) * 100) : 0,
+            avg_speed: speeds.length > 0 ? Math.round(speeds.reduce((a: number, b: number) => a + b, 0) / speeds.length * 10) / 10 : null,
+            baa: avg != null ? Math.round(avg * 1000) / 1000 : null,
+            slg: slg != null ? Math.round(slg * 1000) / 1000 : null,
+            iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
+            woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
+            bbs: ptBBs.length,
+            whiff_pct: pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null,
+          });
+        }
       }
       results.sort((a, b) => b.usage_pct - a.usage_pct);
       return results;
