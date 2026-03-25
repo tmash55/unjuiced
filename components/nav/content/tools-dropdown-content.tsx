@@ -22,7 +22,7 @@ import {
   createHref,
 } from "./shared";
 
-const researchTools = [
+const nbaTools = [
   {
     icon: ({ className }: { className?: string }) => <Chart className={className} />,
     title: "Hit Rates",
@@ -34,18 +34,6 @@ const researchTools = [
     title: "Cheat Sheets",
     description: "Pre-built game-day research pages",
     href: "/features/cheat-sheets",
-  },
-  {
-    icon: IconTable,
-    title: "Odds Screen",
-    description: "Compare lines across 20+ books",
-    href: "/features/odds-screen",
-  },
-  {
-    icon: IconHeart,
-    title: "My Slips",
-    description: "Saved plays and bet tracking",
-    href: "/features/my-slips",
   },
 ];
 
@@ -112,6 +100,18 @@ const sharpTools = [
     description: "Real-time insider signals from prediction markets",
     href: "/features/sharp-intel",
   },
+  {
+    icon: IconTable,
+    title: "Odds Screen",
+    description: "Compare lines across 20+ books",
+    href: "/features/odds-screen",
+  },
+  {
+    icon: IconHeart,
+    title: "My Slips",
+    description: "Saved plays and bet tracking",
+    href: "/features/my-slips",
+  },
 ];
 
 export function ToolsDropdownContent({ domain }: { domain: string }) {
@@ -119,9 +119,9 @@ export function ToolsDropdownContent({ domain }: { domain: string }) {
     <div className="grid w-[1100px] grid-cols-[1fr_1fr_1fr_auto] divide-x divide-neutral-200 dark:divide-white/20">
       {/* Research Column */}
       <div className="flex h-full flex-col p-4 pr-6">
-        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>Research</p>
+        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>NBA Research</p>
         <div className="flex flex-col gap-0.5">
-          {researchTools.map(({ icon: Icon, title, description, href }) => (
+          {nbaTools.map(({ icon: Icon, title, description, href }) => (
             <ContentLinkCard
               key={href}
               className="-mx-2"
