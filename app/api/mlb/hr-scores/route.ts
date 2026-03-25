@@ -2,17 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 
-interface BestOddsData {
-  best_book: string;
-  best_price: number;
-  line: number;
-  side: string;
-  player_id: string;
-  player_name: string;
-  book_count: number;
-  updated_at: number;
-}
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface HRScorePlayer {
@@ -51,7 +40,8 @@ export interface HRScorePlayer {
   surge_barrel_pct_7d: number | null;
   surge_hr_7d: number | null;
   // Odds
-  best_odds_american: number | null;
+  best_odds_american: string | null;
+  best_odds_decimal: number | null;
   best_odds_book: string | null;
   best_odds_link: string | null;
   best_odds_mobile_link: string | null;
@@ -64,6 +54,7 @@ export interface HRScorePlayer {
   hr_streak: number | null;
   hr_last_3_games: number | null;
   game_date: string;
+  game_id: number;
 }
 
 export interface HRScoreResponse {
@@ -72,13 +63,36 @@ export interface HRScoreResponse {
     date: string;
     totalPlayers: number;
     availableDates: string[];
+    oddsMatched: number;
   };
 }
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+// Books to scan for HR odds (consumer/bettable books)
+const BOOKS = [
+  "draftkings", "fanduel", "betmgm", "caesars", "bet365",
+  "fanatics", "hard-rock", "fliff", "betrivers", "espnbet",
+  "betparx", "bally-bet", "thescore", "superbook",
+] as const;
+
+// Sharp books (for devig reference, not for "best odds" display)
+const SHARP_BOOKS = ["pinnacle", "novig", "prophetx"] as const;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+/** Normalize player name to Redis selection key format: "Aaron Judge" → "aaron_judge" */
+function normalizePlayerName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .replace(/[^a-z0-9\s]/g, "")    // strip special chars
+    .replace(/\s+/g, "_");           // spaces → underscores
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -91,6 +105,7 @@ export async function GET(req: NextRequest) {
 
     const sb = createServerSupabaseClient();
 
+    // ── 1. Fetch HR scores from Supabase ──────────────────────────────
     const { data, error } = await sb
       .from("mlb_hr_scores")
       .select("*")
@@ -106,143 +121,151 @@ export async function GET(req: NextRequest) {
     }
 
     const rawPlayers = (data ?? []) as any[];
+    if (rawPlayers.length === 0) {
+      return NextResponse.json({
+        players: [],
+        meta: { date: targetDate, totalPlayers: 0, availableDates: [], oddsMatched: 0 },
+      });
+    }
 
-    // ── Fetch best HR odds from Redis ──────────────────────────────────
-    // Try hit_rate_profiles first (has event_id + sel_key), fall back to
-    // scanning Redis bestodds keys by player name if no profiles exist
-    const playerIds = rawPlayers.map((p: any) => p.player_id).filter(Boolean);
-    let oddsMap = new Map<number, BestOddsData | null>();
+    // ── 2. Get OddsBlaze event IDs from mlb_games ─────────────────────
+    const gameIds = [...new Set(rawPlayers.map((p: any) => p.game_id).filter(Boolean))];
+    const { data: gameRows } = await sb
+      .from("mlb_games")
+      .select("game_id, odds_game_id")
+      .in("game_id", gameIds);
 
-    if (playerIds.length > 0) {
-      // Approach 1: Look up via hit_rate_profiles (works when pipeline has run)
-      const { data: profileRows } = await sb
-        .from("mlb_hit_rate_profiles")
-        .select("player_id, event_id, sel_key, market")
-        .eq("game_date", targetDate)
-        .eq("market", "player_home_runs")
-        .in("player_id", playerIds);
+    // Map: MLB game_id → OddsBlaze UUID
+    const gameToEvent = new Map<number, string>();
+    for (const g of gameRows ?? []) {
+      if (g.odds_game_id) gameToEvent.set(g.game_id, g.odds_game_id);
+    }
 
-      if (profileRows && profileRows.length > 0) {
-        const profileMap = new Map<number, { event_id: string; sel_key: string }>();
-        for (const row of profileRows) {
-          if (row.event_id && row.sel_key) {
-            profileMap.set(row.player_id, { event_id: row.event_id, sel_key: row.sel_key });
-          }
-        }
+    // ── 3. Fetch HR odds from Redis ───────────────────────────────────
+    // Redis key format: odds:mlb:{oddsblaze_event_id}:player_home_runs:{book}
+    // Value: flat object { "player_name|over|0.5": { price, price_decimal, link, ... }, ... }
 
-        const lookups = playerIds
-          .map((pid: number) => ({ pid, profile: profileMap.get(pid) }))
-          .filter((l: any) => l.profile);
+    const uniqueEventIds = [...new Set(gameToEvent.values())];
+    const allBooks = [...BOOKS, ...SHARP_BOOKS];
 
-        if (lookups.length > 0) {
-          const redisKeys = lookups.map((l: any) =>
-            `bestodds:mlb:${l.profile.event_id}:player_home_runs:${l.profile.sel_key}`
-          );
-          try {
-            const values = await redis.mget<(BestOddsData | string | null)[]>(...redisKeys);
-            lookups.forEach((l: any, i: number) => {
-              const val = values[i];
-              if (!val) { oddsMap.set(l.pid, null); return; }
-              if (typeof val === "string") {
-                try { oddsMap.set(l.pid, JSON.parse(val)); } catch { oddsMap.set(l.pid, null); }
-              } else {
-                oddsMap.set(l.pid, val);
-              }
-            });
-          } catch (e) {
-            console.error("[HR Scores] Redis best odds error:", e);
-          }
-        }
-      } else {
-        // Approach 2: No profiles — try to find odds via active events
-        // Get event IDs for this date from mlb_games
-        const { data: gameRows } = await sb
-          .from("mlb_games")
-          .select("game_id, event_id")
-          .eq("game_date", targetDate);
-
-        const eventIds = (gameRows ?? [])
-          .map((g: any) => g.event_id)
-          .filter(Boolean) as string[];
-
-        if (eventIds.length > 0) {
-          // For each event, get the odds index to find HR market keys
-          const indexKeys = eventIds.map((eid) => `odds_idx:mlb:${eid}`);
-          try {
-            // Get all market:book combos for each event
-            const pipeline = redis.pipeline();
-            for (const key of indexKeys) {
-              pipeline.smembers(key);
-            }
-            const indexResults = await pipeline.exec<string[][]>();
-
-            // Find player_home_runs entries and extract book names
-            const hrOddsKeys: string[] = [];
-            const hrEventMap: string[] = []; // parallel array tracking which event
-            for (let i = 0; i < eventIds.length; i++) {
-              const members = indexResults?.[i] ?? [];
-              for (const member of members) {
-                if (typeof member === "string" && member.startsWith("player_home_runs:")) {
-                  hrOddsKeys.push(`odds:mlb:${eventIds[i]}:${member}`);
-                  hrEventMap.push(eventIds[i]);
-                }
-              }
-            }
-
-            if (hrOddsKeys.length > 0) {
-              // Fetch the actual odds data (these can be large)
-              // Just fetch first book per event to get player names/odds
-              const oddsValues = await redis.mget<(string | any | null)[]>(...hrOddsKeys.slice(0, 30));
-
-              // Parse and map by player name
-              const playerNameMap = new Map<string, number>();
-              for (const p of rawPlayers) {
-                if (p.player_name) playerNameMap.set(p.player_name.toLowerCase(), p.player_id);
-              }
-
-              for (let i = 0; i < (oddsValues?.length ?? 0); i++) {
-                const raw = oddsValues?.[i];
-                if (!raw) continue;
-                const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-                // Odds data has selections with player names
-                const selections = parsed?.selections ?? parsed?.outcomes ?? [];
-                for (const sel of (Array.isArray(selections) ? selections : [])) {
-                  const name = (sel.description ?? sel.name ?? sel.player_name ?? "").toLowerCase();
-                  const price = sel.price ?? sel.odds ?? null;
-                  const pid = playerNameMap.get(name);
-                  if (pid && price != null && !oddsMap.has(pid)) {
-                    oddsMap.set(pid, {
-                      best_book: parsed.book ?? parsed.sportsbook ?? "unknown",
-                      best_price: price,
-                      line: sel.line ?? 0.5,
-                      side: "over",
-                      player_id: String(pid),
-                      player_name: sel.description ?? sel.name ?? "",
-                      book_count: 1,
-                      updated_at: Date.now(),
-                    });
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.error("[HR Scores] Redis odds index scan error:", e);
-          }
-        }
+    // Build all Redis keys to fetch
+    const redisKeys: string[] = [];
+    const keyMeta: { eventId: string; book: string }[] = [];
+    for (const eid of uniqueEventIds) {
+      for (const book of allBooks) {
+        const key = `odds:mlb:${eid}:player_home_runs:${book}`;
+        redisKeys.push(key);
+        keyMeta.push({ eventId: eid, book });
       }
     }
 
-    // Enrich players with live odds
+    // Batch fetch all odds data from Redis via mget
+    // Each value is a large JSON object with all players for that event+book
+    type OddsValue = Record<string, any> | string | null;
+    let redisValues: OddsValue[] = [];
+    if (redisKeys.length > 0) {
+      try {
+        // Chunk mget to avoid oversized requests (each value can be 100KB+)
+        const CHUNK = 50;
+        for (let i = 0; i < redisKeys.length; i += CHUNK) {
+          const chunk = redisKeys.slice(i, i + CHUNK);
+          const vals = await redis.mget<OddsValue[]>(...chunk);
+          redisValues.push(...vals);
+        }
+      } catch (e) {
+        console.error("[HR Scores] Redis mget error:", e);
+      }
+    }
+
+    // Parse into: eventId → book → { playerSelKey: oddsObj }
+    const oddsIndex = new Map<string, Map<string, Record<string, any>>>();
+    for (let i = 0; i < redisValues.length; i++) {
+      const raw = redisValues[i];
+      if (!raw) continue;
+      const { eventId, book } = keyMeta[i];
+      try {
+        const parsed: Record<string, any> = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!oddsIndex.has(eventId)) oddsIndex.set(eventId, new Map());
+        oddsIndex.get(eventId)!.set(book, parsed);
+      } catch {
+        // skip unparseable
+      }
+    }
+
+    console.log(
+      `[HR Scores] Redis: ${uniqueEventIds.length} events, ${redisValues.filter(Boolean).length}/${redisKeys.length} keys with data`
+    );
+
+    // ── 4. Match players to odds ──────────────────────────────────────
+    let oddsMatched = 0;
+
     const players: HRScorePlayer[] = rawPlayers.map((p: any) => {
-      const odds = oddsMap.get(p.player_id);
+      const eventId = gameToEvent.get(p.game_id);
+      const playerNorm = normalizePlayerName(p.player_name || "");
+      const selKey = `${playerNorm}|over|0.5`;
+
+      let bestOdds: any = null;
+      let bestBook = "";
+      const allBookOdds: Record<string, any> = {};
+
+      if (eventId && oddsIndex.has(eventId)) {
+        const eventBooks = oddsIndex.get(eventId)!;
+
+        for (const [book, bookData] of eventBooks) {
+          const sel = bookData[selKey];
+          if (!sel) continue;
+
+          // Store for all_book_odds
+          allBookOdds[book] = {
+            price: sel.price,
+            price_decimal: sel.price_decimal,
+            link: sel.link,
+            mobile_link: sel.mobile_link,
+          };
+
+          // Track best consumer odds (exclude sharp books)
+          const isSharp = (SHARP_BOOKS as readonly string[]).includes(book);
+          if (!isSharp && sel.price_decimal) {
+            if (!bestOdds || sel.price_decimal > bestOdds.price_decimal) {
+              bestOdds = sel;
+              bestBook = book;
+            }
+          }
+        }
+      }
+
+      const hasOdds = bestOdds != null;
+      if (hasOdds) oddsMatched++;
+
+      const oddsImpliedProb = bestOdds?.price_decimal
+        ? (1 / bestOdds.price_decimal) * 100
+        : null;
+
+      // Model implied probability: hr_score maps to HR likelihood
+      const modelImpliedProb = p.hr_score != null
+        ? (p.hr_score / 100) * 3.5 // ~3.5% league avg HR rate
+        : null;
+
+      const edgePct =
+        modelImpliedProb != null && oddsImpliedProb != null && oddsImpliedProb > 0
+          ? ((modelImpliedProb - oddsImpliedProb) / oddsImpliedProb) * 100
+          : null;
+
       return {
         ...p,
-        best_odds_american: odds?.best_price ?? p.best_odds_american ?? null,
-        best_odds_book: odds?.best_book ?? p.best_odds_book ?? null,
-      };
+        best_odds_american: hasOdds ? bestOdds.price : p.best_odds_american ?? null,
+        best_odds_decimal: hasOdds ? bestOdds.price_decimal : null,
+        best_odds_book: hasOdds ? bestBook : p.best_odds_book ?? null,
+        best_odds_link: hasOdds ? bestOdds.link : p.best_odds_link ?? null,
+        best_odds_mobile_link: hasOdds ? bestOdds.mobile_link : p.best_odds_mobile_link ?? null,
+        odds_implied_prob: oddsImpliedProb ?? p.odds_implied_prob ?? null,
+        model_implied_prob: modelImpliedProb ?? p.model_implied_prob ?? null,
+        edge_pct: edgePct ?? p.edge_pct ?? null,
+        all_book_odds: Object.keys(allBookOdds).length > 0 ? allBookOdds : p.all_book_odds ?? null,
+      } as HRScorePlayer;
     });
 
-    // Fetch available dates from hr_scores table
+    // ── 5. Available dates ────────────────────────────────────────────
     const today = getETDate();
     const { data: dateRows } = await sb
       .from("mlb_hr_scores")
@@ -260,11 +283,12 @@ export async function GET(req: NextRequest) {
         date: targetDate,
         totalPlayers: players.length,
         availableDates,
+        oddsMatched,
       },
     };
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
+      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
     });
   } catch (err: any) {
     console.error("[HR Scores API]", err);
