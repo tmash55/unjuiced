@@ -403,7 +403,10 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
       {/* Pitcher Splits Table */}
       {hasSplits && (
         <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Pitcher Splits</h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Pitcher Splits</h4>
+            <span className="text-[9px] text-neutral-400">Full season</span>
+          </div>
           <div className="rounded-lg border border-neutral-200/50 dark:border-neutral-700/20 overflow-hidden">
             <table className="w-full text-[11px] tabular-nums">
               <thead>
