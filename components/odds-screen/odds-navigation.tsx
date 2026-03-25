@@ -54,9 +54,10 @@ interface SportConfig {
 // Active sports first, off-season at the bottom
 const SPORTS: SportConfig[] = [
   // Active
+  { id: "mlb", label: "MLB" },
   { id: "nba", label: "NBA" },
-  { id: "ncaab", label: "NCAAB" },
   { id: "nhl", label: "NHL" },
+  { id: "ncaab", label: "NCAAB" },
   { id: "ncaabaseball", label: "NCAA Baseball" },
   { id: "soccer_epl", label: "EPL" },
   { id: "soccer_laliga", label: "LaLiga" },
@@ -71,14 +72,13 @@ const SPORTS: SportConfig[] = [
   { id: "tennis_utr_men", label: "UTR Men" },
   { id: "tennis_utr_women", label: "UTR Women" },
   { id: "ufc", label: "UFC" },
-  { id: "mlb", label: "MLB" },
   // Off season
   { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
   { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
 
-const LEADING_SPORT_IDS = ["nba", "mlb", "ncaab", "nhl", "ncaabaseball"] as const;
+const LEADING_SPORT_IDS = ["mlb", "nba", "nhl", "ncaab", "ncaabaseball"] as const;
 const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
 const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
 const TRAILING_SPORT_IDS = ["ufc", "wnba", "ncaaf", "nfl"] as const;

@@ -1264,7 +1264,7 @@ async function buildPropsRows(
     market.includes("puck_line") ||
     market.includes("run_line") ||
     market.includes("handicap");
-  const isGameTotal = market.includes("total") || market.includes("over_under");
+  const isGameTotal = (market.includes("total") && !market.startsWith("player_")) || market.includes("over_under");
   const isThreeWayTeamMarket =
     market.includes("moneyline_3_way") ||
     market.includes("team_to_score_3_way");
