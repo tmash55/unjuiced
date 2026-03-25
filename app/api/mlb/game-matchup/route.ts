@@ -159,14 +159,21 @@ export interface BatterMatchup {
   total_batted_balls: number;
   // Per-pitch-type splits (top pitcher pitches)
   pitch_splits: BatterPitchSplit[];
-  // H2H career vs this pitcher (from batted balls)
+  // H2H career vs this pitcher
   h2h: {
     pa: number;
+    ab: number;
     hits: number;
     hrs: number;
+    bb: number;
+    so: number;
     avg: number | null;
+    obp: number | null;
     slg: number | null;
-    // Last 3 meeting dates with results
+    ops: number | null;
+    // Per-season breakdown
+    seasons: { season: number; pa: number; ab: number; h: number; hr: number; bb: number; so: number; avg: number | null; slg: number | null }[];
+    // Last 3 meeting dates with results (from batted balls)
     last_meetings: { date: string; hits: number; hrs: number; pa: number }[];
   } | null;
   // wOBA (estimated from batted balls)
@@ -708,12 +715,20 @@ export async function GET(req: NextRequest) {
         .eq("season", s)
     );
 
-    // H2H: all-time batter vs pitcher (no season filter)
+    // H2H: all-time batter vs pitcher (no season filter) — batted balls for exit velo/detail
     const h2hQuery = supabase
       .from("mlb_batted_balls")
       .select(bbSelect)
       .in("batter_id", batterIds.length > 0 ? batterIds : [0])
       .eq("pitcher_id", pitcherId);
+
+    // H2H: per-season BvP stats (complete PA including K/BB/HBP)
+    const h2hBvpQuery = supabase
+      .from("mlb_bvp_season_agg")
+      .select("batter_id, pitcher_id, season, pa, ab, h, singles, doubles, triples, hr, rbi, bb, hbp, so, sf, avg, obp, slg, ops")
+      .in("batter_id", batterIds.length > 0 ? batterIds : [0])
+      .eq("pitcher_id", pitcherId)
+      .order("season", { ascending: true });
 
     // Pitcher game logs — try both seasons
     const pitcherLogsQueries = seasonsToTry.map((s) =>
@@ -797,7 +812,8 @@ export async function GET(req: NextRequest) {
       ...pitchTypeSummaryQueries, // [11, 12] = pitch type summary for season, season-1
       pitcherHotZoneQuery,     // [13] = pitcher hot zone grid
       ...pitcherHandSplitQueries, // [14, 15] = pitcher pitchtype hand splits for season, season-1
-      ...batterGameLogQueries, // [16..16+N-1] = batter game logs (one per batter)
+      h2hBvpQuery,             // [16] = per-season BvP stats
+      ...batterGameLogQueries, // [17..17+N-1] = batter game logs (one per batter)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -876,7 +892,16 @@ export async function GET(req: NextRequest) {
       pitcherHandWhiffMap.set(`${row.pitch_type}:${row.opponent_hand}`, row.whiff_percent);
     }
 
-    const BATTER_LOG_START_IDX = 16;
+    // H2H BvP per-season stats (complete PA data)
+    const h2hBvpRows = (allResults[16].data ?? []) as any[];
+    const h2hBvpMap = new Map<number, any[]>();
+    for (const row of h2hBvpRows) {
+      const arr = h2hBvpMap.get(row.batter_id) || [];
+      arr.push(row);
+      h2hBvpMap.set(row.batter_id, arr);
+    }
+
+    const BATTER_LOG_START_IDX = 17;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
       const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
@@ -1268,11 +1293,14 @@ export async function GET(req: NextRequest) {
         vs_lhp: computePitchSplitsForHand("L"),
       };
 
-      // H2H
+      // H2H — use mlb_bvp_season_agg (complete PA) as primary, batted balls for last_meetings
       const h2hPlayerBBs = h2hMap.get(p.player_id) || [];
+      const h2hBvpSeasons = h2hBvpMap.get(p.player_id) || [];
       let h2h: BatterMatchup["h2h"] = null;
+
+      // Build last_meetings from batted balls (game-level detail)
+      let lastMeetings: { date: string; hits: number; hrs: number; pa: number }[] = [];
       if (h2hPlayerBBs.length > 0) {
-        // Group H2H by game_date for last 3 meetings
         const h2hByDate = new Map<string, any[]>();
         for (const bb of h2hPlayerBBs) {
           const d = bb.game_date || "unknown";
@@ -1281,7 +1309,7 @@ export async function GET(req: NextRequest) {
           h2hByDate.set(d, arr);
         }
         const sortedDates = Array.from(h2hByDate.keys()).sort().reverse();
-        const lastMeetings = sortedDates.slice(0, 3).map((d) => {
+        lastMeetings = sortedDates.slice(0, 3).map((d) => {
           const mBBs = h2hByDate.get(d)!;
           return {
             date: d,
@@ -1290,16 +1318,49 @@ export async function GET(req: NextRequest) {
             hrs: mBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
           };
         });
+      }
 
+      if (h2hBvpSeasons.length > 0) {
+        // Use BvP season agg — has complete PA/AB/H/HR/BB/SO
+        let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, totalBB = 0, totalSO = 0;
+        const seasons = h2hBvpSeasons.map((s: any) => {
+          totalPA += s.pa || 0; totalAB += s.ab || 0; totalH += s.h || 0;
+          totalHR += s.hr || 0; totalBB += s.bb || 0; totalSO += s.so || 0;
+          return {
+            season: s.season,
+            pa: s.pa || 0, ab: s.ab || 0, h: s.h || 0, hr: s.hr || 0,
+            bb: s.bb || 0, so: s.so || 0,
+            avg: s.avg != null ? Math.round(s.avg * 1000) / 1000 : null,
+            slg: s.slg != null ? Math.round(s.slg * 1000) / 1000 : null,
+          };
+        });
+        const careerAvg = totalAB > 0 ? Math.round((totalH / totalAB) * 1000) / 1000 : null;
+        const hbpTotal = h2hBvpSeasons.reduce((sum: number, s: any) => sum + (s.hbp || 0), 0);
+        const sfTotal = h2hBvpSeasons.reduce((sum: number, s: any) => sum + (s.sf || 0), 0);
+        const singlesTotal = h2hBvpSeasons.reduce((sum: number, s: any) => sum + (s.singles || 0), 0);
+        const doublesTotal = h2hBvpSeasons.reduce((sum: number, s: any) => sum + (s.doubles || 0), 0);
+        const triplesTotal = h2hBvpSeasons.reduce((sum: number, s: any) => sum + (s.triples || 0), 0);
+        const careerObp = totalPA > 0 ? Math.round(((totalH + totalBB + hbpTotal) / totalPA) * 1000) / 1000 : null;
+        const careerSlg = totalAB > 0 ? Math.round(((singlesTotal + doublesTotal * 2 + triplesTotal * 3 + totalHR * 4) / totalAB) * 1000) / 1000 : null;
+        const careerOps = careerObp != null && careerSlg != null ? Math.round((careerObp + careerSlg) * 1000) / 1000 : null;
+
+        h2h = {
+          pa: totalPA, ab: totalAB, hits: totalH, hrs: totalHR, bb: totalBB, so: totalSO,
+          avg: careerAvg, obp: careerObp, slg: careerSlg, ops: careerOps,
+          seasons, last_meetings: lastMeetings,
+        };
+      } else if (h2hPlayerBBs.length > 0) {
+        // Fallback to batted balls only (incomplete PA but better than nothing)
         const h2hAvg = computeAVGFromBBs(h2hPlayerBBs);
         const h2hSlg = computeSLGFromEvents(h2hPlayerBBs);
         h2h = {
-          pa: h2hPlayerBBs.length,
+          pa: h2hPlayerBBs.length, ab: h2hPlayerBBs.length,
           hits: h2hPlayerBBs.filter((b: any) => b.is_hit || (b.event_type || "").toLowerCase() === "home_run").length,
           hrs: h2hPlayerBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
+          bb: 0, so: 0,
           avg: h2hAvg != null ? Math.round(h2hAvg * 1000) / 1000 : null,
-          slg: h2hSlg != null ? Math.round(h2hSlg * 1000) / 1000 : null,
-          last_meetings: lastMeetings,
+          obp: null, slg: h2hSlg != null ? Math.round(h2hSlg * 1000) / 1000 : null, ops: null,
+          seasons: [], last_meetings: lastMeetings,
         };
       }
 
