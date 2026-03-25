@@ -49,6 +49,44 @@ const researchTools = [
   },
 ];
 
+const mlbTools = [
+  {
+    icon: IconFileText,
+    title: "Slate Insights",
+    description: "Batter vs pitcher matchup breakdowns",
+    href: "/features/slate-insights",
+    badge: "NEW",
+  },
+  {
+    icon: IconRocket,
+    title: "HR Command Center",
+    description: "5-layer HR scoring with live odds",
+    href: "/features/hr-command-center",
+    badge: "NEW",
+  },
+  {
+    icon: IconScale,
+    title: "NRFI",
+    description: "No Run First Inning grades & odds",
+    href: "/features/nrfi-analysis",
+    badge: "NEW",
+  },
+  {
+    icon: IconTable,
+    title: "Exit Velocity",
+    description: "Statcast hard-hit leaders",
+    href: "/features/exit-velocity",
+    badge: "NEW",
+  },
+  {
+    icon: IconBulb,
+    title: "Weather Report",
+    description: "Park & weather impact scores",
+    href: "/features/weather-report",
+    free: true,
+  },
+];
+
 const sharpTools = [
   {
     icon: IconRocket,
@@ -78,7 +116,7 @@ const sharpTools = [
 
 export function ToolsDropdownContent({ domain }: { domain: string }) {
   return (
-    <div className="grid w-[1020px] grid-cols-[1fr_1fr_auto] divide-x divide-neutral-200 dark:divide-white/20">
+    <div className="grid w-[1100px] grid-cols-[1fr_1fr_1fr_auto] divide-x divide-neutral-200 dark:divide-white/20">
       {/* Research Column */}
       <div className="flex h-full flex-col p-4 pr-6">
         <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>Research</p>
@@ -94,6 +132,27 @@ export function ToolsDropdownContent({ domain }: { domain: string }) {
                 </div>
               }
               title={title}
+              description={description}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* MLB Column */}
+      <div className="flex h-full flex-col p-4 pr-6 pl-6">
+        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>MLB Research</p>
+        <div className="flex flex-col gap-0.5">
+          {mlbTools.map(({ icon: Icon, title, description, href, badge, free }) => (
+            <ContentLinkCard
+              key={href}
+              className="-mx-2"
+              href={createHref(href, domain, getUtmParams({ domain, utm_content: title }))}
+              icon={
+                <div className="shrink-0 rounded-md border border-neutral-200 bg-white/50 p-2.5 dark:border-white/20 dark:bg-white/10">
+                  <Icon className="size-4 text-red-500 transition-colors dark:text-red-400" />
+                </div>
+              }
+              title={`${title}${badge ? ` ${badge}` : ""}${free ? " FREE" : ""}`}
               description={description}
             />
           ))}
