@@ -184,7 +184,14 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
   tennis_wta: [],
   ufc: [],
   mlb: [
+    { id: "hits", label: "Hits", apiKey: "player_hits", type: "player" },
+    { id: "hr", label: "HR", apiKey: "player_home_runs", type: "player" },
+    { id: "rbis", label: "RBIs", apiKey: "player_rbis", type: "player" },
+    { id: "runs", label: "Runs", apiKey: "player_runs", type: "player" },
     { id: "total_bases", label: "Total Bases", apiKey: "player_total_bases", type: "player" },
+    { id: "k", label: "K", apiKey: "player_strikeouts", type: "player" },
+    { id: "hrr", label: "H+R+RBI", apiKey: "player_hits__runs__rbis", type: "player" },
+    { id: "sb", label: "SB", apiKey: "player_stolen_bases", type: "player" },
   ],
   wnba: [],
 };

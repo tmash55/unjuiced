@@ -609,6 +609,22 @@ export interface SportMarket {
     { value: "F5 Home Total", label: "F5 Home Total", apiKey: "1st_5_innings_home_team_total_runs", group: "First 5", period: "full" },
     { value: "F5 Away Total", label: "F5 Away Total", apiKey: "1st_5_innings_away_team_total_runs", group: "First 5", period: "full" },
 
+    // Inning Props (Caesars etc.)
+    { value: "F2 3-Way", label: "F2 Innings 3-Way", apiKey: "1st_2_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F3 3-Way", label: "F3 Innings 3-Way", apiKey: "1st_3_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F3 Run Line", label: "F3 Innings Run Line", apiKey: "1st_3_innings_run_line", group: "Inning Props", period: "full" },
+    { value: "F4 3-Way", label: "F4 Innings 3-Way", apiKey: "1st_4_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F6 3-Way", label: "F6 Innings 3-Way", apiKey: "1st_6_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F7 3-Way", label: "F7 Innings 3-Way", apiKey: "1st_7_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F8 3-Way", label: "F8 Innings 3-Way", apiKey: "1st_8_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "2nd Inning 3-Way", label: "2nd Inning 3-Way", apiKey: "2nd_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "3rd Inning 3-Way", label: "3rd Inning 3-Way", apiKey: "3rd_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "4th Inning 3-Way", label: "4th Inning 3-Way", apiKey: "4th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "5th Inning 3-Way", label: "5th Inning 3-Way", apiKey: "5th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "6th Inning 3-Way", label: "6th Inning 3-Way", apiKey: "6th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "7th Inning 3-Way", label: "7th Inning 3-Way", apiKey: "7th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "8th Inning 3-Way", label: "8th Inning 3-Way", apiKey: "8th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+
     // Batter props
     { value: "Hits", label: "Hits", apiKey: "player_hits", group: "Batter", period: "full" },
     { value: "Home Runs", label: "Home Runs", apiKey: "player_home_runs", group: "Batter", period: "full" },
