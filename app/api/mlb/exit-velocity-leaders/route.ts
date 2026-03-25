@@ -336,32 +336,47 @@ export async function GET(req: NextRequest) {
         });
       }
     } else {
-      // Fallback: use hit_rate_profiles RPC when no lineups available
-      const { data: rpcData } = await supabase.rpc(
-        "get_mlb_hit_rate_profiles_v3",
-        { p_dates: [date], p_market: null, p_has_odds: false, p_limit: 3000, p_offset: 0 }
-      );
+      // Fallback: no lineups yet — get full roster from mlb_players_hr
+      // for all teams playing on this date. Always correct team assignments.
+      const { data: rosterRows } = await supabase
+        .from("mlb_players_hr")
+        .select("mlb_player_id, name, team_id, pos_abbr, bat_hand")
+        .in("team_id", allTeamIds)
+        .not("pos_abbr", "eq", "P"); // exclude pitchers
 
-      for (const row of rpcData ?? []) {
-        if (!row.player_id || playerMap.has(row.player_id)) continue;
+      // Build team→game mapping so we know each player's opponent
+      const teamToGame = new Map<number, { game_id: number; isHome: boolean }>();
+      for (const g of gamesForDate) {
+        teamToGame.set(g.home_id, { game_id: g.game_id, isHome: true });
+        teamToGame.set(g.away_id, { game_id: g.game_id, isHome: false });
+      }
 
-        // Override team from mlb_teams if available (profiles may have stale team_abbr)
+      for (const row of rosterRows ?? []) {
+        if (!row.mlb_player_id || playerMap.has(row.mlb_player_id)) continue;
         const team = teamLookup.get(row.team_id);
+        const gameInfo = teamToGame.get(row.team_id);
+        if (!team || !gameInfo) continue;
 
-        playerMap.set(row.player_id, {
-          player_id: row.player_id,
-          player_name: row.player_name,
+        const game = gameLookup.get(gameInfo.game_id);
+        if (!game) continue;
+
+        const oppTeamId = gameInfo.isHome ? game.away_id : game.home_id;
+        const oppTeam = teamLookup.get(oppTeamId);
+
+        playerMap.set(row.mlb_player_id, {
+          player_id: row.mlb_player_id,
+          player_name: row.name,
           team_id: row.team_id,
-          team_name: team?.name ?? row.team_name,
-          team_abbr: team?.abbr ?? row.team_abbr,
-          position: row.player_depth_chart_pos || row.player_position || "",
-          batting_hand: typeof row.batting_hand === "string" ? row.batting_hand.trim().toUpperCase().slice(0, 1) : "R",
-          opponent_team_abbr: row.opponent_team_abbr,
-          opponent_team_name: row.opponent_team_name,
-          home_away: row.home_away || "",
-          game_id: row.game_id,
-          game_date: row.game_date,
-          lineup_position: row.batting_order > 0 ? row.batting_order : null,
+          team_name: team.name,
+          team_abbr: team.abbr,
+          position: row.pos_abbr || "",
+          batting_hand: row.bat_hand ? String(row.bat_hand).trim().toUpperCase().slice(0, 1) : "R",
+          opponent_team_abbr: oppTeam?.abbr ?? "???",
+          opponent_team_name: oppTeam?.name ?? "",
+          home_away: gameInfo.isHome ? "home" : "away",
+          game_id: String(gameInfo.game_id),
+          game_date: date,
+          lineup_position: null, // no lineup order without confirmed lineups
         });
       }
     }
