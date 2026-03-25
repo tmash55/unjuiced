@@ -55,6 +55,7 @@ export function useMlbGameMatchup({ gameId, battingSide, sample = "season" }: Us
     meta: query.data?.meta ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    refetch: query.refetch,
     error: query.error as Error | null,
   };
 }

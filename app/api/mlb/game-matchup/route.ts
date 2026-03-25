@@ -70,6 +70,7 @@ export interface ArsenalHandSplit {
   iso: number | null;
   woba: number | null;
   bbs: number;
+  whiff_pct: number | null;
 }
 
 export interface PitcherProfile {
@@ -97,7 +98,7 @@ export interface PitcherProfile {
   // Scouting summary (auto-generated)
   scouting_summary: string | null;
   // Recent HRs allowed
-  recent_hrs_allowed: { batter_hand: string | null; date: string; pitch_type: string | null; exit_velocity: number | null; distance: number | null }[];
+  recent_hrs_allowed: { batter_name: string | null; batter_hand: string | null; date: string; pitch_type: string | null; exit_velocity: number | null; distance: number | null }[];
   // 3x3 pitch zone heatmap (zones 1-9, standard strike zone grid)
   pitch_zone_grid: {
     zone: number;
@@ -191,6 +192,11 @@ export interface BatterMatchup {
   hand_splits: {
     vs_rhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
     vs_lhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
+  };
+  // Pitch splits crossed with pitcher handedness (for combined filters)
+  pitch_hand_splits?: {
+    vs_rhp: BatterPitchSplit[];
+    vs_lhp: BatterPitchSplit[];
   };
 }
 
@@ -631,9 +637,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Enrich with batting order from mlb_daily_lineups ─────────────────
+    const lineupSide = battingSide === "home" ? "home" : "away";
+    const { data: dailyLineup } = await supabase
+      .from("mlb_daily_lineups")
+      .select("player_id, batting_order, is_confirmed")
+      .eq("game_id", gameId)
+      .eq("side", lineupSide)
+      .gt("batting_order", 0)
+      .order("batting_order", { ascending: true });
+
+    if (dailyLineup && dailyLineup.length > 0) {
+      const orderMap = new Map<number, number>();
+      for (const dl of dailyLineup) {
+        orderMap.set(dl.player_id, dl.batting_order);
+      }
+      // Set lineup_position from daily lineups
+      for (const p of lineup) {
+        const order = orderMap.get(p.player_id);
+        if (order != null) p.lineup_position = order;
+      }
+      // Filter to only starters (batting_order 1-9) + any lineup players not in profiles
+      // Keep all if no one matched (fallback)
+      const starters = lineup.filter((p: any) => p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9);
+      if (starters.length >= 5) {
+        lineup = starters;
+      }
+    }
+
     const batterIds = lineup.map((p: any) => p.player_id);
 
-    console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
+    console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} (dailyLineup=${dailyLineup?.length ?? 0}) batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
 
     if (!pitcherId) {
       // No probable pitcher set — return basic structure
@@ -654,7 +688,7 @@ export async function GET(req: NextRequest) {
     // Try current season first; if no data, fall back to prior season
     const seasonsToTry = [season, season - 1];
 
-    const bbSelect = "batter_id, pitcher_id, exit_velocity, launch_angle, total_distance, trajectory, hardness, pitch_type, pitch_speed, event_type, is_hit, is_barrel, is_out, game_date, pitcher_hand, batter_hand";
+    const bbSelect = "batter_id, pitcher_id, exit_velocity, launch_angle, total_distance, trajectory, hardness, pitch_type, pitch_speed, event_type, is_hit, is_barrel, is_out, game_date, pitcher_hand, batter_hand, batter_name";
 
     // Query both seasons in parallel for pitcher + batter BBs to pick the one with data
     // Always fetch all season data; sample filtering is applied post-query by game count
@@ -716,10 +750,20 @@ export async function GET(req: NextRequest) {
     );
 
     // Pitcher pitch type summary (season stats with whiff%, k%, put_away)
+    // Try both table names: original and the new populated table
     const pitchTypeSummaryQueries = seasonsToTry.map((s) =>
       supabase
-        .from("mlb_pitcher_pitch_type_summary")
+        .from("mlb_pitcher_pitchtype_summary")
         .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches")
+        .eq("player_id", pitcherId)
+        .eq("season_year", s)
+    );
+
+    // Pitcher pitch type hand splits (whiff% vs LHB/RHB per pitch type)
+    const pitcherHandSplitQueries = seasonsToTry.map((s) =>
+      supabase
+        .from("mlb_pitcher_pitchtype_hand_splits")
+        .select("pitch_type, opponent_hand, whiff_percent, ba, slg, woba, hard_hit_percent, pitches")
         .eq("player_id", pitcherId)
         .eq("season_year", s)
     );
@@ -753,7 +797,8 @@ export async function GET(req: NextRequest) {
       ...pitcherL30Queries,   // [9, 10] = pitcher L30 BBs for season, season-1
       ...pitchTypeSummaryQueries, // [11, 12] = pitch type summary for season, season-1
       pitcherHotZoneQuery,     // [13] = pitcher hot zone grid
-      ...batterGameLogQueries, // [14..14+N-1] = batter game logs (one per batter)
+      ...pitcherHandSplitQueries, // [14, 15] = pitcher pitchtype hand splits for season, season-1
+      ...batterGameLogQueries, // [16..16+N-1] = batter game logs (one per batter)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -822,7 +867,16 @@ export async function GET(req: NextRequest) {
 
     // Build batter game log lookup: batterId -> { k_pct, bb_pct } (respects sample filter)
     const batterDisciplineMap = new Map<number, { k_pct: number | null; bb_pct: number | null }>();
-    const BATTER_LOG_START_IDX = 14;
+    // Pitcher pitchtype hand splits (whiff% vs LHB/RHB)
+    const pitcherHandSplitsCurrent = (allResults[14].data ?? []) as any[];
+    const pitcherHandSplitsFallback = (allResults[15].data ?? []) as any[];
+    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent.length > 0 ? pitcherHandSplitsCurrent : pitcherHandSplitsFallback;
+    // Build lookup: "pitch_type:hand" -> whiff_percent
+    const pitcherHandWhiffMap = new Map<string, number | null>();
+    for (const row of pitcherHandSplitsRaw) {
+      pitcherHandWhiffMap.set(`${row.pitch_type}:${row.opponent_hand}`, row.whiff_percent);
+    }
+    const BATTER_LOG_START_IDX = 16;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
       const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
@@ -985,6 +1039,7 @@ export async function GET(req: NextRequest) {
       .sort((a: any, b: any) => (b.game_date || "").localeCompare(a.game_date || ""))
       .slice(0, 5)
       .map((b: any) => ({
+        batter_name: b.batter_name || null,
         batter_hand: b.batter_hand || null,
         date: b.game_date || "",
         pitch_type: b.pitch_type ? (PITCH_TYPE_NAMES[b.pitch_type] || b.pitch_type) : null,
@@ -1068,6 +1123,7 @@ export async function GET(req: NextRequest) {
           iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
           woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
           bbs: bbs.length,
+          whiff_pct: pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null,
         });
       }
       results.sort((a, b) => b.usage_pct - a.usage_pct);
@@ -1183,6 +1239,35 @@ export async function GET(req: NextRequest) {
           hard_hit_pct: ptHardHit != null ? Math.round(ptHardHit * 10) / 10 : null,
         };
       });
+
+      // Pitch splits crossed with pitcher handedness
+      function computePitchSplitsForHand(hand: string): BatterPitchSplit[] {
+        return pitcherPitchTypes.map((pt) => {
+          const ptBBs = bbs.filter((b: any) => b.pitch_type === pt && b.pitcher_hand === hand);
+          const ptAvg = computeAVGFromBBs(ptBBs);
+          const ptSlg = computeSLGFromEvents(ptBBs);
+          const ptWoba = computeWOBA(ptBBs);
+          const ptEV = computeAvgEV(ptBBs);
+          const ptHardHit = computeHardHitPct(ptBBs);
+          return {
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            avg: ptAvg != null ? Math.round(ptAvg * 1000) / 1000 : null,
+            slg: ptSlg != null ? Math.round(ptSlg * 1000) / 1000 : null,
+            iso: ptAvg != null && ptSlg != null ? Math.round((ptSlg - ptAvg) * 1000) / 1000 : null,
+            batted_balls: ptBBs.length,
+            hrs: ptBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
+            barrel_pct: computeBarrelPct(ptBBs),
+            woba: ptWoba != null ? Math.round(ptWoba * 1000) / 1000 : null,
+            avg_ev: ptEV != null ? Math.round(ptEV * 10) / 10 : null,
+            hard_hit_pct: ptHardHit != null ? Math.round(ptHardHit * 10) / 10 : null,
+          };
+        });
+      }
+      const pitchHandSplits = {
+        vs_rhp: computePitchSplitsForHand("R"),
+        vs_lhp: computePitchSplitsForHand("L"),
+      };
 
       // H2H
       const h2hPlayerBBs = h2hMap.get(p.player_id) || [];
@@ -1324,6 +1409,7 @@ export async function GET(req: NextRequest) {
         woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
         total_batted_balls: bbs.length,
         pitch_splits: pitchSplits,
+        pitch_hand_splits: pitchHandSplits,
         h2h,
         matchup_grade: grade,
         matchup_reason: reason,
@@ -1439,6 +1525,7 @@ function buildEmptyBatter(p: any): BatterMatchup {
     woba: null,
     total_batted_balls: 0,
     pitch_splits: [],
+    pitch_hand_splits: { vs_rhp: [], vs_lhp: [] },
     h2h: null,
     matchup_grade: "neutral",
     matchup_reason: "No pitcher data available",

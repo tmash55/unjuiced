@@ -473,6 +473,7 @@ export async function GET(req: NextRequest) {
       .sort((a: any, b: any) => (b.game_date || "").localeCompare(a.game_date || ""))
       .slice(0, 5)
       .map((b: any) => ({
+        batter_name: b.batter_name || null,
         batter_hand: b.batter_hand || null,
         date: b.game_date || "",
         pitch_type: b.pitch_type ? (PITCH_TYPE_NAMES[b.pitch_type] || b.pitch_type) : null,
@@ -552,6 +553,7 @@ export async function GET(req: NextRequest) {
           iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
           woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
           bbs: bbs.length,
+          whiff_pct: null,
         });
       }
       results.sort((a, b) => b.usage_pct - a.usage_pct);

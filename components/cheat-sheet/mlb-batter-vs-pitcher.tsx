@@ -330,10 +330,11 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
   const arsenalData = useMemo(() => {
     if (arsenalSplitView === "all" || !pitcher.arsenal_splits) return pitcher.arsenal;
     const splits = arsenalSplitView === "lhb" ? pitcher.arsenal_splits.vs_lhb : pitcher.arsenal_splits.vs_rhb;
-    if (!splits.length) return pitcher.arsenal;
+    if (!splits || !splits.length) return pitcher.arsenal;
+    console.log(`[arsenal] view=${arsenalSplitView}, splits[0]=`, JSON.stringify(splits[0]));
     // Map splits to PitchArsenalRow-like objects using the overall row as base
     return pitcher.arsenal.map((a) => {
-      const split = splits.find((s) => s.pitch_type === a.pitch_type);
+      const split = splits.find((s: any) => s.pitch_type === a.pitch_type);
       if (!split) return { ...a, usage_pct: 0, baa: null, slg: null, total_batted_balls: 0 };
       return {
         ...a,
@@ -342,6 +343,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
         slg: split.slg,
         total_batted_balls: split.bbs,
         woba: split.woba,
+        whiff_pct: split.whiff_pct ?? a.whiff_pct,
       };
     });
   }, [arsenalSplitView, pitcher.arsenal, pitcher.arsenal_splits]);
@@ -508,48 +510,52 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
         </div>
       )}
 
-      {/* Pitch Zone Heatmap + Zone Breakdown + Recent HRs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* 3x3 Pitch Zone Grid */}
-        {pitcher.pitch_zone_grid && pitcher.pitch_zone_grid.length > 0 && (
-          <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Pitch Location</h4>
+      {/* Batted Ball Profile — full width */}
+      {pitcher.zone_data && (pitcher.zone_data.total_fb + pitcher.zone_data.total_gb + pitcher.zone_data.total_ld + pitcher.zone_data.total_pu) > 0 && (
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Batted Ball Profile</h4>
+          <BattedBallChart zone={pitcher.zone_data} />
+        </div>
+      )}
+
+      {/* Pitch Location */}
+      {pitcher.pitch_zone_grid && pitcher.pitch_zone_grid.length > 0 && (
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Pitch Location</h4>
+          <div className="max-w-[200px] mx-auto">
             <PitchZoneGrid zones={pitcher.pitch_zone_grid} />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Batted Ball Profile */}
-        {pitcher.zone_data && (pitcher.zone_data.total_fb + pitcher.zone_data.total_gb + pitcher.zone_data.total_ld + pitcher.zone_data.total_pu) > 0 && (
-          <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Batted Ball Profile</h4>
-            <BattedBallChart zone={pitcher.zone_data} />
-          </div>
-        )}
-
-        {/* Recent HRs Allowed */}
-        {(pitcher.recent_hrs_allowed ?? []).length > 0 && (
-          <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-              Recent HRs Allowed ({pitcher.recent_hrs_allowed.length})
-            </h4>
-            <div className="space-y-1.5">
-              {pitcher.recent_hrs_allowed.map((hr, i) => (
-                <div key={i} className="flex items-center justify-between text-[11px] tabular-nums">
-                  <span className="text-neutral-500">
-                    {hr.date}
-                    {hr.batter_hand && <span className="ml-1.5 text-neutral-400">vs {hr.batter_hand}HB</span>}
+      {/* Recent HRs Allowed — full width */}
+      {(pitcher.recent_hrs_allowed ?? []).length > 0 && (
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+            Recent HRs Allowed ({pitcher.recent_hrs_allowed.length})
+          </h4>
+          <div className="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+            {pitcher.recent_hrs_allowed.map((hr, i) => (
+              <div key={i} className="flex items-center gap-3 text-[11px] tabular-nums py-1.5 first:pt-0 last:pb-0">
+                <span className="text-neutral-400 shrink-0 w-12">{hr.date?.slice(5)}</span>
+                {(hr as any).batter_name ? (
+                  <span className="text-neutral-700 dark:text-neutral-300 font-medium truncate min-w-0 flex-1">
+                    {(hr as any).batter_name}
+                    {hr.batter_hand && <span className="text-neutral-400 font-normal ml-1">({hr.batter_hand})</span>}
                   </span>
-                  <span className="text-neutral-600 dark:text-neutral-400">
-                    {hr.pitch_type && <span className="mr-1.5">{hr.pitch_type}</span>}
-                    {hr.exit_velocity != null && <span className="mr-1.5">{hr.exit_velocity} mph</span>}
-                    {hr.distance != null && <span>{hr.distance} ft</span>}
+                ) : (
+                  <span className="text-neutral-500 shrink-0 flex-1">
+                    {hr.batter_hand ? `vs ${hr.batter_hand}HB` : "—"}
                   </span>
-                </div>
-              ))}
-            </div>
+                )}
+                {hr.pitch_type && <span className="text-neutral-500 shrink-0">{hr.pitch_type}</span>}
+                {hr.exit_velocity != null && <span className="text-neutral-600 dark:text-neutral-400 font-medium shrink-0">{hr.exit_velocity} mph</span>}
+                {hr.distance != null && <span className="text-neutral-400 shrink-0">{hr.distance} ft</span>}
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1852,8 +1858,9 @@ export function MlbBatterVsPitcher() {
   const [pitchFilter, setPitchFilter] = useState<string | null>(null); // null = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
-  const [stdSortKey, setStdSortKey] = useState<StdSortKey>("slg");
-  const [stdSortAsc, setStdSortAsc] = useState(false);
+  const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
+  const [stdSortAsc, setStdSortAsc] = useState(true);
+  const [showBench, setShowBench] = useState(false);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { games, isLoading: gamesLoading } = useMlbGames();
@@ -1871,9 +1878,10 @@ export function MlbBatterVsPitcher() {
     setPitchFilter(null);
     setHandFilter("all");
     setHandAutoSet(false);
+    setShowBench(false);
   }, [selectedGameId, battingSide]);
 
-  const { pitcher, batters, summary, game, meta, isLoading: matchupLoading, isFetching } = useMlbGameMatchup({
+  const { pitcher, batters, summary, game, meta, isLoading: matchupLoading, isFetching, refetch } = useMlbGameMatchup({
     gameId: selectedGameId,
     battingSide,
     sample,
@@ -1916,9 +1924,13 @@ export function MlbBatterVsPitcher() {
       }
     }
 
-    // Layer pitch filter (overrides hand filter for display)
+    // Layer pitch filter — use cross-filtered data when hand filter is also active
     if (pitchFilter) {
-      const split = b.pitch_splits.find((s) => s.pitch_type === pitchFilter);
+      let splits = b.pitch_splits;
+      if (handFilter !== "all" && b.pitch_hand_splits) {
+        splits = handFilter === "rhp" ? b.pitch_hand_splits.vs_rhp : b.pitch_hand_splits.vs_lhp;
+      }
+      const split = splits.find((s) => s.pitch_type === pitchFilter);
       if (!split) {
         return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
       }
@@ -1987,6 +1999,19 @@ export function MlbBatterVsPitcher() {
     });
     return arr;
   }, [batters, stdSortKey, stdSortAsc, getBatterStats]);
+
+  // Split into starters (lineup 1-9) and bench
+  const starters = useMemo(() =>
+    sortedBatters.filter((b) => b.lineup_position != null && b.lineup_position >= 1 && b.lineup_position <= 9),
+    [sortedBatters]
+  );
+  const benchPlayers = useMemo(() =>
+    sortedBatters.filter((b) => b.lineup_position == null || b.lineup_position < 1 || b.lineup_position > 9),
+    [sortedBatters]
+  );
+  // If fewer than 5 starters, show everyone (lineups not posted yet)
+  const hasLineup = starters.length >= 5;
+  const displayBatters = hasLineup ? starters : sortedBatters;
 
   const stdSortIcon = (key: StdSortKey) => stdSortKey === key ? (stdSortAsc ? " ↑" : " ↓") : "";
 
@@ -2259,7 +2284,7 @@ export function MlbBatterVsPitcher() {
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
-                        {batters.map((b) => (
+                        {displayBatters.map((b) => (
                           <BatterRow
                             key={b.player_id}
                             batter={b}
@@ -2272,11 +2297,70 @@ export function MlbBatterVsPitcher() {
                             pitchFilter={pitchFilter}
                           />
                         ))}
+                        {hasLineup && benchPlayers.length > 0 && (
+                          <>
+                            <button
+                              onClick={() => setShowBench(!showBench)}
+                              className="w-full flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            >
+                              {showBench ? "Hide Bench" : `Show Bench (${benchPlayers.length})`}
+                              <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            {showBench && benchPlayers.map((b) => (
+                              <BatterRow
+                                key={b.player_id}
+                                batter={b}
+                                pitcher={pitcher!}
+                                expanded={expandedBatterId === b.player_id}
+                                onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
+                                isMobile
+                                viewMode={viewMode}
+                                displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                pitchFilter={pitchFilter}
+                              />
+                            ))}
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-x-auto">
                         <table className="w-full">
                           <thead>
+                            {/* Lineup status row */}
+                            {!matchupLoading && batters.length > 0 && (
+                              <tr className="border-b border-neutral-100 dark:border-neutral-800/40">
+                                <th colSpan={12} className="px-3 py-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className={cn(
+                                      "inline-flex items-center gap-1.5 text-[10px] font-semibold",
+                                      hasLineup ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                                    )}>
+                                      {hasLineup ? (
+                                        <>
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          Confirmed
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                          Projected
+                                        </>
+                                      )}
+                                    </span>
+                                    <button
+                                      onClick={() => refetch()}
+                                      disabled={isFetching}
+                                      className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center gap-1"
+                                    >
+                                      <svg className={cn("w-2.5 h-2.5", isFetching && "animate-spin")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+                                      {isFetching ? "..." : "Refresh"}
+                                    </button>
+                                  </div>
+                                </th>
+                              </tr>
+                            )}
                             {(() => {
                               const sThCls = "px-1.5 py-2 text-[10px] uppercase tracking-wide font-semibold text-neutral-500 text-right cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
@@ -2298,7 +2382,7 @@ export function MlbBatterVsPitcher() {
                             })()}
                           </thead>
                           <tbody>
-                            {sortedBatters.map((b) => (
+                            {displayBatters.map((b) => (
                               <BatterRow
                                 key={b.player_id}
                                 batter={b}
@@ -2311,6 +2395,37 @@ export function MlbBatterVsPitcher() {
                                 pitchFilter={pitchFilter}
                               />
                             ))}
+                            {/* Bench expand row */}
+                            {hasLineup && benchPlayers.length > 0 && (
+                              <>
+                                <tr>
+                                  <td colSpan={12} className="px-3 py-0">
+                                    <button
+                                      onClick={() => setShowBench(!showBench)}
+                                      className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                                    >
+                                      {showBench ? "Hide Bench" : `Show Bench (${benchPlayers.length})`}
+                                      <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                                        <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                      </svg>
+                                    </button>
+                                  </td>
+                                </tr>
+                                {showBench && benchPlayers.map((b) => (
+                                  <BatterRow
+                                    key={b.player_id}
+                                    batter={b}
+                                    pitcher={pitcher!}
+                                    expanded={expandedBatterId === b.player_id}
+                                    onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
+                                    isMobile={false}
+                                    viewMode={viewMode}
+                                    displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                    pitchFilter={pitchFilter}
+                                  />
+                                ))}
+                              </>
+                            )}
                           </tbody>
                           {lineupTotals && (
                             <tfoot>
