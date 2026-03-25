@@ -230,6 +230,7 @@ export interface GameMatchupResponse {
     batting_side: "home" | "away";
     sample: string;
     pitcher_pitch_types: string[];
+    lineup_confirmed: boolean;
   };
 }
 
@@ -648,7 +649,10 @@ export async function GET(req: NextRequest) {
       .gt("batting_order", 0)
       .order("batting_order", { ascending: true });
 
+    // Check if any lineup entry is confirmed
+    let lineupConfirmed = false;
     if (dailyLineup && dailyLineup.length > 0) {
+      lineupConfirmed = dailyLineup.some((dl: any) => dl.is_confirmed === true);
       const orderMap = new Map<number, number>();
       for (const dl of dailyLineup) {
         orderMap.set(dl.player_id, dl.batting_order);
@@ -678,7 +682,7 @@ export async function GET(req: NextRequest) {
           pitcher: null,
           batters: lineup.map((p: any) => buildEmptyBatter(p)),
           summary: { strong_count: 0, neutral_count: 0, weak_count: 0, strong_names: [], key_insight: null, lineup_grade: "C", top_hr_targets: [], pitcher_tags: [] },
-          meta: { batting_side: battingSide, sample, pitcher_pitch_types: [] },
+          meta: { batting_side: battingSide, sample, pitcher_pitch_types: [], lineup_confirmed: lineupConfirmed },
         },
         { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" } }
       );
@@ -1472,6 +1476,7 @@ export async function GET(req: NextRequest) {
         batting_side: battingSide,
         sample,
         pitcher_pitch_types: pitcherPitchTypes,
+        lineup_confirmed: lineupConfirmed,
       },
     };
 

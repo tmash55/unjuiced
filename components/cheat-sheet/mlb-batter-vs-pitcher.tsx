@@ -2022,6 +2022,7 @@ export function MlbBatterVsPitcher() {
   );
   // If fewer than 5 starters, show everyone (lineups not posted yet)
   const hasLineup = starters.length >= 5;
+  const isLineupConfirmed = !!(meta as any)?.lineup_confirmed;
   const displayBatters = hasLineup ? starters : sortedBatters;
 
   const stdSortIcon = (key: StdSortKey) => stdSortKey === key ? (stdSortAsc ? " ↑" : " ↓") : "";
@@ -2366,9 +2367,9 @@ export function MlbBatterVsPitcher() {
                                   <div className="flex items-center justify-between">
                                     <span className={cn(
                                       "inline-flex items-center gap-1.5 text-[10px] font-semibold",
-                                      hasLineup ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                                      isLineupConfirmed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
                                     )}>
-                                      {hasLineup ? (
+                                      {isLineupConfirmed ? (
                                         <>
                                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                           Confirmed
