@@ -1794,7 +1794,7 @@ export function MlbBatterVsPitcher() {
   const [sample, setSample] = useState<"season" | "30" | "15" | "7">("season");
   const [expandedBatterId, setExpandedBatterId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"standard" | "comparison">("standard");
-  const [pitchFilter, setPitchFilter] = useState<string | null>(null); // null = "All Pitches"
+  const [pitchFilters, setPitchFilters] = useState<string[]>([]); // empty = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
   const [statSeason, setStatSeason] = useState<number>(2025);
@@ -1824,7 +1824,7 @@ export function MlbBatterVsPitcher() {
   // Reset expanded batter and filters when changing game/side
   useEffect(() => {
     setExpandedBatterId(null);
-    setPitchFilter(null);
+    setPitchFilters([]);
     setHandFilter("all");
     setHandAutoSet(false);
     setShowBench(false);
@@ -1879,25 +1879,35 @@ export function MlbBatterVsPitcher() {
       }
     }
 
-    // Layer pitch filter — use cross-filtered data when hand filter is also active
-    if (pitchFilter) {
+    // Layer pitch filter(s) — aggregate stats across selected pitches
+    if (pitchFilters.length > 0) {
       let splits = b.pitch_splits;
       if (handFilter !== "all" && b.pitch_hand_splits) {
         splits = handFilter === "rhp" ? b.pitch_hand_splits.vs_rhp : b.pitch_hand_splits.vs_lhp;
       }
-      const split = splits.find((s) => s.pitch_type === pitchFilter);
-      if (!split) {
-        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0 };
+      const matched = splits.filter((s) => pitchFilters.includes(s.pitch_type));
+      if (matched.length === 0) {
+        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
       }
+      // Weighted average across selected pitches (by PA/batted balls)
+      const totalBBs = matched.reduce((sum, s) => sum + s.batted_balls, 0);
+      if (totalBBs === 0) {
+        return { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
+      }
+      const wavg = (fn: (s: typeof matched[0]) => number | null) => {
+        let sum = 0, w = 0;
+        for (const s of matched) { const v = fn(s); if (v != null && s.batted_balls > 0) { sum += v * s.batted_balls; w += s.batted_balls; } }
+        return w > 0 ? sum / w : null;
+      };
       return {
-        avg: split.avg, slg: split.slg, woba: split.woba ?? null, iso: split.iso,
-        hr: split.hrs, ev: split.avg_ev ?? null, brl: split.barrel_pct,
-        bbs: split.batted_balls,
+        avg: wavg((s) => s.avg), slg: wavg((s) => s.slg), woba: wavg((s) => s.woba ?? null), iso: wavg((s) => s.iso),
+        hr: matched.reduce((sum, s) => sum + s.hrs, 0), ev: wavg((s) => s.avg_ev ?? null), brl: wavg((s) => s.barrel_pct),
+        bbs: totalBBs, k_pct: null, bb_pct: null,
       };
     }
 
     return base;
-  }, [pitchFilter, handFilter]);
+  }, [pitchFilters, handFilter]);
 
   // Lineup totals (respects pitch filter) — computed per group: all, lefties, righties
   const lineupTotals = useMemo(() => {
@@ -2129,46 +2139,14 @@ export function MlbBatterVsPitcher() {
 
                     <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
 
-                    {/* View toggle */}
-                    <TooltipProvider delayDuration={300}>
-                      <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
-                        {([
-                          { value: "standard" as const, label: "Standard", icon: TableProperties, tip: "Season stats with color-coded key metrics" },
-                          { value: "comparison" as const, label: "Compare", icon: GitCompare, tip: "Sortable view with HR Score, pitch overlap, and per-pitch SLG" },
-                        ]).map((opt) => (
-                          <Tooltip key={opt.value}>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => setViewMode(opt.value)}
-                                className={cn(
-                                  "px-2 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1",
-                                  viewMode === opt.value
-                                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                                )}
-                              >
-                                <opt.icon className="w-3 h-3" />
-                                {opt.label}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-[200px] text-xs">
-                              {opt.tip}
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
-                      </div>
-                    </TooltipProvider>
-
-                    <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-                    {/* Pitch type pills */}
+                    {/* Pitch type pills — multi-select */}
                     {pitcher.arsenal.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1">
                         <button
-                          onClick={() => setPitchFilter(null)}
+                          onClick={() => setPitchFilters([])}
                           className={cn(
                             "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                            pitchFilter === null
+                            pitchFilters.length === 0
                               ? "bg-brand/10 border-brand/20 text-brand"
                               : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                           )}
@@ -2178,10 +2156,10 @@ export function MlbBatterVsPitcher() {
                         {pitcher.arsenal.map((a) => (
                           <button
                             key={a.pitch_type}
-                            onClick={() => setPitchFilter(pitchFilter === a.pitch_type ? null : a.pitch_type)}
+                            onClick={() => setPitchFilters(pitchFilters.includes(a.pitch_type) ? pitchFilters.filter(p => p !== a.pitch_type) : [...pitchFilters, a.pitch_type])}
                             className={cn(
                               "px-2 py-0.5 rounded-md text-[11px] font-medium transition-all border",
-                              pitchFilter === a.pitch_type
+                              pitchFilters.includes(a.pitch_type)
                                 ? "bg-brand/10 border-brand/20 text-brand"
                                 : "bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200/60 dark:border-neutral-700/30 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                             )}
@@ -2246,7 +2224,31 @@ export function MlbBatterVsPitcher() {
                 </div>
 
                 {/* Right: Lineup Column */}
-                <div className="xl:w-[62%] space-y-4">
+                <div className="xl:w-[62%] space-y-3">
+                  {/* View toggle — above batter table */}
+                  {batters.length > 0 && (
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 w-fit">
+                      {([
+                        { value: "standard" as const, label: "Standard", icon: TableProperties },
+                        { value: "comparison" as const, label: "Matchup", icon: GitCompare },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setViewMode(opt.value)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
+                            viewMode === opt.value
+                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                          )}
+                        >
+                          <opt.icon className="w-3.5 h-3.5" />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Lineup Table */}
                   {batters.length > 0 ? (
                     viewMode === "comparison" && pitcher ? (
@@ -2255,7 +2257,7 @@ export function MlbBatterVsPitcher() {
                         pitcher={pitcher}
                         expandedBatterId={expandedBatterId}
                         onToggleExpand={(id) => setExpandedBatterId(expandedBatterId === id ? null : id)}
-                        pitchFilter={pitchFilter}
+                        pitchFilter={pitchFilters[0] ?? null}
                         getStats={getBatterStats}
                       />
                     ) : isMobile ? (
@@ -2269,8 +2271,8 @@ export function MlbBatterVsPitcher() {
                             onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                             isMobile
                             viewMode={viewMode}
-                            displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                            pitchFilter={pitchFilter}
+                            displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                            pitchFilter={pitchFilters[0] ?? null}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
@@ -2293,8 +2295,8 @@ export function MlbBatterVsPitcher() {
                                 onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                 isMobile
                                 viewMode={viewMode}
-                                displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                pitchFilter={pitchFilter}
+                                displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                pitchFilter={pitchFilters[0] ?? null}
                               />
                             ))}
                           </>
@@ -2367,8 +2369,8 @@ export function MlbBatterVsPitcher() {
                                 onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                 isMobile={false}
                                 viewMode={viewMode}
-                                displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                pitchFilter={pitchFilter}
+                                displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                pitchFilter={pitchFilters[0] ?? null}
                               />
                             ))}
                             {/* Bench expand row */}
@@ -2396,8 +2398,8 @@ export function MlbBatterVsPitcher() {
                                     onToggle={() => setExpandedBatterId(expandedBatterId === b.player_id ? null : b.player_id)}
                                     isMobile={false}
                                     viewMode={viewMode}
-                                    displayStats={(pitchFilter || handFilter !== "all") ? getBatterStats(b) : undefined}
-                                    pitchFilter={pitchFilter}
+                                    displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
+                                    pitchFilter={pitchFilters[0] ?? null}
                                   />
                                 ))}
                               </>
