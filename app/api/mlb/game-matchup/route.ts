@@ -731,7 +731,7 @@ export async function GET(req: NextRequest) {
       supabase.rpc("get_mlb_pitcher_game_logs", {
         p_player_id: pitcherId,
         p_season: s,
-        p_limit: 50,
+        p_limit: 100,
         p_include_prior: false,
       })
     );
@@ -793,7 +793,7 @@ export async function GET(req: NextRequest) {
       supabase.rpc("get_mlb_batter_game_logs", {
         p_player_id: bid,
         p_season: season,
-        p_limit: 200, // Full season is ~162 games; need all for accurate season stats
+        p_limit: 500, // Full season is ~162 games; use 500 to avoid any RPC truncation
         p_include_prior: false,
       })
     );
@@ -1026,6 +1026,10 @@ export async function GET(req: NextRequest) {
       const resultIdx = BATTER_LOG_START_IDX + i;
       const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
       if (gameLogs.length === 0) continue;
+
+      if (i === 0) {
+        console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}`);
+      }
 
       // Apply sample filter (game logs come sorted by date desc)
       let filtered = gameLogs;
