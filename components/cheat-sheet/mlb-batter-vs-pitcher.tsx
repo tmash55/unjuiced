@@ -306,57 +306,95 @@ function MobileGameSelector({
   selectedGameId: number | null;
   onSelect: (id: number) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const selected = games.find((g) => Number(g.game_id) === selectedGameId);
+
+  function getDateLabel(gameDate: string) {
+    const d = new Date(gameDate + "T12:00:00");
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+    if (gameDate === fmt(today)) return "Today";
+    if (gameDate === fmt(tomorrow)) return "Tomorrow";
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
 
   return (
     <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-      <div className="relative px-3 py-2">
-        <select
-          value={selectedGameId ?? ""}
-          onChange={(e) => onSelect(Number(e.target.value))}
-          className="w-full appearance-none bg-transparent text-sm font-semibold text-neutral-900 dark:text-white pr-8 focus:outline-none cursor-pointer"
-        >
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"
+      >
+        {selected ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={`/team-logos/mlb/${selected.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+            <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+              {selected.away_team_tricode} @ {selected.home_team_tricode}
+            </span>
+            <span className="text-[11px] text-neutral-400 shrink-0">
+              {lastNameOnly(selected.away_probable_pitcher)} vs {lastNameOnly(selected.home_probable_pitcher)}
+            </span>
+            <img src={`/team-logos/mlb/${selected.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+          </div>
+        ) : (
+          <span className="text-sm text-neutral-500">Select a game</span>
+        )}
+        <ChevronDown className={cn("w-4 h-4 text-neutral-400 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {/* Expandable game list */}
+      {open && (
+        <div className="border-t border-neutral-100 dark:border-neutral-800/50 max-h-[280px] overflow-y-auto">
           {(() => {
             let lastDate = "";
             return games.map((g) => {
-              const showGroup = g.game_date !== lastDate;
+              const isSelected = Number(g.game_id) === selectedGameId;
+              const showDateHeader = g.game_date !== lastDate;
               lastDate = g.game_date;
-              const d = new Date(g.game_date + "T12:00:00");
-              const today = new Date();
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
-              const dateLabel = g.game_date === fmt(today) ? "Today" :
-                g.game_date === fmt(tomorrow) ? "Tomorrow" :
-                d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-
-              const label = `${g.away_team_tricode} @ ${g.home_team_tricode} — ${lastNameOnly(g.away_probable_pitcher)} vs ${lastNameOnly(g.home_probable_pitcher)}`;
               return (
-                <option key={g.game_id} value={g.game_id}>
-                  {dateLabel} · {label}
-                </option>
+                <React.Fragment key={g.game_id}>
+                  {showDateHeader && (
+                    <div className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800/40 border-b border-neutral-100 dark:border-neutral-800/50">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{getDateLabel(g.game_date)}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { onSelect(Number(g.game_id)); setOpen(false); }}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
+                      isSelected
+                        ? "bg-brand/5 dark:bg-brand/10"
+                        : "active:bg-neutral-50 dark:active:bg-neutral-800/50"
+                    )}
+                  >
+                    <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-xs font-semibold text-neutral-900 dark:text-white">
+                        {g.away_team_tricode} @ {g.home_team_tricode}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 truncate">
+                        {lastNameOnly(g.away_probable_pitcher)} vs {lastNameOnly(g.home_probable_pitcher)}
+                      </div>
+                    </div>
+                    <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
+                    <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                      <span className="text-neutral-400 tabular-nums">{g.game_status}</span>
+                      {g.park_factor != null && (
+                        <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
+                          PF {g.park_factor}
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />
+                    )}
+                  </button>
+                </React.Fragment>
               );
             });
           })()}
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-      </div>
-      {/* Selected game detail strip */}
-      {selected && (
-        <div className="px-3 py-1.5 border-t border-neutral-100 dark:border-neutral-800/50 flex items-center justify-between text-[10px] text-neutral-400">
-          <span className="tabular-nums">{selected.game_status}</span>
-          <div className="flex items-center gap-2">
-            {selected.park_factor != null && (
-              <span className={cn("font-semibold tabular-nums", parkFactorColor(selected.park_factor))}>
-                PF {selected.park_factor}
-              </span>
-            )}
-            {selected.weather?.hr_impact_score != null && (
-              <span className={cn("font-medium tabular-nums", hrImpactColor(selected.weather.hr_impact_score))}>
-                {selected.weather.hr_impact_score > 0 ? "+" : ""}{selected.weather.hr_impact_score}
-              </span>
-            )}
-          </div>
         </div>
       )}
     </div>
@@ -2199,23 +2237,38 @@ export function MlbBatterVsPitcher() {
                         </span>
                       )}
                       <div className="flex items-center gap-1.5">
-                        <select
-                          value={statSeason}
-                          onChange={(e) => setStatSeason(Number(e.target.value))}
-                          className="px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-                        >
-                          <option value={2025}>2025</option>
-                          <option value={2026}>2026</option>
-                        </select>
-                        <select
-                          value={sample}
-                          onChange={(e) => setSample(e.target.value as typeof sample)}
-                          className="px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-                        >
-                          {SAMPLE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {[2025, 2026].map((yr) => (
+                            <button
+                              key={yr}
+                              onClick={() => setStatSeason(yr)}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
+                                statSeason === yr
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500"
+                              )}
+                            >
+                              {yr}
+                            </button>
                           ))}
-                        </select>
+                        </div>
+                        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {SAMPLE_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setSample(opt.value)}
+                              className={cn(
+                                "px-1.5 py-1 rounded-md text-[10px] font-semibold transition-all",
+                                sample === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500"
+                              )}
+                            >
+                              {opt.value === "season" ? "Szn" : opt.label.replace("Last ", "")}
+                            </button>
+                          ))}
+                        </div>
                         {isFetching && !matchupLoading && (
                           <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
                         )}
