@@ -14,7 +14,7 @@ import {
 } from "@/hooks/use-mlb-game-matchup";
 import { useMlbHotZone, type BatterZoneCell, type PitcherZoneCell, type OverlayZoneCell } from "@/hooks/use-mlb-hot-zone";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
-import { ChevronRight, Users, Loader2, AlertCircle, TableProperties, GitCompare } from "lucide-react";
+import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -295,6 +295,74 @@ function GameChip({
   );
 }
 
+// ── Mobile Game Selector ────────────────────────────────────────────────────
+
+function MobileGameSelector({
+  games,
+  selectedGameId,
+  onSelect,
+}: {
+  games: MlbGame[];
+  selectedGameId: number | null;
+  onSelect: (id: number) => void;
+}) {
+  const selected = games.find((g) => Number(g.game_id) === selectedGameId);
+
+  return (
+    <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+      <div className="relative px-3 py-2">
+        <select
+          value={selectedGameId ?? ""}
+          onChange={(e) => onSelect(Number(e.target.value))}
+          className="w-full appearance-none bg-transparent text-sm font-semibold text-neutral-900 dark:text-white pr-8 focus:outline-none cursor-pointer"
+        >
+          {(() => {
+            let lastDate = "";
+            return games.map((g) => {
+              const showGroup = g.game_date !== lastDate;
+              lastDate = g.game_date;
+              const d = new Date(g.game_date + "T12:00:00");
+              const today = new Date();
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+              const dateLabel = g.game_date === fmt(today) ? "Today" :
+                g.game_date === fmt(tomorrow) ? "Tomorrow" :
+                d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+              const label = `${g.away_team_tricode} @ ${g.home_team_tricode} — ${lastNameOnly(g.away_probable_pitcher)} vs ${lastNameOnly(g.home_probable_pitcher)}`;
+              return (
+                <option key={g.game_id} value={g.game_id}>
+                  {dateLabel} · {label}
+                </option>
+              );
+            });
+          })()}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+      </div>
+      {/* Selected game detail strip */}
+      {selected && (
+        <div className="px-3 py-1.5 border-t border-neutral-100 dark:border-neutral-800/50 flex items-center justify-between text-[10px] text-neutral-400">
+          <span className="tabular-nums">{selected.game_status}</span>
+          <div className="flex items-center gap-2">
+            {selected.park_factor != null && (
+              <span className={cn("font-semibold tabular-nums", parkFactorColor(selected.park_factor))}>
+                PF {selected.park_factor}
+              </span>
+            )}
+            {selected.weather?.hr_impact_score != null && (
+              <span className={cn("font-medium tabular-nums", hrImpactColor(selected.weather.hr_impact_score))}>
+                {selected.weather.hr_impact_score > 0 ? "+" : ""}{selected.weather.hr_impact_score}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Pitcher Profile Card ────────────────────────────────────────────────────
 
 function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[] }) {
@@ -383,7 +451,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
       </div>
 
       {/* Season Stats */}
-      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 px-3 py-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30">
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-x-2 gap-y-2.5 px-3 py-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30">
         {[
           { label: "ERA", value: fmtStat(pitcher.era), color: eraColor(pitcher.era) },
           { label: "HR/9", value: fmtStat(pitcher.hr_per_9), color: hrPer9Color(pitcher.hr_per_9) },
@@ -451,7 +519,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Pitch Arsenal</h4>
             {pitcher.arsenal_splits && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                 {([
                   { value: "all" as const, label: "All" },
                   { value: "lhb" as const, label: "vs LHB" },
@@ -461,9 +529,9 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                     key={opt.value}
                     onClick={() => setArsenalSplitView(opt.value)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-semibold transition-all",
+                      "px-2 py-1 rounded-md text-[10px] font-semibold transition-all",
                       arsenalSplitView === opt.value
-                        ? "bg-brand/10 text-brand"
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                         : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                     )}
                   >
@@ -473,23 +541,54 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
               </div>
             )}
           </div>
-          {/* Column headers */}
-          <div className="flex items-center gap-3 mb-1 text-[10px] text-neutral-400 font-medium uppercase tracking-wide">
-            <div className="w-20 shrink-0">Pitch</div>
-            <div className="flex-1 min-w-0 text-center">Usage</div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="w-14 text-right">Velo</span>
-              <span className="w-8 text-right">BAA</span>
-              <span className="w-8 text-right">SLG</span>
-              <span className="w-10 text-right">Whiff</span>
+          {/* Desktop: bar-based layout */}
+          <div className="hidden sm:block">
+            <div className="flex items-center gap-3 mb-1 text-[10px] text-neutral-400 font-medium uppercase tracking-wide">
+              <div className="w-20 shrink-0">Pitch</div>
+              <div className="flex-1 min-w-0 text-center">Usage</div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="w-14 text-right">Velo</span>
+                <span className="w-8 text-right">BAA</span>
+                <span className="w-8 text-right">SLG</span>
+                <span className="w-10 text-right">Whiff</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {arsenalData.map((pitch) => (
+                <ArsenalRow key={pitch.pitch_type} pitch={pitch} maxUsage={arsenalMaxUsage} />
+              ))}
             </div>
           </div>
-          <div className="space-y-2">
-            {arsenalData.map((pitch) => (
-              <ArsenalRow key={pitch.pitch_type} pitch={pitch} maxUsage={arsenalMaxUsage} />
-            ))}
+          {/* Mobile: compact table layout */}
+          <div className="sm:hidden">
+            <div className="rounded-lg border border-neutral-200/50 dark:border-neutral-700/20 overflow-hidden">
+              <table className="w-full text-[11px] tabular-nums">
+                <thead>
+                  <tr className="bg-neutral-100/50 dark:bg-neutral-800/50 border-b border-neutral-200/50 dark:border-neutral-700/20">
+                    <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Pitch</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">%</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Velo</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BAA</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Whiff</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {arsenalData.map((pitch) => (
+                    <tr key={pitch.pitch_type} className="border-b border-neutral-100 dark:border-neutral-800/50 last:border-0">
+                      <td className="px-2 py-1.5 font-semibold text-neutral-900 dark:text-white">{pitch.pitch_name}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.usage_pct >= 25 ? "text-brand" : "text-neutral-500")}>{pitch.usage_pct}%</td>
+                      <td className="px-1.5 py-1.5 text-right text-neutral-500">{pitch.avg_speed ?? "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-red-500" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-emerald-600" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          {/* Vulnerability tags (moved from matchup summary) */}
+          {/* Vulnerability tags */}
           {vulnerabilityTags && vulnerabilityTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
               {vulnerabilityTags.map((tag) => (
@@ -1981,57 +2080,70 @@ export function MlbBatterVsPitcher() {
           </div>
         ) : (
           <>
-            {/* ── Section A: Horizontal Game Bar ── */}
-            <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-2 py-2">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-0.5 px-0.5">
-                {(() => {
-                  let lastDate = "";
-                  return games.map((g, gi) => {
-                    const showDateHeader = g.game_date !== lastDate;
-                    lastDate = g.game_date;
-                    const dateLabel = (() => {
-                      const d = new Date(g.game_date + "T12:00:00");
-                      const today = new Date();
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
-                      if (g.game_date === fmt(today)) return "Today";
-                      if (g.game_date === fmt(tomorrow)) return "Tomorrow";
-                      return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-                    })();
-                    return (
-                      <React.Fragment key={g.game_id}>
-                        {showDateHeader && (
-                          <div className="shrink-0 flex items-center px-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 whitespace-nowrap">{dateLabel}</span>
-                          </div>
-                        )}
-                        <GameChip
-                          game={g}
-                          selected={Number(g.game_id) === selectedGameId}
-                          onClick={() => {
-                            setSelectedGameId(Number(g.game_id));
-                            setBattingSide("away");
-                          }}
-                        />
-                      </React.Fragment>
-                    );
-                  });
-                })()}
+            {/* ── Section A: Game Selector ── */}
+            {isMobile ? (
+              /* Mobile: dropdown game selector */
+              <MobileGameSelector
+                games={games}
+                selectedGameId={selectedGameId}
+                onSelect={(id) => { setSelectedGameId(id); setBattingSide("away"); }}
+              />
+            ) : (
+              /* Desktop: horizontal game chip bar */
+              <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-2 py-2">
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-0.5 px-0.5">
+                  {(() => {
+                    let lastDate = "";
+                    return games.map((g, gi) => {
+                      const showDateHeader = g.game_date !== lastDate;
+                      lastDate = g.game_date;
+                      const dateLabel = (() => {
+                        const d = new Date(g.game_date + "T12:00:00");
+                        const today = new Date();
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+                        if (g.game_date === fmt(today)) return "Today";
+                        if (g.game_date === fmt(tomorrow)) return "Tomorrow";
+                        return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                      })();
+                      return (
+                        <React.Fragment key={g.game_id}>
+                          {showDateHeader && (
+                            <div className="shrink-0 flex items-center px-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 whitespace-nowrap">{dateLabel}</span>
+                            </div>
+                          )}
+                          <GameChip
+                            game={g}
+                            selected={Number(g.game_id) === selectedGameId}
+                            onClick={() => {
+                              setSelectedGameId(Number(g.game_id));
+                              setBattingSide("away");
+                            }}
+                          />
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Section B: Team Toggle + Context + Filters ── */}
             {game && (
               <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
                 {/* Row 1: Team toggle + summary stats */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-neutral-200/40 dark:border-neutral-700/20">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                <div className={cn(
+                  "flex items-center justify-between gap-2 px-3 py-2.5 border-b border-neutral-200/40 dark:border-neutral-700/20",
+                  isMobile && "flex-col items-stretch gap-2"
+                )}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 flex-1 sm:flex-initial">
                       <button
                         onClick={() => setBattingSide("away")}
                         className={cn(
-                          "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
+                          "flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
                           battingSide === "away"
                             ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                             : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -2042,12 +2154,12 @@ export function MlbBatterVsPitcher() {
                           className="w-4 h-4 object-contain"
                           alt={game.away_team.abbr}
                         />
-                        {game.away_team.abbr} Batting
+                        {game.away_team.abbr}{!isMobile && " Batting"}
                       </button>
                       <button
                         onClick={() => setBattingSide("home")}
                         className={cn(
-                          "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
+                          "flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
                           battingSide === "home"
                             ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                             : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -2058,10 +2170,10 @@ export function MlbBatterVsPitcher() {
                           className="w-4 h-4 object-contain"
                           alt={game.home_team.abbr}
                         />
-                        {game.home_team.abbr} Batting
+                        {game.home_team.abbr}{!isMobile && " Batting"}
                       </button>
                     </div>
-                    {summary && (
+                    {summary && !isMobile && (
                       <>
                         <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
                         <span className="text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
@@ -2074,20 +2186,58 @@ export function MlbBatterVsPitcher() {
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {selectedGame && (
-                      <span className="text-[11px] text-neutral-400 tabular-nums">{selectedGame.game_status}</span>
-                    )}
-                    {isFetching && !matchupLoading && (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
-                    )}
-                  </div>
+                  {/* Mobile: summary + controls in one row */}
+                  {isMobile && pitcher && (
+                    <div className="flex items-center justify-between gap-2">
+                      {summary && (
+                        <span className="text-[11px] text-neutral-400 tabular-nums">
+                          <span className="text-emerald-600 font-semibold">{summary.strong_count}</span>S
+                          <span className="mx-0.5 text-neutral-600">/</span>
+                          <span className="font-semibold">{summary.neutral_count}</span>N
+                          <span className="mx-0.5 text-neutral-600">/</span>
+                          <span className="text-red-500 font-semibold">{summary.weak_count}</span>W
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={statSeason}
+                          onChange={(e) => setStatSeason(Number(e.target.value))}
+                          className="px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+                        >
+                          <option value={2025}>2025</option>
+                          <option value={2026}>2026</option>
+                        </select>
+                        <select
+                          value={sample}
+                          onChange={(e) => setSample(e.target.value as typeof sample)}
+                          className="px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+                        >
+                          {SAMPLE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {isFetching && !matchupLoading && (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {!isMobile && (
+                    <div className="flex items-center gap-2">
+                      {selectedGame && (
+                        <span className="text-[11px] text-neutral-400 tabular-nums">{selectedGame.game_status}</span>
+                      )}
+                      {isFetching && !matchupLoading && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Pitcher controls — season + sample */}
-                {pitcher && (
+                {/* Pitcher controls — season + sample (desktop only) */}
+                {pitcher && !isMobile && (
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <span className="hidden sm:inline text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
                     <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {[2025, 2026].map((yr) => (
                         <button
