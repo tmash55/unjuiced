@@ -91,8 +91,8 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
         "group cursor-pointer rounded-xl border transition-all duration-150 relative",
         isHidden && "opacity-30 border-dashed border-neutral-300 dark:border-neutral-700",
         !isHidden && isSelected
-          ? "border-sky-200 dark:border-sky-500/20 bg-sky-50/30 dark:bg-sky-500/[0.04]"
-          : !isHidden && "border-neutral-200/60 dark:border-neutral-800/50 hover:border-neutral-300 dark:hover:border-neutral-600/40",
+          ? "border-sky-200 dark:border-sky-500/20 bg-sky-50/50 dark:bg-sky-500/[0.06]"
+          : !isHidden && "border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-600/40",
         "active:scale-[0.998]"
       )}
       {...(isTourTarget ? { "data-tour": "pick-card" } : {})}
@@ -115,18 +115,21 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
                 {walletDisplay}
               </button>
               <div className="flex-1" />
-              {/* Sport label — desktop */}
-              <span className="hidden sm:inline text-[10px] font-semibold text-neutral-400 dark:text-neutral-600 uppercase tracking-wider">
-                {sport}
-              </span>
-              {/* Hide button — desktop */}
+              {/* Sport icon + label — desktop */}
+              <div className="hidden sm:flex items-center gap-1.5">
+                <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
+                <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-600 uppercase tracking-wider">
+                  {sport}
+                </span>
+              </div>
+              {/* Hide button — desktop, always visible */}
               {onHide && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onHide(); }}
-                  className="hidden sm:flex p-1 rounded-md text-neutral-400/60 hover:text-neutral-600 dark:hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-all"
+                  className="hidden sm:flex p-1 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                   title={isHidden ? "Unhide this pick" : "Hide this pick"}
                 >
-                  {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  {isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                 </button>
               )}
             </div>
@@ -157,11 +160,11 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
 
           {/* Right: Selection block — desktop only */}
-          <div {...(isTourTarget ? { "data-tour": "selection-block" } : {})} className="hidden sm:flex shrink-0 w-[120px] flex-col items-center justify-center rounded-lg bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/20 px-2.5 py-2">
-            <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 text-center leading-tight truncate w-full mb-0.5">
+          <div {...(isTourTarget ? { "data-tour": "selection-block" } : {})} className="hidden sm:flex shrink-0 w-[130px] flex-col items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-2.5 py-2">
+            <span className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100 text-center leading-tight truncate w-full mb-0.5">
               {selectionLabel}
             </span>
-            <span className="font-mono text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none">
+            <span className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none">
               {formatOdds(price, oddsFormat)}
             </span>
           </div>
@@ -187,11 +190,11 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           <div className="flex-1" />
 
           {/* Selection + odds */}
-          <div className="flex items-center gap-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/20 px-2.5 py-1.5">
-            <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[100px]">
+          <div className="flex items-center gap-1.5 rounded-lg bg-sky-50 dark:bg-sky-500/[0.06] border border-sky-200/60 dark:border-sky-500/15 px-2.5 py-1.5">
+            <span className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100 truncate max-w-[100px]">
               {selectionLabel}
             </span>
-            <span className="font-mono text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none">
+            <span className="font-mono text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none">
               {formatOdds(price, oddsFormat)}
             </span>
           </div>
