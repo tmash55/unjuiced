@@ -777,6 +777,8 @@ export async function GET(req: NextRequest) {
             ev: hEV != null ? Math.round(hEV * 10) / 10 : null,
             brl: hBrl != null ? Math.round(hBrl * 10) / 10 : null,
             bbs: hBBs.length,
+            k_pct: null,
+            bb_pct: null,
           };
         }
         return { vs_rhp: computeHS("R"), vs_lhp: computeHS("L") };

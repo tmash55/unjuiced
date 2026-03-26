@@ -197,8 +197,8 @@ export interface BatterMatchup {
   bb_pct: number | null;
   // Hand splits: vs RHP and vs LHP
   hand_splits: {
-    vs_rhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
-    vs_lhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number } | null;
+    vs_rhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number; k_pct: number | null; bb_pct: number | null } | null;
+    vs_lhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number; k_pct: number | null; bb_pct: number | null } | null;
   };
   // Pitch splits crossed with pitcher handedness (for combined filters)
   pitch_hand_splits?: {
@@ -972,21 +972,25 @@ export async function GET(req: NextRequest) {
         grouped.set(key, arr);
       }
       for (const [key, rows] of grouped) {
-        let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0;
+        let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, totalK = 0;
         let weightedBA = 0, weightedSLG = 0, weightedISO = 0, weightedWOBA = 0;
         let weightedEV = 0, evW = 0, weightedBrl = 0, brlW = 0;
+        let weightedK = 0, kW = 0, weightedBB = 0, bbW = 0;
 
         for (const r of rows) {
           const pa = Number(r.pa ?? 0), ab = Number(r.ab ?? 0);
           totalPA += pa; totalAB += ab;
           totalH += Number(r.hits ?? 0);
           totalHR += Number(r.home_runs ?? 0);
+          totalK += Number(r.strikeouts ?? 0);
           if (r.ba != null && ab > 0) weightedBA += Number(r.ba) * ab;
           if (r.slg != null && ab > 0) weightedSLG += Number(r.slg) * ab;
           if (r.iso != null && ab > 0) weightedISO += Number(r.iso) * ab;
           if (r.woba != null && pa > 0) weightedWOBA += Number(r.woba) * pa;
           if (r.avg_exit_velocity != null) { weightedEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
           if (r.barrel_percent != null) { weightedBrl += Number(r.barrel_percent) * pa; brlW += pa; }
+          if (r.k_percent != null && pa > 0) { weightedK += Number(r.k_percent) * pa; kW += pa; }
+          if (r.bb_percent != null && pa > 0) { weightedBB += Number(r.bb_percent) * pa; bbW += pa; }
         }
 
         batterHandSplitMap.set(key, {
@@ -996,8 +1000,8 @@ export async function GET(req: NextRequest) {
           slg: totalAB > 0 ? Math.round((weightedSLG / totalAB) * 1000) / 1000 : null,
           iso: totalAB > 0 ? Math.round((weightedISO / totalAB) * 1000) / 1000 : null,
           woba: totalPA > 0 ? Math.round((weightedWOBA / totalPA) * 1000) / 1000 : null,
-          k_pct: rows[0]?.k_percent != null ? Math.round(Number(rows[0].k_percent) * 10) / 10 : null,
-          bb_pct: rows[0]?.bb_percent != null ? Math.round(Number(rows[0].bb_percent) * 10) / 10 : null,
+          k_pct: kW > 0 ? Math.round((weightedK / kW) * 10) / 10 : null,
+          bb_pct: bbW > 0 ? Math.round((weightedBB / bbW) * 10) / 10 : null,
           ev: evW > 0 ? Math.round((weightedEV / evW) * 10) / 10 : null,
           brl: brlW > 0 ? Math.round((weightedBrl / brlW) * 10) / 10 : null,
         });
@@ -1754,6 +1758,8 @@ export async function GET(req: NextRequest) {
           ev: hEV != null ? Math.round(hEV * 10) / 10 : null,
           brl: hBrl != null ? Math.round(hBrl * 10) / 10 : null,
           bbs: hBBs.length,
+          k_pct: null,
+          bb_pct: null,
         };
       }
 

@@ -1859,7 +1859,7 @@ export function MlbBatterVsPitcher() {
         base = {
           avg: hs.avg, slg: hs.slg, woba: hs.woba, iso: hs.iso,
           hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.bbs,
-          k_pct: (hs as any).k_pct ?? null, bb_pct: (hs as any).bb_pct ?? null,
+          k_pct: hs.k_pct ?? null, bb_pct: hs.bb_pct ?? null,
         };
       } else {
         base = { avg: null, slg: null, woba: null, iso: null, hr: 0, ev: null, brl: null, bbs: 0, k_pct: null, bb_pct: null };
