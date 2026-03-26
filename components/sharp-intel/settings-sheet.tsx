@@ -187,7 +187,7 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-neutral-800/40" />
+          <div className="h-px bg-neutral-200 dark:bg-neutral-800/40" />
 
           {/* Sports */}
           <div>
@@ -219,7 +219,7 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-neutral-800/40" />
+          <div className="h-px bg-neutral-200 dark:bg-neutral-800/40" />
 
           {/* Min Stake */}
           <div>
@@ -252,6 +252,74 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
             />
           </div>
 
+          {/* Max Slippage */}
+          <div>
+            <SectionLabel>Max slippage vs sportsbook</SectionLabel>
+            <SegmentedControl
+              options={[
+                { value: "0", label: "Any" },
+                { value: "3", label: "3%" },
+                { value: "5", label: "5%" },
+                { value: "10", label: "10%" },
+                { value: "15", label: "15%" },
+              ]}
+              value={String(prefs.signal_max_slippage || 0)}
+              onChange={(v) => onUpdate({ signal_max_slippage: Number(v) })}
+            />
+            <p className="text-[10px] text-neutral-500 mt-1.5 leading-snug">
+              Filters picks where the edge between Polymarket entry and sportsbook price exceeds this threshold.
+            </p>
+          </div>
+
+          {/* Date Range */}
+          <div>
+            <SectionLabel>Date range</SectionLabel>
+            <SegmentedControl
+              options={[
+                { value: "all", label: "All" },
+                { value: "today", label: "Today" },
+                { value: "3d", label: "3 days" },
+                { value: "7d", label: "7 days" },
+              ]}
+              value={prefs.signal_date_range || "all"}
+              onChange={(v) => onUpdate({ signal_date_range: v })}
+            />
+          </div>
+
+          {/* Odds Range */}
+          <div>
+            <SectionLabel>Odds range</SectionLabel>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-neutral-500 font-medium">Min</span>
+                <input
+                  type="number"
+                  value={prefs.signal_min_odds ?? ""}
+                  onChange={(e) => onUpdate({ signal_min_odds: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="-500"
+                  className="w-full bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800/40 rounded-lg pl-9 pr-2 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-700 transition-colors tabular-nums"
+                />
+              </div>
+              <span className="text-neutral-500 text-xs">to</span>
+              <div className="relative flex-1">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-neutral-500 font-medium">Max</span>
+                <input
+                  type="number"
+                  value={prefs.signal_max_odds ?? ""}
+                  onChange={(e) => onUpdate({ signal_max_odds: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="+500"
+                  className="w-full bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800/40 rounded-lg pl-9 pr-2 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-700 transition-colors tabular-nums"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-1.5 leading-snug">
+              American odds. Negative = favorites, positive = underdogs.
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-neutral-200 dark:bg-neutral-800/40" />
+
           {/* Sort By */}
           <div>
             <SectionLabel>Sort by</SectionLabel>
@@ -273,7 +341,7 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-neutral-800/40" />
+          <div className="h-px bg-neutral-200 dark:bg-neutral-800/40" />
 
           {/* Alerts — coming soon */}
           <div className="opacity-40">

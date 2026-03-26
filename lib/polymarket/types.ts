@@ -255,6 +255,11 @@ export interface SignalPreferences {
   signal_alert_min_stake?: number;
   signal_alert_sports?: string[] | null;
   signal_alert_wallets?: string[] | null;
+  // Advanced filters
+  signal_max_slippage?: number;       // Max % slippage vs sportsbook (0 = disabled)
+  signal_date_range?: string;         // "today" | "3d" | "7d" | "all"
+  signal_min_odds?: number;           // Min American odds (e.g., -200)
+  signal_max_odds?: number;           // Max American odds (e.g., +500)
 }
 
 export interface WalletDetailResponse {

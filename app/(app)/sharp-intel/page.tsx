@@ -195,9 +195,15 @@ export default function SharpSignalsPage() {
       if (showMySharps && followedWallets.length > 0) {
         params.set("wallet", followedWallets.join(","));
       }
+      // Date range filter
+      const dateRange = prefs.signal_date_range;
+      if (dateRange && dateRange !== "all") params.set("dateRange", dateRange);
+      // Odds range filter
+      if (prefs.signal_min_odds != null) params.set("minOdds", String(prefs.signal_min_odds));
+      if (prefs.signal_max_odds != null) params.set("maxOdds", String(prefs.signal_max_odds));
       return `/api/polymarket/feed?${params}`;
     },
-    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, minScore, showMySharps, followedWallets]
+    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, minScore, showMySharps, followedWallets, prefs.signal_date_range, prefs.signal_min_odds, prefs.signal_max_odds]
   );
 
   const {
@@ -479,11 +485,20 @@ export default function SharpSignalsPage() {
 
   const excludedSports = prefs.signal_excluded_sports || [];
 
-  // Apply excluded sports filter client-side
+  // Apply excluded sports filter + slippage filter client-side
   // Note: past-game filtering is handled by the API (resolved=false + 30min buffer)
-  const allPicks = (picksData?.signals || []).filter(
-    (p: WhaleSignal) => !p.sport || !excludedSports.includes(p.sport)
-  );
+  const maxSlippage = prefs.signal_max_slippage || 0;
+  const allPicks = (picksData?.signals || []).filter((p: WhaleSignal) => {
+    // Excluded sports
+    if (p.sport && excludedSports.includes(p.sport)) return false;
+    // Slippage filter: compare Polymarket entry vs sportsbook implied probability
+    if (maxSlippage > 0 && p.best_book_decimal && p.best_book_decimal > 1 && p.entry_price > 0) {
+      const bookImplied = 1 / p.best_book_decimal; // decimal odds → implied probability
+      const slip = Math.abs(p.entry_price - bookImplied) / bookImplied * 100;
+      if (slip > maxSlippage) return false;
+    }
+    return true;
+  });
   const allMarkets = (marketsData?.games || []).filter(
     (m: GameData) => !m.sport || !excludedSports.includes(m.sport)
   );

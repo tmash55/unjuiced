@@ -175,6 +175,9 @@ export async function GET(req: NextRequest) {
     const todayOnly = sp.get("today") === "true";
     const sortBy = sp.get("sort") || "score";
     const minScore = parseInt(sp.get("minScore") || "0", 10) || 0;
+    const dateRange = sp.get("dateRange") || undefined;
+    const minOdds = parseFloat(sp.get("minOdds") || "") || undefined;
+    const maxOdds = parseFloat(sp.get("maxOdds") || "") || undefined;
 
     // Build signals query
     let query = supabase
@@ -227,6 +230,26 @@ export async function GET(req: NextRequest) {
       const today = new Date().toISOString().slice(0, 10);
       query = query.gte("created_at", `${today}T00:00:00Z`);
     }
+
+    // Date range filter
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let cutoff: Date;
+      if (dateRange === "today") {
+        cutoff = new Date(now.toISOString().slice(0, 10) + "T00:00:00Z");
+      } else if (dateRange === "3d") {
+        cutoff = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      } else if (dateRange === "7d") {
+        cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else {
+        cutoff = new Date(0);
+      }
+      query = query.gte("created_at", cutoff.toISOString());
+    }
+
+    // Odds range filter (american_odds)
+    if (minOdds != null) query = query.gte("american_odds", minOdds);
+    if (maxOdds != null) query = query.lte("american_odds", maxOdds);
 
     const { data: signals, error, count } = await query;
 
