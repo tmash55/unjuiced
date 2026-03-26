@@ -703,10 +703,9 @@ export default function SharpSignalsPage() {
               ))}
             </div>
 
-            {/* Right side: odds toggle + settings */}
-            <div className="flex items-center gap-2 py-1">
-              {/* Desktop: segmented control */}
-              <div className="hidden sm:flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
+            {/* Right side: odds toggle + settings — desktop */}
+            <div className="hidden sm:flex items-center gap-2 py-1">
+              <div className="flex gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
                 <button
                   className={cn(
                     "px-2 py-0.5 text-[11px] font-medium rounded transition-all duration-150",
@@ -730,50 +729,53 @@ export default function SharpSignalsPage() {
                   Implied %
                 </button>
               </div>
-
-              {/* Mobile: dropdown */}
-              <div className="sm:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium outline-none">
-                    {oddsFormat === "american" ? "American" : "Implied %"}
-                    <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[120px]">
-                    <DropdownMenuRadioGroup value={oddsFormat} onValueChange={(v) => setOddsFormat(v as OddsFormat)}>
-                      <DropdownMenuRadioItem value="american" className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
-                        American
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="cents" className="text-xs focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-900 dark:focus:text-neutral-200">
-                        Implied %
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Sort dropdown */}
               <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} />
               <TourTrigger />
               <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
             </div>
+
+            {/* Right side: odds toggle only — mobile */}
+            <div className="flex sm:hidden items-center py-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium outline-none">
+                  {oddsFormat === "american" ? "US" : "%"}
+                  <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[120px]">
+                  <DropdownMenuRadioGroup value={oddsFormat} onValueChange={(v) => setOddsFormat(v as OddsFormat)}>
+                    <DropdownMenuRadioItem value="american" className="text-xs">American</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="cents" className="text-xs">Implied %</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          {/* Row 2: Filters — only on Picks/Markets tabs */}
+          {/* Row 2: Filters + sort/settings — only on Picks/Markets tabs */}
           {showFilters && (
-            <Filters
-              selectedSport={selectedSport}
-              onSportChange={setSelectedSport}
-              selectedTier={selectedTier}
-              onTierChange={setSelectedTier}
-              availableSports={availableSports}
-              showMySharps={showMySharps}
-              onToggleMySharps={tab === "picks" && followedWallets.length > 0 ? () => setShowMySharps(!showMySharps) : undefined}
-              followedCount={followedWallets.length}
-              followedWallets={followedWallets}
-              onUnfollow={handleToggleFollow}
-            />
+            <div className="flex items-center border-t border-neutral-200/60 dark:border-neutral-700/30">
+              <div className="flex-1 min-w-0">
+                <Filters
+                  selectedSport={selectedSport}
+                  onSportChange={setSelectedSport}
+                  selectedTier={selectedTier}
+                  onTierChange={setSelectedTier}
+                  availableSports={availableSports}
+                  showMySharps={showMySharps}
+                  onToggleMySharps={tab === "picks" && followedWallets.length > 0 ? () => setShowMySharps(!showMySharps) : undefined}
+                  followedCount={followedWallets.length}
+                  followedWallets={followedWallets}
+                  onUnfollow={handleToggleFollow}
+                />
+              </div>
+              {/* Sort + settings — mobile (moved from tabs row) */}
+              <div className="flex sm:hidden items-center gap-1.5 pr-3 shrink-0">
+                <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} />
+                <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
+              </div>
+            </div>
           )}
 
           {/* Hidden picks bar */}

@@ -162,9 +162,10 @@ export function Filters({
 }: FiltersProps) {
   const sports = buildSportsList(availableSports)
 
-  const activeSportLabel = sports.find(s => s.id === selectedSport || (selectedSport === "" && s.id === "all"))?.label || "All"
+  const activeSport = sports.find(s => s.id === selectedSport || (selectedSport === "" && s.id === "all"))
+  const activeSportLabel = selectedSport === "" ? "All Sports" : activeSport?.label || "Sport"
   const activeTier = TIERS.find(t => t.id === selectedTier || (selectedTier === "" && t.id === "all"))
-  const activeTierLabel = activeTier?.label || "All"
+  const activeTierLabel = selectedTier === "" ? "All Tiers" : activeTier?.label || "Tier"
 
   return (
     <div className="px-3 sm:px-4 py-2">
@@ -232,21 +233,21 @@ export function Filters({
 
         <div className="flex-1" />
 
-        {/* My Sharps — mobile */}
+        {/* My Sharps — mobile (icon-only to save space) */}
         {followedCount > 0 && onToggleMySharps && (
           <button
             onClick={onToggleMySharps}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all border",
+              "flex items-center justify-center h-7 w-7 rounded-md transition-all border shrink-0",
               showMySharps
                 ? "bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20"
-                : "bg-white dark:bg-neutral-800/60 text-neutral-500 border-neutral-200 dark:border-neutral-700/30 hover:text-neutral-700 dark:hover:text-neutral-300"
+                : "bg-white dark:bg-neutral-800/60 text-neutral-400 border-neutral-200 dark:border-neutral-700/30"
             )}
+            title="My Sharps"
           >
-            <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill={showMySharps ? "currentColor" : "none"} stroke="currentColor" strokeWidth={showMySharps ? 0 : 1.5}>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill={showMySharps ? "currentColor" : "none"} stroke="currentColor" strokeWidth={showMySharps ? 0 : 1.5}>
               <path d="M8 14s-5.5-3.5-5.5-7A3.5 3.5 0 0 1 8 4a3.5 3.5 0 0 1 5.5 3c0 3.5-5.5 7-5.5 7Z" />
             </svg>
-            My Sharps
           </button>
         )}
       </div>
