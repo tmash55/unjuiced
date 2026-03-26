@@ -130,6 +130,7 @@ const nbaLink: NavItem = {
     { label: "Alt Hit Matrix", href: "/cheatsheets/nba/alt-hit-matrix" },
     { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
     { label: "Triple Double", href: "/cheatsheets/nba/triple-double-sheet" },
+    { label: "Double Double", href: "/cheatsheets/nba/double-double-sheet" },
     { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     { label: "King of the Court", href: "/stats/nba/king-of-the-court" },
   ],
