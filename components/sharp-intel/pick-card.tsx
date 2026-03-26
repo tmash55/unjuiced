@@ -122,16 +122,6 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
                   {sport}
                 </span>
               </div>
-              {/* Hide button — desktop, always visible */}
-              {onHide && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onHide(); }}
-                  className="hidden sm:flex p-1 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                  title={isHidden ? "Unhide this pick" : "Hide this pick"}
-                >
-                  {isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                </button>
-              )}
             </div>
 
             {/* Row 2: Matchup title */}
@@ -200,6 +190,20 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
         </div>
       </div>
+
+      {/* ── Actions row — desktop hide button ── */}
+      {onHide && (
+        <div className="hidden sm:flex items-center justify-end px-3.5 pb-2 -mt-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onHide(); }}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            title={isHidden ? "Unhide this pick" : "Hide this pick"}
+          >
+            {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+            {isHidden ? "Unhide" : "Hide"}
+          </button>
+        </div>
+      )}
 
       {/* ── Banners ── */}
       {hasBanner && (
