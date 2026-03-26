@@ -18,6 +18,10 @@ const SIGNAL_FIELDS = [
   "signal_alert_min_stake",
   "signal_alert_sports",
   "signal_alert_wallets",
+  "signal_max_slippage",
+  "signal_date_range",
+  "signal_min_odds",
+  "signal_max_odds",
 ] as const;
 
 export async function GET() {
@@ -55,6 +59,10 @@ export async function GET() {
       signal_alert_min_stake: row?.signal_alert_min_stake ?? 5000,
       signal_alert_sports: row?.signal_alert_sports ?? null,
       signal_alert_wallets: row?.signal_alert_wallets ?? null,
+      signal_max_slippage: row?.signal_max_slippage ?? 0,
+      signal_date_range: row?.signal_date_range ?? "all",
+      signal_min_odds: row?.signal_min_odds ?? undefined,
+      signal_max_odds: row?.signal_max_odds ?? undefined,
     };
 
     return NextResponse.json(prefs);
