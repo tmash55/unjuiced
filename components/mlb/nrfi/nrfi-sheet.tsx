@@ -164,7 +164,7 @@ export function MlbNrfiSheet() {
         />
       )}
 
-      <div className="max-w-[1440px] mx-auto px-6 py-6">
+      <div className="max-w-[1440px] mx-auto px-3 sm:px-6 py-4 sm:py-6">
         {isFetching && games.length === 0 ? (
           <div className="flex items-center justify-center h-48">
             <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />

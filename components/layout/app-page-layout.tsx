@@ -132,23 +132,23 @@ export function AppPageLayout({
         } : undefined}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex items-start justify-between gap-3 mb-3 sm:mb-5">
           <div className="min-w-0 flex-1">
             {/* Sport badge */}
             {sportTheme && (
               <div className={cn(
-                "inline-flex items-center gap-1.5 mb-2.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider",
+                "inline-flex items-center gap-1.5 mb-1.5 sm:mb-2.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider",
                 sportTheme.badge
               )}>
-                <SportIcon sport={sport!} className="h-3.5 w-3.5" />
+                <SportIcon sport={sport!} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 {sportTheme.label}
               </div>
             )}
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white sm:text-3xl">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-white sm:text-2xl md:text-3xl">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-base max-w-3xl">
+              <p className="hidden sm:block mt-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-base max-w-3xl">
                 {subtitle}
               </p>
             )}

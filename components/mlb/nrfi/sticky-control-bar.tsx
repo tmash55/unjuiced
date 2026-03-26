@@ -29,17 +29,52 @@ export function StickyControlBar({
   onDateChange,
   lastUpdated,
 }: StickyControlBarProps) {
+  const liveIndicator = (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+        {lastUpdated}
+      </span>
+    </div>
+  );
+
   return (
     <SheetFilterBar
       selectedDate={selectedDate}
       onDateChange={onDateChange}
-      right={
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-            {lastUpdated}
-          </span>
-        </div>
+      right={liveIndicator}
+      mobileControls={
+        <>
+          <SegmentedControl
+            fullWidth
+            value={filter}
+            onChange={onFilterChange}
+            options={[
+              { label: "All", value: "all" },
+              { label: "NRFI", value: "nrfi" },
+              { label: "YRFI", value: "yrfi" },
+            ]}
+          />
+          <div className="flex items-center gap-2 w-full">
+            <SegmentedControl
+              fullWidth
+              value={sort}
+              onChange={onSortChange}
+              options={[
+                { label: "Game Time", value: "game-time" },
+                { label: "Best Grade", value: "best-grade" },
+              ]}
+            />
+            <SegmentedControl
+              value={season}
+              onChange={onSeasonChange}
+              options={[
+                { label: "2025", value: "2025" },
+                { label: "3-Yr", value: "2023-2025" },
+              ]}
+            />
+          </div>
+        </>
       }
     >
       <SegmentedControl

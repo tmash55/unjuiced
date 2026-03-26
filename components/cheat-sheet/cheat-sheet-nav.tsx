@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -155,50 +156,7 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false, isCheatSh
   const appendDate = (url: string) => dateParam ? `${url}?date=${dateParam}` : url;
 
   if (isMobile) {
-    return (
-      <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-        <nav className="flex overflow-x-auto scrollbar-hide">
-          {tabs.map((tab) => {
-            const isActive = activeSlug === tab.slug;
-            const href = appendDate(tab.href ?? `/cheatsheets/${sport}/${tab.slug}`);
-            const Icon = tab.icon;
-
-            if (tab.comingSoon) {
-              return (
-                <div
-                  key={tab.slug}
-                  className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 text-center border-b-2 border-transparent text-neutral-400 min-w-[80px] cursor-not-allowed"
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[11px] font-semibold whitespace-nowrap">
-                    {tab.shortLabel}
-                  </span>
-                  <span className="text-[9px] text-neutral-400">Soon</span>
-                </div>
-              );
-            }
-
-            return (
-              <Link
-                key={tab.slug}
-                href={href}
-                className={cn(
-                  "flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 text-center border-b-2 transition-all min-w-[80px]",
-                  isActive
-                    ? "border-brand text-brand bg-brand/5"
-                    : "border-transparent text-neutral-500"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-[11px] font-semibold whitespace-nowrap">
-                  {tab.shortLabel}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    );
+    return <MobileCheatSheetNav tabs={tabs} activeSlug={activeSlug} sport={sport} appendDate={appendDate} />;
   }
 
   // Desktop version
@@ -238,6 +196,115 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false, isCheatSh
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+// ── Mobile nav with scroll fade indicators ──────────────────────────────────
+
+function MobileCheatSheetNav({
+  tabs,
+  activeSlug,
+  sport,
+  appendDate,
+}: {
+  tabs: CheatSheetTab[];
+  activeSlug: string;
+  sport: string;
+  appendDate: (url: string) => string;
+}) {
+  const scrollRef = useRef<HTMLElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const activeTabRef = useRef<HTMLElement>(null);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+
+  // Auto-scroll to active tab on mount
+  useEffect(() => {
+    const el = activeTabRef.current;
+    if (el) {
+      el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    }
+    // Check scroll after a frame to let layout settle
+    requestAnimationFrame(checkScroll);
+  }, [activeSlug, checkScroll]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    checkScroll();
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll]);
+
+  return (
+    <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 relative">
+      {/* Left fade */}
+      <div
+        className={cn(
+          "absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none transition-opacity duration-200",
+          canScrollLeft ? "opacity-100" : "opacity-0"
+        )}
+      />
+      {/* Right fade */}
+      <div
+        className={cn(
+          "absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none transition-opacity duration-200",
+          canScrollRight ? "opacity-100" : "opacity-0"
+        )}
+      />
+
+      <nav ref={scrollRef} className="flex overflow-x-auto scrollbar-hide">
+        {tabs.map((tab) => {
+          const isActive = activeSlug === tab.slug;
+          const href = appendDate(tab.href ?? `/cheatsheets/${sport}/${tab.slug}`);
+          const Icon = tab.icon;
+
+          if (tab.comingSoon) {
+            return (
+              <div
+                key={tab.slug}
+                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-center border-b-2 border-transparent text-neutral-400 min-w-[68px] cursor-not-allowed"
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-[10px] font-semibold whitespace-nowrap leading-tight">
+                  {tab.shortLabel}
+                </span>
+                <span className="text-[8px] text-neutral-400 leading-none">Soon</span>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={tab.slug}
+              ref={isActive ? (activeTabRef as React.Ref<HTMLAnchorElement>) : undefined}
+              href={href}
+              className={cn(
+                "flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-center border-b-2 transition-all min-w-[68px]",
+                isActive
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-transparent text-neutral-500 active:bg-neutral-100 dark:active:bg-neutral-800"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="text-[10px] font-semibold whitespace-nowrap leading-tight">
+                {tab.shortLabel}
+              </span>
             </Link>
           );
         })}

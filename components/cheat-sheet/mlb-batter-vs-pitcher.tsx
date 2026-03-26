@@ -1983,7 +1983,7 @@ export function MlbBatterVsPitcher() {
           <>
             {/* ── Section A: Horizontal Game Bar ── */}
             <div data-tour="game-bar" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-2 py-2">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-0.5 px-0.5">
                 {(() => {
                   let lastDate = "";
                   return games.map((g, gi) => {
@@ -2087,7 +2087,7 @@ export function MlbBatterVsPitcher() {
                 {/* Pitcher controls — season + sample */}
                 {pitcher && (
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
+                    <span className="hidden sm:inline text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
                     <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
                       {[2025, 2026].map((yr) => (
                         <button

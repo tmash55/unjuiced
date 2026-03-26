@@ -313,7 +313,7 @@ export function MlbWeatherReport() {
               </div>
 
               {/* Scrollable game list */}
-              <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)] max-h-[420px] divide-y divide-neutral-100 dark:divide-neutral-800/30">
+              <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)] max-h-[320px] sm:max-h-[420px] divide-y divide-neutral-100 dark:divide-neutral-800/30">
                 {sortedRows.map((row) => (
                   <GameRow
                     key={row.gameId}

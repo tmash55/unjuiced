@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import { Search, X, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 // ── Primitives ──────────────────────────────────────────────────────────────
 
@@ -12,20 +13,24 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  fullWidth,
 }: {
   options: { label: string; value: T; disabled?: boolean }[];
   value: T;
   onChange: (v: T) => void;
+  /** When true, buttons expand to fill available width (useful for mobile stacked layouts) */
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+    <div className={cn("flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60", fullWidth && "w-full")}>
       {options.map((opt) => (
         <button
           key={opt.value}
           disabled={opt.disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
-            "px-2.5 py-1 rounded-md text-xs font-semibold transition-all whitespace-nowrap",
+            "px-2.5 py-1.5 md:py-1 rounded-md text-xs font-semibold transition-all whitespace-nowrap",
+            fullWidth && "flex-1 text-center",
             value === opt.value
               ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
@@ -64,7 +69,7 @@ export function FilterSearch({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-40 pl-7 pr-7 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-xs placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 transition-all text-neutral-700 dark:text-neutral-300"
+        className="w-full md:w-40 pl-7 pr-7 py-2 md:py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-xs placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 transition-all text-neutral-700 dark:text-neutral-300"
       />
       {value && (
         <button
@@ -198,6 +203,9 @@ export function SheetFilterBar({
   right,
   legend,
   children,
+  /** Mobile-specific controls — rendered in a stacked layout below date on small screens.
+   *  If not provided, `children` will be wrapped into the mobile layout automatically. */
+  mobileControls,
 }: {
   selectedDate: string;
   onDateChange: (date: string) => void;
@@ -208,11 +216,15 @@ export function SheetFilterBar({
   legend?: React.ReactNode;
   /** Filter controls rendered between date nav and right slot */
   children?: React.ReactNode;
+  /** Optional override for mobile filter layout — if omitted, children are auto-wrapped */
+  mobileControls?: React.ReactNode;
 }) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-      {/* Primary row */}
-      <div className="px-4 py-2.5 flex items-center gap-3 overflow-x-auto scrollbar-hide">
+      {/* ── Desktop: single horizontal row ── */}
+      <div className={cn("px-4 py-2.5 items-center gap-3 overflow-x-auto scrollbar-hide", isMobile ? "hidden" : "flex")}>
         <DateNav
           selectedDate={selectedDate}
           onDateChange={onDateChange}
@@ -236,9 +248,36 @@ export function SheetFilterBar({
         )}
       </div>
 
-      {/* Optional legend row */}
+      {/* ── Mobile: stacked vertical layout ── */}
+      {isMobile && (
+        <div className="px-3 py-2.5 space-y-2.5">
+          {/* Row 1: Date nav + count (if present) */}
+          <div className="flex items-center justify-between gap-2">
+            <DateNav
+              selectedDate={selectedDate}
+              onDateChange={onDateChange}
+              availableDates={availableDates}
+            />
+            {/* Extract FilterCount from right slot if it exists */}
+            {right && (
+              <div className="flex items-center gap-2 shrink-0">
+                {right}
+              </div>
+            )}
+          </div>
+
+          {/* Row 2+: Filter controls — stacked and full-width */}
+          {(mobileControls || children) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {mobileControls ?? children}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Optional legend row — hidden on mobile (too dense) */}
       {legend && (
-        <div className="px-4 py-1.5 flex items-center gap-4 border-t border-neutral-100 dark:border-neutral-800/60 bg-neutral-50/40 dark:bg-neutral-800/10 text-[10px] text-neutral-400">
+        <div className="hidden md:flex px-4 py-1.5 items-center gap-4 border-t border-neutral-100 dark:border-neutral-800/60 bg-neutral-50/40 dark:bg-neutral-800/10 text-[10px] text-neutral-400">
           {legend}
         </div>
       )}

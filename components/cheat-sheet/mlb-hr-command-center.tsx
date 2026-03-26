@@ -571,6 +571,31 @@ export function MlbHRCommandCenter() {
             ))}
           </>
         }
+        mobileControls={
+          <>
+            <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
+            <div className="flex items-center gap-2 w-full">
+              <SegmentedControl
+                fullWidth
+                value={String(minScore)}
+                onChange={(v) => setMinScore(Number(v) as 0 | 50 | 65 | 80)}
+                options={MIN_SCORE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+              />
+              {gameOptions.length > 1 && (
+                <select
+                  value={selectedGame}
+                  onChange={(e) => setSelectedGame(e.target.value)}
+                  className="px-2.5 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 text-xs font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer shrink-0"
+                >
+                  <option value="all">All Games</option>
+                  {gameOptions.map((g) => (
+                    <option key={g.venue} value={g.venue}>{g.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </>
+        }
       >
         <SegmentedControl
           value={String(minScore)}

@@ -965,6 +965,53 @@ export function MlbExitVelocity() {
               <span>-Diff = lucky</span>
             </>
           }
+          mobileControls={
+            <>
+              <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
+              <div className="flex items-center gap-2 w-full">
+                <SegmentedControl
+                  fullWidth
+                  value={String(sampleSize)}
+                  onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
+                  options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+                />
+                <SegmentedControl
+                  value={pitcherHand}
+                  onChange={setPitcherHand}
+                  options={[
+                    { label: "All", value: "" },
+                    { label: "LHP", value: "L" },
+                    { label: "RHP", value: "R" },
+                  ]}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setMatchupSplit(!matchupSplit);
+                    if (!matchupSplit) setPitcherHand("");
+                  }}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                    matchupSplit
+                      ? "bg-brand/10 text-brand border border-brand/30"
+                      : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500"
+                  )}
+                >
+                  vs Matchup
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => { setPitcherHand(""); setPitchType(""); setMatchupSplit(false); }}
+                    className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 bg-neutral-100 dark:bg-neutral-800/60 transition-colors"
+                    title="Reset filters"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </>
+          }
         >
           <SegmentedControl
             value={String(sampleSize)}
