@@ -31,7 +31,11 @@ const SPORTS = [
 const SORT_OPTIONS = [
   { value: "score", label: "Score" },
   { value: "recent", label: "Recent" },
+  { value: "upcoming", label: "Upcoming" },
   { value: "stake", label: "Stake" },
+  { value: "edge", label: "Edge" },
+  { value: "roi", label: "ROI" },
+  { value: "conviction", label: "Conviction" },
 ]
 
 type SettingsTab = "filters" | "feed" | "alerts"
@@ -382,11 +386,26 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
               {/* Sort */}
               <div>
                 <SectionLabel>Sort by</SectionLabel>
-                <Seg
-                  options={SORT_OPTIONS}
-                  value={prefs.signal_sort_by || "score"}
-                  onChange={(v) => onUpdate({ signal_sort_by: v })}
-                />
+                <div className="flex flex-wrap gap-1.5">
+                  {SORT_OPTIONS.map((opt) => {
+                    const isActive = (prefs.signal_sort_by || "score") === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => onUpdate({ signal_sort_by: opt.value })}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150",
+                          isActive
+                            ? "bg-neutral-900 dark:bg-neutral-200 text-white dark:text-neutral-900"
+                            : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Stats Timeframe */}

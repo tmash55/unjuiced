@@ -198,7 +198,8 @@ export async function GET(req: NextRequest) {
 
     // For score/stake sort, fetch more rows since sorting happens after enrichment
     // Need a large window to ensure top-scored picks from all sports are included
-    const fetchLimit = sortBy === "recent" ? limit : Math.max(limit * 10, 500);
+    const needsClientSort = sortBy !== "recent";
+    const fetchLimit = needsClientSort ? Math.max(limit * 10, 500) : limit;
     query = query.range(0, fetchLimit - 1);
 
     // Filters
@@ -696,13 +697,33 @@ export async function GET(req: NextRequest) {
       aggregated.sort((a, b) => (b.signal_score ?? 0) - (a.signal_score ?? 0));
     } else if (sortBy === "stake") {
       aggregated.sort((a, b) => (b.bet_size ?? 0) - (a.bet_size ?? 0));
+    } else if (sortBy === "upcoming") {
+      // Soonest game first, nulls last
+      aggregated.sort((a, b) => {
+        const aTime = a.game_start_time ? new Date(a.game_start_time).getTime() : Infinity;
+        const bTime = b.game_start_time ? new Date(b.game_start_time).getTime() : Infinity;
+        return aTime - bTime;
+      });
+    } else if (sortBy === "edge") {
+      // Largest edge (polymarket entry vs sportsbook implied prob) first
+      aggregated.sort((a, b) => {
+        const aEdge = a.score_breakdown?.edge ?? 0;
+        const bEdge = b.score_breakdown?.edge ?? 0;
+        return bEdge - aEdge;
+      });
+    } else if (sortBy === "roi") {
+      // Best wallet ROI first
+      aggregated.sort((a, b) => (b.wallet_roi ?? -Infinity) - (a.wallet_roi ?? -Infinity));
+    } else if (sortBy === "conviction") {
+      // Highest stake-vs-avg multiplier first
+      aggregated.sort((a, b) => (b.stake_vs_avg ?? 0) - (a.stake_vs_avg ?? 0));
     }
     // "recent" = default DB order (created_at desc), no re-sort needed
 
     // Apply pagination after sorting (for score/stake sorts that fetched extra rows)
-    const paginated = sortBy === "recent"
-      ? aggregated
-      : aggregated.slice(offset, offset + limit);
+    const paginated = needsClientSort
+      ? aggregated.slice(offset, offset + limit)
+      : aggregated;
 
     const response: FeedResponse = {
       signals: paginated as WhaleSignal[],
