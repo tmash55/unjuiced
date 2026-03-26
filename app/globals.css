@@ -8,6 +8,11 @@
   button {
     @apply cursor-pointer;
   }
+  /* Native select/option popups respect dark mode */
+  .dark select,
+  .dark option {
+    color-scheme: dark;
+  }
   h1 {
     font-family: var(--font-satoshi), Inter Display, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   }
