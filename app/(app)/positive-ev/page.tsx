@@ -607,7 +607,7 @@ export default function PositiveEVPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Hidden edges hook
-  const { hideEdge, unhideEdge, isHidden, hiddenCount } = useHiddenEdges();
+  const { hideEdge, unhideEdge, isHidden, hiddenCount } = useHiddenEdges("positive-ev");
   
   // Show hidden opportunities - use preference value
   const showHidden = savedFilters.showHidden;

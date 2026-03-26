@@ -22,6 +22,7 @@ const SIGNAL_FIELDS = [
   "signal_date_range",
   "signal_min_odds",
   "signal_max_odds",
+  "signal_show_hidden",
 ] as const;
 
 export async function GET() {
@@ -63,6 +64,7 @@ export async function GET() {
       signal_date_range: row?.signal_date_range ?? "all",
       signal_min_odds: row?.signal_min_odds ?? undefined,
       signal_max_odds: row?.signal_max_odds ?? undefined,
+      signal_show_hidden: row?.signal_show_hidden ?? true,
     };
 
     return NextResponse.json(prefs);

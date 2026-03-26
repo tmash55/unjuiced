@@ -260,6 +260,7 @@ export interface SignalPreferences {
   signal_date_range?: string;         // "today" | "3d" | "7d" | "all"
   signal_min_odds?: number;           // Min American odds (e.g., -200)
   signal_max_odds?: number;           // Max American odds (e.g., +500)
+  signal_show_hidden?: boolean;       // Show hidden picks (default true)
 }
 
 export interface WalletDetailResponse {

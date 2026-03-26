@@ -5,6 +5,7 @@ import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
 import { TierBadge } from "./tier-badge"
 import { SportIcon } from "@/components/icons/sport-icons"
+import { EyeOff, Eye } from "lucide-react"
 import { format, isToday, isTomorrow } from "date-fns"
 import { getSportsbookById } from "@/lib/data/sportsbooks"
 
@@ -16,6 +17,8 @@ interface PickCardProps {
   isSplitMarket?: boolean
   onViewMarket?: () => void
   onViewInsider?: (walletAddress: string) => void
+  onHide?: () => void
+  isHidden?: boolean
   /** Add data-tour attributes for onboarding (first card only) */
   isTourTarget?: boolean
 }
@@ -26,7 +29,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(0)}`
 }
 
-export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider, isTourTarget }: PickCardProps) {
+export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider, onHide, isHidden, isTourTarget }: PickCardProps) {
   const score = Math.round(pick.signal_score || 0)
   const sport = (pick.sport || "").toUpperCase()
   const matchup = pick.event_title || pick.market_title
@@ -96,15 +99,17 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
     <div
       onClick={() => onSelect(pick)}
       className={cn(
-        "group cursor-pointer rounded-lg border transition-all duration-150",
-        isHedge && "opacity-60",
-        isSelected
+        "group cursor-pointer rounded-lg border transition-all duration-150 relative",
+        // Hidden: dashed border + very faded, clearly "dismissed"
+        isHidden && "opacity-30 border-dashed border-neutral-300 dark:border-neutral-700",
+        !isHidden && isSelected
           ? "border-sky-200 dark:border-sky-500/20 bg-sky-50/50 dark:bg-sky-500/[0.06]"
-          : "border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-600/40",
+          : !isHidden && "border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-600/40",
         "active:scale-[0.998]"
       )}
       {...(isTourTarget ? { "data-tour": "pick-card" } : {})}
     >
+      {/* Hedge accent bar — thin left edge */}
       {/* Main layout — responsive: stacked on mobile, side-by-side on desktop */}
       <div className="p-3">
         {/* Top row: info + sport icon (desktop) + selection block (desktop) */}
@@ -153,14 +158,23 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
             </div>
           </div>
 
-          {/* Sport icon — desktop only */}
-          <div className="hidden sm:flex shrink-0 flex-col items-center justify-center">
+          {/* Sport icon + hide button — desktop only */}
+          <div className="hidden sm:flex shrink-0 flex-col items-center gap-1.5">
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
               <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-5 w-5" />
             </div>
-            <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-500 uppercase tracking-wide mt-1">
+            <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-500 uppercase tracking-wide">
               {sport}
             </span>
+            {onHide && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onHide(); }}
+                className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                title={isHidden ? "Unhide this pick" : "Hide this pick"}
+              >
+                {isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              </button>
+            )}
           </div>
 
           {/* Selection block — desktop only */}
@@ -183,6 +197,16 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
             </div>
             <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{sport}</span>
           </div>
+
+          {onHide && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onHide(); }}
+              className="p-1.5 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              title={isHidden ? "Unhide" : "Hide"}
+            >
+              {isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
+          )}
 
           <div className="flex-1" />
 

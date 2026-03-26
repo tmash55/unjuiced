@@ -186,7 +186,7 @@ export default function EdgeFinderPage() {
     unhideEdge, 
     isHidden,
     clearAllHidden 
-  } = useHiddenEdges();
+  } = useHiddenEdges("edge-finder");
 
   // Result limit (default 250 for Pro, 50 for free)
   const [limit, setLimit] = useState(DEFAULT_PRO_EDGE_LIMIT);

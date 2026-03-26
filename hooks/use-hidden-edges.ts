@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 
+export type HiddenEdgeTool = "edge-finder" | "positive-ev" | "sharp-intel";
+
 interface HideEdgeParams {
   edgeKey: string;
+  tool?: HiddenEdgeTool;
   eventId?: string;
   eventDate?: string;
   sport?: string;
@@ -12,10 +15,12 @@ interface HideEdgeParams {
   autoUnhideHours?: number;
 }
 
-export function useHiddenEdges() {
+export function useHiddenEdges(tool?: HiddenEdgeTool) {
   const { user } = useAuth();
   const [hiddenEdges, setHiddenEdges] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+
+  const storageKey = tool ? `hiddenEdges:${tool}` : 'hiddenEdges';
 
   // Load hidden edges from localStorage (for all users) and database (for logged-in users)
   useEffect(() => {
@@ -25,10 +30,21 @@ export function useHiddenEdges() {
 
       // Load from localStorage first (works for everyone)
       try {
-        const localHidden = localStorage.getItem('hiddenEdges');
+        const localHidden = localStorage.getItem(storageKey);
         if (localHidden) {
           const parsed = JSON.parse(localHidden);
           parsed.forEach((key: string) => edges.add(key));
+        }
+        // Migrate legacy key for edge-finder (old data stored under generic 'hiddenEdges')
+        if (tool === "edge-finder" && !localHidden) {
+          const legacy = localStorage.getItem('hiddenEdges');
+          if (legacy) {
+            const parsed = JSON.parse(legacy);
+            parsed.forEach((key: string) => edges.add(key));
+            // Migrate: write to new key and remove old one
+            localStorage.setItem(storageKey, legacy);
+            localStorage.removeItem('hiddenEdges');
+          }
         }
       } catch (error) {
         console.error('Error loading hidden edges from localStorage:', error);
@@ -37,7 +53,10 @@ export function useHiddenEdges() {
       // If user is logged in, also load from database
       if (user) {
         try {
-          const response = await fetch('/api/user/hidden-edges');
+          const url = tool
+            ? `/api/user/hidden-edges?tool=${tool}`
+            : '/api/user/hidden-edges';
+          const response = await fetch(url);
           if (response.ok) {
             const data = await response.json();
             data.hiddenEdges?.forEach((key: string) => edges.add(key));
@@ -52,11 +71,12 @@ export function useHiddenEdges() {
     };
 
     loadHiddenEdges();
-  }, [user]);
+  }, [user, storageKey, tool]);
 
   // Hide an edge
   const hideEdge = useCallback(async (params: HideEdgeParams) => {
     const { edgeKey } = params;
+    const paramsWithTool = { ...params, tool: params.tool || tool };
 
     // Add to local state immediately
     setHiddenEdges(prev => new Set([...prev, edgeKey]));
@@ -65,7 +85,7 @@ export function useHiddenEdges() {
     try {
       const current = Array.from(hiddenEdges);
       current.push(edgeKey);
-      localStorage.setItem('hiddenEdges', JSON.stringify(current));
+      localStorage.setItem(storageKey, JSON.stringify(current));
     } catch (error) {
       console.error('Error saving to localStorage:', error);
     }
@@ -76,13 +96,13 @@ export function useHiddenEdges() {
         await fetch('/api/user/hidden-edges', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
+          body: JSON.stringify(paramsWithTool)
         });
       } catch (error) {
         console.error('Error saving hidden edge to database:', error);
       }
     }
-  }, [user, hiddenEdges]);
+  }, [user, hiddenEdges, storageKey, tool]);
 
   // Unhide an edge
   const unhideEdge = useCallback(async (edgeKey: string) => {
@@ -96,7 +116,7 @@ export function useHiddenEdges() {
     // Remove from localStorage
     try {
       const current = Array.from(hiddenEdges).filter(key => key !== edgeKey);
-      localStorage.setItem('hiddenEdges', JSON.stringify(current));
+      localStorage.setItem(storageKey, JSON.stringify(current));
     } catch (error) {
       console.error('Error updating localStorage:', error);
     }
@@ -113,14 +133,14 @@ export function useHiddenEdges() {
     }
   }, [user, hiddenEdges]);
 
-  // Clear all hidden edges
+  // Clear all hidden edges (scoped to tool if provided)
   const clearAllHidden = useCallback(async () => {
     // Clear local state
     setHiddenEdges(new Set());
 
     // Clear localStorage
     try {
-      localStorage.removeItem('hiddenEdges');
+      localStorage.removeItem(storageKey);
     } catch (error) {
       console.error('Error clearing localStorage:', error);
     }
@@ -128,14 +148,15 @@ export function useHiddenEdges() {
     // If user is logged in, also clear database
     if (user) {
       try {
-        await fetch('/api/user/hidden-edges', {
-          method: 'DELETE'
-        });
+        const url = tool
+          ? `/api/user/hidden-edges?tool=${tool}`
+          : '/api/user/hidden-edges';
+        await fetch(url, { method: 'DELETE' });
       } catch (error) {
         console.error('Error clearing hidden edges from database:', error);
       }
     }
-  }, [user]);
+  }, [user, storageKey, tool]);
 
   // Check if an edge is hidden
   const isHidden = useCallback((edgeKey: string) => {

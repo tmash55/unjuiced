@@ -199,9 +199,10 @@ export async function GET(req: NextRequest) {
           ? entryPrices.reduce((a, b) => a + b, 0) / entryPrices.length
           : 0;
 
-        // Anonymize individual bets
+        // Individual bets with anonymized display ID + full address for wallet lookup
         const bets = data.signals.map(s => ({
           anon_id: `#${(s.wallet_address || "0000").slice(0, 4).toUpperCase()}`,
+          wallet_address: s.wallet_address,
           tier: s.tier,
           bet_size: s.bet_size,
           entry_price: s.entry_price,

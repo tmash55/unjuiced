@@ -35,6 +35,7 @@ interface MarketOutcome {
   odds_key?: { sport: string; event_id: string; market: string; outcome?: string | null; line?: string | null } | null
   bets: Array<{
     anon_id: string
+    wallet_address?: string
     tier: string
     bet_size: number
     entry_price: number
@@ -69,6 +70,7 @@ interface GameData {
 interface MarketDetailPanelProps {
   game: GameData
   oddsFormat: OddsFormat
+  onViewInsider?: (walletAddress: string) => void
 }
 
 /** Two-column odds comparison: one row per sportsbook, both sides shown */
@@ -216,7 +218,7 @@ function OddsComparison({
   )
 }
 
-export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) {
+export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDetailPanelProps) {
   const mainOutcome = game.outcomes[0] || null
   const secondOutcome = game.outcomes[1] || null
 
@@ -423,7 +425,16 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
                     <TierBadge tier={bet.tier} size="xs" />
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs font-medium text-neutral-900 dark:text-neutral-200">{bet.anon_id}</span>
+                        {bet.wallet_address && onViewInsider ? (
+                          <button
+                            onClick={() => onViewInsider(bet.wallet_address!)}
+                            className="font-mono text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 transition-colors"
+                          >
+                            {bet.anon_id}
+                          </button>
+                        ) : (
+                          <span className="font-mono text-xs font-medium text-neutral-900 dark:text-neutral-200">{bet.anon_id}</span>
+                        )}
                         <span className={cn(
                           "font-medium",
                           isMainOutcome ? "text-sky-600 dark:text-sky-400" : "text-neutral-400"

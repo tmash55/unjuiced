@@ -5,6 +5,7 @@ import useSWRInfinite from "swr/infinite";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
+import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { StatsDashboard } from "@/components/sharp-intel/stats-dashboard";
 import { Filters } from "@/components/sharp-intel/filters";
 import { PickCard } from "@/components/sharp-intel/pick-card";
@@ -30,6 +31,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { EyeOff } from "lucide-react";
 import { OddsFormat } from "@/lib/odds";
 import { WhaleSignal, WalletScore } from "@/lib/polymarket/types";
 import Link from "next/link";
@@ -37,6 +39,57 @@ import useSWR from "swr";
 import { toast } from "sonner";
 
 type Tab = "picks" | "markets" | "leaderboard";
+
+const SORT_LABELS: Record<string, { label: string; icon: string }> = {
+  score: { label: "Score", icon: "M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" },
+  recent: { label: "Recent", icon: "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
+  upcoming: { label: "Upcoming", icon: "M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" },
+  stake: { label: "Stake", icon: "M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
+  edge: { label: "Edge", icon: "M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" },
+  roi: { label: "ROI", icon: "M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" },
+  conviction: { label: "Conviction", icon: "M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.048 8.287 8.287 0 0 0 9 9.6a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" },
+}
+
+function SortDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const current = SORT_LABELS[value] || SORT_LABELS.score
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex items-center gap-1.5 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors">
+        <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5-3L16.5 18m0 0L12 13.5m4.5 4.5V4.5" />
+        </svg>
+        <span className="hidden sm:inline">{current.label}</span>
+        <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[160px] p-1">
+        {Object.entries(SORT_LABELS).map(([key, { label, icon }]) => (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-medium transition-colors",
+              value === key
+                ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+            )}
+          >
+            <svg className="h-3.5 w-3.5 shrink-0 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+            </svg>
+            {label}
+            {value === key && (
+              <svg className="h-3 w-3 ml-auto text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            )}
+          </button>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 interface GameData {
   condition_id: string
@@ -68,6 +121,7 @@ interface GameData {
     losses: number
     bets: Array<{
       anon_id: string
+      wallet_address?: string
       tier: string
       bet_size: number
       entry_price: number
@@ -84,7 +138,7 @@ interface GameData {
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 /** Fetches game data by condition_id for the market modal */
-function MarketModalContent({ marketId, oddsFormat }: { marketId: string; oddsFormat: OddsFormat }) {
+function MarketModalContent({ marketId, oddsFormat, onViewInsider }: { marketId: string; oddsFormat: OddsFormat; onViewInsider?: (addr: string) => void }) {
   // Direct lookup by condition_id — fast, precise
   const { data, isLoading } = useSWR(
     `/api/polymarket/games?condition_id=${encodeURIComponent(marketId)}&resolved=false`,
@@ -106,7 +160,7 @@ function MarketModalContent({ marketId, oddsFormat }: { marketId: string; oddsFo
   const game = data?.games?.[0]
   if (!game) return <p className="text-xs text-neutral-500 py-8 text-center">Market data not available</p>
 
-  return <MarketDetailPanel game={game} oddsFormat={oddsFormat} />
+  return <MarketDetailPanel game={game} oddsFormat={oddsFormat} onViewInsider={onViewInsider} />
 }
 
 /** Fetches real wallet data from leaderboard API for the modal */
@@ -152,6 +206,8 @@ function WalletModalContent({ walletAddress, oddsFormat, isFollowing, onToggleFo
 export default function SharpSignalsPage() {
   const { hasAccess, isLoading } = useHasEliteAccess();
   const { prefs, loaded: prefsLoaded, updatePrefs, toggleFollowWallet, followedWallets } = useSignalPreferences();
+  const { hideEdge, unhideEdge, isHidden, hiddenCount, clearAllHidden } = useHiddenEdges("sharp-intel");
+  const showHidden = prefs.signal_show_hidden !== false; // default true
   const [tab, setTab] = useState<Tab>("picks");
   const [selectedSport, setSelectedSport] = useState("");
   const [selectedTier, setSelectedTier] = useState("");
@@ -503,9 +559,17 @@ export default function SharpSignalsPage() {
     (m: GameData) => !m.sport || !excludedSports.includes(m.sport)
   );
 
+  // Helper to get a stable hide key for a signal
+  const getSignalKey = (p: WhaleSignal) => `signal:${p.id}`;
+
+  // Filter hidden picks (unless showHidden is on)
+  const visiblePicks = showHidden
+    ? allPicks
+    : allPicks.filter((p: WhaleSignal) => !isHidden(getSignalKey(p)));
+
   const picks = selectedTier
-    ? allPicks.filter((p: WhaleSignal) => p.tier === selectedTier)
-    : allPicks;
+    ? visiblePicks.filter((p: WhaleSignal) => p.tier === selectedTier)
+    : visiblePicks;
   const markets = selectedTier
     ? allMarkets.filter((m: GameData) =>
         m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === selectedTier))
@@ -689,6 +753,8 @@ export default function SharpSignalsPage() {
                 </DropdownMenu>
               </div>
 
+              {/* Sort dropdown */}
+              <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} />
               <TourTrigger />
               <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
             </div>
@@ -708,6 +774,33 @@ export default function SharpSignalsPage() {
               followedWallets={followedWallets}
               onUnfollow={handleToggleFollow}
             />
+          )}
+
+          {/* Hidden picks bar */}
+          {tab === "picks" && hiddenCount > 0 && (
+            <div className="flex items-center justify-between px-4 py-1.5 border-t border-neutral-200/60 dark:border-neutral-700/30 text-[11px]">
+              <div className="flex items-center gap-2">
+                <EyeOff className="w-3 h-3 text-neutral-400" />
+                <span className="text-neutral-500">{hiddenCount} hidden pick{hiddenCount !== 1 ? "s" : ""}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => updatePrefs({ signal_show_hidden: !showHidden })}
+                  className={cn(
+                    "font-medium transition-colors",
+                    showHidden ? "text-sky-600 dark:text-sky-400" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  )}
+                >
+                  {showHidden ? "Hide" : "Show"}
+                </button>
+                <button
+                  onClick={() => clearAllHidden()}
+                  className="text-neutral-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
           )}
 
         </div>
@@ -753,6 +846,22 @@ export default function SharpSignalsPage() {
                   oddsFormat={oddsFormat}
                   isSplitMarket={pick.is_split_market === true}
                   isTourTarget={idx === 0}
+                  isHidden={isHidden(getSignalKey(pick))}
+                  onHide={() => {
+                    const key = getSignalKey(pick);
+                    if (isHidden(key)) {
+                      unhideEdge(key);
+                    } else {
+                      hideEdge({
+                        edgeKey: key,
+                        eventId: String(pick.id),
+                        sport: pick.sport || undefined,
+                        playerName: pick.outcome,
+                        market: pick.market_type || undefined,
+                        autoUnhideHours: 24,
+                      });
+                    }
+                  }}
                   onViewMarket={pick.is_split_market === true ? () => {
                     setModalMarketId((pick as any).condition_id || pick.market_title);
                   } : undefined}
@@ -850,7 +959,7 @@ export default function SharpSignalsPage() {
           )}
 
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
 
           {tab === "leaderboard" && selectedWallet && (
@@ -904,7 +1013,7 @@ export default function SharpSignalsPage() {
             />
           )}
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
           {tab === "leaderboard" && selectedWallet && (
             <WalletDetailPanel
@@ -944,7 +1053,7 @@ export default function SharpSignalsPage() {
             </DialogTitle>
           </DialogHeader>
           {modalMarketId && (
-            <MarketModalContent marketId={modalMarketId} oddsFormat={oddsFormat} />
+            <MarketModalContent marketId={modalMarketId} oddsFormat={oddsFormat} onViewInsider={(addr) => { setModalMarketId(null); setModalWalletAddress(addr); }} />
           )}
         </DialogContent>
       </Dialog>
