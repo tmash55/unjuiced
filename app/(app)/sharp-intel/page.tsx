@@ -41,7 +41,9 @@ import { toast } from "sonner";
 
 type Tab = "picks" | "markets" | "leaderboard";
 
-const SORT_LABELS: Record<string, { label: string; icon: string }> = {
+type SortOption = { label: string; icon: string }
+
+const PICKS_SORTS: Record<string, SortOption> = {
   score: { label: "Score", icon: "M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" },
   recent: { label: "Recent", icon: "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
   upcoming: { label: "Upcoming", icon: "M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" },
@@ -51,8 +53,15 @@ const SORT_LABELS: Record<string, { label: string; icon: string }> = {
   conviction: { label: "Conviction", icon: "M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.048 8.287 8.287 0 0 0 9 9.6a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" },
 }
 
-function SortDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const current = SORT_LABELS[value] || SORT_LABELS.score
+const MARKETS_SORTS: Record<string, SortOption> = {
+  liquidity: { label: "Liquidity", icon: "M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
+  bettors: { label: "Bettors", icon: "M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" },
+  conviction: { label: "Conviction", icon: "M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.048 8.287 8.287 0 0 0 9 9.6a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" },
+  recent: { label: "Recent", icon: "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
+}
+
+function SortDropdown({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: Record<string, SortOption> }) {
+  const current = options[value] || Object.values(options)[0]
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1.5 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors">
@@ -65,7 +74,7 @@ function SortDropdown({ value, onChange }: { value: string; onChange: (v: string
         </svg>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[160px] p-1">
-        {Object.entries(SORT_LABELS).map(([key, { label, icon }]) => (
+        {Object.entries(options).map(([key, { label, icon }]) => (
           <DropdownMenuItem
             key={key}
             onClick={() => onChange(key)}
@@ -217,6 +226,7 @@ export default function SharpSignalsPage() {
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>("american");
   const [showMySharps, setShowMySharps] = useState(false);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [marketSort, setMarketSort] = useState<string>("liquidity");
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
   // Clear selections when filters change
@@ -300,7 +310,7 @@ export default function SharpSignalsPage() {
 
   // Fetch markets/games data
   const { data: marketsData, error: marketsError, isLoading: marketsLoading } = useSWR(
-    hasAccess ? `/api/polymarket/games?limit=20&resolved=false${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
+    hasAccess ? `/api/polymarket/games?limit=100&resolved=false${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
     fetcher,
     { refreshInterval: 30000 }
   );
@@ -609,18 +619,26 @@ export default function SharpSignalsPage() {
     const secondOutcome = game.outcomes[1]
     if (!mainOutcome || !secondOutcome) return null
 
-    // Compute sharp vs insider dollar breakdown per side
-    const computeTierSplit = (bets: typeof mainOutcome.bets) => {
+    // Compute sharp vs insider dollar breakdown + unique wallet counts per side
+    const computeSideStats = (bets: typeof mainOutcome.bets) => {
       let sharpDollars = 0, insiderDollars = 0, otherDollars = 0
+      const wallets = new Set<string>()
+      const sharps = new Set<string>()
+      const insiders = new Set<string>()
       for (const b of bets) {
-        if (b.tier === "sharp") sharpDollars += b.bet_size
-        else if (b.tier === "whale") insiderDollars += b.bet_size
+        const id = (b as any).wallet_address || b.anon_id
+        wallets.add(id)
+        if (b.tier === "sharp") { sharpDollars += b.bet_size; sharps.add(id) }
+        else if (b.tier === "whale") { insiderDollars += b.bet_size; insiders.add(id) }
         else otherDollars += b.bet_size
       }
       const total = sharpDollars + insiderDollars + otherDollars
       return {
         sharpPct: total > 0 ? Math.round((sharpDollars / total) * 100) : 0,
         insiderPct: total > 0 ? Math.round((insiderDollars / total) * 100) : 0,
+        uniqueWallets: wallets.size,
+        uniqueSharps: sharps.size,
+        uniqueInsiders: insiders.size,
       }
     }
 
@@ -638,7 +656,7 @@ export default function SharpSignalsPage() {
         insiderCount: mainOutcome.total_bets,
         totalWagered: mainOutcome.total_dollars,
         percentOfMoney: game.flow_pct,
-        ...computeTierSplit(mainOutcome.bets),
+        ...computeSideStats(mainOutcome.bets),
       },
       sideB: {
         name: secondOutcome.outcome,
@@ -646,14 +664,49 @@ export default function SharpSignalsPage() {
         insiderCount: secondOutcome.total_bets,
         totalWagered: secondOutcome.total_dollars,
         percentOfMoney: 100 - game.flow_pct,
-        ...computeTierSplit(secondOutcome.bets),
+        ...computeSideStats(secondOutcome.bets),
       },
       totalVolume: game.total_dollars,
-      wagerCount: game.total_bets
+      wagerCount: game.total_bets,
+      lastSignalAt: game.last_signal_at,
     }
   }
 
-  const marketCards = markets.map(convertToMarketCard).filter(Boolean)
+  const marketCardsUnsorted = markets.map(convertToMarketCard).filter(Boolean) as NonNullable<ReturnType<typeof convertToMarketCard>>[]
+
+  // Derive flowMode from marketSort for display (liquidity/bettors/conviction are both sort + display)
+  const flowMode: "liquidity" | "bettors" | "conviction" =
+    marketSort === "bettors" ? "bettors" : marketSort === "conviction" ? "conviction" : "liquidity"
+
+  // Sort markets based on marketSort
+  const marketCards = [...marketCardsUnsorted].sort((a, b) => {
+    if (marketSort === "bettors") {
+      const aBettors = (a.sideA.uniqueWallets ?? 0) + (a.sideB.uniqueWallets ?? 0)
+      const bBettors = (b.sideA.uniqueWallets ?? 0) + (b.sideB.uniqueWallets ?? 0)
+      return bBettors - aBettors
+    }
+    if (marketSort === "conviction") {
+      const avgBetA = a.wagerCount > 0 ? a.totalVolume / a.wagerCount : 0
+      const avgBetB = b.wagerCount > 0 ? b.totalVolume / b.wagerCount : 0
+      const aConv = Math.max(
+        (a.sideA.uniqueWallets ?? 1) > 0 ? (a.sideA.totalWagered / (a.sideA.uniqueWallets ?? 1)) / (avgBetA || 1) : 0,
+        (a.sideB.uniqueWallets ?? 1) > 0 ? (a.sideB.totalWagered / (a.sideB.uniqueWallets ?? 1)) / (avgBetA || 1) : 0
+      )
+      const bConv = Math.max(
+        (b.sideA.uniqueWallets ?? 1) > 0 ? (b.sideA.totalWagered / (b.sideA.uniqueWallets ?? 1)) / (avgBetB || 1) : 0,
+        (b.sideB.uniqueWallets ?? 1) > 0 ? (b.sideB.totalWagered / (b.sideB.uniqueWallets ?? 1)) / (avgBetB || 1) : 0
+      )
+      return bConv - aConv
+    }
+    if (marketSort === "recent") {
+      // Sort by most recent signal placed (not game start time)
+      const aTime = a.lastSignalAt ? new Date(a.lastSignalAt).getTime() : 0
+      const bTime = b.lastSignalAt ? new Date(b.lastSignalAt).getTime() : 0
+      return bTime - aTime
+    }
+    // Default (liquidity): sort by total volume
+    return b.totalVolume - a.totalVolume
+  })
   const showFilters = tab === "picks" || tab === "markets"
 
   return (
@@ -737,7 +790,11 @@ export default function SharpSignalsPage() {
                   Implied %
                 </button>
               </div>
-              <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} />
+              {tab === "markets" ? (
+                <SortDropdown value={marketSort} onChange={setMarketSort} options={MARKETS_SORTS} />
+              ) : tab === "picks" ? (
+                <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} options={PICKS_SORTS} />
+              ) : null}
               <TourTrigger />
               <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
             </div>
@@ -778,9 +835,13 @@ export default function SharpSignalsPage() {
                   onUnfollow={handleToggleFollow}
                 />
               </div>
-              {/* Sort + settings — mobile (moved from tabs row) */}
+              {/* Sort + settings — mobile */}
               <div className="flex sm:hidden items-center gap-1.5 pr-3 shrink-0">
-                <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} />
+                {tab === "markets" ? (
+                  <SortDropdown value={marketSort} onChange={setMarketSort} options={MARKETS_SORTS} />
+                ) : (
+                  <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} options={PICKS_SORTS} />
+                )}
                 <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
               </div>
             </div>
@@ -929,6 +990,7 @@ export default function SharpSignalsPage() {
                   key={market.id}
                   market={market}
                   isSelected={selectedMarket?.condition_id === market.id}
+                  flowMode={flowMode}
                   onSelect={(market: any) => {
                     const gameData = markets.find((g: GameData) => g.condition_id === market.id)
                     if (gameData) { setSelectedMarket(gameData); if (window.innerWidth < 768) setMobileDetailOpen(true); }
@@ -969,7 +1031,7 @@ export default function SharpSignalsPage() {
           )}
 
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} flowMode={flowMode} onFlowModeChange={(mode) => setMarketSort(mode)} />
           )}
 
           {tab === "leaderboard" && selectedWallet && (
@@ -1023,7 +1085,7 @@ export default function SharpSignalsPage() {
             />
           )}
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} flowMode={flowMode} onFlowModeChange={(mode) => setMarketSort(mode)} />
           )}
           {tab === "leaderboard" && selectedWallet && (
             <WalletDetailPanel

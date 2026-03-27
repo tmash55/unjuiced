@@ -67,10 +67,14 @@ interface GameData {
   last_signal_at: string
 }
 
+type FlowMode = "liquidity" | "bettors" | "conviction"
+
 interface MarketDetailPanelProps {
   game: GameData
   oddsFormat: OddsFormat
   onViewInsider?: (walletAddress: string) => void
+  flowMode?: FlowMode
+  onFlowModeChange?: (mode: FlowMode) => void
 }
 
 /** Two-column odds comparison: one row per sportsbook, both sides shown */
@@ -218,12 +222,15 @@ function OddsComparison({
   )
 }
 
-export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDetailPanelProps) {
+export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: externalFlowMode, onFlowModeChange }: MarketDetailPanelProps) {
   const mainOutcome = game.outcomes[0] || null
   const secondOutcome = game.outcomes[1] || null
 
   const INTERVAL_MAP: Record<string, string> = { "1D": "1d", "1W": "1w", "1M": "1m", "MAX": "all" }
   const [chartInterval, setChartInterval] = useState("1W")
+  const [internalFlowMode, setInternalFlowMode] = useState<FlowMode>("liquidity")
+  const flowMode = externalFlowMode ?? internalFlowMode
+  const setFlowMode = onFlowModeChange ?? setInternalFlowMode
 
   const { data: sideAHistory } = useSWR(
     mainOutcome?.token_id ? `/api/polymarket/price-chart?token_id=${mainOutcome.token_id}&interval=${INTERVAL_MAP[chartInterval]}` : null,
@@ -252,10 +259,97 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDet
     }))
   ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
+  // Compute per-side analytics: unique wallets, sharps, insiders, conviction
+  const sideAnalytics = (outcome: MarketOutcome | null) => {
+    if (!outcome) return { uniqueWallets: 0, uniqueSharps: 0, uniqueInsiders: 0, avgStake: 0, maxStake: 0, totalVolume: 0 }
+    const wallets = new Set<string>()
+    const sharps = new Set<string>()
+    const insiders = new Set<string>()
+    let totalStake = 0, maxStake = 0
+    for (const bet of outcome.bets) {
+      const id = bet.wallet_address || bet.anon_id
+      wallets.add(id)
+      if (bet.tier === "sharp") sharps.add(id)
+      else if (bet.tier === "whale") insiders.add(id)
+      totalStake += bet.bet_size
+      if (bet.bet_size > maxStake) maxStake = bet.bet_size
+    }
+    return {
+      uniqueWallets: wallets.size,
+      uniqueSharps: sharps.size,
+      uniqueInsiders: insiders.size,
+      avgStake: wallets.size > 0 ? totalStake / wallets.size : 0,
+      maxStake,
+      totalVolume: totalStake,
+    }
+  }
+
+  const sideA = sideAnalytics(mainOutcome)
+  const sideB = sideAnalytics(secondOutcome)
+  const totalUniqueSharps = sideA.uniqueSharps + sideB.uniqueSharps
+  const totalUniqueInsiders = sideA.uniqueInsiders + sideB.uniqueInsiders
+  const totalUniqueWallets = sideA.uniqueWallets + sideB.uniqueWallets
+
+  // Overall market avg bet size (for conviction comparison)
+  const marketAvgBet = allBets.length > 0
+    ? allBets.reduce((sum, b) => sum + b.bet_size, 0) / allBets.length
+    : 1
+
+  // Conviction multiplier per side: avg bet size on this side / overall market avg
+  const convictionA = marketAvgBet > 0 && sideA.uniqueWallets > 0 ? sideA.avgStake / marketAvgBet : 1
+  const convictionB = marketAvgBet > 0 && sideB.uniqueWallets > 0 ? sideB.avgStake / marketAvgBet : 1
+
+  // Compute flow % for each mode
+  const flowPctA = (() => {
+    if (flowMode === "liquidity") return game.flow_pct
+    if (flowMode === "bettors") {
+      const total = sideA.uniqueWallets + sideB.uniqueWallets
+      return total > 0 ? Math.round((sideA.uniqueWallets / total) * 100) : 50
+    }
+    // Conviction: weight volume by tier quality
+    const convA = sideA.totalVolume * (1 + sideA.uniqueSharps * 0.5 + sideA.uniqueInsiders * 0.25)
+    const convB = sideB.totalVolume * (1 + sideB.uniqueSharps * 0.5 + sideB.uniqueInsiders * 0.25)
+    const total = convA + convB
+    return total > 0 ? Math.round((convA / total) * 100) : 50
+  })()
+
+  const FLOW_MODES: { value: FlowMode; label: string }[] = [
+    { value: "liquidity", label: "Liquidity" },
+    { value: "bettors", label: "Bettors" },
+    { value: "conviction", label: "Conviction" },
+  ]
+
+  // Group positions by wallet for the positions list
+  const walletPositions = (() => {
+    const map = new Map<string, { anon_id: string; wallet_address?: string; tier: string; outcome: string; totalSize: number; betCount: number; avgPrice: number; lastBet: string }>()
+    for (const bet of allBets) {
+      const id = bet.wallet_address || bet.anon_id
+      const existing = map.get(id)
+      if (existing) {
+        existing.totalSize += bet.bet_size
+        existing.betCount += 1
+        existing.avgPrice = (existing.avgPrice * (existing.betCount - 1) + bet.entry_price) / existing.betCount
+        if (bet.created_at > existing.lastBet) existing.lastBet = bet.created_at
+      } else {
+        map.set(id, {
+          anon_id: bet.anon_id,
+          wallet_address: bet.wallet_address,
+          tier: bet.tier,
+          outcome: bet.outcome,
+          totalSize: bet.bet_size,
+          betCount: 1,
+          avgPrice: bet.entry_price,
+          lastBet: bet.created_at,
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalSize - a.totalSize)
+  })()
+
   const getConfidenceColor = (confidence: string) => {
     switch (confidence) {
-      case "strong": return "text-emerald-600 dark:text-emerald-400"
-      case "lean": return "text-amber-600 dark:text-amber-400"
+      case "strong": return "text-[#22C55E]"
+      case "lean": return "text-[#F59E0B]"
       default: return "text-neutral-500"
     }
   }
@@ -281,15 +375,15 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDet
         </h2>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — highlight the stat matching the current flow mode */}
       <div className="grid grid-cols-4 gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         {[
-          { label: "Flow", value: formatMoney(game.total_dollars) },
-          { label: "Positions", value: String(game.total_bets) },
-          { label: "Sharps", value: String(game.total_sharps), color: "text-sky-600 dark:text-sky-400" },
-          { label: "Insiders", value: String(game.total_whales), color: "text-purple-600 dark:text-purple-400" },
+          { label: "Flow", value: formatMoney(game.total_dollars), highlight: flowMode === "liquidity" },
+          { label: "Bettors", value: String(totalUniqueWallets), highlight: flowMode === "bettors" },
+          { label: "Sharps", value: String(totalUniqueSharps), color: "text-sky-600 dark:text-sky-400", highlight: flowMode === "bettors" },
+          { label: "Insiders", value: String(totalUniqueInsiders), color: "text-purple-600 dark:text-purple-400", highlight: flowMode === "conviction" },
         ].map((stat) => (
-          <div key={stat.label} className="text-center">
+          <div key={stat.label} className={cn("text-center rounded-md py-1 transition-all", stat.highlight && "bg-white dark:bg-neutral-700/40 shadow-sm ring-1 ring-neutral-200/60 dark:ring-neutral-600/30")}>
             <div className={cn("font-mono text-sm font-bold tabular-nums", stat.color || "text-neutral-900 dark:text-neutral-200")}>
               {stat.value}
             </div>
@@ -299,52 +393,133 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDet
       </div>
 
       {/* Outcomes comparison */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 divide-y divide-neutral-200/60 dark:divide-neutral-700/30">
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 overflow-hidden">
+        {/* Flow mode toggle */}
+        <div className="flex items-center gap-0.5 p-1.5 bg-neutral-100/50 dark:bg-neutral-800/30 border-b border-neutral-200/40 dark:border-neutral-700/20">
+          {FLOW_MODES.map((mode) => (
+            <button
+              key={mode.value}
+              onClick={() => setFlowMode(mode.value)}
+              className={cn(
+                "flex-1 px-2 py-1 text-[10px] font-medium rounded-md transition-all duration-150",
+                flowMode === mode.value
+                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200 shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              )}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="divide-y divide-neutral-200/60 dark:divide-neutral-700/30">
         {/* Main outcome (consensus) */}
         {mainOutcome && (
           <div className="p-3">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">{mainOutcome.outcome}</span>
               <span className="text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
                 avg entry {formatOdds(mainOutcome.avg_entry_price * 100, oddsFormat)}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-[11px] tabular-nums mb-2">
-              <span className="text-neutral-500">{formatMoney(mainOutcome.total_dollars)} wagered</span>
+            <div className="flex items-center gap-2 text-[11px] tabular-nums mb-2">
+              <span className={cn(flowMode === "liquidity" ? "text-neutral-900 dark:text-neutral-200 font-semibold" : "text-neutral-500")}>{formatMoney(mainOutcome.total_dollars)}</span>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span className="text-neutral-500">{mainOutcome.total_bets} bets</span>
+              <span className={cn(flowMode === "bettors" ? "text-neutral-900 dark:text-neutral-200 font-semibold" : "text-neutral-500")}>{sideA.uniqueWallets} bettor{sideA.uniqueWallets !== 1 ? "s" : ""}</span>
+              {sideA.uniqueSharps > 0 && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                  <span className={cn("font-medium", flowMode === "bettors" ? "text-sky-500" : "text-sky-600 dark:text-sky-400")}>{sideA.uniqueSharps} sharp{sideA.uniqueSharps !== 1 ? "s" : ""}</span>
+                </>
+              )}
+              {sideA.uniqueInsiders > 0 && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-medium">{sideA.uniqueInsiders} insider{sideA.uniqueInsiders !== 1 ? "s" : ""}</span>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex-1 h-1 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
-                <div className="h-full rounded-full bg-sky-500/70 transition-all duration-500" style={{ width: `${game.flow_pct}%` }} />
+              <div className="flex-1 h-1.5 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
+                <div className="h-full rounded-full bg-sky-500/70 transition-all duration-500" style={{ width: `${flowPctA}%` }} />
               </div>
-              <span className="font-mono text-[10px] text-sky-600 dark:text-sky-400 tabular-nums">{game.flow_pct}%</span>
+              <span className="font-mono text-[10px] text-sky-600 dark:text-sky-400 tabular-nums font-bold">{flowPctA}%</span>
             </div>
+            {/* Stake details — always show avg/max, conviction mode highlights the multiplier */}
+            {sideA.maxStake > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
+                <span>Avg <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideA.avgStake)}</span></span>
+                <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                <span>Max <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideA.maxStake)}</span></span>
+                {flowMode === "conviction" && (
+                  <>
+                    <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                    <span className={cn(
+                      "font-mono font-bold",
+                      convictionA >= 2 ? "text-[#22C55E]" : convictionA >= 1.5 ? "text-[#F59E0B]" : convictionA >= 1 ? "text-neutral-300 dark:text-neutral-400" : "text-neutral-500 dark:text-neutral-600"
+                    )}>
+                      {convictionA.toFixed(1)}x
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* Secondary outcome */}
         {secondOutcome && (
           <div className="p-3">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">{secondOutcome.outcome}</span>
               <span className="text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
                 avg entry {formatOdds(secondOutcome.avg_entry_price * 100, oddsFormat)}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-[11px] tabular-nums mb-2">
-              <span className="text-neutral-500">{formatMoney(secondOutcome.total_dollars)} wagered</span>
+            <div className="flex items-center gap-2 text-[11px] tabular-nums mb-2">
+              <span className={cn(flowMode === "liquidity" ? "text-neutral-900 dark:text-neutral-200 font-semibold" : "text-neutral-500")}>{formatMoney(secondOutcome.total_dollars)}</span>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-              <span className="text-neutral-500">{secondOutcome.total_bets} bets</span>
+              <span className={cn(flowMode === "bettors" ? "text-neutral-900 dark:text-neutral-200 font-semibold" : "text-neutral-500")}>{sideB.uniqueWallets} bettor{sideB.uniqueWallets !== 1 ? "s" : ""}</span>
+              {sideB.uniqueSharps > 0 && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                  <span className={cn("font-medium", flowMode === "bettors" ? "text-sky-500" : "text-sky-600 dark:text-sky-400")}>{sideB.uniqueSharps} sharp{sideB.uniqueSharps !== 1 ? "s" : ""}</span>
+                </>
+              )}
+              {sideB.uniqueInsiders > 0 && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-medium">{sideB.uniqueInsiders} insider{sideB.uniqueInsiders !== 1 ? "s" : ""}</span>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex-1 h-1 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
-                <div className="h-full rounded-full bg-neutral-400/40 dark:bg-neutral-500/40 transition-all duration-500" style={{ width: `${100 - game.flow_pct}%` }} />
+              <div className="flex-1 h-1.5 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
+                <div className="h-full rounded-full bg-neutral-400/40 dark:bg-neutral-500/40 transition-all duration-500" style={{ width: `${100 - flowPctA}%` }} />
               </div>
-              <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums">{100 - game.flow_pct}%</span>
+              <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums font-bold">{100 - flowPctA}%</span>
             </div>
+            {sideB.maxStake > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
+                <span>Avg <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideB.avgStake)}</span></span>
+                <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                <span>Max <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideB.maxStake)}</span></span>
+                {flowMode === "conviction" && (
+                  <>
+                    <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                    <span className={cn(
+                      "font-mono font-bold",
+                      convictionB >= 2 ? "text-[#22C55E]" : convictionB >= 1.5 ? "text-[#F59E0B]" : convictionB >= 1 ? "text-neutral-300 dark:text-neutral-400" : "text-neutral-500 dark:text-neutral-600"
+                    )}>
+                      {convictionB.toFixed(1)}x
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Price chart */}
@@ -404,53 +579,56 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDet
         )}
       </div>
 
-      {/* Positions */}
+      {/* Positions — grouped by unique wallet, sorted by total size */}
       <div className="flex-1 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-        <p className="text-[11px] text-neutral-500 mb-2">Positions ({allBets.length})</p>
-        {allBets.length === 0 ? (
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] text-neutral-500">{walletPositions.length} unique bettor{walletPositions.length !== 1 ? "s" : ""}</p>
+          <p className="text-[10px] text-neutral-400">{allBets.length} total positions</p>
+        </div>
+        {walletPositions.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center py-6">No positions found</p>
         ) : (
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800/20">
-            {allBets.slice(0, 20).map((bet, index) => {
-              const isMainOutcome = bet.outcome === mainOutcome?.outcome
-              const timeAgo = formatDistanceToNow(new Date(bet.created_at), { addSuffix: true })
-              const priceInCents = bet.entry_price * 100
+            {walletPositions.map((pos, index) => {
+              const isMainOutcome = pos.outcome === mainOutcome?.outcome
+              const timeAgo = formatDistanceToNow(new Date(pos.lastBet), { addSuffix: true })
+              const priceInCents = pos.avgPrice * 100
 
               return (
                 <div
-                  key={`${bet.anon_id}-${index}`}
+                  key={`${pos.anon_id}-${index}`}
                   className="flex items-center justify-between py-2.5 text-xs"
                 >
                   <div className="flex items-center gap-2.5">
-                    <TierBadge tier={bet.tier} size="xs" />
+                    <TierBadge tier={pos.tier} size="xs" />
                     <div>
                       <div className="flex items-center gap-1.5">
-                        {bet.wallet_address && onViewInsider ? (
+                        {pos.wallet_address && onViewInsider ? (
                           <button
-                            onClick={() => onViewInsider(bet.wallet_address!)}
+                            onClick={() => onViewInsider(pos.wallet_address!)}
                             className="font-mono text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 transition-colors"
                           >
-                            {bet.anon_id}
+                            {pos.anon_id}
                           </button>
                         ) : (
-                          <span className="font-mono text-xs font-medium text-neutral-900 dark:text-neutral-200">{bet.anon_id}</span>
+                          <span className="font-mono text-xs font-medium text-neutral-900 dark:text-neutral-200">{pos.anon_id}</span>
                         )}
                         <span className={cn(
                           "font-medium",
                           isMainOutcome ? "text-sky-600 dark:text-sky-400" : "text-neutral-400"
                         )}>
-                          {bet.outcome}
+                          {pos.outcome}
                         </span>
-                        {bet.result && (
-                          <span className={cn(
-                            "font-mono font-medium",
-                            bet.result === "win" ? "text-emerald-500 dark:text-emerald-400" : "text-red-400"
-                          )}>
-                            {bet.result === "win" ? "W" : "L"}
-                          </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-600">
+                        <span>{timeAgo}</span>
+                        {pos.betCount > 1 && (
+                          <>
+                            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                            <span className="font-medium text-neutral-500">{pos.betCount} fills</span>
+                          </>
                         )}
                       </div>
-                      <p className="text-[11px] text-neutral-400 dark:text-neutral-600">{timeAgo}</p>
                     </div>
                   </div>
                   <div className="text-right tabular-nums">
@@ -458,7 +636,7 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider }: MarketDet
                       {formatOdds(priceInCents, oddsFormat)}
                     </span>
                     <p className="text-[11px] text-neutral-400 dark:text-neutral-600">
-                      {formatMoney(bet.bet_size)}
+                      {formatMoney(pos.totalSize)}
                     </p>
                   </div>
                 </div>

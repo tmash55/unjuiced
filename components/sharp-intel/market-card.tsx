@@ -4,12 +4,17 @@ import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { format, isToday, isTomorrow } from "date-fns"
 
+export type FlowMode = "liquidity" | "bettors" | "conviction"
+
 export interface MarketSide {
   name: string
   price: number
   insiderCount: number
   totalWagered: number
   percentOfMoney: number
+  uniqueWallets?: number
+  uniqueSharps?: number
+  uniqueInsiders?: number
   sharpPct?: number   // % of this side's dollars from sharps
   insiderPct?: number // % of this side's dollars from insiders
 }
@@ -26,6 +31,7 @@ export interface Market {
   totalVolume: number
   wagerCount: number
   gameStartTime?: string
+  lastSignalAt?: string
 }
 
 interface MarketCardProps {
@@ -33,6 +39,7 @@ interface MarketCardProps {
   isSelected: boolean
   onSelect: (market: Market) => void
   oddsFormat: OddsFormat
+  flowMode?: FlowMode
 }
 
 function formatMoney(n: number): string {
@@ -41,7 +48,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(0)}`
 }
 
-export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketCardProps) {
+export function MarketCard({ market, isSelected, onSelect, oddsFormat, flowMode = "liquidity" }: MarketCardProps) {
   const timeDisplay = (() => {
     if (!market.gameStartTime) return market.time
     const d = new Date(market.gameStartTime)
@@ -49,7 +56,53 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketC
     if (isTomorrow(d)) return `Tomorrow ${format(d, "h:mm a")}`
     return format(d, "MMM d, h:mm a")
   })()
-  const favoring = market.sideA.percentOfMoney >= market.sideB.percentOfMoney ? "A" : "B"
+
+  // Compute flow % based on mode
+  const sideAPct = (() => {
+    if (flowMode === "bettors") {
+      const totalW = (market.sideA.uniqueWallets ?? market.sideA.insiderCount) + (market.sideB.uniqueWallets ?? market.sideB.insiderCount)
+      return totalW > 0 ? Math.round(((market.sideA.uniqueWallets ?? market.sideA.insiderCount) / totalW) * 100) : 50
+    }
+    if (flowMode === "conviction") {
+      const aVol = market.sideA.totalWagered
+      const bVol = market.sideB.totalWagered
+      const aWeight = aVol * (1 + (market.sideA.uniqueSharps ?? 0) * 0.5 + (market.sideA.uniqueInsiders ?? 0) * 0.25)
+      const bWeight = bVol * (1 + (market.sideB.uniqueSharps ?? 0) * 0.5 + (market.sideB.uniqueInsiders ?? 0) * 0.25)
+      const total = aWeight + bWeight
+      return total > 0 ? Math.round((aWeight / total) * 100) : 50
+    }
+    return market.sideA.percentOfMoney
+  })()
+
+  const favoring = sideAPct >= 50 ? "A" : "B"
+
+  // Market-wide avg for conviction multiplier
+  const marketAvgBet = market.wagerCount > 0 ? market.totalVolume / market.wagerCount : 1
+
+  // Conviction multiplier per side
+  const getConviction = (side: MarketSide) => {
+    const wallets = side.uniqueWallets ?? 1
+    const avgStake = wallets > 0 ? side.totalWagered / wallets : 0
+    return marketAvgBet > 0 ? avgStake / marketAvgBet : 1
+  }
+
+  // Subtitle + color for each side based on mode
+  const sideSubtext = (side: MarketSide) => {
+    if (flowMode === "bettors") {
+      const w = side.uniqueWallets ?? side.insiderCount
+      return `${w} bettor${w !== 1 ? "s" : ""}`
+    }
+    if (flowMode === "conviction") {
+      const mult = getConviction(side)
+      return `${formatMoney(side.totalWagered)} · ${mult.toFixed(1)}x`
+    }
+    return formatMoney(side.totalWagered)
+  }
+
+  const sideSubColor = (side: MarketSide) => {
+    if (flowMode === "conviction") return "text-neutral-200 dark:text-neutral-300 font-medium"
+    return "text-neutral-400 dark:text-neutral-500"
+  }
 
   return (
     <div
@@ -84,61 +137,50 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketC
       {/* Flow comparison — stacked tier bars */}
       <div className="space-y-2">
         {[
-          { side: market.sideA, isFavored: favoring === "A" },
-          { side: market.sideB, isFavored: favoring === "B" },
-        ].map(({ side, isFavored }) => {
+          { side: market.sideA, pct: sideAPct, isFavored: favoring === "A" },
+          { side: market.sideB, pct: 100 - sideAPct, isFavored: favoring === "B" },
+        ].map(({ side, pct, isFavored }) => {
           const sharpPct = side.sharpPct ?? 100
           const insiderPct = side.insiderPct ?? 0
           const otherPct = Math.max(0, 100 - sharpPct - insiderPct)
-          const barWidth = side.percentOfMoney
 
           return (
             <div key={side.name}>
               <div className="flex items-center justify-between mb-0.5">
-                <span className={cn(
-                  "text-xs font-medium",
-                  isFavored ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-500"
-                )}>
-                  {side.name}
-                </span>
-                <div className="flex items-center gap-2 text-[11px] tabular-nums">
-                  <span className="text-neutral-400 dark:text-neutral-500">{side.insiderCount}</span>
-                  <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-200">
-                    {formatOdds(side.price, oddsFormat)}
+                <div className="flex items-center gap-1.5">
+                  <span className={cn(
+                    "text-xs font-medium",
+                    isFavored ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-500"
+                  )}>
+                    {side.name}
+                  </span>
+                  <span className={cn("text-[10px] tabular-nums", sideSubColor(side))}>
+                    {sideSubtext(side)}
                   </span>
                 </div>
+                <span className="font-mono text-[11px] font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
+                  {formatOdds(side.price, oddsFormat)}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-1.5 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
                   <div
                     className="h-full flex rounded-full overflow-hidden transition-all duration-500"
-                    style={{ width: `${barWidth}%` }}
+                    style={{ width: `${pct}%` }}
                   >
-                    {/* Sharp segment — emerald */}
                     {sharpPct > 0 && (
-                      <div
-                        className="h-full bg-emerald-500/70 dark:bg-emerald-500/60"
-                        style={{ width: `${sharpPct}%` }}
-                      />
+                      <div className="h-full bg-emerald-500/70 dark:bg-emerald-500/60" style={{ width: `${sharpPct}%` }} />
                     )}
-                    {/* Insider segment — purple */}
                     {insiderPct > 0 && (
-                      <div
-                        className="h-full bg-purple-500/60 dark:bg-purple-500/50"
-                        style={{ width: `${insiderPct}%` }}
-                      />
+                      <div className="h-full bg-purple-500/60 dark:bg-purple-500/50" style={{ width: `${insiderPct}%` }} />
                     )}
-                    {/* Other/burner segment — neutral */}
                     {otherPct > 0 && (
-                      <div
-                        className="h-full bg-neutral-400/40 dark:bg-neutral-500/30"
-                        style={{ width: `${otherPct}%` }}
-                      />
+                      <div className="h-full bg-neutral-400/40 dark:bg-neutral-500/30" style={{ width: `${otherPct}%` }} />
                     )}
                   </div>
                 </div>
                 <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums w-7 text-right">
-                  {side.percentOfMoney}%
+                  {pct}%
                 </span>
               </div>
             </div>
