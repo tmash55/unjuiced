@@ -1031,7 +1031,7 @@ export default function SharpSignalsPage() {
           )}
 
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} flowMode={flowMode} onFlowModeChange={(mode) => setMarketSort(mode)} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
 
           {tab === "leaderboard" && selectedWallet && (
@@ -1085,7 +1085,7 @@ export default function SharpSignalsPage() {
             />
           )}
           {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} flowMode={flowMode} onFlowModeChange={(mode) => setMarketSort(mode)} />
+            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
           {tab === "leaderboard" && selectedWallet && (
             <WalletDetailPanel
