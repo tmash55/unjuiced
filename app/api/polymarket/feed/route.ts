@@ -232,20 +232,25 @@ export async function GET(req: NextRequest) {
       query = query.gte("created_at", `${today}T00:00:00Z`);
     }
 
-    // Date range filter
+    // Date range filter — filters by game_start_time (when the game is, not when the bet was placed)
     if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoff: Date;
+      const nowET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       if (dateRange === "today") {
-        cutoff = new Date(now.toISOString().slice(0, 10) + "T00:00:00Z");
-      } else if (dateRange === "3d") {
-        cutoff = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-      } else if (dateRange === "7d") {
-        cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        // Games starting today (ET)
+        query = query.gte("game_start_time", `${nowET}T00:00:00-05:00`)
+                     .lt("game_start_time", `${nowET}T23:59:59-05:00`);
       } else {
-        cutoff = new Date(0);
+        const now = new Date();
+        let cutoff: Date;
+        if (dateRange === "3d") {
+          cutoff = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === "7d") {
+          cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else {
+          cutoff = new Date(0);
+        }
+        query = query.gte("game_start_time", cutoff.toISOString());
       }
-      query = query.gte("created_at", cutoff.toISOString());
     }
 
     // Odds range filter (american_odds)
