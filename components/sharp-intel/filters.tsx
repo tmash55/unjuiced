@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import {
   Sheet,
@@ -183,18 +184,16 @@ export function Filters({
             {sports.map((sport) => {
               const isActive = (selectedSport === sport.id) || (selectedSport === "" && sport.id === "all")
               return (
-                <button
+                <DropdownMenuItem
                   key={sport.id}
                   onClick={() => onSportChange(sport.id === "all" ? "" : sport.id)}
                   className={cn(
-                    "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                    isActive
-                      ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    "px-3 py-1.5 rounded text-xs font-medium cursor-pointer",
+                    isActive && "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                   )}
                 >
                   {sport.label}
-                </button>
+                </DropdownMenuItem>
               )
             })}
           </DropdownMenuContent>
@@ -213,19 +212,17 @@ export function Filters({
             {TIERS.map((tier) => {
               const isActive = (selectedTier === tier.id) || (selectedTier === "" && tier.id === "all")
               return (
-                <button
+                <DropdownMenuItem
                   key={tier.id}
                   onClick={() => onTierChange(tier.id === "all" ? "" : tier.id)}
                   className={cn(
-                    "w-full text-left px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-2",
-                    isActive
-                      ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    "px-3 py-1.5 rounded text-xs font-medium cursor-pointer flex items-center gap-2",
+                    isActive && "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                   )}
                 >
                   {tier.dot && <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tier.dot)} />}
                   {tier.label}
-                </button>
+                </DropdownMenuItem>
               )
             })}
           </DropdownMenuContent>

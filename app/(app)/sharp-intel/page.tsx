@@ -27,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
@@ -65,14 +66,12 @@ function SortDropdown({ value, onChange }: { value: string; onChange: (v: string
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[160px] p-1">
         {Object.entries(SORT_LABELS).map(([key, { label, icon }]) => (
-          <button
+          <DropdownMenuItem
             key={key}
             onClick={() => onChange(key)}
             className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-medium transition-colors",
-              value === key
-                ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+              "flex items-center gap-2.5 px-3 py-2 rounded text-xs font-medium cursor-pointer",
+              value === key && "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
             )}
           >
             <svg className="h-3.5 w-3.5 shrink-0 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -84,7 +83,7 @@ function SortDropdown({ value, onChange }: { value: string; onChange: (v: string
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             )}
-          </button>
+          </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
