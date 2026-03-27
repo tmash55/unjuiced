@@ -1929,21 +1929,21 @@ export function MlbBatterVsPitcher() {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { games, isLoading: gamesLoading } = useMlbGames();
 
-  // Auto-select first upcoming game; if all today's games are done, pick first game of next day
+  // Filter out finished games — users only care about upcoming/live
+  const activeGames = useMemo(() =>
+    games.filter((g) => {
+      const status = (g.game_status || "").toLowerCase();
+      return !status.includes("final") && !status.includes("postponed") && !status.includes("cancelled");
+    }),
+    [games]
+  );
+
+  // Auto-select first upcoming game
   useEffect(() => {
-    if (games.length > 0 && selectedGameId == null) {
-      // Find first game that isn't "Final"
-      const upcoming = games.find((g) => !g.game_status?.toLowerCase().includes("final"));
-      if (upcoming) {
-        setSelectedGameId(Number(upcoming.game_id));
-      } else {
-        // All games are final — find the first game from a future date
-        const todayGames = games.filter((g) => g.game_date === games[0].game_date);
-        const futureGame = games.find((g) => g.game_date !== todayGames[0]?.game_date);
-        setSelectedGameId(Number((futureGame ?? games[0]).game_id));
-      }
+    if (activeGames.length > 0 && selectedGameId == null) {
+      setSelectedGameId(Number(activeGames[0].game_id));
     }
-  }, [games, selectedGameId]);
+  }, [activeGames, selectedGameId]);
 
   // Reset expanded batter and filters when changing game/side
   useEffect(() => {
@@ -2112,9 +2112,9 @@ export function MlbBatterVsPitcher() {
             <Loader2 className="w-5 h-5 animate-spin mx-auto text-neutral-400 mb-2" />
             <p className="text-sm text-neutral-500">Loading games...</p>
           </div>
-        ) : games.length === 0 ? (
+        ) : activeGames.length === 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-12 text-center">
-            <p className="text-sm text-neutral-500">No games scheduled today</p>
+            <p className="text-sm text-neutral-500">{games.length > 0 ? "All games have finished" : "No games scheduled today"}</p>
           </div>
         ) : (
           <>
@@ -2122,7 +2122,7 @@ export function MlbBatterVsPitcher() {
             {isMobile ? (
               /* Mobile: dropdown game selector */
               <MobileGameSelector
-                games={games}
+                games={activeGames}
                 selectedGameId={selectedGameId}
                 onSelect={(id) => { setSelectedGameId(id); setBattingSide("away"); }}
               />
@@ -2132,7 +2132,7 @@ export function MlbBatterVsPitcher() {
                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-0.5 px-0.5">
                   {(() => {
                     let lastDate = "";
-                    return games.map((g, gi) => {
+                    return activeGames.map((g, gi) => {
                       const showDateHeader = g.game_date !== lastDate;
                       lastDate = g.game_date;
                       const dateLabel = (() => {
