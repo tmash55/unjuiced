@@ -211,7 +211,7 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
         </div>
       </div>
 
-      {/* ── Mobile: bottom row ── */}
+      {/* ── Mobile: bottom section ── */}
       <div {...(isTourTarget ? { "data-tour": "selection-block-mobile" } : {})} className="sm:hidden border-t border-neutral-200/30 dark:border-neutral-700/20">
         <div className="flex items-center px-3.5 py-2.5 gap-2.5">
           {/* Sport */}
@@ -219,15 +219,6 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
             <SportIcon sport={(pick.sport || "").toLowerCase()} className="h-3.5 w-3.5 text-neutral-400" />
             <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{sport}</span>
           </div>
-
-          {onHide && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onHide(); }}
-              className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-            >
-              {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-            </button>
-          )}
 
           <div className="flex-1" />
 
@@ -241,6 +232,29 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
             </span>
           </div>
         </div>
+
+        {/* Mobile actions row */}
+        {(onHide || (isSplitMarket && !pick.has_opposing_position && onViewMarket)) && (
+          <div className="flex items-center justify-end gap-3 px-3.5 pb-2.5 -mt-1">
+            {isSplitMarket && !pick.has_opposing_position && onViewMarket && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewMarket(); }}
+                className="text-[10px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-500 transition-colors"
+              >
+                View market
+              </button>
+            )}
+            {onHide && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onHide(); }}
+                className="flex items-center gap-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+              >
+                {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                {isHidden ? "Unhide" : "Hide"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
