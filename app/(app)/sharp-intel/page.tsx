@@ -558,11 +558,16 @@ export default function SharpSignalsPage() {
     (m: GameData) => !m.sport || !excludedSports.includes(m.sport)
   );
 
-  // Hide key based on market + outcome so hiding one "Capitals ML" hides all of them
+  // Hide key based on event + market type + selection label
+  // Uses event_title (game) + market_type + the displayed selection so:
+  // - All "Illinois Fighting Illini ML" picks share one key
+  // - "Houston Cougars ML" (other side) gets a separate key
+  // - Different condition_ids for the same outcome still match
   const getSignalKey = (p: WhaleSignal) => {
-    const market = (p as any).condition_id || p.market_title || "";
+    const event = p.event_title || p.market_title || "";
+    const mkt = p.market_type || "";
     const outcome = p.outcome || "";
-    return `signal:${market}:${outcome}`;
+    return `signal:${event}:${mkt}:${outcome}`;
   };
 
   // Filter hidden picks (unless showHidden is on)
