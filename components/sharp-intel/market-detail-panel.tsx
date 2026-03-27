@@ -393,7 +393,7 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
       </div>
 
       {/* Outcomes comparison */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 overflow-hidden">
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30">
         {/* Flow mode toggle */}
         <div className="flex items-center gap-0.5 p-1.5 bg-neutral-100/50 dark:bg-neutral-800/30 border-b border-neutral-200/40 dark:border-neutral-700/20">
           {FLOW_MODES.map((mode) => (
