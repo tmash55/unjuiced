@@ -50,12 +50,6 @@ const NBA_TABS: CheatSheetTab[] = [
     icon: LayoutGrid,
   },
   {
-    slug: "alt-hit-matrix",
-    label: "Alt Hit Matrix",
-    shortLabel: "Alt Matrix",
-    icon: TrendingUp,
-  },
-  {
     slug: "injury-impact",
     label: "Injury Impact",
     shortLabel: "Injuries",
