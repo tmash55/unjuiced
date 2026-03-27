@@ -521,23 +521,14 @@ export function OpportunitiesTable({
     };
   };
   
-  // Handle toggling a favorite
+  // Handle toggling a favorite — optimistic update handles UI instantly
   const handleToggleFavorite = async (opp: Opportunity) => {
     if (!isLoggedIn) return;
-    
-    const key = opp.id;
-    setTogglingRows(prev => new Set(prev).add(key));
-    
+
     try {
       await toggleFavorite(oppToFavoriteParams(opp));
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
-    } finally {
-      setTogglingRows(prev => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
     }
   };
   
@@ -1515,7 +1506,6 @@ export function OpportunitiesTable({
                       e.stopPropagation();
                       handleToggleFavorite(opp);
                     }}
-                    disabled={togglingRows.has(opp.id)}
                     className={cn(
                       "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
                       "hover:scale-110 active:scale-95",
@@ -1524,9 +1514,7 @@ export function OpportunitiesTable({
                         : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                     )}
                   >
-                    {togglingRows.has(opp.id) ? (
-                      <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-400 animate-pulse" />
-                    ) : isOppFavorited(opp) ? (
+                    {isOppFavorited(opp) ? (
                       <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-500" />
                     ) : (
                       <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400 hover:text-red-400" />
