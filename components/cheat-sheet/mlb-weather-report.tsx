@@ -123,12 +123,14 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
   const precip = row.precipProbability != null ? Math.round(row.precipProbability) : null;
   const windSpeed = row.windSpeedMph != null ? Math.round(row.windSpeedMph) : null;
   const isRoof = row.roofType === "retractable" || row.roofType === "dome";
+  const hasStarted = row.gameDatetime ? new Date(row.gameDatetime).getTime() <= Date.now() : false;
 
   return (
     <button
       onClick={onClick}
       className={cn(
         "w-full text-left px-3 py-3 transition-all duration-150",
+        hasStarted && !selected && "opacity-40",
         selected
           ? "bg-brand/5 dark:bg-brand/10"
           : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
@@ -163,8 +165,13 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
           )}
         </div>
 
-        <span className="ml-auto text-[10px] text-neutral-400 dark:text-neutral-500 tabular-nums shrink-0">
-          {time}
+        <span className={cn(
+          "ml-auto text-[10px] tabular-nums shrink-0",
+          hasStarted
+            ? "text-amber-500 dark:text-amber-400 font-semibold"
+            : "text-neutral-400 dark:text-neutral-500"
+        )}>
+          {hasStarted ? "Started" : time}
         </span>
       </div>
 
