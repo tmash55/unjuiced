@@ -1764,7 +1764,9 @@ export async function GET(req: NextRequest) {
         };
       }
 
-      // Use game-log traditional stats as primary, batted balls for contact quality
+      // Use game-log traditional stats for BA/SLG/HR/etc (real plate appearances)
+      // Batted balls only for contact quality: EV, barrel%, hard hit%
+      // Never fall back to BB-computed BA/SLG — they inflate numbers by excluding K/BB
       const trad = batterTraditionalMap.get(p.player_id);
 
       return {
@@ -1774,16 +1776,22 @@ export async function GET(req: NextRequest) {
         batting_hand: p.batting_hand || "R",
         lineup_position: p.lineup_position,
         pa: trad?.pa ?? 0,
-        avg: trad?.avg ?? (avg != null ? Math.round(avg * 1000) / 1000 : null),
+        avg: trad?.avg ?? null,
         obp: trad?.obp ?? null,
-        slg: trad?.slg ?? (slg != null ? Math.round(slg * 1000) / 1000 : null),
+        slg: trad?.slg ?? null,
         ops: trad?.ops ?? null,
-        iso: trad?.iso ?? (iso != null ? Math.round(iso * 1000) / 1000 : null),
-        hr_count: trad?.hr ?? hrs,
+        iso: trad?.iso ?? null,
+        hr_count: trad?.hr ?? 0,
         barrel_pct: barrelPct != null ? Math.round(barrelPct * 10) / 10 : null,
         hard_hit_pct: hardHitPct != null ? Math.round(hardHitPct * 10) / 10 : null,
         avg_exit_velo: avgEV != null ? Math.round(avgEV * 10) / 10 : null,
-        woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
+        woba: trad && trad.pa >= 5 ? (() => {
+          // wOBA = (0.69*BB + 0.72*HBP + 0.88*1B + 1.24*2B + 1.56*3B + 2.00*HR) / (AB + BB + HBP + SF)
+          // We don't have SF, so approximate denominator as PA
+          const singles = trad.hits - trad.hr - trad.doubles - trad.triples;
+          const num = 0.69 * trad.bb + 0.72 * trad.hbp + 0.88 * Math.max(singles, 0) + 1.24 * trad.doubles + 1.56 * trad.triples + 2.00 * trad.hr;
+          return Math.round((num / trad.pa) * 1000) / 1000;
+        })() : null,
         total_batted_balls: bbs.length,
         pitch_splits: pitchSplits,
         pitch_hand_splits: pitchHandSplits,
