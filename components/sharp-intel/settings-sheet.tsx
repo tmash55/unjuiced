@@ -132,7 +132,7 @@ function InputField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          "w-full bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800/40 rounded-lg pr-3 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-300 dark:focus:ring-neutral-700 transition-all tabular-nums",
+          "w-full bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800/40 rounded-lg pr-3 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 dark:focus:ring-sky-500/30 dark:focus:border-sky-500/50 transition-all tabular-nums",
           prefix ? "pl-8" : "pl-3"
         )}
       />
