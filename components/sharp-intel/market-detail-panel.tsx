@@ -310,19 +310,29 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
     { value: "conviction", label: "Conviction" },
   ]
 
-  // Group positions by wallet for the positions list
+  // Group positions by wallet + outcome (same wallet on both sides = two rows)
   const walletPositions = (() => {
-    const map = new Map<string, { anon_id: string; wallet_address?: string; tier: string; outcome: string; totalSize: number; betCount: number; avgPrice: number; lastBet: string }>()
+    const map = new Map<string, { anon_id: string; wallet_address?: string; tier: string; outcome: string; totalSize: number; betCount: number; avgPrice: number; lastBet: string; hasBothSides?: boolean }>()
+    // Track which wallets bet on multiple sides
+    const walletOutcomes = new Map<string, Set<string>>()
+
     for (const bet of allBets) {
-      const id = bet.wallet_address || bet.anon_id
-      const existing = map.get(id)
+      const walletId = bet.wallet_address || bet.anon_id
+      const key = `${walletId}:${bet.outcome}`
+
+      // Track outcomes per wallet
+      const outcomes = walletOutcomes.get(walletId) || new Set()
+      outcomes.add(bet.outcome)
+      walletOutcomes.set(walletId, outcomes)
+
+      const existing = map.get(key)
       if (existing) {
         existing.totalSize += bet.bet_size
         existing.betCount += 1
         existing.avgPrice = (existing.avgPrice * (existing.betCount - 1) + bet.entry_price) / existing.betCount
         if (bet.created_at > existing.lastBet) existing.lastBet = bet.created_at
       } else {
-        map.set(id, {
+        map.set(key, {
           anon_id: bet.anon_id,
           wallet_address: bet.wallet_address,
           tier: bet.tier,
@@ -334,7 +344,16 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
         })
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.totalSize - a.totalSize)
+
+    // Mark wallets that bet on both sides
+    const positions = Array.from(map.values())
+    for (const pos of positions) {
+      const walletId = pos.wallet_address || pos.anon_id
+      const outcomes = walletOutcomes.get(walletId)
+      if (outcomes && outcomes.size > 1) pos.hasBothSides = true
+    }
+
+    return positions.sort((a, b) => b.totalSize - a.totalSize)
   })()
 
   const getConfidenceColor = (confidence: string) => {
@@ -550,7 +569,7 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
       {/* Positions — grouped by unique wallet, sorted by total size */}
       <div className="flex-1 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] text-neutral-500">{walletPositions.length} unique bettor{walletPositions.length !== 1 ? "s" : ""}</p>
+          <p className="text-[11px] text-neutral-500">{new Set(walletPositions.map(p => p.wallet_address || p.anon_id)).size} unique bettor{new Set(walletPositions.map(p => p.wallet_address || p.anon_id)).size !== 1 ? "s" : ""}</p>
           <p className="text-[10px] text-neutral-400">{allBets.length} total positions</p>
         </div>
         {walletPositions.length === 0 ? (
@@ -594,6 +613,12 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
                           <>
                             <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
                             <span className="font-medium text-neutral-500">{pos.betCount} fills</span>
+                          </>
+                        )}
+                        {pos.hasBothSides && (
+                          <>
+                            <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                            <span className="font-medium text-amber-500 dark:text-amber-400">Both sides</span>
                           </>
                         )}
                       </div>
