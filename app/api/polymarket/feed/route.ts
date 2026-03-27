@@ -198,8 +198,10 @@ export async function GET(req: NextRequest) {
 
     // For score/stake sort, fetch more rows since sorting happens after enrichment
     // Need a large window to ensure top-scored picks from all sports are included
+    // For wallet queries, always fetch extra since fills get aggregated into fewer unique bets
     const needsClientSort = sortBy !== "recent";
-    const fetchLimit = needsClientSort ? Math.max(limit * 10, 500) : limit;
+    const isWalletQuery = !!walletFilter && walletFilter.length > 0;
+    const fetchLimit = needsClientSort || isWalletQuery ? Math.max(limit * 10, 500) : limit;
     query = query.range(0, fetchLimit - 1);
 
     // Filters
