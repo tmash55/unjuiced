@@ -823,6 +823,7 @@ export function MlbExitVelocity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<"table" | "scatter">("table");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
+  const [season, setSeason] = useState<number | undefined>(undefined); // undefined = all data
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -835,6 +836,7 @@ export function MlbExitVelocity() {
     pitcherHand: pitcherHand || undefined,
     pitchType: pitchType || undefined,
     matchupSplit,
+    season,
   });
 
   const resolvedDate = meta?.date ?? selectedDate;
@@ -971,9 +973,13 @@ export function MlbExitVelocity() {
               <div className="flex items-center gap-2 w-full">
                 <SegmentedControl
                   fullWidth
-                  value={String(sampleSize)}
-                  onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
-                  options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+                  value={season ? String(season) : "all"}
+                  onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
+                  options={[
+                    { label: "All", value: "all" },
+                    { label: "2025", value: "2025" },
+                    { label: "2026", value: "2026" },
+                  ]}
                 />
                 <SegmentedControl
                   value={pitcherHand}
@@ -985,7 +991,13 @@ export function MlbExitVelocity() {
                   ]}
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full">
+                <SegmentedControl
+                  fullWidth
+                  value={String(sampleSize)}
+                  onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
+                  options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+                />
                 <button
                   onClick={() => {
                     setMatchupSplit(!matchupSplit);
@@ -1013,6 +1025,16 @@ export function MlbExitVelocity() {
             </>
           }
         >
+          <SegmentedControl
+            value={season ? String(season) : "all"}
+            onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
+            options={[
+              { label: "All", value: "all" },
+              { label: "2025", value: "2025" },
+              { label: "2026", value: "2026" },
+            ]}
+          />
+          <FilterDivider />
           <SegmentedControl
             value={String(sampleSize)}
             onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}

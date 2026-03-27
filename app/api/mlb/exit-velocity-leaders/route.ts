@@ -103,6 +103,7 @@ const QuerySchema = z.object({
   pitcherHand: z.enum(["L", "R"]).optional(),
   pitchType: z.string().optional(),
   matchupSplit: z.coerce.boolean().optional().default(false),
+  season: z.coerce.number().int().min(2020).max(2030).optional(),
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -196,6 +197,7 @@ export async function GET(req: NextRequest) {
       pitcherHand: searchParams.get("pitcherHand") ?? undefined,
       pitchType: searchParams.get("pitchType") ?? undefined,
       matchupSplit: searchParams.get("matchupSplit") ?? undefined,
+      season: searchParams.get("season") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -205,7 +207,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { sample, limit, pitcherHand, pitchType, matchupSplit } = parsed.data;
+    const { sample, limit, pitcherHand, pitchType, matchupSplit, season } = parsed.data;
     const requestedDate = parsed.data.date || getETDate();
     const supabase = createServerSupabaseClient();
 
@@ -395,6 +397,13 @@ export async function GET(req: NextRequest) {
       .order("game_date", { ascending: false })
       .order("id", { ascending: false });
 
+    // Season filter — restrict batted balls to a specific year
+    if (season) {
+      bbQuery = bbQuery
+        .gte("game_date", `${season}-01-01`)
+        .lt("game_date", `${season + 1}-01-01`);
+    }
+
     // Apply pitcher hand filter
     if (pitcherHand) {
       bbQuery = bbQuery.eq("pitcher_hand", pitcherHand);
@@ -427,14 +436,22 @@ export async function GET(req: NextRequest) {
       ? (allBBsPrePitch ?? []).filter((bb: any) => bb.pitch_type === pitchType)
       : allBBsPrePitch;
 
-    // Also fetch full season data (unfiltered) for season avg comparison
-    const { data: seasonBBs } = await supabase
+    // Also fetch full season data (unfiltered by hand/pitch) for season avg comparison
+    let seasonQuery = supabase
       .from("mlb_batted_balls")
       .select("batter_id, exit_velocity")
       .in("batter_id", playerIds)
       .not("exit_velocity", "is", null)
       .gt("exit_velocity", 0)
       .limit(100000);
+
+    if (season) {
+      seasonQuery = seasonQuery
+        .gte("game_date", `${season}-01-01`)
+        .lt("game_date", `${season + 1}-01-01`);
+    }
+
+    const { data: seasonBBs } = await seasonQuery;
 
     // Build season avg map
     const seasonEvMap = new Map<number, number[]>();

@@ -10,6 +10,7 @@ interface UseMlbExitVelocityOptions {
   pitcherHand?: string;
   pitchType?: string;
   matchupSplit?: boolean;
+  season?: number;
   enabled?: boolean;
 }
 
@@ -19,7 +20,8 @@ async function fetchExitVeloLeaders(
   limit?: number,
   pitcherHand?: string,
   pitchType?: string,
-  matchupSplit?: boolean
+  matchupSplit?: boolean,
+  season?: number
 ): Promise<ExitVeloResponse> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
@@ -28,6 +30,7 @@ async function fetchExitVeloLeaders(
   if (pitcherHand) params.set("pitcherHand", pitcherHand);
   if (pitchType) params.set("pitchType", pitchType);
   if (matchupSplit) params.set("matchupSplit", "true");
+  if (season) params.set("season", String(season));
 
   const res = await fetch(`/api/mlb/exit-velocity-leaders?${params.toString()}`);
   if (!res.ok) {
@@ -44,11 +47,12 @@ export function useMlbExitVelocity({
   pitcherHand,
   pitchType,
   matchupSplit,
+  season,
   enabled = true,
 }: UseMlbExitVelocityOptions = {}) {
   const query = useQuery({
-    queryKey: ["mlb-exit-velocity-leaders", date, sample, limit, pitcherHand, pitchType, matchupSplit],
-    queryFn: () => fetchExitVeloLeaders(date, sample, limit, pitcherHand, pitchType, matchupSplit),
+    queryKey: ["mlb-exit-velocity-leaders", date, sample, limit, pitcherHand, pitchType, matchupSplit, season],
+    queryFn: () => fetchExitVeloLeaders(date, sample, limit, pitcherHand, pitchType, matchupSplit, season),
     enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
