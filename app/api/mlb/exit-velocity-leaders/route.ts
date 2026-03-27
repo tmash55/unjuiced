@@ -591,7 +591,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 6. Lightweight pitcher name map from game probable pitchers we already fetched
+    // 6. Pitcher name map — start with probable pitchers, then fill gaps from mlb_players
     const pitcherNameMap = new Map<number, string>();
     if (gameRows) {
       for (const g of gameRows) {
@@ -600,6 +600,30 @@ export async function GET(req: NextRequest) {
         }
         if (g.away_probable_pitcher_id && g.away_probable_pitcher) {
           pitcherNameMap.set(g.away_probable_pitcher_id, g.away_probable_pitcher);
+        }
+      }
+    }
+
+    // Collect pitcher IDs from batted balls that aren't in the map yet
+    const missingPitcherIds = new Set<number>();
+    if (allBBs) {
+      for (const bb of allBBs) {
+        if (bb.pitcher_id && !pitcherNameMap.has(bb.pitcher_id)) {
+          missingPitcherIds.add(bb.pitcher_id);
+        }
+      }
+    }
+
+    // Batch lookup missing pitcher names from mlb_players
+    if (missingPitcherIds.size > 0) {
+      const { data: pitcherRows } = await supabase
+        .from("mlb_players")
+        .select("player_id, full_name")
+        .in("player_id", Array.from(missingPitcherIds));
+
+      if (pitcherRows) {
+        for (const p of pitcherRows) {
+          pitcherNameMap.set(p.player_id, p.full_name);
         }
       }
     }
