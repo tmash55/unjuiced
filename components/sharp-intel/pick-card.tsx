@@ -97,6 +97,17 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
       )}
       {...(isTourTarget ? { "data-tour": "pick-card" } : {})}
     >
+      {/* Mobile: top-right hide button */}
+      {onHide && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onHide(); }}
+          className="sm:hidden absolute top-2.5 right-2.5 p-1.5 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors z-10"
+          title={isHidden ? "Unhide" : "Hide"}
+        >
+          {isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+        </button>
+      )}
+
       {/* ── Two-panel layout ── */}
       <div className="flex">
         {/* Left panel: info */}
@@ -158,11 +169,22 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
                 </div>
               )}
               {isSplitMarket && !pick.has_opposing_position && (
-                <div className="flex items-center gap-1.5 text-[10px] text-neutral-500/80 dark:text-neutral-500">
-                  <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                  </svg>
-                  <span>Split market — insiders on both sides</span>
+                <div className="flex items-center justify-between gap-1.5 text-[10px]">
+                  <div className="flex items-center gap-1.5 text-neutral-500/80 dark:text-neutral-500">
+                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                    </svg>
+                    <span>Split market — insiders on both sides</span>
+                  </div>
+                  {/* View market — inline on mobile, in right panel on desktop */}
+                  {onViewMarket && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onViewMarket(); }}
+                      className="sm:hidden text-sky-600 dark:text-sky-400 hover:text-sky-500 font-medium transition-colors shrink-0"
+                    >
+                      View market
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -233,28 +255,6 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
         </div>
 
-        {/* Mobile actions row */}
-        {(onHide || (isSplitMarket && !pick.has_opposing_position && onViewMarket)) && (
-          <div className="flex items-center justify-end gap-3 px-3.5 pb-2.5 -mt-1">
-            {isSplitMarket && !pick.has_opposing_position && onViewMarket && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onViewMarket(); }}
-                className="text-[10px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-500 transition-colors"
-              >
-                View market
-              </button>
-            )}
-            {onHide && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onHide(); }}
-                className="flex items-center gap-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-              >
-                {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {isHidden ? "Unhide" : "Hide"}
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
