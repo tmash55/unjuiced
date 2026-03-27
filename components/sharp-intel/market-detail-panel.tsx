@@ -353,7 +353,7 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
       if (outcomes && outcomes.size > 1) pos.hasBothSides = true
     }
 
-    return positions.sort((a, b) => b.totalSize - a.totalSize)
+    return positions.sort((a, b) => new Date(b.lastBet).getTime() - new Date(a.lastBet).getTime())
   })()
 
   const getConfidenceColor = (confidence: string) => {
