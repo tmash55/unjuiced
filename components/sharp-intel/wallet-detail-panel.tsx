@@ -5,6 +5,12 @@ import { cn } from "@/lib/utils"
 import { TierBadge } from "./tier-badge"
 import { FollowButton } from "./follow-button"
 import { Tooltip } from "@/components/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 import type { WalletScore, WhaleSignal } from "@/lib/polymarket/types"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import useSWR from "swr"
@@ -29,6 +35,44 @@ function walletTierToSignalTier(tier: string): string {
 }
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
+
+function FilterPill({ label, options, value, onChange }: {
+  label: string
+  options: { value: string; label: string }[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const isActive = value !== ""
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={cn(
+        "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium outline-none transition-colors",
+        isActive
+          ? "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20"
+          : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 border border-neutral-200/40 dark:border-neutral-700/20 hover:text-neutral-800 dark:hover:text-neutral-200"
+      )}>
+        {label}
+        <svg className="h-2.5 w-2.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[120px] p-1">
+        {options.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "text-xs font-medium cursor-pointer px-3 py-1.5",
+              value === opt.value && "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            )}
+          >
+            {opt.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFollow }: WalletDetailPanelProps) {
   const anonId = `#${wallet.wallet_address.slice(0, 4).toUpperCase()}`
@@ -224,38 +268,39 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
-          <select
+          <FilterPill
+            label={betSport ? betSport.toUpperCase() : "All Sports"}
+            options={[
+              { value: "", label: "All Sports" },
+              ...sportEntries.map(([sport]) => ({ value: sport, label: sport.toUpperCase() })),
+            ]}
             value={betSport}
-            onChange={(e) => setBetSport(e.target.value)}
-            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">All Sports</option>
-            {sportEntries.map(([sport]) => (
-              <option key={sport} value={sport}>{sport.toUpperCase()}</option>
-            ))}
-          </select>
-          <select
+            onChange={setBetSport}
+          />
+          <FilterPill
+            label={betDays ? ({ "1": "24h", "3": "3 days", "7": "7 days", "30": "30 days" }[betDays] ?? "All Time") : "All Time"}
+            options={[
+              { value: "", label: "All Time" },
+              { value: "1", label: "Last 24h" },
+              { value: "3", label: "Last 3 days" },
+              { value: "7", label: "Last 7 days" },
+              { value: "30", label: "Last 30 days" },
+            ]}
             value={betDays}
-            onChange={(e) => setBetDays(e.target.value)}
-            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">All Time</option>
-            <option value="1">Last 24h</option>
-            <option value="3">Last 3 days</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-          </select>
-          <select
+            onChange={setBetDays}
+          />
+          <FilterPill
+            label={betMinStake ? `$${Number(betMinStake) >= 1000 ? `${Number(betMinStake) / 1000}k` : betMinStake}+` : "Any Stake"}
+            options={[
+              { value: "", label: "Any Stake" },
+              { value: "1000", label: "$1k+" },
+              { value: "5000", label: "$5k+" },
+              { value: "10000", label: "$10k+" },
+              { value: "25000", label: "$25k+" },
+            ]}
             value={betMinStake}
-            onChange={(e) => setBetMinStake(e.target.value)}
-            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">Any Stake</option>
-            <option value="1000">$1k+</option>
-            <option value="5000">$5k+</option>
-            <option value="10000">$10k+</option>
-            <option value="25000">$25k+</option>
-          </select>
+            onChange={setBetMinStake}
+          />
         </div>
 
         {!recentBets?.signals ? (
