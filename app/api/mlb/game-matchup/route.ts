@@ -1070,17 +1070,24 @@ export async function GET(req: NextRequest) {
         console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, season=${season}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}, game_types=${[...new Set(gameLogs.map((g: any) => g.game_type ?? g.season_type ?? "null"))].join(",")}`);
       }
 
-      // Filter spring training games by game_type (not date)
+      // Filter to only include games from the selected season year
+      // Also exclude spring training (S, ST) and exhibition (E) by game_type
       let filtered = gameLogs;
       if (statSeason) {
+        const seasonStart = `${statSeason}-01-01`;
+        const seasonEnd = `${statSeason + 1}-01-01`;
         const beforeCount = filtered.length;
         filtered = filtered.filter((g: any) => {
+          const d = g.game_date ?? g.date ?? "";
+          // Must be within the selected season year
+          if (d && (d < seasonStart || d >= seasonEnd)) return false;
+          // Exclude spring training and exhibition
           const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
-          // Exclude spring training (S, ST) and exhibition (E) games
-          return gameType !== "S" && gameType !== "ST" && gameType !== "E";
+          if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+          return true;
         });
         if (i === 0 && filtered.length !== beforeCount) {
-          console.log(`[game-matchup] batter ${batterIds[i]} filtered ${beforeCount - filtered.length} spring training games, ${filtered.length} remain`);
+          console.log(`[game-matchup] batter ${batterIds[i]} filtered ${beforeCount - filtered.length} out-of-season/spring games, ${filtered.length} remain for ${statSeason}`);
         }
       }
 
@@ -1208,12 +1215,19 @@ export async function GET(req: NextRequest) {
     // RPC columns: strike_outs, base_on_balls, innings_numeric, hits_allowed, earned_runs, game_result
     let pitcherSeasonStats: any = {};
     if (logs.length > 0) {
-      // Filter spring training/exhibition from pitcher game logs
+      // Filter pitcher logs to selected season year + exclude spring training
       const statsLogs = statSeason
-        ? logs.filter((log: any) => {
-            const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
-            return gameType !== "S" && gameType !== "ST" && gameType !== "E";
-          })
+        ? (() => {
+            const seasonStart = `${statSeason}-01-01`;
+            const seasonEnd = `${statSeason + 1}-01-01`;
+            return logs.filter((log: any) => {
+              const d = log.game_date ?? log.date ?? "";
+              if (d && (d < seasonStart || d >= seasonEnd)) return false;
+              const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
+              if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+              return true;
+            });
+          })()
         : logs;
 
       console.log(`[game-matchup] pitcher logs: ${logs.length} total, ${statsLogs.length} after spring filter, season=${season}, game_types=${[...new Set(logs.map((l: any) => l.game_type ?? l.season_type ?? "null"))].join(",")}`);
