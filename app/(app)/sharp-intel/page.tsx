@@ -558,8 +558,12 @@ export default function SharpSignalsPage() {
     (m: GameData) => !m.sport || !excludedSports.includes(m.sport)
   );
 
-  // Helper to get a stable hide key for a signal
-  const getSignalKey = (p: WhaleSignal) => `signal:${p.id}`;
+  // Hide key based on market + outcome so hiding one "Capitals ML" hides all of them
+  const getSignalKey = (p: WhaleSignal) => {
+    const market = (p as any).condition_id || p.market_title || "";
+    const outcome = p.outcome || "";
+    return `signal:${market}:${outcome}`;
+  };
 
   // Filter hidden picks (unless showHidden is on)
   const visiblePicks = showHidden
