@@ -290,15 +290,6 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
   const totalUniqueInsiders = sideA.uniqueInsiders + sideB.uniqueInsiders
   const totalUniqueWallets = sideA.uniqueWallets + sideB.uniqueWallets
 
-  // Overall market avg bet size (for conviction comparison)
-  const marketAvgBet = allBets.length > 0
-    ? allBets.reduce((sum, b) => sum + b.bet_size, 0) / allBets.length
-    : 1
-
-  // Conviction multiplier per side: avg bet size on this side / overall market avg
-  const convictionA = marketAvgBet > 0 && sideA.uniqueWallets > 0 ? sideA.avgStake / marketAvgBet : 1
-  const convictionB = marketAvgBet > 0 && sideB.uniqueWallets > 0 ? sideB.avgStake / marketAvgBet : 1
-
   // Compute flow % for each mode
   const flowPctA = (() => {
     if (flowMode === "liquidity") return game.flow_pct
@@ -445,23 +436,11 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
               </div>
               <span className="font-mono text-[10px] text-sky-600 dark:text-sky-400 tabular-nums font-bold">{flowPctA}%</span>
             </div>
-            {/* Stake details — always show avg/max, conviction mode highlights the multiplier */}
             {sideA.maxStake > 0 && (
               <div className="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
                 <span>Avg <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideA.avgStake)}</span></span>
                 <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
                 <span>Max <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideA.maxStake)}</span></span>
-                {flowMode === "conviction" && (
-                  <>
-                    <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                    <span className={cn(
-                      "font-mono font-bold",
-                      convictionA >= 2 ? "text-[#22C55E]" : convictionA >= 1.5 ? "text-[#F59E0B]" : convictionA >= 1 ? "text-neutral-300 dark:text-neutral-400" : "text-neutral-500 dark:text-neutral-600"
-                    )}>
-                      {convictionA.toFixed(1)}x
-                    </span>
-                  </>
-                )}
               </div>
             )}
           </div>
@@ -504,17 +483,6 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
                 <span>Avg <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideB.avgStake)}</span></span>
                 <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
                 <span>Max <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{formatMoney(sideB.maxStake)}</span></span>
-                {flowMode === "conviction" && (
-                  <>
-                    <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                    <span className={cn(
-                      "font-mono font-bold",
-                      convictionB >= 2 ? "text-[#22C55E]" : convictionB >= 1.5 ? "text-[#F59E0B]" : convictionB >= 1 ? "text-neutral-300 dark:text-neutral-400" : "text-neutral-500 dark:text-neutral-600"
-                    )}>
-                      {convictionB.toFixed(1)}x
-                    </span>
-                  </>
-                )}
               </div>
             )}
           </div>

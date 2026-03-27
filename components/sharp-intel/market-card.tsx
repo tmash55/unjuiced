@@ -79,13 +79,6 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat, flowMode 
   // Market-wide avg for conviction multiplier
   const marketAvgBet = market.wagerCount > 0 ? market.totalVolume / market.wagerCount : 1
 
-  // Conviction multiplier per side
-  const getConviction = (side: MarketSide) => {
-    const wallets = side.uniqueWallets ?? 1
-    const avgStake = wallets > 0 ? side.totalWagered / wallets : 0
-    return marketAvgBet > 0 ? avgStake / marketAvgBet : 1
-  }
-
   // Subtitle + color for each side based on mode
   const sideSubtext = (side: MarketSide) => {
     if (flowMode === "bettors") {
@@ -93,8 +86,10 @@ export function MarketCard({ market, isSelected, onSelect, oddsFormat, flowMode 
       return `${w} bettor${w !== 1 ? "s" : ""}`
     }
     if (flowMode === "conviction") {
-      const mult = getConviction(side)
-      return `${formatMoney(side.totalWagered)} · ${mult.toFixed(1)}x`
+      const parts: string[] = [formatMoney(side.totalWagered)]
+      if ((side.uniqueSharps ?? 0) > 0) parts.push(`${side.uniqueSharps}S`)
+      if ((side.uniqueInsiders ?? 0) > 0) parts.push(`${side.uniqueInsiders}I`)
+      return parts.join(" · ")
     }
     return formatMoney(side.totalWagered)
   }
