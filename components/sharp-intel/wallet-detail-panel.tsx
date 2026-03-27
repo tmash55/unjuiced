@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { TierBadge } from "./tier-badge"
 import { FollowButton } from "./follow-button"
@@ -34,10 +35,33 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
   const displayTier = walletTierToSignalTier(wallet.tier)
   const roiPositive = (wallet.roi ?? 0) >= 0
 
+  // Recent bets filters
+  const [betSport, setBetSport] = useState("")
+  const [betDays, setBetDays] = useState("")
+  const [betMinStake, setBetMinStake] = useState("")
+
+  const betParams = new URLSearchParams({
+    wallet: wallet.wallet_address,
+    limit: "30",
+    sort: "recent",
+    resolved: "all",
+  })
+  if (betSport) betParams.set("sport", betSport)
+  if (betMinStake) betParams.set("minStake", betMinStake)
+
   const { data: recentBets } = useSWR(
-    `/api/polymarket/feed?wallet=${wallet.wallet_address}&limit=10&sort=recent`,
-    fetcher
+    `/api/polymarket/feed?${betParams}`,
+    fetcher,
+    { keepPreviousData: true }
   )
+
+  // Client-side day filter (API doesn't have this for wallet queries)
+  const filteredBets: WhaleSignal[] = (() => {
+    const signals = recentBets?.signals || []
+    if (!betDays) return signals
+    const cutoff = Date.now() - Number(betDays) * 24 * 60 * 60 * 1000
+    return signals.filter((b: WhaleSignal) => new Date(b.created_at).getTime() >= cutoff)
+  })()
 
   // Merge march-madness into ncaab, then sort
   const sportEntries = (() => {
@@ -193,7 +217,47 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
 
       {/* Recent Bets */}
       <div className="flex-1 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-        <p className="text-[11px] text-neutral-500 mb-2">Recent bets</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] text-neutral-500">Recent bets</p>
+          <span className="text-[10px] text-neutral-400 tabular-nums">{filteredBets.length} bets</span>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          <select
+            value={betSport}
+            onChange={(e) => setBetSport(e.target.value)}
+            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Sports</option>
+            {sportEntries.map(([sport]) => (
+              <option key={sport} value={sport}>{sport.toUpperCase()}</option>
+            ))}
+          </select>
+          <select
+            value={betDays}
+            onChange={(e) => setBetDays(e.target.value)}
+            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Time</option>
+            <option value="1">Last 24h</option>
+            <option value="3">Last 3 days</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+          <select
+            value={betMinStake}
+            onChange={(e) => setBetMinStake(e.target.value)}
+            className="px-2 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/20 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">Any Stake</option>
+            <option value="1000">$1k+</option>
+            <option value="5000">$5k+</option>
+            <option value="10000">$10k+</option>
+            <option value="25000">$25k+</option>
+          </select>
+        </div>
+
         {!recentBets?.signals ? (
           <div className="space-y-0 divide-y divide-neutral-200 dark:divide-neutral-800/15">
             {[...Array(3)].map((_, i) => (
@@ -203,17 +267,20 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
               </div>
             ))}
           </div>
-        ) : recentBets.signals.length === 0 ? (
-          <p className="text-xs text-neutral-600 py-4 text-center">No recent bets</p>
+        ) : filteredBets.length === 0 ? (
+          <p className="text-xs text-neutral-600 py-4 text-center">No bets match filters</p>
         ) : (
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800/15">
-            {recentBets.signals.slice(0, 10).map((bet: WhaleSignal) => {
+            {filteredBets.slice(0, 20).map((bet: WhaleSignal) => {
               const priceInCents = Math.round(bet.entry_price * 100)
               return (
                 <div key={bet.id} className="flex items-center justify-between py-2.5 text-xs">
                   <div className="min-w-0 flex-1">
                     <p className="text-neutral-700 dark:text-neutral-300 truncate leading-snug">{bet.market_title}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-[11px]">
+                      {bet.sport && (
+                        <span className="text-[9px] font-semibold text-neutral-400 dark:text-neutral-600 uppercase">{bet.sport}</span>
+                      )}
                       <span className="text-neutral-500">
                         {bet.side === "SELL"
                           ? (() => {
