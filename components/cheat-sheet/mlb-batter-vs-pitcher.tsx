@@ -55,68 +55,76 @@ function fmtStat(val: number | null, digits = 2): string {
   return val.toFixed(digits);
 }
 
+// ── Stat colors — vivid hex for data-dense display ──────────────────────────
+// Green: #22C55E (bright green), Mid: #F59E0B (amber), Red: #EF4444 (vivid red)
+// These pop against dark backgrounds without feeling neon
+
+const STAT_GREEN = "text-[#22C55E]";
+const STAT_AMBER = "text-[#F59E0B]";
+const STAT_RED   = "text-[#EF4444]";
+
 function slgColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.500) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 0.400) return "text-amber-500 dark:text-amber-400";
-  if (val < 0.350 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 0.500) return STAT_GREEN;
+  if (val >= 0.400) return STAT_AMBER;
+  if (val < 0.350 && val > 0) return STAT_RED;
   return "";
 }
 
 function isoColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.220) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 0.160) return "text-amber-500 dark:text-amber-400";
-  if (val < 0.120 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 0.220) return STAT_GREEN;
+  if (val >= 0.160) return STAT_AMBER;
+  if (val < 0.120 && val > 0) return STAT_RED;
   return "";
 }
 
 function baaColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.280) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 0.200 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 0.280) return STAT_GREEN;
+  if (val <= 0.200 && val > 0) return STAT_RED;
   return "";
 }
 
 function wobaColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.370) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 0.320) return "text-amber-500 dark:text-amber-400";
-  if (val < 0.290 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 0.370) return STAT_GREEN;
+  if (val >= 0.320) return STAT_AMBER;
+  if (val < 0.290 && val > 0) return STAT_RED;
   return "";
 }
 
 function evColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 92) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 89) return "text-amber-500 dark:text-amber-400";
-  if (val < 87 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 92) return STAT_GREEN;
+  if (val >= 89) return STAT_AMBER;
+  if (val < 87 && val > 0) return STAT_RED;
   return "";
 }
 
 function hardHitColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 45) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 35) return "text-amber-500 dark:text-amber-400";
-  if (val < 30 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 45) return STAT_GREEN;
+  if (val >= 35) return STAT_AMBER;
+  if (val < 30 && val > 0) return STAT_RED;
   return "";
 }
 
 function barrelColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 10) return "text-emerald-500 dark:text-emerald-400";
-  if (val >= 6) return "text-amber-500 dark:text-amber-400";
-  if (val < 4 && val > 0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 10) return STAT_GREEN;
+  if (val >= 6) return STAT_AMBER;
+  if (val < 4 && val > 0) return STAT_RED;
   return "";
 }
 
-// Heat map cell backgrounds (subtle tint behind the value)
+// Heat map cell backgrounds — vivid tints
 function heatBg(val: number | null, thresholds: { green: number; yellow: number; red: number; higher: "good" | "bad" }, intense = false): string {
   if (val == null) return "";
   const isHighGood = thresholds.higher === "good";
-  const g = intense ? "bg-emerald-500/30" : "bg-emerald-500/15";
-  const y = intense ? "bg-amber-500/25" : "bg-amber-500/10";
-  const r = intense ? "bg-rose-500/30" : "bg-rose-500/15";
+  const g = intense ? "bg-[#22C55E]/25" : "bg-[#22C55E]/12";
+  const y = intense ? "bg-[#F59E0B]/20" : "bg-[#F59E0B]/10";
+  const r = intense ? "bg-[#EF4444]/25" : "bg-[#EF4444]/12";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -133,50 +141,50 @@ function heatBg(val: number | null, thresholds: { green: number; yellow: number;
 // Green = hittable pitcher (good for batters), Red = elite pitcher (bad for batters)
 function eraColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 4.50) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 3.00) return "text-rose-500 dark:text-rose-400";
+  if (val >= 4.50) return STAT_GREEN;
+  if (val <= 3.00) return STAT_RED;
   return "";
 }
 
 function whipColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 1.35) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 1.05) return "text-rose-500 dark:text-rose-400";
+  if (val >= 1.35) return STAT_GREEN;
+  if (val <= 1.05) return STAT_RED;
   return "";
 }
 
 function kPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 10.0) return "text-rose-500 dark:text-rose-400";
-  if (val <= 6.5) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 10.0) return STAT_RED;
+  if (val <= 6.5) return STAT_GREEN;
   return "";
 }
 
 function bbPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 3.5) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 2.0) return "text-rose-500 dark:text-rose-400";
+  if (val >= 3.5) return STAT_GREEN;
+  if (val <= 2.0) return STAT_RED;
   return "";
 }
 
 function hrPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 1.40) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 0.80) return "text-rose-500 dark:text-rose-400";
+  if (val >= 1.40) return STAT_GREEN;
+  if (val <= 0.80) return STAT_RED;
   return "";
 }
 
 function fipColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 4.50) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 3.00) return "text-rose-500 dark:text-rose-400";
+  if (val >= 4.50) return STAT_GREEN;
+  if (val <= 3.00) return STAT_RED;
   return "";
 }
 
 function hrFbColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 14) return "text-emerald-500 dark:text-emerald-400";
-  if (val <= 7) return "text-rose-500 dark:text-rose-400";
+  if (val >= 14) return STAT_GREEN;
+  if (val <= 7) return STAT_RED;
   return "";
 }
 
@@ -187,19 +195,19 @@ function trendArrow(trend: "up" | "down" | "flat" | null | undefined): string {
 }
 
 function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
-  if (trend === "up") return "text-emerald-400";
-  if (trend === "down") return "text-rose-400";
+  if (trend === "up") return "text-[#22C55E]";
+  if (trend === "down") return "text-[#EF4444]";
   return "";
 }
 
 function gradeBadge(grade: "strong" | "neutral" | "weak") {
   switch (grade) {
     case "strong":
-      return { label: "STRONG", text: "text-emerald-500 dark:text-emerald-400" };
+      return { label: "STRONG", text: "text-[#22C55E]" };
     case "neutral":
       return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
     case "weak":
-      return { label: "WEAK", text: "text-rose-500 dark:text-rose-400" };
+      return { label: "WEAK", text: "text-[#EF4444]" };
   }
 }
 
