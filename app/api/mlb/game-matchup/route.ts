@@ -1067,20 +1067,21 @@ export async function GET(req: NextRequest) {
       if (gameLogs.length === 0) continue;
 
       if (i === 0) {
-        console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}`);
+        console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, season=${season}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}, game_types=${[...new Set(gameLogs.map((g: any) => g.game_type ?? g.season_type ?? "null"))].join(",")}`);
       }
 
-      // Filter spring training only for current/future seasons (2026+)
+      // Filter spring training games by game_type (not date)
       let filtered = gameLogs;
-      const currentYear = new Date().getFullYear();
-      if (statSeason && statSeason >= currentYear) {
-        const regularSeasonStart = `${statSeason}-03-25`;
+      if (statSeason) {
+        const beforeCount = filtered.length;
         filtered = filtered.filter((g: any) => {
           const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
-          if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
-          const d = g.game_date ?? g.date ?? "";
-          return !d || d >= regularSeasonStart;
+          // Exclude spring training (S, ST) and exhibition (E) games
+          return gameType !== "S" && gameType !== "ST" && gameType !== "E";
         });
+        if (i === 0 && filtered.length !== beforeCount) {
+          console.log(`[game-matchup] batter ${batterIds[i]} filtered ${beforeCount - filtered.length} spring training games, ${filtered.length} remain`);
+        }
       }
 
       // Apply sample filter (game logs come sorted by date desc)
