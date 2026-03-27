@@ -57,56 +57,56 @@ function fmtStat(val: number | null, digits = 2): string {
 
 function slgColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.500) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 0.400) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 0.350 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 0.500) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 0.400) return "text-amber-500 dark:text-amber-400";
+  if (val < 0.350 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function isoColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.220) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 0.160) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 0.120 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 0.220) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 0.160) return "text-amber-500 dark:text-amber-400";
+  if (val < 0.120 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function baaColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.280) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 0.200 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 0.280) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 0.200 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function wobaColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 0.370) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 0.320) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 0.290 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 0.370) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 0.320) return "text-amber-500 dark:text-amber-400";
+  if (val < 0.290 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function evColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 92) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 89) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 87 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 92) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 89) return "text-amber-500 dark:text-amber-400";
+  if (val < 87 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function hardHitColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 45) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 35) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 30 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 45) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 35) return "text-amber-500 dark:text-amber-400";
+  if (val < 30 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function barrelColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 10) return "text-emerald-600 dark:text-emerald-400";
-  if (val >= 6) return "text-yellow-600 dark:text-yellow-400";
-  if (val < 4 && val > 0) return "text-red-500 dark:text-red-400";
+  if (val >= 10) return "text-emerald-500 dark:text-emerald-400";
+  if (val >= 6) return "text-amber-500 dark:text-amber-400";
+  if (val < 4 && val > 0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
@@ -114,9 +114,9 @@ function barrelColor(val: number | null): string {
 function heatBg(val: number | null, thresholds: { green: number; yellow: number; red: number; higher: "good" | "bad" }, intense = false): string {
   if (val == null) return "";
   const isHighGood = thresholds.higher === "good";
-  const g = intense ? "bg-emerald-500/25" : "bg-emerald-500/10";
-  const y = intense ? "bg-yellow-500/20" : "bg-yellow-500/8";
-  const r = intense ? "bg-red-500/25" : "bg-red-500/10";
+  const g = intense ? "bg-emerald-500/30" : "bg-emerald-500/15";
+  const y = intense ? "bg-amber-500/25" : "bg-amber-500/10";
+  const r = intense ? "bg-rose-500/30" : "bg-rose-500/15";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -131,53 +131,52 @@ function heatBg(val: number | null, thresholds: { green: number; yellow: number;
 
 // Pitcher stat colors — from BATTER'S perspective
 // Green = hittable pitcher (good for batters), Red = elite pitcher (bad for batters)
-// Pitcher stat colors — only color outliers (no yellow middle tier)
 function eraColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 4.50) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 3.00) return "text-red-500 dark:text-red-400";
+  if (val >= 4.50) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 3.00) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function whipColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 1.35) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 1.05) return "text-red-500 dark:text-red-400";
+  if (val >= 1.35) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 1.05) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function kPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 10.0) return "text-red-500 dark:text-red-400";
-  if (val <= 6.5) return "text-emerald-600 dark:text-emerald-400";
+  if (val >= 10.0) return "text-rose-500 dark:text-rose-400";
+  if (val <= 6.5) return "text-emerald-500 dark:text-emerald-400";
   return "";
 }
 
 function bbPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 3.5) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 2.0) return "text-red-500 dark:text-red-400";
+  if (val >= 3.5) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 2.0) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function hrPer9Color(val: number | null): string {
   if (val == null) return "";
-  if (val >= 1.40) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 0.80) return "text-red-500 dark:text-red-400";
+  if (val >= 1.40) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 0.80) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function fipColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 4.50) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 3.00) return "text-red-500 dark:text-red-400";
+  if (val >= 4.50) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 3.00) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
 function hrFbColor(val: number | null): string {
   if (val == null) return "";
-  if (val >= 14) return "text-emerald-600 dark:text-emerald-400";
-  if (val <= 7) return "text-red-500 dark:text-red-400";
+  if (val >= 14) return "text-emerald-500 dark:text-emerald-400";
+  if (val <= 7) return "text-rose-500 dark:text-rose-400";
   return "";
 }
 
@@ -188,19 +187,19 @@ function trendArrow(trend: "up" | "down" | "flat" | null | undefined): string {
 }
 
 function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
-  if (trend === "up") return "text-emerald-500";
-  if (trend === "down") return "text-red-400";
+  if (trend === "up") return "text-emerald-400";
+  if (trend === "down") return "text-rose-400";
   return "";
 }
 
 function gradeBadge(grade: "strong" | "neutral" | "weak") {
   switch (grade) {
     case "strong":
-      return { label: "STRONG", text: "text-emerald-600 dark:text-emerald-400" };
+      return { label: "STRONG", text: "text-emerald-500 dark:text-emerald-400" };
     case "neutral":
       return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
     case "weak":
-      return { label: "WEAK", text: "text-red-500 dark:text-red-400" };
+      return { label: "WEAK", text: "text-rose-500 dark:text-rose-400" };
   }
 }
 
