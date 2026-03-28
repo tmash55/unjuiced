@@ -740,46 +740,62 @@ function EvScatterPlot({
         })()}
       </svg>
 
-      {/* Tooltip card */}
-      {activeLeader && (
-        <div className="absolute top-4 right-4 z-20 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-lg p-3 min-w-[200px] max-w-[260px]">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: activeLeader.primary_color || "#6b7280" }}>
-              <img src={getMlbHeadshotUrl(activeLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-neutral-900 dark:text-white">{activeLeader.player_name}</p>
-              <p className="text-[11px] text-neutral-500">{activeLeader.team_abbr} &bull; {activeLeader.position}</p>
+      {/* Tooltip — positioned near the dot, not fixed corner */}
+      {activeLeader && (() => {
+        const dotX = scaleX(activeLeader.avg_exit_velo);
+        const dotY = scaleY(getYVal(activeLeader));
+        // Position tooltip: prefer right of dot, flip left if too close to right edge
+        const tooltipW = 220;
+        const flipX = dotX + tooltipW + 20 > W;
+        const flipY = dotY < 120;
+        const tx = flipX ? dotX - tooltipW - 12 : dotX + 16;
+        const ty = flipY ? dotY + 8 : dotY - 8;
+        return (
+          <div
+            className="absolute z-20 pointer-events-none"
+            style={{ left: tx, top: ty, width: tooltipW, transform: flipY ? "none" : "translateY(-100%)" }}
+          >
+            <div className="bg-white/95 dark:bg-neutral-800/95 backdrop-blur-sm border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: activeLeader.primary_color || "#6b7280" }}>
+                  <img src={getMlbHeadshotUrl(activeLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-neutral-900 dark:text-white">{activeLeader.player_name}</p>
+                  <p className="text-[10px] text-neutral-500">{activeLeader.team_abbr} &bull; {activeLeader.position}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                <div className="flex justify-between"><span className="text-neutral-500">EV</span><span className={cn("font-bold tabular-nums", getEvColor(activeLeader.avg_exit_velo))}>{activeLeader.avg_exit_velo.toFixed(1)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">BRL%</span><span className={cn("font-bold tabular-nums", getBarrelColor(activeLeader.barrel_pct))}>{activeLeader.barrel_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(activeLeader.hard_hit_pct))}>{activeLeader.hard_hit_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.xslg))}>{activeLeader.xslg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.actual_slg))}>{activeLeader.actual_slg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", activeLeader.home_runs > 0 ? "text-[#22C55E]" : "")}>{activeLeader.home_runs}</span></div>
+              </div>
+              {!selectedId && (
+                <p className="text-[9px] text-neutral-400 mt-1.5 text-center">Click dot for detail</p>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div className="flex justify-between"><span className="text-neutral-500">Avg EV</span><span className={cn("font-bold tabular-nums", getEvColor(activeLeader.avg_exit_velo))}>{activeLeader.avg_exit_velo.toFixed(1)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">Barrel%</span><span className={cn("font-bold tabular-nums", getBarrelColor(activeLeader.barrel_pct))}>{activeLeader.barrel_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(activeLeader.hard_hit_pct))}>{activeLeader.hard_hit_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">SS%</span><span className="font-bold tabular-nums">{activeLeader.sweet_spot_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.xslg))}>{activeLeader.xslg.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.actual_slg))}>{activeLeader.actual_slg.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", activeLeader.home_runs > 0 ? "text-emerald-500" : "")}>{activeLeader.home_runs}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">Avg LA</span><span className="font-bold tabular-nums">{activeLeader.avg_launch_angle.toFixed(1)}&deg;</span></div>
-          </div>
-          {!selectedId && (
-            <p className="text-[10px] text-neutral-400 mt-2 text-center">Click dot to see batted balls</p>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Selected player batted ball detail */}
       {selectedLeader && (
-        <div className="mt-3 border border-brand/20 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
-          <div className="px-4 py-2 border-b border-neutral-100 dark:border-neutral-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md" style={{ background: selectedLeader.primary_color || "#6b7280" }}>
+        <div className="mt-3 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden bg-white dark:bg-neutral-900">
+          <div className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800/40 flex items-center justify-between bg-neutral-50/50 dark:bg-neutral-800/30">
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg" style={{ background: selectedLeader.primary_color || "#6b7280" }}>
                 <img src={getMlbHeadshotUrl(selectedLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
               </div>
-              <span className="text-xs font-bold text-neutral-900 dark:text-white">{selectedLeader.player_name}</span>
-              <span className="text-[10px] text-neutral-400">Last {(selectedLeader.recent_batted_balls ?? []).length} Batted Balls</span>
+              <div>
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">{selectedLeader.player_name}</span>
+                <span className="text-[10px] text-neutral-400 ml-1.5">{selectedLeader.team_abbr}</span>
+              </div>
+              <span className="text-[10px] text-neutral-400 font-medium">{(selectedLeader.recent_batted_balls ?? []).length} batted balls</span>
             </div>
-            <button onClick={() => setSelectedId(null)} className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+            <button onClick={() => setSelectedId(null)} className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
               <X className="w-3.5 h-3.5 text-neutral-400" />
             </button>
           </div>
@@ -788,14 +804,13 @@ function EvScatterPlot({
       )}
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-neutral-500">
+      <div className="flex items-center justify-center gap-5 mt-3 text-[10px] text-neutral-500">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-neutral-400" /> Dot size = HR count
+          <span className="inline-block w-2 h-2 rounded-full bg-neutral-400" /> Size = HR
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" /> Color = xSLG
+          <span className="inline-block w-2 h-2 rounded-full bg-[#22C55E]" /> Color = xSLG
         </span>
-        <span>Click dot for detail</span>
       </div>
     </div>
   );
@@ -1136,7 +1151,7 @@ export function MlbExitVelocity() {
         {viewMode === "scatter" && !isLoading && sortedLeaders.length > 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden p-4">
             <div className="max-w-5xl mx-auto">
-              <EvScatterPlot leaders={displayLeaders} isMobile={!!isMobile} />
+              <EvScatterPlot leaders={leaders} isMobile={!!isMobile} />
             </div>
           </div>
         ) : isMobile && !isLoading && sortedLeaders.length > 0 ? (
