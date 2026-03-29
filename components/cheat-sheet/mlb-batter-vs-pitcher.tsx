@@ -457,6 +457,8 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
         total_batted_balls: split.bbs,
         woba: split.woba,
         whiff_pct: split.whiff_pct ?? a.whiff_pct,
+        k_pct: (split as any).k_pct ?? a.k_pct,
+        bb_pct: (split as any).bb_pct ?? a.bb_pct,
       };
     });
   }, [arsenalSplitView, pitcher.arsenal, pitcher.arsenal_splits]);
@@ -596,6 +598,8 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                 <span className="w-8 text-right">BAA</span>
                 <span className="w-8 text-right">SLG</span>
                 <span className="w-10 text-right">Whiff</span>
+                <span className="w-8 text-right">K%</span>
+                <span className="w-8 text-right">BB%</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -616,6 +620,8 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                     <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BAA</th>
                     <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
                     <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Whiff</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
+                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -626,7 +632,9 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                       <td className="px-1.5 py-1.5 text-right text-neutral-500">{pitch.avg_speed ?? "-"}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-red-500" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-emerald-600" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#EF4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#EF4444]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#EF4444]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1032,7 +1040,7 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
         </div>
       </div>
 
-      {/* Stats: Velo + BAA + SLG + Whiff% */}
+      {/* Stats: Velo + BAA + SLG + Whiff% + K% + BB% */}
       <div className="flex items-center gap-3 shrink-0 text-[11px] tabular-nums">
         <span className="text-neutral-500 w-14 text-right">
           {pitch.avg_speed != null ? `${pitch.avg_speed}` : "-"}
@@ -1043,8 +1051,14 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
         <span className={cn("w-8 text-right font-medium", slgColor(pitch.slg))}>
           {fmtAvg(pitch.slg)}
         </span>
-        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-red-500 dark:text-red-400" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
+        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#EF4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
           {pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}
+        </span>
+        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#EF4444]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+          {pitch.k_pct != null ? `${Math.round(pitch.k_pct)}%` : "-"}
+        </span>
+        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#EF4444]" : "text-neutral-500")}>
+          {pitch.bb_pct != null ? `${Math.round(pitch.bb_pct)}%` : "-"}
         </span>
       </div>
     </div>

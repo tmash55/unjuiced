@@ -31,6 +31,7 @@ export interface PitchArsenalRow {
   slg: number | null;
   whiff_pct: number | null;
   k_pct: number | null;
+  bb_pct: number | null;
   put_away: number | null;
   total_batted_balls: number;
   // Enhanced stats
@@ -74,6 +75,8 @@ export interface ArsenalHandSplit {
   woba: number | null;
   bbs: number;
   whiff_pct: number | null;
+  k_pct: number | null;
+  bb_pct: number | null;
 }
 
 export interface PitcherProfile {
@@ -796,7 +799,7 @@ export async function GET(req: NextRequest) {
     const pitchTypeSummaryQueries = seasonsToTry.map((s) =>
       supabase
         .from("mlb_pitcher_pitchtype_summary")
-        .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches, ba, slg, woba")
+        .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches, ba, obp, slg, woba")
         .eq("player_id", pitcherId)
         .eq("season_year", s)
     );
@@ -897,16 +900,26 @@ export async function GET(req: NextRequest) {
     const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
 
     // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away }
-    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null; ba: number | null; slg: number | null; woba: number | null }>();
+    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; bb_pct: number | null; put_away: number | null; ba: number | null; obp: number | null; slg: number | null; woba: number | null; pitch_usage: number | null; pitches: number | null }>();
     for (const row of pitchSummaryRows) {
       if (row.pitch_type) {
+        const ba = row.ba != null ? Number(row.ba) : null;
+        const obp = row.obp != null ? Number(row.obp) : null;
+        // Compute BB% from OBP and BA: bb% ≈ ((OBP - BA) / (1 - BA)) * 100
+        const bbPct = ba != null && obp != null && ba < 1
+          ? Math.round(((obp - ba) / (1 - ba)) * 1000) / 10
+          : null;
         pitchSummaryMap.set(row.pitch_type, {
           whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
           k_pct: row.k_percent != null ? Number(row.k_percent) : null,
+          bb_pct: bbPct,
           put_away: row.put_away != null ? Number(row.put_away) : null,
-          ba: row.ba != null ? Number(row.ba) : null,
+          ba,
+          obp,
           slg: row.slg != null ? Number(row.slg) : null,
           woba: row.woba != null ? Number(row.woba) : null,
+          pitch_usage: row.pitch_usage != null ? Number(row.pitch_usage) : null,
+          pitches: row.pitches != null ? Number(row.pitches) : null,
         });
       }
     }
@@ -1183,18 +1196,24 @@ export async function GET(req: NextRequest) {
       const hardCount = bbs.filter((b: any) => b.hardness === "hard").length;
       const evs = bbs.map((b: any) => b.exit_velocity).filter((v: any) => v != null && v > 0);
 
-      // Merge pitch type summary stats (whiff%, K%, put_away)
+      // Use overall pitch type summary data (includes all batters, no switch-hitter gaps)
       const summary = pitchSummaryMap.get(pt);
+
+      // Usage: prefer summary table pitch_usage (from Savant), fallback to batted ball ratio
+      const summaryUsage = summary?.pitch_usage != null
+        ? Math.round(summary.pitch_usage)
+        : seasonUsage;
 
       arsenal.push({
         pitch_type: pt,
         pitch_name: PITCH_TYPE_NAMES[pt] || pt,
-        usage_pct: seasonUsage,
+        usage_pct: summaryUsage,
         avg_speed: speeds.length > 0 ? Math.round(speeds.reduce((a: number, b: number) => a + b, 0) / speeds.length * 10) / 10 : null,
         baa: summary?.ba != null ? Math.round(summary.ba * 1000) / 1000 : computeAVGFromBBs(bbs),
         slg: summary?.slg != null ? Math.round(summary.slg * 1000) / 1000 : computeSLGFromEvents(bbs),
         whiff_pct: summary?.whiff_pct ?? null,
         k_pct: summary?.k_pct ?? null,
+        bb_pct: summary?.bb_pct ?? null,
         put_away: summary?.put_away ?? null,
         total_batted_balls: bbs.length,
         gb_pct: bbs.length >= 5 ? Math.round((gbCount / bbs.length) * 1000) / 10 : null,
@@ -1429,6 +1448,8 @@ export async function GET(req: NextRequest) {
             woba: real.woba != null ? Math.round(Number(real.woba) * 1000) / 1000 : null,
             bbs: real.pa ?? ptBBs.length,
             whiff_pct: real.whiff_percent != null ? Number(real.whiff_percent) : (pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null),
+            k_pct: real.k_percent != null ? Math.round(Number(real.k_percent) * 10) / 10 : null,
+            bb_pct: real.bb_percent != null ? Math.round(Number(real.bb_percent) * 10) / 10 : null,
           });
         } else if (ptBBs.length > 0) {
           // Fallback to batted balls
@@ -1446,6 +1467,8 @@ export async function GET(req: NextRequest) {
             woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
             bbs: ptBBs.length,
             whiff_pct: pitcherHandWhiffMap.get(`${pt}:${hand}`) ?? null,
+            k_pct: null,
+            bb_pct: null,
           });
         }
       }

@@ -334,12 +334,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Build pitch type summary lookup
-    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null }>();
+    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; bb_pct: number | null; put_away: number | null }>();
     for (const row of pitchSummaryRows) {
       if (row.pitch_type) {
         pitchSummaryMap.set(row.pitch_type, {
           whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
           k_pct: row.k_percent != null ? Number(row.k_percent) : null,
+          bb_pct: (row as any).bb_percent != null ? Number((row as any).bb_percent) : null,
           put_away: row.put_away != null ? Number(row.put_away) : null,
         });
       }
@@ -407,6 +408,7 @@ export async function GET(req: NextRequest) {
         slg: computeSLGFromEvents(bbs),
         whiff_pct: summary?.whiff_pct ?? null,
         k_pct: summary?.k_pct ?? null,
+        bb_pct: summary?.bb_pct ?? null,
         put_away: summary?.put_away ?? null,
         total_batted_balls: bbs.length,
         gb_pct: bbs.length >= 5 ? Math.round((gbCount / bbs.length) * 1000) / 10 : null,
@@ -554,6 +556,8 @@ export async function GET(req: NextRequest) {
           woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
           bbs: bbs.length,
           whiff_pct: null,
+          k_pct: null,
+          bb_pct: null,
         });
       }
       results.sort((a, b) => b.usage_pct - a.usage_pct);
