@@ -639,11 +639,22 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
   const isFetching = overFetching || underFetching;
   const marketLabel = PITCHER_ODDS_MARKETS.find((m) => m.key === market)?.label || market;
 
+  // Keep last known odds visible during transitions
+  const lastOverRef = React.useRef<BatterOddsEntry | null>(null);
+  const lastUnderRef = React.useRef<BatterOddsEntry | null>(null);
+  if (overEntry) lastOverRef.current = overEntry;
+  if (underEntry) lastUnderRef.current = underEntry;
+  const displayOver = overEntry ?? (isFetching ? lastOverRef.current : null);
+  const displayUnder = underEntry ?? (isFetching ? lastUnderRef.current : null);
+  const [hasEverLoaded, setHasEverLoaded] = useState(false);
+  useEffect(() => {
+    if (overEntry || underEntry) setHasEverLoaded(true);
+  }, [overEntry, underEntry]);
+
   const handleMarketChange = (newMarket: string) => {
     setMarket(newMarket);
     const newLines = PITCHER_LINE_OPTIONS[newMarket] || [4.5];
     setLine(newLines[0]);
-    setShowAllBooks(false);
   };
 
   function OddsSideCard({ entry, side, label }: { entry: BatterOddsEntry | null; side: "over" | "under"; label: string }) {
@@ -705,67 +716,69 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
       {/* Line pills */}
       <div className="flex items-center gap-1 mb-3">
         {lines.map((ln) => (
-          <button key={ln} onClick={() => { setLine(ln); setShowAllBooks(false); }}
+          <button key={ln} onClick={() => { setLine(ln); }}
             className={cn("px-2 py-0.5 text-[10px] font-mono font-medium rounded transition-all",
               line === ln ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             )}>{ln}</button>
         ))}
       </div>
 
-      {/* Over / Under side by side */}
-      {!overEntry && !underEntry && isFetching ? (
+      {/* Over / Under side by side — smooth fade on transitions */}
+      {!hasEverLoaded && isFetching ? (
         <div className="flex gap-2 mb-2 animate-pulse">
-          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-2.5">
+          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-3">
             <div className="h-2.5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded mb-2" />
             <div className="flex items-center gap-1.5 mb-1.5">
-              <div className="h-4 w-4 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="h-5 w-5 bg-neutral-200 dark:bg-neutral-700 rounded" />
               <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
             </div>
             <div className="h-2 w-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
           </div>
-          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-2.5">
+          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-3">
             <div className="h-2.5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded mb-2" />
             <div className="flex items-center gap-1.5 mb-1.5">
-              <div className="h-4 w-4 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="h-5 w-5 bg-neutral-200 dark:bg-neutral-700 rounded" />
               <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
             </div>
             <div className="h-2 w-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
           </div>
         </div>
       ) : (
-        <div className="flex gap-2 mb-2">
-          <OddsSideCard entry={overEntry} side="over" label={`Over ${line}`} />
-          <OddsSideCard entry={underEntry} side="under" label={`Under ${line}`} />
+        <div className={cn("transition-opacity duration-200", isFetching && "opacity-40")}>
+          <div className="flex gap-2 mb-2">
+            <OddsSideCard entry={displayOver} side="over" label={`Over ${line}`} />
+            <OddsSideCard entry={displayUnder} side="under" label={`Under ${line}`} />
+          </div>
         </div>
       )}
 
       {/* Fair value */}
-      {hasSharpAccess && overEntry?.fair_american && (
-        <p className="text-[10px] text-neutral-400 text-center mb-2">
-          Fair: <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{overEntry.fair_american}</span>
-          {overEntry.sharp_book && <span className="text-neutral-400 ml-1">via {overEntry.sharp_book}</span>}
+      {hasSharpAccess && (displayOver ?? overEntry)?.fair_american && (
+        <p className={cn("text-[10px] text-neutral-400 text-center mb-2 transition-opacity duration-200", isFetching && "opacity-40")}>
+          Fair: <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{(displayOver ?? overEntry)!.fair_american}</span>
+          {(displayOver ?? overEntry)!.sharp_book && <span className="text-neutral-400 ml-1">via {(displayOver ?? overEntry)!.sharp_book}</span>}
         </p>
       )}
 
-      {/* Show all books */}
-      {(overEntry || underEntry) && (
+      {/* Show all books — stays open across market/line changes */}
+      {hasEverLoaded && (
         <>
           <button onClick={() => setShowAllBooks(!showAllBooks)}
             className="w-full flex items-center justify-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors py-1">
-            {showAllBooks ? "Hide books" : `Compare ${Math.max(overEntry?.all_books.length ?? 0, underEntry?.all_books.length ?? 0)} books`}
+            {showAllBooks ? "Hide books" : `Compare ${Math.max(displayOver?.all_books.length ?? 0, displayUnder?.all_books.length ?? 0)} books`}
             <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showAllBooks && "rotate-180")} />
           </button>
 
           {showAllBooks && (() => {
             const allBookIds = new Set<string>();
-            overEntry?.all_books.forEach((b) => allBookIds.add(b.book));
-            underEntry?.all_books.forEach((b) => allBookIds.add(b.book));
-            const overMap = new Map(overEntry?.all_books.map((b) => [b.book, b]) ?? []);
-            const underMap = new Map(underEntry?.all_books.map((b) => [b.book, b]) ?? []);
+            (displayOver ?? overEntry)?.all_books.forEach((b) => allBookIds.add(b.book));
+            (displayUnder ?? underEntry)?.all_books.forEach((b) => allBookIds.add(b.book));
+            const overMap = new Map((displayOver ?? overEntry)?.all_books.map((b) => [b.book, b]) ?? []);
+            const underMap = new Map((displayUnder ?? underEntry)?.all_books.map((b) => [b.book, b]) ?? []);
             const sorted = Array.from(allBookIds).sort((a, b) => (overMap.get(b)?.price ?? -9999) - (overMap.get(a)?.price ?? -9999));
 
             return (
-              <div className="mt-2 space-y-0">
+              <div className={cn("mt-2 space-y-0 transition-opacity duration-200", isFetching && "opacity-40")}>
                 {/* Header row */}
                 <div className="flex items-center justify-between px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-400">
                   <span className="w-16">Over {line}</span>
@@ -778,8 +791,8 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
                   const under = underMap.get(bookId);
                   const overLink = over ? getPreferredLink(over.link, over.mobile_link) : null;
                   const underLink = under ? getPreferredLink(under.link, under.mobile_link) : null;
-                  const isBestOver = over && overEntry && over.price === overEntry.best_price;
-                  const isBestUnder = under && underEntry && under.price === underEntry.best_price;
+                  const isBestOver = over && (displayOver ?? overEntry) && over.price === (displayOver ?? overEntry)!.best_price;
+                  const isBestUnder = under && (displayUnder ?? underEntry) && under.price === (displayUnder ?? underEntry)!.best_price;
 
                   return (
                     <div key={bookId} className="flex items-center justify-between py-1.5 border-t border-neutral-100/50 dark:border-neutral-800/20">
@@ -1763,7 +1776,7 @@ function BatterRow({
       {expanded && (
         <tr>
           <td colSpan={13} className="px-3 pb-4 bg-brand/5 dark:bg-brand/10">
-            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} />
+            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} />
           </td>
         </tr>
       )}
@@ -1852,11 +1865,15 @@ function BatterExpansion({
   const localOddsEntry = gameId ? findPlayerOdds(localOdds, batter.player_name) : null;
   // Once user changes market/line, always use local fetch
   const effectiveOdds = userChangedMarket ? localOddsEntry : (oddsEntry ?? localOddsEntry);
+  // Keep last known odds visible during transitions
+  const lastOddsRef = React.useRef<BatterOddsEntry | null>(null);
+  if (effectiveOdds && effectiveOdds.all_books.length > 0) lastOddsRef.current = effectiveOdds;
+  const displayOdds = effectiveOdds ?? (localOddsFetching ? lastOddsRef.current : null);
   // Track whether we've ever had odds so the controls persist during fetches
   const [hasEverHadOdds, setHasEverHadOdds] = useState(false);
   useEffect(() => {
-    if (effectiveOdds && effectiveOdds.all_books.length > 0) setHasEverHadOdds(true);
-  }, [effectiveOdds]);
+    if (displayOdds && displayOdds.all_books.length > 0) setHasEverHadOdds(true);
+  }, [displayOdds]);
   const oddsTransitioning = userChangedMarket && localOddsFetching;
   const sparkline = batter.recent_ev_sparkline ?? [];
 
@@ -1955,12 +1972,12 @@ function BatterExpansion({
               <div className="mb-3">
                 <div className={cn("mb-2", isMobile ? "space-y-1" : "flex items-center justify-between")}>
                   <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400">Prop Odds</h5>
-                  {hasSharpAccess && effectiveOdds?.fair_american && (
+                  {hasSharpAccess && displayOdds?.fair_american && (
                     <span className={cn("text-[10px] text-neutral-400 transition-opacity duration-200", oddsTransitioning && "opacity-0")}>
-                      Fair <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{effectiveOdds.fair_american}</span>
-                      {effectiveOdds.ev_pct != null && effectiveOdds.ev_pct > 0 && (
-                        <span className={cn("ml-1 font-bold", effectiveOdds.ev_pct >= 5 ? "text-[#22C55E]" : effectiveOdds.ev_pct >= 2 ? "text-[#22C55E]/80" : "text-[#EAB308]")}>
-                          +{effectiveOdds.ev_pct.toFixed(1)}%
+                      Fair <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{displayOdds.fair_american}</span>
+                      {displayOdds.ev_pct != null && displayOdds.ev_pct > 0 && (
+                        <span className={cn("ml-1 font-bold", displayOdds.ev_pct >= 5 ? "text-[#22C55E]" : displayOdds.ev_pct >= 2 ? "text-[#22C55E]/80" : "text-[#EAB308]")}>
+                          +{displayOdds.ev_pct.toFixed(1)}%
                         </span>
                       )}
                     </span>
@@ -2011,9 +2028,9 @@ function BatterExpansion({
 
               {/* Books grid — smooth fade during transitions */}
               <div className={cn("transition-opacity duration-200", oddsTransitioning && "opacity-40")}>
-                {effectiveOdds && effectiveOdds.all_books.length > 0 ? (
+                {displayOdds && displayOdds.all_books.length > 0 ? (
                   <div className={cn("grid gap-1.5", isMobile ? "grid-cols-3" : "grid-cols-4 md:grid-cols-5")}>
-                    {[...effectiveOdds.all_books].sort((a, b) => b.price - a.price).slice(0, 10).map((book, idx) => {
+                    {[...displayOdds.all_books].sort((a, b) => b.price - a.price).slice(0, 10).map((book, idx) => {
                       const logo = getBookLogo(book.book);
                       const link = getPreferredLink(book.link, book.mobile_link);
                       const isBest = idx === 0;
