@@ -56,12 +56,12 @@ function fmtStat(val: number | null, digits = 2): string {
 }
 
 // ── Stat colors — vivid hex for data-dense display ──────────────────────────
-// Green: #22C55E (bright green), Mid: #F59E0B (amber), Red: #EF4444 (vivid red)
-// These pop against dark backgrounds without feeling neon
+// Green: #22C55E (vivid success), Amber: #EAB308 (energetic warning), Red: #F6073B (vibrant rose)
+// Fresh & energetic palette per design system
 
 const STAT_GREEN = "text-[#22C55E]";
-const STAT_AMBER = "text-[#F59E0B]";
-const STAT_RED   = "text-[#EF4444]";
+const STAT_AMBER = "text-[#EAB308]";
+const STAT_RED   = "text-[#F6073B]";
 
 function slgColor(val: number | null): string {
   if (val == null) return "";
@@ -123,8 +123,8 @@ function heatBg(val: number | null, thresholds: { green: number; yellow: number;
   if (val == null) return "";
   const isHighGood = thresholds.higher === "good";
   const g = intense ? "bg-[#22C55E]/25" : "bg-[#22C55E]/12";
-  const y = intense ? "bg-[#F59E0B]/20" : "bg-[#F59E0B]/10";
-  const r = intense ? "bg-[#EF4444]/25" : "bg-[#EF4444]/12";
+  const y = intense ? "bg-[#EAB308]/20" : "bg-[#EAB308]/10";
+  const r = intense ? "bg-[#F6073B]/25" : "bg-[#F6073B]/12";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -196,7 +196,7 @@ function trendArrow(trend: "up" | "down" | "flat" | null | undefined): string {
 
 function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
   if (trend === "up") return "text-[#22C55E]";
-  if (trend === "down") return "text-[#EF4444]";
+  if (trend === "down") return "text-[#F6073B]";
   return "";
 }
 
@@ -207,7 +207,7 @@ function gradeBadge(grade: "strong" | "neutral" | "weak") {
     case "neutral":
       return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
     case "weak":
-      return { label: "WEAK", text: "text-[#EF4444]" };
+      return { label: "WEAK", text: "text-[#F6073B]" };
   }
 }
 
@@ -633,9 +633,9 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                       <td className="px-1.5 py-1.5 text-right text-neutral-500">{pitch.avg_speed ?? "-"}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#EF4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#EF4444]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#EF4444]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#F6073B]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#F6073B]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#F6073B]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1052,13 +1052,13 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
         <span className={cn("w-8 text-right font-medium", slgColor(pitch.slg))}>
           {fmtAvg(pitch.slg)}
         </span>
-        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#EF4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#F6073B]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
           {pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#EF4444]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#F6073B]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
           {pitch.k_pct != null ? `${Math.round(pitch.k_pct)}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#EF4444]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#F6073B]" : "text-neutral-500")}>
           {pitch.bb_pct != null ? `${Math.round(pitch.bb_pct)}%` : "-"}
         </span>
       </div>
