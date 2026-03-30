@@ -1350,8 +1350,9 @@ export async function GET(req: NextRequest) {
     function computePitcherHandSplit(hand: string): PitcherHandSplit | null {
       // Aggregate across all pitch types for this hand from the hand splits table
       const handRows = pitcherHandSplitsRaw.filter((r: any) => r.opponent_hand === hand);
-      if (handRows.length > 0) {
-        // Weighted averages by PA across pitch types
+      const handTotalPA = handRows.reduce((s: number, r: any) => s + Number(r.pa ?? 0), 0);
+      if (handRows.length > 0 && handTotalPA >= 10) {
+        // Weighted averages by PA across pitch types (require 10+ PA for meaningful splits)
         let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, totalK = 0;
         let weightedBA = 0, weightedSLG = 0, weightedISO = 0, weightedWOBA = 0;
         let weightedEV = 0, evWeight = 0;
