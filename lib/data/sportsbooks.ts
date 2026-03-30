@@ -546,7 +546,24 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     isActive: true,
     requiresState: false
   },
-  
+  "prizePicks": {
+    id: "prizePicks",
+    name: "PrizePicks",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.prizepicks.com/",
+      mobile: "https://www.prizepicks.com/"
+    },
+    image: {
+      light: "/images/sports-books/prizepicks.png",
+      long: "/images/sports-books/prizepicks_long.png"
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    requiresState: false
+  }
 };
 
 
