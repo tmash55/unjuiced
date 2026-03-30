@@ -13,11 +13,169 @@ import {
   type BatterPitchSplit,
 } from "@/hooks/use-mlb-game-matchup";
 import { useMlbHotZone, type BatterZoneCell, type PitcherZoneCell, type OverlayZoneCell } from "@/hooks/use-mlb-hot-zone";
+import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-odds";
+import { useHasSharpAccess } from "@/hooks/use-entitlements";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 // ── Constants ────────────────────────────────────────────────────────────────
+
+const ODDS_MARKETS = [
+  { key: "player_home_runs", label: "Home Runs", shortLabel: "HR", defaultLine: 0.5 },
+  { key: "player_hits", label: "Hits", shortLabel: "H", defaultLine: 0.5 },
+  { key: "player_total_bases", label: "Total Bases", shortLabel: "TB", defaultLine: 0.5 },
+  { key: "player_rbis", label: "RBIs", shortLabel: "RBI", defaultLine: 0.5 },
+  { key: "player_runs", label: "Runs", shortLabel: "R", defaultLine: 0.5 },
+  { key: "player_hits__runs__rbis", label: "H+R+RBI", shortLabel: "HRR", defaultLine: 0.5 },
+  { key: "player_stolen_bases", label: "Stolen Bases", shortLabel: "SB", defaultLine: 0.5 },
+];
+
+const ODDS_LINE_OPTIONS: Record<string, number[]> = {
+  player_home_runs: [0.5],
+  player_hits: [0.5, 1.5, 2.5],
+  player_total_bases: [0.5, 1.5, 2.5, 3.5],
+  player_rbis: [0.5, 1.5],
+  player_runs: [0.5, 1.5],
+  player_hits__runs__rbis: [0.5, 1.5, 2.5, 3.5],
+  player_stolen_bases: [0.5],
+};
+
+function getBookLogo(bookId: string): string | null {
+  const sb = getSportsbookById(normalizeSportsbookId(bookId));
+  return sb?.image?.square ?? sb?.image?.light ?? null;
+}
+
+function formatOddsPrice(price: number): string {
+  return price >= 0 ? `+${price}` : `${price}`;
+}
+
+function normalizePlayerForOdds(name: string): string {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Find a player's odds entry by normalized name lookup */
+function findPlayerOdds(odds: Record<string, BatterOddsEntry>, playerName: string): BatterOddsEntry | null {
+  return odds[normalizePlayerForOdds(playerName)] ?? null;
+}
+
+function getPreferredLink(desktopLink?: string | null, mobileLink?: string | null): string | null {
+  const isMobile = typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
+  return isMobile ? (mobileLink || desktopLink || null) : (desktopLink || mobileLink || null);
+}
+
+function OddsSkeleton() {
+  return (
+    <div className="inline-flex items-center gap-1.5 animate-pulse">
+      <div className="h-4 w-4 rounded bg-neutral-200 dark:bg-neutral-700" />
+      <div className="h-3.5 w-10 rounded bg-neutral-200 dark:bg-neutral-700" />
+    </div>
+  );
+}
+
+function OddsCell({ entry, hasSharpAccess = false, isLoading = false }: { entry: BatterOddsEntry | null; hasSharpAccess?: boolean; isLoading?: boolean }) {
+  if (isLoading) return <OddsSkeleton />;
+  if (!entry) return <span className="text-[10px] text-neutral-400">-</span>;
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const sorted = [...entry.all_books].sort((a, b) => b.price - a.price);
+
+  // Click outside to close
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
+      >
+        {/* Book logo with EV badge overlay */}
+        <span className="relative shrink-0">
+          {getBookLogo(entry.best_book) && (
+            <img src={getBookLogo(entry.best_book)!} alt="" className="h-4 w-4 rounded object-contain" />
+          )}
+          {hasSharpAccess && entry.ev_pct != null && entry.ev_pct > 0 && (
+            <span className={cn(
+              "absolute -top-2 -right-3 text-[8px] font-bold px-1 py-[1px] rounded leading-none whitespace-nowrap shadow-sm",
+              entry.ev_pct >= 5 ? "bg-[#22C55E] text-white"
+                : entry.ev_pct >= 2 ? "bg-[#22C55E] text-white"
+                : "bg-[#EAB308] text-white"
+            )}>
+              +{entry.ev_pct.toFixed(0)}%
+            </span>
+          )}
+        </span>
+        <span className={cn(
+          "font-mono text-xs font-bold tabular-nums",
+          entry.best_price >= 0 ? "text-[#22C55E]" : "text-neutral-600 dark:text-neutral-300"
+        )}>
+          {formatOddsPrice(entry.best_price)}
+        </span>
+        <ChevronDown className={cn("w-2.5 h-2.5 text-neutral-400 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+          {/* Header: fair value + EV */}
+          {hasSharpAccess && entry.fair_american && (
+            <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/40 bg-neutral-50/50 dark:bg-neutral-800/20">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-neutral-500">Fair <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">{entry.fair_american}</span></span>
+                {entry.ev_pct != null && entry.ev_pct > 0 && (
+                  <span className={cn("font-bold px-1.5 py-0.5 rounded text-[9px]",
+                    entry.ev_pct >= 5 ? "bg-[#22C55E] text-white" : entry.ev_pct >= 2 ? "bg-[#22C55E]/80 text-white" : "bg-[#EAB308] text-white"
+                  )}>+{entry.ev_pct.toFixed(1)}% EV</span>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Book rows */}
+          {sorted.map((book, idx) => {
+            const logo = getBookLogo(book.book);
+            const link = getPreferredLink(book.link, book.mobile_link);
+            const isBest = idx === 0;
+            const isPositive = book.price >= 0;
+            return (
+              <a
+                key={book.book}
+                href={link || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => { e.stopPropagation(); if (!link) e.preventDefault(); }}
+                className={cn(
+                  "flex items-center justify-between px-3 py-2 text-xs border-b border-neutral-100/50 dark:border-neutral-800/20 last:border-0 transition-colors",
+                  link ? "hover:bg-neutral-50 dark:hover:bg-neutral-800/30" : "opacity-40",
+                  isBest && "bg-[#22C55E]/[0.04]"
+                )}
+              >
+                <span className={cn(
+                  "font-mono font-bold tabular-nums w-14",
+                  isBest ? "text-[#22C55E]" : "text-neutral-700 dark:text-neutral-200"
+                )}>
+                  {formatOddsPrice(book.price)}
+                </span>
+                <div className="flex items-center justify-center">
+                  {logo ? <img src={logo} alt="" className="h-5 w-5 rounded object-contain" /> : <span className="text-[9px] text-neutral-500">{book.book.slice(0, 3).toUpperCase()}</span>}
+                </div>
+                <span className="text-[10px] text-neutral-400 w-14 text-right">
+                  {link ? "Bet →" : "—"}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const SAMPLE_OPTIONS = [
   { value: "season" as const, label: "Season" },
@@ -56,12 +214,12 @@ function fmtStat(val: number | null, digits = 2): string {
 }
 
 // ── Stat colors — vivid hex for data-dense display ──────────────────────────
-// Green: #22C55E (vivid success), Amber: #EAB308 (energetic warning), Red: #F6073B (vibrant rose)
+// Green: #22C55E (vivid success), Amber: #EAB308 (energetic warning), Red: #CD4444 (vibrant rose)
 // Fresh & energetic palette per design system
 
 const STAT_GREEN = "text-[#22C55E]";
 const STAT_AMBER = "text-[#EAB308]";
-const STAT_RED   = "text-[#F6073B]";
+const STAT_RED   = "text-[#CD4444]";
 
 function slgColor(val: number | null): string {
   if (val == null) return "";
@@ -124,7 +282,7 @@ function heatBg(val: number | null, thresholds: { green: number; yellow: number;
   const isHighGood = thresholds.higher === "good";
   const g = intense ? "bg-[#22C55E]/25" : "bg-[#22C55E]/12";
   const y = intense ? "bg-[#EAB308]/20" : "bg-[#EAB308]/10";
-  const r = intense ? "bg-[#F6073B]/25" : "bg-[#F6073B]/12";
+  const r = intense ? "bg-[#CD4444]/25" : "bg-[#CD4444]/12";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -196,7 +354,7 @@ function trendArrow(trend: "up" | "down" | "flat" | null | undefined): string {
 
 function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
   if (trend === "up") return "text-[#22C55E]";
-  if (trend === "down") return "text-[#F6073B]";
+  if (trend === "down") return "text-[#CD4444]";
   return "";
 }
 
@@ -207,7 +365,7 @@ function gradeBadge(grade: "strong" | "neutral" | "weak") {
     case "neutral":
       return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
     case "weak":
-      return { label: "WEAK", text: "text-[#F6073B]" };
+      return { label: "WEAK", text: "text-[#CD4444]" };
   }
 }
 
@@ -411,7 +569,246 @@ function MobileGameSelector({
 
 // ── Pitcher Profile Card ────────────────────────────────────────────────────
 
-function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[] }) {
+// ── Pitcher Odds Section ─────────────────────────────────────────────────────
+
+const PITCHER_ODDS_MARKETS = [
+  { key: "player_strikeouts", label: "Strikeouts", shortLabel: "K" },
+  { key: "player_hits_allowed", label: "Hits Allowed", shortLabel: "HA" },
+  { key: "player_earned_runs", label: "Earned Runs", shortLabel: "ER" },
+  { key: "player_outs", label: "Outs", shortLabel: "Outs" },
+];
+
+const PITCHER_LINE_OPTIONS: Record<string, number[]> = {
+  player_strikeouts: [3.5, 4.5, 5.5, 6.5, 7.5],
+  player_hits_allowed: [4.5, 5.5, 6.5],
+  player_earned_runs: [1.5, 2.5, 3.5],
+  player_outs: [15.5, 16.5, 17.5],
+};
+
+function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: number | null; pitcherName: string; hasSharpAccess?: boolean }) {
+  const [market, setMarket] = useState("player_strikeouts");
+  const [line, setLine] = useState(4.5);
+  const [showAllBooks, setShowAllBooks] = useState(false);
+  const lines = PITCHER_LINE_OPTIONS[market] || [4.5];
+
+  // Fetch both sides
+  const { odds: overOdds, isFetching: overFetching } = useMlbBatterOdds(gameId, market, line, "over");
+  const { odds: underOdds, isFetching: underFetching } = useMlbBatterOdds(gameId, market, line, "under");
+  const overEntry = findPlayerOdds(overOdds, pitcherName);
+  const underEntry = findPlayerOdds(underOdds, pitcherName);
+  const isFetching = overFetching || underFetching;
+  const marketLabel = PITCHER_ODDS_MARKETS.find((m) => m.key === market)?.label || market;
+
+  const handleMarketChange = (newMarket: string) => {
+    setMarket(newMarket);
+    const newLines = PITCHER_LINE_OPTIONS[newMarket] || [4.5];
+    setLine(newLines[0]);
+    setShowAllBooks(false);
+  };
+
+  function OddsSideCard({ entry, side, label }: { entry: BatterOddsEntry | null; side: "over" | "under"; label: string }) {
+    if (!entry) return (
+      <div className="flex-1 rounded-lg bg-neutral-100/50 dark:bg-neutral-800/20 border border-neutral-200/30 dark:border-neutral-700/15 p-2.5 text-center">
+        <p className="text-[9px] text-neutral-400">{label}</p>
+        <p className="text-[10px] text-neutral-400 mt-1">—</p>
+      </div>
+    );
+    const logo = getBookLogo(entry.best_book);
+    const link = getPreferredLink(entry.best_link, entry.best_mobile_link);
+    const isOver = side === "over";
+    return (
+      <div className={cn(
+        "flex-1 rounded-lg border p-2.5 transition-all",
+        isOver ? "border-[#22C55E]/20 bg-[#22C55E]/[0.03]" : "border-[#CD4444]/20 bg-[#CD4444]/[0.03]"
+      )}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className={cn("text-[10px] font-semibold uppercase", isOver ? "text-[#22C55E]" : "text-[#CD4444]")}>{label}</span>
+          {hasSharpAccess && entry.ev_pct != null && entry.ev_pct > 0 && (
+            <span className={cn(
+              "text-[8px] font-bold px-1 py-0.5 rounded",
+              entry.ev_pct >= 5 ? "bg-[#22C55E] text-white" : entry.ev_pct >= 2 ? "bg-[#22C55E]/80 text-white" : "bg-[#EAB308] text-white"
+            )}>
+              +{entry.ev_pct.toFixed(1)}%
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mb-1">
+          {logo && <img src={logo} alt="" className="h-4 w-4 rounded object-contain" />}
+          <span className={cn("font-mono text-base font-bold tabular-nums", isOver ? "text-[#22C55E]" : "text-[#CD4444]")}>
+            {formatOddsPrice(entry.best_price)}
+          </span>
+        </div>
+        <p className="text-[9px] text-neutral-400 truncate">{getSportsbookById(normalizeSportsbookId(entry.best_book))?.name || entry.best_book}</p>
+        {link && (
+          <a href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "flex items-center justify-center w-full mt-2 py-1.5 rounded-md text-[10px] font-semibold transition-colors active:scale-[0.98]",
+              isOver ? "bg-[#22C55E]/10 text-[#22C55E] hover:bg-[#22C55E]/20" : "bg-[#CD4444]/10 text-[#CD4444] hover:bg-[#CD4444]/20"
+            )}>
+            Bet {label}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+      <div className="flex items-center justify-between mb-2.5">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Prop Odds</h4>
+        {isFetching && <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />}
+      </div>
+
+      {/* Market pills */}
+      <div className="flex items-center gap-1 mb-2">
+        {PITCHER_ODDS_MARKETS.map((m) => (
+          <button key={m.key} onClick={() => handleMarketChange(m.key)}
+            className={cn("px-2 py-1 text-[10px] font-medium rounded-md transition-all active:scale-95",
+              market === m.key ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/40"
+            )}>{m.shortLabel}</button>
+        ))}
+      </div>
+
+      {/* Line pills */}
+      <div className="flex items-center gap-1 mb-3">
+        {lines.map((ln) => (
+          <button key={ln} onClick={() => { setLine(ln); setShowAllBooks(false); }}
+            className={cn("px-2 py-0.5 text-[10px] font-mono font-medium rounded transition-all",
+              line === ln ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+            )}>{ln}</button>
+        ))}
+      </div>
+
+      {/* Over / Under side by side */}
+      {!overEntry && !underEntry && isFetching ? (
+        <div className="flex gap-2 mb-2 animate-pulse">
+          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-2.5">
+            <div className="h-2.5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded mb-2" />
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="h-4 w-4 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
+            </div>
+            <div className="h-2 w-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
+          </div>
+          <div className="flex-1 rounded-lg border border-neutral-200/30 dark:border-neutral-700/15 p-2.5">
+            <div className="h-2.5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded mb-2" />
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="h-4 w-4 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
+            </div>
+            <div className="h-2 w-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2 mb-2">
+          <OddsSideCard entry={overEntry} side="over" label={`Over ${line}`} />
+          <OddsSideCard entry={underEntry} side="under" label={`Under ${line}`} />
+        </div>
+      )}
+
+      {/* Fair value */}
+      {hasSharpAccess && overEntry?.fair_american && (
+        <p className="text-[10px] text-neutral-400 text-center mb-2">
+          Fair: <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{overEntry.fair_american}</span>
+          {overEntry.sharp_book && <span className="text-neutral-400 ml-1">via {overEntry.sharp_book}</span>}
+        </p>
+      )}
+
+      {/* Show all books */}
+      {(overEntry || underEntry) && (
+        <>
+          <button onClick={() => setShowAllBooks(!showAllBooks)}
+            className="w-full flex items-center justify-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors py-1">
+            {showAllBooks ? "Hide books" : `Compare ${Math.max(overEntry?.all_books.length ?? 0, underEntry?.all_books.length ?? 0)} books`}
+            <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showAllBooks && "rotate-180")} />
+          </button>
+
+          {showAllBooks && (() => {
+            const allBookIds = new Set<string>();
+            overEntry?.all_books.forEach((b) => allBookIds.add(b.book));
+            underEntry?.all_books.forEach((b) => allBookIds.add(b.book));
+            const overMap = new Map(overEntry?.all_books.map((b) => [b.book, b]) ?? []);
+            const underMap = new Map(underEntry?.all_books.map((b) => [b.book, b]) ?? []);
+            const sorted = Array.from(allBookIds).sort((a, b) => (overMap.get(b)?.price ?? -9999) - (overMap.get(a)?.price ?? -9999));
+
+            return (
+              <div className="mt-2 space-y-0">
+                {/* Header row */}
+                <div className="flex items-center justify-between px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold">
+                  <span className="w-16 text-[#22C55E]">Over {line}</span>
+                  <span className="text-neutral-400">Book</span>
+                  <span className="w-16 text-right text-[#CD4444]">Under {line}</span>
+                </div>
+                {sorted.map((bookId) => {
+                  const logo = getBookLogo(bookId);
+                  const over = overMap.get(bookId);
+                  const under = underMap.get(bookId);
+                  const overLink = over ? getPreferredLink(over.link, over.mobile_link) : null;
+                  const underLink = under ? getPreferredLink(under.link, under.mobile_link) : null;
+                  const isBestOver = over && overEntry && over.price === overEntry.best_price;
+                  const isBestUnder = under && underEntry && under.price === underEntry.best_price;
+
+                  return (
+                    <div key={bookId} className="flex items-center justify-between py-1.5 border-t border-neutral-100/50 dark:border-neutral-800/20">
+                      {/* Over price — left */}
+                      <div className="w-16">
+                        {over ? (
+                          <a
+                            href={overLink || "#"}
+                            target="_blank" rel="noopener noreferrer"
+                            onClick={(e) => { e.stopPropagation(); if (!overLink) e.preventDefault(); }}
+                            className={cn(
+                              "inline-flex items-center justify-center w-full py-1 rounded-md font-mono text-xs font-bold tabular-nums transition-colors",
+                              isBestOver
+                                ? "bg-[#22C55E]/15 text-[#22C55E]"
+                                : overLink ? "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
+                            )}
+                          >
+                            {formatOddsPrice(over.price)}
+                          </a>
+                        ) : <span className="text-center block text-neutral-400 text-xs">—</span>}
+                      </div>
+
+                      {/* Book logo — center */}
+                      <div className="flex items-center justify-center">
+                        {logo ? (
+                          <img src={logo} alt="" className="h-5 w-5 rounded object-contain" />
+                        ) : (
+                          <span className="text-[9px] text-neutral-500 font-medium">{bookId.slice(0, 3).toUpperCase()}</span>
+                        )}
+                      </div>
+
+                      {/* Under price — right */}
+                      <div className="w-16 text-right">
+                        {under ? (
+                          <a
+                            href={underLink || "#"}
+                            target="_blank" rel="noopener noreferrer"
+                            onClick={(e) => { e.stopPropagation(); if (!underLink) e.preventDefault(); }}
+                            className={cn(
+                              "inline-flex items-center justify-center w-full py-1 rounded-md font-mono text-xs font-bold tabular-nums transition-colors",
+                              isBestUnder
+                                ? "bg-[#CD4444]/15 text-[#CD4444]"
+                                : underLink ? "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
+                            )}
+                          >
+                            {formatOddsPrice(under.price)}
+                          </a>
+                        ) : <span className="text-center block text-neutral-400 text-xs">—</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean }) {
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
   const maxUsage = Math.max(...pitcher.arsenal.map((a) => a.usage_pct), 1);
 
@@ -641,9 +1038,9 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                       <td className="px-1.5 py-1.5 text-right text-neutral-500">{pitch.avg_speed ?? "-"}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
                       <td className={cn("px-1.5 py-1.5 text-right font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#F6073B]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#F6073B]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#F6073B]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#CD4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#CD4444]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#CD4444]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -672,6 +1069,11 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
             <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">Scouting Report</h4>
             <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{pitcher.scouting_summary}</p>
         </div>
+      )}
+
+      {/* Pitcher Prop Odds */}
+      {gameId && (
+        <PitcherOddsSection gameId={gameId} pitcherName={pitcher.name} hasSharpAccess={hasSharpAccess} />
       )}
 
       {/* Batted Ball Profile — full width */}
@@ -1060,13 +1462,13 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
         <span className={cn("w-8 text-right font-medium", slgColor(pitch.slg))}>
           {fmtAvg(pitch.slg)}
         </span>
-        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#F6073B]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#CD4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
           {pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#F6073B]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#CD4444]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
           {pitch.k_pct != null ? `${Math.round(pitch.k_pct)}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#F6073B]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#CD4444]" : "text-neutral-500")}>
           {pitch.bb_pct != null ? `${Math.round(pitch.bb_pct)}%` : "-"}
         </span>
       </div>
@@ -1108,6 +1510,10 @@ function BatterRow({
   viewMode = "standard",
   displayStats,
   pitchFilter,
+  oddsEntry,
+  hasSharpAccess,
+  oddsLoading,
+  gameId,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1117,6 +1523,10 @@ function BatterRow({
   viewMode?: "standard" | "comparison";
   displayStats?: DisplayStats;
   pitchFilter?: string | null;
+  oddsEntry?: BatterOddsEntry | null;
+  hasSharpAccess?: boolean;
+  oddsLoading?: boolean;
+  gameId?: number | null;
 }) {
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -1189,7 +1599,7 @@ function BatterRow({
           </div>
         </button>
 
-        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} />}
+        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} />}
       </div>
     );
   }
@@ -1272,6 +1682,10 @@ function BatterRow({
             {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
           </span>
         </td>
+        {/* Odds cell with dropdown */}
+        <td className="px-1.5 py-2 text-right relative">
+          <OddsCell entry={oddsEntry ?? null} hasSharpAccess={hasSharpAccess ?? false} isLoading={!!oddsLoading && !oddsEntry} />
+        </td>
         <td className="pr-3 pl-1 py-2">
           <ChevronRight className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform", expanded && "rotate-90")} />
         </td>
@@ -1281,7 +1695,7 @@ function BatterRow({
         "border-b border-neutral-200/40 dark:border-neutral-700/20",
         expanded ? "bg-sky-50/40 dark:bg-sky-500/[0.04]" : ""
       )}>
-        <td colSpan={12} className="px-3 pb-2.5 pt-0">
+        <td colSpan={13} className="px-3 pb-2.5 pt-0">
           <div className="ml-9 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-neutral-400 dark:text-neutral-500">
             {top2Pitches.map((p) => {
               const split = batter.pitch_splits.find((s) => s.pitch_type === p.pitch_type);
@@ -1327,8 +1741,8 @@ function BatterRow({
       {/* Expansion */}
       {expanded && (
         <tr>
-          <td colSpan={12} className="px-3 pb-4 bg-brand/5 dark:bg-brand/10">
-            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
+          <td colSpan={13} className="px-3 pb-4 bg-brand/5 dark:bg-brand/10">
+            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} />
           </td>
         </tr>
       )}
@@ -1394,14 +1808,35 @@ function BatterExpansion({
   pitcher,
   isMobile,
   pitchFilter,
+  oddsEntry,
+  hasSharpAccess,
+  gameId,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
   isMobile: boolean;
   pitchFilter?: string | null;
+  oddsEntry?: BatterOddsEntry | null;
+  hasSharpAccess?: boolean;
+  gameId?: number | null;
 }) {
   const h2hMeetings = batter.h2h?.last_meetings ?? [];
   const hrFactors = batter.hr_factors ?? [];
+
+  // Local odds market selector for expanded view
+  const [localOddsMarket, setLocalOddsMarket] = useState("player_home_runs");
+  const [localOddsLine, setLocalOddsLine] = useState(0.5);
+  const [userChangedMarket, setUserChangedMarket] = useState(false);
+  const { odds: localOdds, isFetching: localOddsFetching } = useMlbBatterOdds(gameId ?? null, localOddsMarket, localOddsLine, "over");
+  const localOddsEntry = gameId ? findPlayerOdds(localOdds, batter.player_name) : null;
+  // Once user changes market/line, always use local fetch
+  const effectiveOdds = userChangedMarket ? localOddsEntry : (oddsEntry ?? localOddsEntry);
+  // Track whether we've ever had odds so the controls persist during fetches
+  const [hasEverHadOdds, setHasEverHadOdds] = useState(false);
+  useEffect(() => {
+    if (effectiveOdds && effectiveOdds.all_books.length > 0) setHasEverHadOdds(true);
+  }, [effectiveOdds]);
+  const oddsTransitioning = userChangedMarket && localOddsFetching;
   const sparkline = batter.recent_ev_sparkline ?? [];
 
   // Zone pitch type synced with parent pitch filter, with local override
@@ -1491,6 +1926,127 @@ function BatterExpansion({
               ))}
             </div>
           )}
+
+          {/* Odds section in expanded view — controls always visible once loaded */}
+          {hasEverHadOdds ? (
+            <div className="mt-4 pt-3 border-t border-neutral-200/40 dark:border-neutral-700/20">
+              {/* Market + Line selectors — always stable, never unmount */}
+              <div className="mb-3">
+                <div className={cn("mb-2", isMobile ? "space-y-1" : "flex items-center justify-between")}>
+                  <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400">Prop Odds</h5>
+                  {hasSharpAccess && effectiveOdds?.fair_american && (
+                    <span className={cn("text-[10px] text-neutral-400 transition-opacity duration-200", oddsTransitioning && "opacity-0")}>
+                      Fair <span className="font-mono font-medium text-neutral-600 dark:text-neutral-300">{effectiveOdds.fair_american}</span>
+                      {effectiveOdds.ev_pct != null && effectiveOdds.ev_pct > 0 && (
+                        <span className={cn("ml-1 font-bold", effectiveOdds.ev_pct >= 5 ? "text-[#22C55E]" : effectiveOdds.ev_pct >= 2 ? "text-[#22C55E]/80" : "text-[#EAB308]")}>
+                          +{effectiveOdds.ev_pct.toFixed(1)}%
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                {/* Market pills — scrollable, touch-friendly */}
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                  {ODDS_MARKETS.map((m) => {
+                    const isActive = localOddsMarket === m.key;
+                    return (
+                      <button
+                        key={m.key}
+                        onClick={() => { setLocalOddsMarket(m.key); setLocalOddsLine(ODDS_LINE_OPTIONS[m.key]?.[0] ?? 0.5); setUserChangedMarket(true); }}
+                        className={cn(
+                          "font-medium rounded-lg transition-all whitespace-nowrap shrink-0 active:scale-95",
+                          isMobile ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[10px]",
+                          isActive
+                            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                            : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        )}
+                      >
+                        {m.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Line pills */}
+                {(ODDS_LINE_OPTIONS[localOddsMarket] || []).length > 1 && (
+                  <div className="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-hide">
+                    {(ODDS_LINE_OPTIONS[localOddsMarket] || [0.5]).map((ln) => (
+                      <button
+                        key={ln}
+                        onClick={() => { setLocalOddsLine(ln); setUserChangedMarket(true); }}
+                        className={cn(
+                          "font-mono font-medium rounded-md transition-all shrink-0 active:scale-95",
+                          isMobile ? "px-3 py-2 text-xs" : "px-2 py-1 text-[10px]",
+                          localOddsLine === ln
+                            ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20"
+                            : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-transparent"
+                        )}
+                      >
+                        O {ln}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Books grid — smooth fade during transitions */}
+              <div className={cn("transition-opacity duration-200", oddsTransitioning && "opacity-40")}>
+                {effectiveOdds && effectiveOdds.all_books.length > 0 ? (
+                  <div className={cn("grid gap-1.5", isMobile ? "grid-cols-3" : "grid-cols-4 md:grid-cols-5")}>
+                    {[...effectiveOdds.all_books].sort((a, b) => b.price - a.price).slice(0, 10).map((book, idx) => {
+                      const logo = getBookLogo(book.book);
+                      const link = getPreferredLink(book.link, book.mobile_link);
+                      const isBest = idx === 0;
+                      const sbName = getSportsbookById(normalizeSportsbookId(book.book))?.name || book.book;
+                      return (
+                        <a
+                          key={book.book}
+                          href={link || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => { if (!link) e.preventDefault(); }}
+                          title={sbName}
+                          className={cn(
+                            "flex items-center justify-center gap-1.5 rounded-lg border transition-all",
+                            isMobile ? "px-2 py-2" : "px-2 py-1.5",
+                            link && "hover:scale-[1.02] active:scale-[0.98]",
+                            isBest
+                              ? "border-[#22C55E]/30 bg-[#22C55E]/[0.06]"
+                              : "border-neutral-200/40 dark:border-neutral-700/20"
+                          )}
+                        >
+                          {logo && <img src={logo} alt={sbName} className="h-5 w-5 rounded object-contain shrink-0" />}
+                          <span className={cn("font-mono font-bold tabular-nums text-[11px]", isBest ? "text-[#22C55E]" : "text-neutral-900 dark:text-white")}>
+                            {formatOddsPrice(book.price)}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={cn("grid gap-1.5", isMobile ? "grid-cols-3" : "grid-cols-4 md:grid-cols-5")}>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className={cn("flex items-center justify-center gap-1.5 rounded-lg border border-neutral-200/20 dark:border-neutral-700/10", isMobile ? "px-2 py-2" : "px-2 py-1.5")}>
+                        <div className="h-5 w-5 rounded bg-neutral-200/60 dark:bg-neutral-700/40" />
+                        <div className="h-4 w-10 rounded bg-neutral-200/60 dark:bg-neutral-700/40" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (oddsEntry || localOddsEntry) ? null : gameId ? (
+            <div className="mt-4 pt-3 border-t border-neutral-200/40 dark:border-neutral-700/20">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Prop Odds</h5>
+              <div className={cn("grid gap-1.5", isMobile ? "grid-cols-3" : "grid-cols-4 md:grid-cols-5")}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className={cn("flex items-center justify-center gap-1.5 rounded-lg border border-neutral-200/20 dark:border-neutral-700/10 animate-pulse", isMobile ? "px-2 py-2" : "px-2 py-1.5")}>
+                    <div className="h-5 w-5 rounded bg-neutral-200/60 dark:bg-neutral-700/40" />
+                    <div className="h-4 w-10 rounded bg-neutral-200/60 dark:bg-neutral-700/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1736,6 +2292,9 @@ function ComparisonView({
   onToggleExpand,
   pitchFilter,
   getStats,
+  batterOdds,
+  hasSharpAccess,
+  gameId,
 }: {
   batters: BatterMatchup[];
   pitcher: PitcherProfile;
@@ -1743,6 +2302,9 @@ function ComparisonView({
   onToggleExpand: (id: number) => void;
   pitchFilter: string | null;
   getStats: (b: BatterMatchup) => DisplayStats;
+  batterOdds?: Record<string, BatterOddsEntry>;
+  hasSharpAccess?: boolean;
+  gameId?: number | null;
 }) {
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
@@ -1908,7 +2470,7 @@ function ComparisonView({
             {/* Expanded drilldown */}
             {isExpanded && (
               <div className="border-t border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 pb-3">
-                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} />
+                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={batterOdds ? findPlayerOdds(batterOdds, b.player_name) : null} hasSharpAccess={hasSharpAccess} gameId={gameId} />
               </div>
             )}
             </div>
@@ -1956,7 +2518,25 @@ export function MlbBatterVsPitcher() {
   const [stdSortAsc, setStdSortAsc] = useState(true);
   const [showBench, setShowBench] = useState(false);
 
+  // Odds column state
+  const [oddsMarket, setOddsMarket] = useState("player_home_runs");
+  const [oddsLine, setOddsLine] = useState<number>(0.5);
+  const [oddsSide, setOddsSide] = useState<"over" | "under">("over");
+  const [oddsMenuOpen, setOddsMenuOpen] = useState(false);
+  const oddsMenuRef = React.useRef<HTMLTableCellElement>(null);
+
+  // Click outside to close odds market dropdown
+  React.useEffect(() => {
+    if (!oddsMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (oddsMenuRef.current && !oddsMenuRef.current.contains(e.target as Node)) setOddsMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [oddsMenuOpen]);
+
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const { hasAccess: hasSharpAccess } = useHasSharpAccess();
   const { games, isLoading: gamesLoading } = useMlbGames();
 
   // Filter out finished games — users only care about upcoming/live
@@ -1990,6 +2570,14 @@ export function MlbBatterVsPitcher() {
     sample,
     statSeason,
   });
+
+  // Batter odds for the odds column
+  const { odds: batterOdds, isFetching: oddsFetching } = useMlbBatterOdds(
+    selectedGameId,
+    oddsMarket,
+    oddsLine,
+    oddsSide
+  );
 
   // Auto-default hand filter to pitcher's handedness
   useEffect(() => {
@@ -2379,6 +2967,8 @@ export function MlbBatterVsPitcher() {
                         lineupLHBCount={lineupTotals?.lhb}
                         lineupRHBCount={lineupTotals?.rhb}
                         vulnerabilityTags={(summary?.pitcher_tags ?? []).filter((t) => t.type === "vulnerability" && /hittable|SLG/i.test(t.label))}
+                        gameId={selectedGameId}
+                        hasSharpAccess={hasSharpAccess}
                       />
                     </div>
                   )}
@@ -2476,6 +3066,9 @@ export function MlbBatterVsPitcher() {
                         onToggleExpand={(id) => setExpandedBatterId(expandedBatterId === id ? null : id)}
                         pitchFilter={pitchFilters[0] ?? null}
                         getStats={getBatterStats}
+                        batterOdds={batterOdds}
+                        hasSharpAccess={hasSharpAccess}
+                        gameId={selectedGameId}
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
@@ -2490,6 +3083,10 @@ export function MlbBatterVsPitcher() {
                             viewMode={viewMode}
                             displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                             pitchFilter={pitchFilters[0] ?? null}
+                            oddsEntry={findPlayerOdds(batterOdds, b.player_name)}
+                            hasSharpAccess={hasSharpAccess}
+                            oddsLoading={oddsFetching}
+                            gameId={selectedGameId}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
@@ -2514,6 +3111,7 @@ export function MlbBatterVsPitcher() {
                                 viewMode={viewMode}
                                 displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                                 pitchFilter={pitchFilters[0] ?? null}
+                                gameId={selectedGameId}
                               />
                             ))}
                           </>
@@ -2526,7 +3124,7 @@ export function MlbBatterVsPitcher() {
                             {/* Lineup status row */}
                             {!matchupLoading && batters.length > 0 && (
                               <tr className="border-b border-neutral-100 dark:border-neutral-800/40">
-                                <th colSpan={12} className="px-3 py-1.5">
+                                <th colSpan={13} className="px-3 py-1.5">
                                   <div className="flex items-center justify-between">
                                     <span className={cn(
                                       "inline-flex items-center gap-1.5 text-[10px] font-semibold",
@@ -2571,6 +3169,61 @@ export function MlbBatterVsPitcher() {
                                   <th className={sThCls} onClick={() => handleStdSort("woba")}>wOBA{stdSortIcon("woba")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("k_pct")}>K%{stdSortIcon("k_pct")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("bb_pct")}>BB%{stdSortIcon("bb_pct")}</th>
+                                  {/* Odds column header — clickable dropdown */}
+                                  <th ref={oddsMenuRef} className="px-1.5 py-2 text-right relative">
+                                    <button
+                                      onClick={() => setOddsMenuOpen(!oddsMenuOpen)}
+                                      className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold text-sky-500 hover:text-sky-400 transition-colors select-none"
+                                    >
+                                      {oddsSide === "under" ? "U" : ""}{ODDS_MARKETS.find(m => m.key === oddsMarket)?.shortLabel || "Odds"}
+                                      {oddsLine !== 0.5 && <span className="text-neutral-400 font-normal">{oddsLine}</span>}
+                                      <ChevronDown className="w-2.5 h-2.5" />
+                                    </button>
+                                    {oddsMenuOpen && (
+                                      <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl py-1">
+                                        {/* Over/Under toggle */}
+                                        <div className="flex items-center gap-0.5 mx-2 mb-1 p-0.5 bg-neutral-100 dark:bg-neutral-700/50 rounded-md">
+                                          <button
+                                            onClick={() => setOddsSide("over")}
+                                            className={cn(
+                                              "flex-1 px-2 py-1 text-[10px] font-semibold rounded transition-all",
+                                              oddsSide === "over" ? "bg-white dark:bg-neutral-600 text-[#22C55E] shadow-sm" : "text-neutral-500"
+                                            )}
+                                          >Over</button>
+                                          <button
+                                            onClick={() => setOddsSide("under")}
+                                            className={cn(
+                                              "flex-1 px-2 py-1 text-[10px] font-semibold rounded transition-all",
+                                              oddsSide === "under" ? "bg-white dark:bg-neutral-600 text-[#CD4444] shadow-sm" : "text-neutral-500"
+                                            )}
+                                          >Under</button>
+                                        </div>
+                                        <div className="border-t border-neutral-100 dark:border-neutral-700/50 mt-1 pt-1">
+                                        {ODDS_MARKETS.map((m) => {
+                                          const lines = ODDS_LINE_OPTIONS[m.key] || [0.5];
+                                          return (
+                                            <div key={m.key}>
+                                              {lines.map((ln) => (
+                                                <button
+                                                  key={`${m.key}-${ln}`}
+                                                  onClick={() => { setOddsMarket(m.key); setOddsLine(ln); setOddsMenuOpen(false); }}
+                                                  className={cn(
+                                                    "w-full text-left px-3 py-1.5 text-xs font-medium transition-colors",
+                                                    oddsMarket === m.key && oddsLine === ln
+                                                      ? "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                                                      : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
+                                                  )}
+                                                >
+                                                  {m.label} {ln !== 0.5 ? `${oddsSide === "over" ? "O" : "U"} ${ln}` : ""}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          );
+                                        })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </th>
                                   <th className="w-8" />
                                 </tr>
                               );
@@ -2588,13 +3241,17 @@ export function MlbBatterVsPitcher() {
                                 viewMode={viewMode}
                                 displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                                 pitchFilter={pitchFilters[0] ?? null}
+                                oddsEntry={findPlayerOdds(batterOdds, b.player_name)}
+                                hasSharpAccess={hasSharpAccess}
+                                oddsLoading={oddsFetching}
+                                gameId={selectedGameId}
                               />
                             ))}
                             {/* Bench expand row */}
                             {hasLineup && benchPlayers.length > 0 && (
                               <>
                                 <tr>
-                                  <td colSpan={12} className="px-3 py-0">
+                                  <td colSpan={13} className="px-3 py-0">
                                     <button
                                       onClick={() => setShowBench(!showBench)}
                                       className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
@@ -2617,6 +3274,10 @@ export function MlbBatterVsPitcher() {
                                     viewMode={viewMode}
                                     displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                                     pitchFilter={pitchFilters[0] ?? null}
+                                    oddsEntry={findPlayerOdds(batterOdds, b.player_name)}
+                                    hasSharpAccess={hasSharpAccess}
+                                    oddsLoading={oddsFetching}
+                                    gameId={selectedGameId}
                                   />
                                 ))}
                               </>
