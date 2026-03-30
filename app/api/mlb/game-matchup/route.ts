@@ -1389,9 +1389,21 @@ export async function GET(req: NextRequest) {
           hard_hit_pct: hardHit,
           barrel_pct: barrelPct,
           gb_pct: null, // not in hand splits table
-          k_pct: totalPA > 0 ? Math.round((totalK / totalPA) * 1000) / 10 : null,
-          bb_pct: handRows[0]?.bb_percent != null ? Math.round(Number(handRows[0].bb_percent) * 10) / 10 : null,
-          obp: handRows[0]?.obp != null ? Math.round(Number(handRows[0].obp) * 1000) / 1000 : null,
+          k_pct: (() => {
+            let wK = 0, wPA = 0;
+            for (const r of handRows) { if (r.k_percent != null && Number(r.pa ?? 0) > 0) { wK += Number(r.k_percent) * Number(r.pa); wPA += Number(r.pa); } }
+            return wPA > 0 ? Math.round((wK / wPA) * 10) / 10 : null;
+          })(),
+          bb_pct: (() => {
+            let wBB = 0, wPA = 0;
+            for (const r of handRows) { if (r.bb_percent != null && Number(r.pa ?? 0) > 0) { wBB += Number(r.bb_percent) * Number(r.pa); wPA += Number(r.pa); } }
+            return wPA > 0 ? Math.round((wBB / wPA) * 10) / 10 : null;
+          })(),
+          obp: (() => {
+            let wOBP = 0, wPA = 0;
+            for (const r of handRows) { if (r.obp != null && Number(r.pa ?? 0) > 0) { wOBP += Number(r.obp) * Number(r.pa); wPA += Number(r.pa); } }
+            return wPA > 0 ? Math.round((wOBP / wPA) * 1000) / 1000 : null;
+          })(),
         };
       }
 

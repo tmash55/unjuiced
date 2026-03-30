@@ -532,6 +532,8 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                   <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
                   <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">ISO</th>
                   <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">HR</th>
+                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
+                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
                 </tr>
               </thead>
               <tbody>
@@ -548,6 +550,12 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                     <td className={cn("px-2.5 py-1.5 text-right font-semibold", slgColor(row.data.slg))}>{fmtAvg(row.data.slg)}</td>
                     <td className={cn("px-2.5 py-1.5 text-right font-medium", isoColor(row.data.iso))}>{fmtAvg(row.data.iso)}</td>
                     <td className="px-2.5 py-1.5 text-right font-semibold text-neutral-900 dark:text-white">{row.data.hr}</td>
+                    <td className={cn("px-2.5 py-1.5 text-right font-medium", row.data.k_pct != null && row.data.k_pct >= 25 ? STAT_RED : row.data.k_pct != null && row.data.k_pct <= 15 ? STAT_GREEN : "text-neutral-700 dark:text-neutral-300")}>
+                      {row.data.k_pct != null ? `${row.data.k_pct.toFixed(1)}%` : "-"}
+                    </td>
+                    <td className={cn("px-2.5 py-1.5 text-right font-medium", row.data.bb_pct != null && row.data.bb_pct >= 10 ? STAT_GREEN : row.data.bb_pct != null && row.data.bb_pct <= 4 ? STAT_RED : "text-neutral-700 dark:text-neutral-300")}>
+                      {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
