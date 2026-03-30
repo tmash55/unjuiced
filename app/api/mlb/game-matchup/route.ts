@@ -1252,13 +1252,15 @@ export async function GET(req: NextRequest) {
         ? (() => {
             const seasonStart = `${statSeason}-01-01`;
             const seasonEnd = `${statSeason + 1}-01-01`;
-            return logs.filter((log: any) => {
+            const filtered = logs.filter((log: any) => {
               const d = log.game_date ?? log.date ?? "";
-              if (d && (d < seasonStart || d >= seasonEnd)) return false;
+              // Must have a date within the selected season year
+              if (!d || d < seasonStart || d >= seasonEnd) return false;
               const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
               if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
               return true;
             });
+            return filtered;
           })()
         : logs;
 
