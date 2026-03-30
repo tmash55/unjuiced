@@ -186,6 +186,26 @@ function normalizeMarketName(market: string): string {
     "player_ra": "player_ra",
     "player_rebounds_assists": "player_ra",
     
+    // Baseball player props (legacy batter_/pitcher_ keys → player_ keys)
+    "batter_hits": "player_hits",
+    "batter_home_runs": "player_home_runs",
+    "batter_total_bases": "player_total_bases",
+    "batter_rbis": "player_rbis",
+    "batter_runs_scored": "player_runs",
+    "pitcher_strikeouts": "player_strikeouts",
+    "pitcher_hits_allowed": "player_hits_allowed",
+    "player_hits": "player_hits",
+    "player_home_runs": "player_home_runs",
+    "player_total_bases": "player_total_bases",
+    "player_rbis": "player_rbis",
+    "player_runs": "player_runs",
+    "player_stolen_bases": "player_stolen_bases",
+    "player_strikeouts": "player_strikeouts",
+    "player_hits_allowed": "player_hits_allowed",
+    "player_earned_runs": "player_earned_runs",
+    "player_outs": "player_outs",
+    "player_batting_strikeouts": "player_batting_strikeouts",
+
     // Football passing
     "passing_yards": "player_passing_yards",
     "player_passing_yards": "player_passing_yards",

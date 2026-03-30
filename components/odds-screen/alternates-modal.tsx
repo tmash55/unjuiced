@@ -139,13 +139,16 @@ const PLAYER_MARKETS: Record<string, { key: string; label: string; shortLabel: s
     { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
   ],
   mlb: [
-    { key: 'batter_hits', label: 'Hits', shortLabel: 'H' },
-    { key: 'batter_home_runs', label: 'Home Runs', shortLabel: 'HR' },
-    { key: 'batter_total_bases', label: 'Total Bases', shortLabel: 'TB' },
-    { key: 'batter_rbis', label: 'RBIs', shortLabel: 'RBI' },
-    { key: 'batter_runs_scored', label: 'Runs', shortLabel: 'R' },
-    { key: 'pitcher_strikeouts', label: 'Strikeouts', shortLabel: 'K' },
-    { key: 'pitcher_hits_allowed', label: 'Hits Allowed', shortLabel: 'HA' },
+    { key: 'player_hits', label: 'Hits', shortLabel: 'H' },
+    { key: 'player_home_runs', label: 'Home Runs', shortLabel: 'HR' },
+    { key: 'player_total_bases', label: 'Total Bases', shortLabel: 'TB' },
+    { key: 'player_rbis', label: 'RBIs', shortLabel: 'RBI' },
+    { key: 'player_runs', label: 'Runs', shortLabel: 'R' },
+    { key: 'player_stolen_bases', label: 'Stolen Bases', shortLabel: 'SB' },
+    { key: 'player_strikeouts', label: 'Pitcher Ks', shortLabel: 'K' },
+    { key: 'player_hits_allowed', label: 'Hits Allowed', shortLabel: 'HA' },
+    { key: 'player_earned_runs', label: 'Earned Runs', shortLabel: 'ER' },
+    { key: 'player_outs', label: 'Outs', shortLabel: 'Outs' },
   ],
 };
 
@@ -252,7 +255,19 @@ export function AlternatesModal({
   // Get available markets for this sport
   const availableMarkets = React.useMemo(() => {
     if (isGame) return GAME_MARKETS;
-    const configured = PLAYER_MARKETS[sport] || [];
+    let configured = PLAYER_MARKETS[sport] || [];
+
+    // For MLB, filter to batter or pitcher markets based on the original market
+    if (sport === "mlb" && configured.length > 0) {
+      const pitcherMarkets = new Set(["player_strikeouts", "player_hits_allowed", "player_earned_runs", "player_outs", "pitcher_strikeouts", "pitcher_hits_allowed"]);
+      const isPitcher = pitcherMarkets.has(market);
+      if (isPitcher) {
+        configured = configured.filter(m => pitcherMarkets.has(m.key));
+      } else {
+        configured = configured.filter(m => !pitcherMarkets.has(m.key));
+      }
+    }
+
     if (configured.length > 0) return configured;
 
     // Never default to NBA markets for unsupported sports.
