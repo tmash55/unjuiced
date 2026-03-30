@@ -380,19 +380,19 @@ export function AlternatesModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed inset-4 sm:inset-6 md:inset-8 lg:inset-x-[12%] lg:inset-y-6 z-50 flex flex-col bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-800/50"
+            className="fixed inset-4 sm:inset-6 md:inset-8 lg:inset-x-[10%] lg:inset-y-6 z-50 flex flex-col bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/40"
           >
             {/* Header */}
-            <div className="flex flex-col border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-              <div className="flex items-center justify-between px-6 py-5">
-                <div className="flex items-center gap-5">
+            <div className="flex flex-col border-b border-neutral-200/60 dark:border-neutral-800/40">
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-4">
                   {/* Team Logo */}
                   {team && (
-                    <div className="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0">
-                      <img 
-                        src={getTeamLogoUrl(team, sport)} 
+                    <div className="w-11 h-11 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-neutral-200/60 dark:ring-neutral-700/30">
+                      <img
+                        src={getTeamLogoUrl(team, sport)}
                         alt={team}
-                        className="w-8 h-8 object-contain"
+                        className="w-7 h-7 object-contain"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}
@@ -400,22 +400,22 @@ export function AlternatesModal({
                     </div>
                   )}
                   <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
+                    <div className="flex items-center gap-2.5 mb-0.5">
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                         {playerName}
                       </h2>
                       {team && (
-                        <span className="px-2 py-0.5 text-xs font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 rounded text-nowrap">
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800/60 rounded">
                           {team}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                      <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                    <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
+                      <span className="font-medium text-neutral-600 dark:text-neutral-300">
                         {formatMarket(selectedMarket)}
                       </span>
-                      <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                      <span>Alternate Lines</span>
+                      <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+                      <span>Alt Lines</span>
                     </div>
                   </div>
                 </div>
@@ -436,64 +436,49 @@ export function AlternatesModal({
                   )}
 
                   {/* View Mode Toggle */}
-                  <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-1">
-                    <button
-                      onClick={() => setViewMode('over')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'over'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      {isGame && !market.includes('total') ? (awayTeam || 'Away') : 'Over'}
-                    </button>
-                    <button
-                      onClick={() => setViewMode('under')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'under'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      {isGame && !market.includes('total') ? (homeTeam || 'Home') : 'Under'}
-                    </button>
-                    <button
-                      onClick={() => setViewMode('both')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'both'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      Both
-                    </button>
+                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                    {[
+                      { key: 'over' as ViewMode, label: isGame && !market.includes('total') ? (awayTeam || 'Away') : 'Over' },
+                      { key: 'under' as ViewMode, label: isGame && !market.includes('total') ? (homeTeam || 'Home') : 'Under' },
+                      { key: 'both' as ViewMode, label: 'Both' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setViewMode(opt.key)}
+                        className={cn(
+                          "px-3 py-1.5 text-[11px] font-medium rounded-md transition-all",
+                          viewMode === opt.key
+                            ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                            : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Close Button */}
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Market Tabs */}
-              <div className="px-6 pb-4 overflow-x-auto scrollbar-hide">
-                <div className="flex items-center gap-2 min-w-max">
+              <div className="px-5 pb-3 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1.5 min-w-max">
                   {availableMarkets.map((mk) => (
                     <button
                       key={mk.key}
                       onClick={() => handleMarketChange(mk.key)}
                       className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap border",
+                        "px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap active:scale-95",
                         selectedMarket === mk.key
-                          ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white shadow-sm"
-                          : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                          ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/60"
                       )}
                     >
                       {mk.shortLabel}
@@ -508,13 +493,11 @@ export function AlternatesModal({
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-6 h-6">
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-200 dark:border-blue-800" />
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                    <div className="relative w-5 h-5">
+                      <div className="absolute inset-0 rounded-full border-2 border-neutral-200 dark:border-neutral-800" />
+                      <div className="absolute inset-0 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
                     </div>
-                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                      Loading alternate lines...
-                    </span>
+                    <span className="text-sm text-neutral-500">Loading lines...</span>
                   </div>
                 </div>
               ) : error ? (
@@ -527,34 +510,33 @@ export function AlternatesModal({
                 </div>
               ) : (
                 <div className="absolute inset-0 overflow-auto">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
-                        <th className="sticky left-0 z-20 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-left text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-800 min-w-[80px]">
+                      <tr className="bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm">
+                        <th className="sticky left-0 z-20 bg-white dark:bg-neutral-950 px-4 py-2.5 text-left text-[10px] font-semibold text-neutral-400 uppercase tracking-wider border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[72px]">
                           {viewMode === 'both' ? 'Line' : viewMode.toUpperCase()}
                         </th>
-                        {/* Favorite button column header */}
-                        <th className="px-2 py-3 text-center border-b border-neutral-200 dark:border-neutral-800 min-w-[44px]">
+                        <th className="px-1.5 py-2.5 text-center border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[36px]">
                           <span className="sr-only">Favorite</span>
                         </th>
                         {availableSportsbooks.map((bookId: string) => {
                           const sb = getSportsbookById(bookId);
                           const logoUrl = sb?.image?.square || sb?.image?.light;
                           return (
-                            <th 
-                              key={bookId} 
-                              className="px-2 py-3 text-center border-b border-neutral-200 dark:border-neutral-800 min-w-[72px]"
+                            <th
+                              key={bookId}
+                              className="px-1.5 py-2.5 text-center border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[64px]"
                             >
                               <Tooltip content={sb?.name || bookId}>
                                 <div className="flex items-center justify-center">
                                   {logoUrl ? (
-                                    <img 
-                                      src={logoUrl} 
-                                      alt={sb?.name || bookId} 
-                                      className="h-6 w-auto max-w-[28px] object-contain"
+                                    <img
+                                      src={logoUrl}
+                                      alt={sb?.name || bookId}
+                                      className="h-5 w-auto max-w-[24px] object-contain"
                                     />
                                   ) : (
-                                    <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase">
+                                    <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase">
                                       {bookId.slice(0, 3)}
                                     </span>
                                   )}
@@ -571,13 +553,12 @@ export function AlternatesModal({
                         const bestUnder = getBestOddsForLine(alt, 'under');
                         const isPrimaryLine = alt.ln === primaryLine;
 
-                        // Zebra striping matching site style
-                        const rowBg = index % 2 === 0 
-                          ? 'bg-white dark:bg-neutral-900' 
-                          : 'bg-neutral-50/50 dark:bg-neutral-800/30';
-                        const stickyBg = index % 2 === 0 
-                          ? 'bg-white dark:bg-neutral-900' 
-                          : 'bg-neutral-50 dark:bg-neutral-800';
+                        const rowBg = index % 2 === 0
+                          ? 'bg-white dark:bg-neutral-950'
+                          : 'bg-neutral-50/40 dark:bg-neutral-900/40';
+                        const stickyBg = index % 2 === 0
+                          ? 'bg-white dark:bg-neutral-950'
+                          : 'bg-neutral-50 dark:bg-neutral-900';
 
                         return (
                           <React.Fragment key={alt.ln}>
@@ -585,14 +566,14 @@ export function AlternatesModal({
                             {(viewMode === 'over' || viewMode === 'both') && (
                               <tr 
                                 className={cn(
-                                  "border-b border-neutral-100 dark:border-neutral-800/50 transition-colors",
-                                  "hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]",
+                                  "border-b border-neutral-100/60 dark:border-neutral-800/30 transition-colors",
+                                  "hover:bg-neutral-50 dark:hover:bg-neutral-800/20",
                                   !isPrimaryLine && rowBg,
                                   isPrimaryLine && rowBg // Treat primary line same as others
                                 )}
                               >
                                 <td className={cn(
-                                  "sticky left-0 z-[5] px-4 py-2.5 text-sm font-semibold tabular-nums border-r border-neutral-100 dark:border-neutral-800/50",
+                                  "sticky left-0 z-[5] px-4 py-2 text-xs font-semibold tabular-nums border-r border-neutral-100/60 dark:border-neutral-800/30",
                                   cn("text-neutral-700 dark:text-neutral-300", stickyBg)
                                 )}>
                                   <div className="flex items-center gap-1.5">
@@ -681,14 +662,14 @@ export function AlternatesModal({
                             {(viewMode === 'under' || viewMode === 'both') && (
                               <tr 
                                 className={cn(
-                                  "border-b border-neutral-100 dark:border-neutral-800/50 transition-colors",
-                                  "hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]",
+                                  "border-b border-neutral-100/60 dark:border-neutral-800/30 transition-colors",
+                                  "hover:bg-neutral-50 dark:hover:bg-neutral-800/20",
                                   viewMode === 'both' && "bg-neutral-50/30 dark:bg-neutral-800/20",
                                   viewMode === 'under' && rowBg
                                 )}
                               >
                                 <td className={cn(
-                                  "sticky left-0 z-[5] px-4 py-2.5 text-sm font-semibold tabular-nums border-r border-neutral-100 dark:border-neutral-800/50",
+                                  "sticky left-0 z-[5] px-4 py-2 text-xs font-semibold tabular-nums border-r border-neutral-100/60 dark:border-neutral-800/30",
                                   viewMode === 'both' 
                                     ? "text-neutral-500 dark:text-neutral-500 bg-neutral-50/30 dark:bg-neutral-800/20"
                                     : cn("text-neutral-700 dark:text-neutral-300", stickyBg)
