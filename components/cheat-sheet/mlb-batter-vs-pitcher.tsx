@@ -318,12 +318,13 @@ function MobileGameSelector({
 
   function getDateLabel(gameDate: string) {
     const d = new Date(gameDate + "T12:00:00");
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
-    if (gameDate === fmt(today)) return "Today";
-    if (gameDate === fmt(tomorrow)) return "Tomorrow";
+    const fmtET = (dt: Date) => dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const todayET = fmtET(new Date());
+    const tomorrowDt = new Date();
+    tomorrowDt.setDate(tomorrowDt.getDate() + 1);
+    const tomorrowET = fmtET(tomorrowDt);
+    if (gameDate === todayET) return "Today";
+    if (gameDate === tomorrowET) return "Tomorrow";
     return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   }
 
@@ -2158,12 +2159,13 @@ export function MlbBatterVsPitcher() {
                       lastDate = g.game_date;
                       const dateLabel = (() => {
                         const d = new Date(g.game_date + "T12:00:00");
-                        const today = new Date();
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
-                        if (g.game_date === fmt(today)) return "Today";
-                        if (g.game_date === fmt(tomorrow)) return "Tomorrow";
+                        const fmtET = (dt: Date) => dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+                        const todayET = fmtET(new Date());
+                        const tomorrowDt = new Date();
+                        tomorrowDt.setDate(tomorrowDt.getDate() + 1);
+                        const tomorrowET = fmtET(tomorrowDt);
+                        if (g.game_date === todayET) return "Today";
+                        if (g.game_date === tomorrowET) return "Tomorrow";
                         return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                       })();
                       return (
