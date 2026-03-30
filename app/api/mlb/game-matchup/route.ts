@@ -1096,18 +1096,17 @@ export async function GET(req: NextRequest) {
         console.log(`[game-matchup] batter ${batterIds[i]} game logs: ${gameLogs.length} total, sample=${sample}, season=${season}, first date=${gameLogs[0]?.game_date}, last date=${gameLogs[gameLogs.length - 1]?.game_date}, game_types=${[...new Set(gameLogs.map((g: any) => g.game_type ?? g.season_type ?? "null"))].join(",")}`);
       }
 
-      // Filter to only include games from the selected season year
-      // Also exclude spring training (S, ST) and exhibition (E) by game_type
+      // Filter batter logs — only for current/future seasons to exclude spring training
+      // Past seasons (2025 and earlier) are complete — RPC handles season scoping
       let filtered = gameLogs;
-      if (statSeason) {
+      const needsBatterFilter = statSeason && statSeason >= new Date().getFullYear();
+      if (needsBatterFilter) {
         const seasonStart = `${statSeason}-01-01`;
         const seasonEnd = `${statSeason + 1}-01-01`;
         const beforeCount = filtered.length;
         filtered = filtered.filter((g: any) => {
           const d = g.game_date ?? g.date ?? "";
-          // Must be within the selected season year
-          if (d && (d < seasonStart || d >= seasonEnd)) return false;
-          // Exclude spring training and exhibition
+          if (!d || d < seasonStart || d >= seasonEnd) return false;
           const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
           if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
           return true;
@@ -1247,20 +1246,21 @@ export async function GET(req: NextRequest) {
     // RPC columns: strike_outs, base_on_balls, innings_numeric, hits_allowed, earned_runs, game_result
     let pitcherSeasonStats: any = {};
     if (logs.length > 0) {
-      // Filter pitcher logs to selected season year + exclude spring training
-      const statsLogs = statSeason
+      // Filter pitcher logs — only for current/future seasons to exclude spring training
+      // Past seasons (2025 and earlier) are complete — no filtering needed
+      const currentYear = new Date().getFullYear();
+      const needsSeasonFilter = statSeason && statSeason >= currentYear;
+      const statsLogs = needsSeasonFilter
         ? (() => {
             const seasonStart = `${statSeason}-01-01`;
             const seasonEnd = `${statSeason + 1}-01-01`;
-            const filtered = logs.filter((log: any) => {
+            return logs.filter((log: any) => {
               const d = log.game_date ?? log.date ?? "";
-              // Must have a date within the selected season year
               if (!d || d < seasonStart || d >= seasonEnd) return false;
               const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
               if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
               return true;
             });
-            return filtered;
           })()
         : logs;
 
@@ -1351,7 +1351,8 @@ export async function GET(req: NextRequest) {
       // Aggregate across all pitch types for this hand from the hand splits table
       const handRows = pitcherHandSplitsRaw.filter((r: any) => r.opponent_hand === hand);
       const handTotalPA = handRows.reduce((s: number, r: any) => s + Number(r.pa ?? 0), 0);
-      if (handRows.length > 0 && handTotalPA >= 10) {
+      const minPA = (statSeason && statSeason >= new Date().getFullYear()) ? 10 : 3;
+      if (handRows.length > 0 && handTotalPA >= minPA) {
         // Weighted averages by PA across pitch types (require 10+ PA for meaningful splits)
         let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, totalK = 0;
         let weightedBA = 0, weightedSLG = 0, weightedISO = 0, weightedWOBA = 0;
