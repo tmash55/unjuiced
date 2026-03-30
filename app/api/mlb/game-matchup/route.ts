@@ -408,9 +408,10 @@ function generateKeyInsight(
   return null;
 }
 
-function generateScoutingSummary(p: PitcherProfile, zoneBBs: any[]): string | null {
+function generateScoutingSummary(p: PitcherProfile, zoneBBs: any[], seasonYear?: number): string | null {
   if (!p.arsenal.length) return null;
   const parts: string[] = [];
+  const seasonLabel = seasonYear ? `in ${seasonYear}` : "this season";
 
   // Pitch mix overview
   const primary = p.arsenal[0];
@@ -423,15 +424,15 @@ function generateScoutingSummary(p: PitcherProfile, zoneBBs: any[]): string | nu
 
   // ERA/performance context
   if (p.era != null) {
-    if (p.era <= 3.20) parts.push(`He has been dominant this season with a ${p.era} ERA.`);
-    else if (p.era >= 4.50) parts.push(`He's been hittable this season with a ${p.era} ERA.`);
+    if (p.era <= 3.20) parts.push(`He was dominant ${seasonLabel} with a ${p.era} ERA.`);
+    else if (p.era >= 4.50) parts.push(`He was hittable ${seasonLabel} with a ${p.era} ERA.`);
   }
 
   // Vulnerability highlights
   const hittablePitches = p.arsenal.filter((a) => a.slg != null && a.slg >= 0.480 && a.usage_pct >= 10);
   if (hittablePitches.length > 0) {
     const names = hittablePitches.map((a) => `${a.pitch_name.toLowerCase()} (.${Math.round((a.slg ?? 0) * 1000)} SLG)`).join(" and ");
-    parts.push(`Batters have hit his ${names} hard this season.`);
+    parts.push(`Batters hit his ${names} hard ${seasonLabel}.`);
   }
 
   // HR tendency
@@ -996,22 +997,34 @@ export async function GET(req: NextRequest) {
           totalH += Number(r.hits ?? 0);
           totalHR += Number(r.home_runs ?? 0);
           totalK += Number(r.strikeouts ?? 0);
-          if (r.ba != null && ab > 0) weightedBA += Number(r.ba) * ab;
-          if (r.slg != null && ab > 0) weightedSLG += Number(r.slg) * ab;
-          if (r.iso != null && ab > 0) weightedISO += Number(r.iso) * ab;
+          // Use AB-weighting when AB available, fall back to PA-weighting
+          const baWeight = ab > 0 ? ab : pa;
+          if (r.ba != null && baWeight > 0) { weightedBA += Number(r.ba) * baWeight; }
+          if (r.slg != null && baWeight > 0) { weightedSLG += Number(r.slg) * baWeight; }
+          if (r.iso != null && baWeight > 0) { weightedISO += Number(r.iso) * baWeight; }
           if (r.woba != null && pa > 0) weightedWOBA += Number(r.woba) * pa;
-          if (r.avg_exit_velocity != null) { weightedEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
-          if (r.barrel_percent != null) { weightedBrl += Number(r.barrel_percent) * pa; brlW += pa; }
+          if (r.avg_exit_velocity != null && pa > 0) { weightedEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
+          if (r.barrel_percent != null && pa > 0) { weightedBrl += Number(r.barrel_percent) * pa; brlW += pa; }
           if (r.k_percent != null && pa > 0) { weightedK += Number(r.k_percent) * pa; kW += pa; }
           if (r.bb_percent != null && pa > 0) { weightedBB += Number(r.bb_percent) * pa; bbW += pa; }
         }
 
+        // Total weight for BA/SLG/ISO: prefer AB, fall back to PA
+        const baWeightTotal = totalAB > 0 ? totalAB : totalPA;
+
+        // Also aggregate OBP across all pitch type rows (PA-weighted)
+        let weightedOBP = 0, obpW = 0;
+        for (const r of rows) {
+          const pa = Number(r.pa ?? 0);
+          if (r.obp != null && pa > 0) { weightedOBP += Number(r.obp) * pa; obpW += pa; }
+        }
+
         batterHandSplitMap.set(key, {
           pa: totalPA, ab: totalAB, hits: totalH, hr: totalHR,
-          avg: totalAB > 0 ? Math.round((weightedBA / totalAB) * 1000) / 1000 : null,
-          obp: rows[0]?.obp != null ? Math.round(Number(rows[0].obp) * 1000) / 1000 : null,
-          slg: totalAB > 0 ? Math.round((weightedSLG / totalAB) * 1000) / 1000 : null,
-          iso: totalAB > 0 ? Math.round((weightedISO / totalAB) * 1000) / 1000 : null,
+          avg: baWeightTotal > 0 && weightedBA > 0 ? Math.round((weightedBA / baWeightTotal) * 1000) / 1000 : null,
+          obp: obpW > 0 ? Math.round((weightedOBP / obpW) * 1000) / 1000 : null,
+          slg: baWeightTotal > 0 && weightedSLG > 0 ? Math.round((weightedSLG / baWeightTotal) * 1000) / 1000 : null,
+          iso: baWeightTotal > 0 && weightedISO > 0 ? Math.round((weightedISO / baWeightTotal) * 1000) / 1000 : null,
           woba: totalPA > 0 ? Math.round((weightedWOBA / totalPA) * 1000) / 1000 : null,
           k_pct: kW > 0 ? Math.round((weightedK / kW) * 10) / 10 : null,
           bb_pct: bbW > 0 ? Math.round((weightedBB / bbW) * 10) / 10 : null,
@@ -1510,7 +1523,7 @@ export async function GET(req: NextRequest) {
     };
 
     // Generate scouting summary now that profile is assembled
-    pitcherProfile.scouting_summary = generateScoutingSummary(pitcherProfile, pitcherBBs);
+    pitcherProfile.scouting_summary = generateScoutingSummary(pitcherProfile, pitcherBBs, season);
 
     // ── Process Batters ─────────────────────────────────────────────────────
 
