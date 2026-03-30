@@ -151,7 +151,6 @@ export function DateNav({
         ref={dateInputRef}
         type="date"
         value={selectedDate}
-        min={getTodayET()}
         onChange={(e) => {
           if (e.target.value) onDateChange(e.target.value);
         }}

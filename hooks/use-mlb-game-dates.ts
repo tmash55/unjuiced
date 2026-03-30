@@ -7,8 +7,12 @@ function getTodayET(): string {
 }
 
 async function fetchGameDates(): Promise<string[]> {
-  const today = getTodayET();
-  const res = await fetch(`/api/mlb/game-dates?from=${today}`);
+  // Fetch dates going back 14 days so users can view recent history
+  const today = new Date();
+  const past = new Date(today);
+  past.setDate(past.getDate() - 14);
+  const from = past.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const res = await fetch(`/api/mlb/game-dates?from=${from}`);
   if (!res.ok) return [];
   const data = await res.json();
   return data.dates ?? [];
