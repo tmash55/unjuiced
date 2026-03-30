@@ -59,7 +59,13 @@ export interface PositiveEVFilters {
   
   /** Minimum books required on BOTH sides (width filter, default: 2) */
   minBooksPerSide?: number;
-  
+
+  /** Minimum American odds to include (e.g., -300) */
+  minOdds?: number | null;
+
+  /** Maximum American odds to include (e.g., +500) */
+  maxOdds?: number | null;
+
   /** Custom sharp books (for user's custom EV models) */
   customSharpBooks?: string[] | null;
   
@@ -193,7 +199,15 @@ function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearch
   if (filters.minBooksPerSide !== undefined) {
     params.set("minBooksPerSide", String(filters.minBooksPerSide));
   }
-  
+
+  // Odds range filter
+  if (filters.minOdds != null) {
+    params.set("minOdds", String(filters.minOdds));
+  }
+  if (filters.maxOdds != null) {
+    params.set("maxOdds", String(filters.maxOdds));
+  }
+
   // Limit (pro users get more)
   const limit = filters.limit || (isPro ? 200 : 50);
   params.set("limit", String(limit));

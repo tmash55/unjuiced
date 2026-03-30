@@ -152,8 +152,10 @@ interface PreferencesContextType {
     maxEv?: number;
     mode?: 'pregame' | 'live' | 'all';
     minBooksPerSide?: number;
+    minOdds?: number | null;
+    maxOdds?: number | null;
   }) => Promise<void>;
-  
+
   getPositiveEvFilters: () => {
     selectedBooks: string[];
     selectedSports: string[];
@@ -993,6 +995,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     showHidden?: boolean;
     mode?: 'pregame' | 'live' | 'all';
     minBooksPerSide?: number;
+    minOdds?: number | null;
+    maxOdds?: number | null;
   }) => {
     if (!user) {
       if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update positive EV filters - no user');
@@ -1034,7 +1038,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (filters.showHidden !== undefined) {
       updates.best_odds_show_hidden = filters.showHidden;
     }
-    
+    if (filters.minOdds !== undefined) {
+      updates.ev_min_odds = filters.minOdds === null ? (null as any) : filters.minOdds;
+    }
+    if (filters.maxOdds !== undefined) {
+      updates.ev_max_odds = filters.maxOdds === null ? (null as any) : filters.maxOdds;
+    }
+
     if (Object.keys(updates).length > 0) {
       if (DEV_LOGGING) {
         console.log('[PositiveEV] Updating filters', updates);
@@ -1188,7 +1198,9 @@ export function usePositiveEvPreferences() {
   const dbShowHidden = preferences?.best_odds_show_hidden;
   // Use shared min liquidity from arbitrage prefs (syncs across all tools)
   const dbMinLiquidity = preferences?.arbitrage_min_liquidity;
-  
+  const dbMinOdds = preferences?.ev_min_odds;
+  const dbMaxOdds = preferences?.ev_max_odds;
+
   // Compute filters from preferences (or defaults if not loaded)
   const filters = useMemo(() => {
     const f = {
@@ -1204,6 +1216,8 @@ export function usePositiveEvPreferences() {
       minBooksPerSide: typeof dbMinBooksPerSide === 'string' ? Number(dbMinBooksPerSide) : (dbMinBooksPerSide ?? 2),
       showHidden: dbShowHidden ?? false,
       minLiquidity: typeof dbMinLiquidity === 'string' ? Number(dbMinLiquidity) : (dbMinLiquidity ?? 0),
+      minOdds: typeof dbMinOdds === 'number' ? dbMinOdds : null,
+      maxOdds: typeof dbMaxOdds === 'number' ? dbMaxOdds : null,
     };
     
     console.log('[usePositiveEvPreferences] Computed:', {
@@ -1216,7 +1230,7 @@ export function usePositiveEvPreferences() {
     });
     
     return f;
-  }, [isLoading, preferences, dbSharpPreset, dbSelectedSports, dbDevigMethods, dbEvCase, dbMinEv, dbMaxEv, dbMode, dbSelectedBooks, dbSelectedMarkets, dbMinBooksPerSide, dbShowHidden, dbMinLiquidity]);
+  }, [isLoading, preferences, dbSharpPreset, dbSelectedSports, dbDevigMethods, dbEvCase, dbMinEv, dbMaxEv, dbMode, dbSelectedBooks, dbSelectedMarkets, dbMinBooksPerSide, dbShowHidden, dbMinLiquidity, dbMinOdds, dbMaxOdds]);
   
   // Wrapper to update minLiquidity through arbitrage filters (shared across tools)
   const updateFiltersWithLiquidity = useCallback(async (updates: Parameters<typeof updatePositiveEvFilters>[0] & { minLiquidity?: number }) => {

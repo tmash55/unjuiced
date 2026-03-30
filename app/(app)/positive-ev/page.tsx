@@ -592,6 +592,12 @@ export default function PositiveEVPage() {
     if (filters.minLiquidity !== undefined) {
       (updates as any).minLiquidity = filters.minLiquidity;
     }
+    if (filters.minOdds !== undefined) {
+      (updates as any).minOdds = filters.minOdds;
+    }
+    if (filters.maxOdds !== undefined) {
+      (updates as any).maxOdds = filters.maxOdds;
+    }
     if (filters.showHidden !== undefined) {
       (updates as any).showHidden = filters.showHidden;
     }
@@ -638,6 +644,8 @@ export default function PositiveEVPage() {
     selectedMarkets: savedFilters.selectedMarkets,
     mode: savedFilters.mode,
     minBooksPerSide: savedFilters.minBooksPerSide,
+    minOdds: savedFilters.minOdds,
+    maxOdds: savedFilters.maxOdds,
     searchQuery: searchQuery,
   }), [savedFilters, searchQuery]);
   const requestLimit = effectiveIsPro ? limit : 50;
@@ -1265,8 +1273,10 @@ export default function PositiveEVPage() {
           minEv={savedFilters.minEv}
           maxEv={savedFilters.maxEv}
           minBooksPerSide={savedFilters.minBooksPerSide}
+          minOdds={savedFilters.minOdds}
+          maxOdds={savedFilters.maxOdds}
           minLiquidity={savedFilters.minLiquidity ?? 0}
-          onFiltersChange={handleFiltersChange}
+          onFiltersChange={handleFiltersChange as any}
           availableSports={AVAILABLE_SPORTS}
           availableMarkets={availableMarketOptions.map((market) => market.key)}
           marketSportsMap={marketSportsMap}
@@ -1395,6 +1405,10 @@ export default function PositiveEVPage() {
         onMinEvChange={(minEv) => updateSavedFilters({ minEv })}
         maxEv={savedFilters.maxEv}
         onMaxEvChange={(maxEv) => updateSavedFilters({ maxEv })}
+        minOdds={savedFilters.minOdds ?? undefined}
+        onMinOddsChange={(minOdds) => updateSavedFilters({ minOdds } as any)}
+        maxOdds={savedFilters.maxOdds ?? undefined}
+        onMaxOddsChange={(maxOdds) => updateSavedFilters({ maxOdds } as any)}
         minBooksPerSide={savedFilters.minBooksPerSide}
         onMinBooksPerSideChange={(minBooksPerSide) => updateSavedFilters({ minBooksPerSide } as any)}
         minLiquidity={savedFilters.minLiquidity ?? 0}

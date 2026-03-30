@@ -609,8 +609,8 @@ export function GlobalSettingsDropdown({
             </div>
           )}
 
-          {/* Odds Range (Edge Finder only) */}
-          {tool === "edge-finder" && (onMinOddsChange || onMaxOddsChange) && (
+          {/* Odds Range */}
+          {(tool === "edge-finder" || tool === "positive-ev") && (onMinOddsChange || onMaxOddsChange) && (
             <div className="border-b border-neutral-200 dark:border-neutral-700">
               <button
                 onClick={() => toggleSection("odds")}

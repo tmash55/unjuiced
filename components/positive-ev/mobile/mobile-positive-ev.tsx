@@ -82,6 +82,8 @@ interface MobilePositiveEVProps {
   minEv?: number;
   maxEv?: number | undefined;
   minBooksPerSide?: number;
+  minOdds?: number | null;
+  maxOdds?: number | null;
   minLiquidity?: number;
   onFiltersChange?: (filters: {
     selectedBooks?: string[];
@@ -94,6 +96,8 @@ interface MobilePositiveEVProps {
     maxEv?: number | undefined;
     mode?: EVMode;
     minBooksPerSide?: number;
+    minOdds?: number | null;
+    maxOdds?: number | null;
     minLiquidity?: number;
     showHidden?: boolean;
   }) => void;
@@ -143,6 +147,8 @@ export function MobilePositiveEV({
   minEv = 0,
   maxEv,
   minBooksPerSide = 2,
+  minOdds = null,
+  maxOdds = null,
   minLiquidity = 0,
   onFiltersChange,
   availableSports = [],
@@ -329,6 +335,8 @@ export function MobilePositiveEV({
                 maxEv={maxEv}
                 mode={mode}
                 minBooksPerSide={minBooksPerSide}
+                minOdds={minOdds ?? null}
+                maxOdds={maxOdds ?? null}
                 minLiquidity={minLiquidity}
                 showHidden={showHidden}
                 hiddenCount={hiddenCount}

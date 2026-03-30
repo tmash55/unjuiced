@@ -27,6 +27,8 @@ interface PositiveEVFiltersProps {
   maxEv: number | undefined;
   mode: "pregame" | "live" | "all";
   minBooksPerSide: number;
+  minOdds: number | null;
+  maxOdds: number | null;
   minLiquidity: number;
   showHidden: boolean;
   hiddenCount: number;
@@ -45,6 +47,8 @@ interface PositiveEVFiltersProps {
     maxEv?: number | undefined;
     mode?: "pregame" | "live" | "all";
     minBooksPerSide?: number;
+    minOdds?: number | null;
+    maxOdds?: number | null;
     minLiquidity?: number;
     showHidden?: boolean;
   }) => void;
@@ -117,6 +121,8 @@ export function PositiveEVFilters({
   maxEv,
   mode,
   minBooksPerSide,
+  minOdds,
+  maxOdds,
   minLiquidity,
   showHidden,
   hiddenCount,
@@ -150,6 +156,8 @@ export function PositiveEVFilters({
   const [localMode, setLocalMode] = useState(mode);
   const [localMinBooksPerSide, setLocalMinBooksPerSide] = useState(minBooksPerSide);
   const [localMinLiquidity, setLocalMinLiquidity] = useState(minLiquidity);
+  const [localMinOdds, setLocalMinOdds] = useState<number | null>(minOdds);
+  const [localMaxOdds, setLocalMaxOdds] = useState<number | null>(maxOdds);
   const [localBankroll, setLocalBankroll] = useState(bankroll);
   const [localKellyPercent, setLocalKellyPercent] = useState(kellyPercent);
 
@@ -481,6 +489,8 @@ export function PositiveEVFilters({
       maxEv: localMaxEv,
       mode: localMode,
       minBooksPerSide: localMinBooksPerSide,
+      minOdds: localMinOdds,
+      maxOdds: localMaxOdds,
       minLiquidity: localMinLiquidity,
     });
     if (onBankrollChange) {
@@ -504,6 +514,8 @@ export function PositiveEVFilters({
     setLocalMaxEv(undefined);
     setLocalMode("pregame");
     setLocalMinBooksPerSide(2);
+    setLocalMinOdds(null);
+    setLocalMaxOdds(null);
     setLocalMinLiquidity(0);
     setLocalBankroll(0);
     setLocalKellyPercent(25);
@@ -530,6 +542,7 @@ export function PositiveEVFilters({
     (!allBooksSelected ? 1 : 0) +
     (!allMarketsSelected ? 1 : 0) +
     (localMaxEv !== undefined ? 1 : 0) +
+    (localMinOdds !== null || localMaxOdds !== null ? 1 : 0) +
     (localSharpPreset !== "pinnacle" ? 1 : 0);
   
   return (
@@ -1130,6 +1143,50 @@ export function PositiveEVFilters({
                   </div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
                     Filter opportunities by expected value percentage range
+                  </p>
+                </div>
+
+                {/* Odds Range */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Odds Range</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Min Odds</label>
+                      <Input
+                        type="number"
+                        value={localMinOdds ?? ""}
+                        onChange={(e) => {
+                          if (locked) return;
+                          const val = e.target.value.trim();
+                          setLocalMinOdds(val === "" ? null : Number(val));
+                        }}
+                        placeholder="-∞"
+                        min={-10000}
+                        step={5}
+                        disabled={locked}
+                        className="h-11 text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Max Odds</label>
+                      <Input
+                        type="number"
+                        value={localMaxOdds ?? ""}
+                        onChange={(e) => {
+                          if (locked) return;
+                          const val = e.target.value.trim();
+                          setLocalMaxOdds(val === "" ? null : Number(val));
+                        }}
+                        placeholder="+∞"
+                        min={-10000}
+                        step={5}
+                        disabled={locked}
+                        className="h-11 text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Filter by American odds range. Remove limits to see long-odds props like home runs.
                   </p>
                 </div>
 

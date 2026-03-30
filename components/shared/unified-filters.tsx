@@ -63,6 +63,8 @@ export interface PositiveEVSettings {
   maxEv?: number;
   mode: "pregame" | "live" | "all";
   minBooksPerSide: number;
+  minOdds?: number | null;
+  maxOdds?: number | null;
 }
 
 // Combined filter change event
@@ -275,7 +277,9 @@ export function UnifiedFilters({
   const [localMaxEv, setLocalMaxEv] = useState<number | undefined>(evSettings?.maxEv);
   const [localMode, setLocalMode] = useState<"pregame" | "live" | "all">(evSettings?.mode || "pregame");
   const [localMinBooksPerSide, setLocalMinBooksPerSide] = useState<number>(evSettings?.minBooksPerSide || 2);
-  
+  const [localEvMinOdds, setLocalEvMinOdds] = useState<number | null>(evSettings?.minOdds ?? null);
+  const [localEvMaxOdds, setLocalEvMaxOdds] = useState<number | null>(evSettings?.maxOdds ?? null);
+
   // -------------------------------------------------------------------------
   // Sync local state with props when the sheet opens
   // -------------------------------------------------------------------------
@@ -307,6 +311,8 @@ export function UnifiedFilters({
       setLocalMaxEv(evSettings.maxEv);
       setLocalMode(evSettings.mode);
       setLocalMinBooksPerSide(evSettings.minBooksPerSide);
+      setLocalEvMinOdds(evSettings.minOdds ?? null);
+      setLocalEvMaxOdds(evSettings.maxOdds ?? null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]); // Only re-sync when sheet opens
@@ -534,6 +540,8 @@ export function UnifiedFilters({
         maxEv: localMaxEv,
         mode: localMode,
         minBooksPerSide: localMinBooksPerSide,
+        minOdds: localEvMinOdds ?? undefined,
+        maxOdds: localEvMaxOdds ?? undefined,
       });
     } else {
       onFiltersChange({
@@ -553,7 +561,7 @@ export function UnifiedFilters({
     locked, tool, localBooks, localMarkets, localMinLiquidity,
     localBankrollStr, localKellyPercentStr, onBankrollChange, onKellyPercentChange,
     localSportsEV, localSharpPreset, localDevigMethods, localEvCase,
-    localMinEv, localMaxEv, localMode, localMinBooksPerSide,
+    localMinEv, localMaxEv, localMode, localMinBooksPerSide, localEvMinOdds, localEvMaxOdds,
     localLeagues, localMarketLines, localMinImprovement, localMaxOdds, localMinOdds,
     localHideCollegePlayerProps, onFiltersChange
   ]);
@@ -1382,6 +1390,52 @@ export function UnifiedFilters({
                       </p>
                     </div>
                     
+                    {/* Odds Range */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">Odds Range</Label>
+                      <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Min Odds</label>
+                          <Input
+                            type="number"
+                            value={localEvMinOdds ?? ""}
+                            onChange={(e) => {
+                              if (locked) return;
+                              const val = e.target.value.trim();
+                              setLocalEvMinOdds(val === "" ? null : Number(val));
+                              setHasUnsavedChanges(true);
+                            }}
+                            placeholder="-∞"
+                            className="h-9 sm:h-10 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                            min="-10000"
+                            step="5"
+                            disabled={locked}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Max Odds</label>
+                          <Input
+                            type="number"
+                            value={localEvMaxOdds ?? ""}
+                            onChange={(e) => {
+                              if (locked) return;
+                              const val = e.target.value.trim();
+                              setLocalEvMaxOdds(val === "" ? null : Number(val));
+                              setHasUnsavedChanges(true);
+                            }}
+                            placeholder="+∞"
+                            className="h-9 sm:h-10 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                            min="-10000"
+                            step="5"
+                            disabled={locked}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        Filter by American odds. Clear max to see long-odds props like home runs.
+                      </p>
+                    </div>
+
                     {/* Min Books Per Side */}
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold">Market Width</Label>

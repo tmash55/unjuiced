@@ -85,6 +85,10 @@ export interface PositiveEVPrefs {
   mode: EVMode;
   /** Minimum books per side */
   minBooksPerSide: number;
+  /** Minimum American odds filter */
+  minOdds?: number | null;
+  /** Maximum American odds filter */
+  maxOdds?: number | null;
   /** Search query */
   searchQuery?: string;
 }
@@ -198,6 +202,8 @@ function buildModelConfigs(
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,
+        minOdds: prefs.minOdds ?? undefined,
+        maxOdds: prefs.maxOdds ?? undefined,
         limit,
       },
       metadata: {
