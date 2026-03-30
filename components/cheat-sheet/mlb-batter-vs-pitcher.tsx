@@ -214,75 +214,115 @@ function fmtStat(val: number | null, digits = 2): string {
 }
 
 // ── Stat colors — vivid hex for data-dense display ──────────────────────────
-// Green: #22C55E (vivid success), Amber: #EAB308 (energetic warning), Red: #CD4444 (vibrant rose)
+// Green: #22C55E (vivid success), Amber: #EAB308 (energetic warning), Red: #FC1414 (vibrant rose)
 // Fresh & energetic palette per design system
 
-const STAT_GREEN = "text-[#22C55E]";
-const STAT_AMBER = "text-[#EAB308]";
-const STAT_RED   = "text-[#CD4444]";
+// ── Vibrant color system — text + cell backgrounds ─────────────────────────
+// 5-tier: strong green → light green → neutral → light red → strong red
+// Works on both light and dark mode via opacity-based backgrounds
 
+const STAT_GREEN = "text-[#16A34A] dark:text-[#4ADE80]";
+const STAT_AMBER = "text-[#CA8A04] dark:text-[#FACC15]";
+const STAT_RED   = "text-[#FC1414] dark:text-[#FC5555]";
+
+// Cell background + text combos for heatmap-style cells
+// White text on colored bg — matches competitor's high-contrast heatmap style
+const CELL_STRONG_GREEN = "bg-[#16A34A]/30 dark:bg-[#22C55E]/30 text-[#15803D] dark:text-white";
+const CELL_LIGHT_GREEN  = "bg-[#16A34A]/15 dark:bg-[#22C55E]/18 text-[#15803D] dark:text-white/90";
+const CELL_NEUTRAL      = "text-neutral-700 dark:text-neutral-300";
+const CELL_LIGHT_RED    = "bg-[#FC1414]/15 dark:bg-[#FC1414]/20 text-[#FC1414] dark:text-white/90";
+const CELL_STRONG_RED   = "bg-[#FC1414]/25 dark:bg-[#FC1414]/35 text-[#FC1414] dark:text-white";
+
+/** 5-tier cell style: returns bg + text classes for heatmap cells. Higher = good by default. */
+function statCell(
+  val: number | null,
+  tiers: { elite: number; good: number; poor: number; bad: number },
+  higherIsGood = true
+): string {
+  if (val == null || val === 0) return "";
+  if (higherIsGood) {
+    if (val >= tiers.elite) return CELL_STRONG_GREEN;
+    if (val >= tiers.good)  return CELL_LIGHT_GREEN;
+    if (val <= tiers.bad)   return CELL_STRONG_RED;
+    if (val <= tiers.poor)  return CELL_LIGHT_RED;
+  } else {
+    if (val <= tiers.elite) return CELL_STRONG_GREEN;
+    if (val <= tiers.good)  return CELL_LIGHT_GREEN;
+    if (val >= tiers.bad)   return CELL_STRONG_RED;
+    if (val >= tiers.poor)  return CELL_LIGHT_RED;
+  }
+  return CELL_NEUTRAL;
+}
+
+/** Text-only version for inline stats (no background) */
+function statText(
+  val: number | null,
+  tiers: { elite: number; good: number; poor: number; bad: number },
+  higherIsGood = true
+): string {
+  if (val == null || val === 0) return "";
+  if (higherIsGood) {
+    if (val >= tiers.good)  return STAT_GREEN;
+    if (val <= tiers.poor)  return STAT_RED;
+  } else {
+    if (val <= tiers.good)  return STAT_GREEN;
+    if (val >= tiers.poor)  return STAT_RED;
+  }
+  return "";
+}
+
+// Convenience wrappers — thresholds from batter's perspective
 function slgColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 0.500) return STAT_GREEN;
-  if (val >= 0.400) return STAT_AMBER;
-  if (val < 0.350 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 0.500, good: 0.400, poor: 0.350, bad: 0.300 });
 }
-
 function isoColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 0.220) return STAT_GREEN;
-  if (val >= 0.160) return STAT_AMBER;
-  if (val < 0.120 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 0.220, good: 0.160, poor: 0.120, bad: 0.080 });
 }
-
 function baaColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 0.280) return STAT_GREEN;
-  if (val <= 0.200 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 0.300, good: 0.260, poor: 0.210, bad: 0.180 });
 }
-
 function wobaColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 0.370) return STAT_GREEN;
-  if (val >= 0.320) return STAT_AMBER;
-  if (val < 0.290 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 0.370, good: 0.320, poor: 0.290, bad: 0.260 });
 }
-
 function evColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 92) return STAT_GREEN;
-  if (val >= 89) return STAT_AMBER;
-  if (val < 87 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 92, good: 89, poor: 87, bad: 85 });
 }
-
 function hardHitColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 45) return STAT_GREEN;
-  if (val >= 35) return STAT_AMBER;
-  if (val < 30 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 45, good: 38, poor: 30, bad: 25 });
 }
-
 function barrelColor(val: number | null): string {
-  if (val == null) return "";
-  if (val >= 10) return STAT_GREEN;
-  if (val >= 6) return STAT_AMBER;
-  if (val < 4 && val > 0) return STAT_RED;
-  return "";
+  return statCell(val, { elite: 10, good: 6.5, poor: 4, bad: 2 });
+}
+function kPctColor(val: number | null): string {
+  // Lower K% = better for batter
+  return statCell(val, { elite: 15, good: 20, poor: 27, bad: 32 }, false);
+}
+function bbPctColor(val: number | null): string {
+  // Higher BB% = better for batter
+  return statCell(val, { elite: 12, good: 9, poor: 5, bad: 3 });
 }
 
-// Heat map cell backgrounds — vivid tints
+// Text-only wrappers for inline stats (mobile rows, pitch splits, etc.)
+function slgTextColor(val: number | null): string {
+  return statText(val, { elite: 0.500, good: 0.400, poor: 0.350, bad: 0.300 });
+}
+function wobaTextColor(val: number | null): string {
+  return statText(val, { elite: 0.370, good: 0.320, poor: 0.290, bad: 0.260 });
+}
+function evTextColor(val: number | null): string {
+  return statText(val, { elite: 92, good: 89, poor: 87, bad: 85 });
+}
+function barrelTextColor(val: number | null): string {
+  return statText(val, { elite: 10, good: 6.5, poor: 4, bad: 2 });
+}
+
+// Heat map cell backgrounds — vivid tints (used in zone analysis etc)
 function heatBg(val: number | null, thresholds: { green: number; yellow: number; red: number; higher: "good" | "bad" }, intense = false): string {
   if (val == null) return "";
   const isHighGood = thresholds.higher === "good";
-  const g = intense ? "bg-[#22C55E]/25" : "bg-[#22C55E]/12";
-  const y = intense ? "bg-[#EAB308]/20" : "bg-[#EAB308]/10";
-  const r = intense ? "bg-[#CD4444]/25" : "bg-[#CD4444]/12";
+  const g = intense ? "bg-[#16A34A]/25" : "bg-[#16A34A]/12";
+  const y = intense ? "bg-[#CA8A04]/20" : "bg-[#CA8A04]/10";
+  const r = intense ? "bg-[#FC1414]/25" : "bg-[#FC1414]/12";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -353,19 +393,19 @@ function trendArrow(trend: "up" | "down" | "flat" | null | undefined): string {
 }
 
 function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
-  if (trend === "up") return "text-[#22C55E]";
-  if (trend === "down") return "text-[#CD4444]";
+  if (trend === "up") return STAT_GREEN;
+  if (trend === "down") return STAT_RED;
   return "";
 }
 
 function gradeBadge(grade: "strong" | "neutral" | "weak") {
   switch (grade) {
     case "strong":
-      return { label: "STRONG", text: "text-[#22C55E]" };
+      return { label: "STRONG", text: STAT_GREEN };
     case "neutral":
       return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
     case "weak":
-      return { label: "WEAK", text: "text-[#CD4444]" };
+      return { label: "WEAK", text: STAT_RED };
   }
 }
 
@@ -373,18 +413,18 @@ function gradeBadge(grade: "strong" | "neutral" | "weak") {
 
 function parkFactorColor(pf: number | null): string {
   if (pf == null) return "";
-  if (pf >= 110) return "text-emerald-600 dark:text-emerald-400";
-  if (pf >= 103) return "text-yellow-600 dark:text-yellow-400";
-  if (pf <= 90) return "text-red-500 dark:text-red-400";
+  if (pf >= 110) return "text-[#16A34A] dark:text-[#4ADE80]";
+  if (pf >= 103) return "text-[#CA8A04] dark:text-[#FACC15]";
+  if (pf <= 90) return "text-[#FC1414] dark:text-[#F87171]";
   if (pf <= 97) return "text-blue-500 dark:text-blue-400";
   return "text-neutral-500";
 }
 
 function hrImpactColor(score: number | null): string {
   if (score == null) return "";
-  if (score >= 7) return "text-emerald-600 dark:text-emerald-400";
-  if (score >= 4) return "text-yellow-600 dark:text-yellow-400";
-  if (score <= -4) return "text-red-500 dark:text-red-400";
+  if (score >= 7) return "text-[#16A34A] dark:text-[#4ADE80]";
+  if (score >= 4) return "text-[#CA8A04] dark:text-[#FACC15]";
+  if (score <= -4) return "text-[#FC1414] dark:text-[#F87171]";
   return "text-neutral-500";
 }
 
@@ -608,43 +648,36 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
 
   function OddsSideCard({ entry, side, label }: { entry: BatterOddsEntry | null; side: "over" | "under"; label: string }) {
     if (!entry) return (
-      <div className="flex-1 rounded-lg bg-neutral-100/50 dark:bg-neutral-800/20 border border-neutral-200/30 dark:border-neutral-700/15 p-2.5 text-center">
-        <p className="text-[9px] text-neutral-400">{label}</p>
+      <div className="flex-1 rounded-lg bg-neutral-100/50 dark:bg-neutral-800/30 border border-neutral-200/40 dark:border-neutral-700/20 p-3 text-center">
+        <p className="text-[10px] text-neutral-400 font-medium">{label}</p>
         <p className="text-[10px] text-neutral-400 mt-1">—</p>
       </div>
     );
     const logo = getBookLogo(entry.best_book);
     const link = getPreferredLink(entry.best_link, entry.best_mobile_link);
-    const isOver = side === "over";
     return (
-      <div className={cn(
-        "flex-1 rounded-lg border p-2.5 transition-all",
-        isOver ? "border-[#22C55E]/20 bg-[#22C55E]/[0.03]" : "border-[#CD4444]/20 bg-[#CD4444]/[0.03]"
-      )}>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className={cn("text-[10px] font-semibold uppercase", isOver ? "text-[#22C55E]" : "text-[#CD4444]")}>{label}</span>
+      <div className="flex-1 rounded-lg border border-neutral-200/40 dark:border-neutral-700/25 bg-neutral-50 dark:bg-neutral-800/40 p-3 transition-all">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400">{label}</span>
           {hasSharpAccess && entry.ev_pct != null && entry.ev_pct > 0 && (
             <span className={cn(
-              "text-[8px] font-bold px-1 py-0.5 rounded",
+              "text-[8px] font-bold px-1.5 py-0.5 rounded-full",
               entry.ev_pct >= 5 ? "bg-[#22C55E] text-white" : entry.ev_pct >= 2 ? "bg-[#22C55E]/80 text-white" : "bg-[#EAB308] text-white"
             )}>
               +{entry.ev_pct.toFixed(1)}%
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 mb-1">
-          {logo && <img src={logo} alt="" className="h-4 w-4 rounded object-contain" />}
-          <span className={cn("font-mono text-base font-bold tabular-nums", isOver ? "text-[#22C55E]" : "text-[#CD4444]")}>
+        <div className="flex items-center gap-2 mb-1.5">
+          {logo && <img src={logo} alt="" className="h-5 w-5 rounded object-contain" />}
+          <span className="font-mono text-lg font-bold tabular-nums text-neutral-900 dark:text-white">
             {formatOddsPrice(entry.best_price)}
           </span>
         </div>
-        <p className="text-[9px] text-neutral-400 truncate">{getSportsbookById(normalizeSportsbookId(entry.best_book))?.name || entry.best_book}</p>
+        <p className="text-[9px] text-neutral-400 truncate mb-2">{getSportsbookById(normalizeSportsbookId(entry.best_book))?.name || entry.best_book}</p>
         {link && (
           <a href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "flex items-center justify-center w-full mt-2 py-1.5 rounded-md text-[10px] font-semibold transition-colors active:scale-[0.98]",
-              isOver ? "bg-[#22C55E]/10 text-[#22C55E] hover:bg-[#22C55E]/20" : "bg-[#CD4444]/10 text-[#CD4444] hover:bg-[#CD4444]/20"
-            )}>
+            className="flex items-center justify-center w-full py-1.5 rounded-md text-[10px] font-semibold transition-colors active:scale-[0.98] bg-neutral-200/60 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-600/50">
             Bet {label}
           </a>
         )}
@@ -734,10 +767,10 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
             return (
               <div className="mt-2 space-y-0">
                 {/* Header row */}
-                <div className="flex items-center justify-between px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold">
-                  <span className="w-16 text-[#22C55E]">Over {line}</span>
-                  <span className="text-neutral-400">Book</span>
-                  <span className="w-16 text-right text-[#CD4444]">Under {line}</span>
+                <div className="flex items-center justify-between px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-400">
+                  <span className="w-16">Over {line}</span>
+                  <span>Book</span>
+                  <span className="w-16 text-right">Under {line}</span>
                 </div>
                 {sorted.map((bookId) => {
                   const logo = getBookLogo(bookId);
@@ -760,8 +793,8 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
                             className={cn(
                               "inline-flex items-center justify-center w-full py-1 rounded-md font-mono text-xs font-bold tabular-nums transition-colors",
                               isBestOver
-                                ? "bg-[#22C55E]/15 text-[#22C55E]"
-                                : overLink ? "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
+                                ? "bg-neutral-200/60 dark:bg-neutral-600/40 text-neutral-900 dark:text-white"
+                                : overLink ? "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
                             )}
                           >
                             {formatOddsPrice(over.price)}
@@ -788,8 +821,8 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
                             className={cn(
                               "inline-flex items-center justify-center w-full py-1 rounded-md font-mono text-xs font-bold tabular-nums transition-colors",
                               isBestUnder
-                                ? "bg-[#CD4444]/15 text-[#CD4444]"
-                                : underLink ? "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
+                                ? "bg-neutral-200/60 dark:bg-neutral-600/40 text-neutral-900 dark:text-white"
+                                : underLink ? "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/30" : "text-neutral-500"
                             )}
                           >
                             {formatOddsPrice(under.price)}
@@ -925,12 +958,12 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
               <thead>
                 <tr className="bg-neutral-100/50 dark:bg-neutral-800/50 border-b border-neutral-200/50 dark:border-neutral-700/20">
                   <th className="px-2.5 py-1.5 text-left text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Split</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">AVG</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">ISO</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">HR</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
-                  <th className="px-2.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">AVG</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">ISO</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">HR</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
+                  <th className="px-2.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
                 </tr>
               </thead>
               <tbody>
@@ -943,14 +976,14 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                     row.isWeak && "bg-red-500/5 dark:bg-red-500/10"
                   )}>
                     <td className={cn("px-2.5 py-1.5 font-semibold", row.isWeak ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300")}>{row.label}</td>
-                    <td className="px-2.5 py-1.5 text-right font-medium text-neutral-700 dark:text-neutral-300">{fmtAvg(row.data.avg)}</td>
-                    <td className={cn("px-2.5 py-1.5 text-right font-semibold", slgColor(row.data.slg))}>{fmtAvg(row.data.slg)}</td>
-                    <td className={cn("px-2.5 py-1.5 text-right font-medium", isoColor(row.data.iso))}>{fmtAvg(row.data.iso)}</td>
-                    <td className="px-2.5 py-1.5 text-right font-semibold text-neutral-900 dark:text-white">{row.data.hr}</td>
-                    <td className={cn("px-2.5 py-1.5 text-right font-medium", row.data.k_pct != null && row.data.k_pct >= 25 ? STAT_RED : row.data.k_pct != null && row.data.k_pct <= 15 ? STAT_GREEN : "text-neutral-700 dark:text-neutral-300")}>
+                    <td className={cn("px-2.5 py-1.5 text-center font-medium", baaColor(row.data.avg))}>{fmtAvg(row.data.avg)}</td>
+                    <td className={cn("px-2.5 py-1.5 text-center font-semibold", slgColor(row.data.slg))}>{fmtAvg(row.data.slg)}</td>
+                    <td className={cn("px-2.5 py-1.5 text-center font-medium", isoColor(row.data.iso))}>{fmtAvg(row.data.iso)}</td>
+                    <td className="px-2.5 py-1.5 text-center font-semibold text-neutral-900 dark:text-white">{row.data.hr}</td>
+                    <td className={cn("px-2.5 py-1.5 text-center font-medium", kPctColor(row.data.k_pct ?? null))}>
                       {row.data.k_pct != null ? `${row.data.k_pct.toFixed(1)}%` : "-"}
                     </td>
-                    <td className={cn("px-2.5 py-1.5 text-right font-medium", row.data.bb_pct != null && row.data.bb_pct >= 10 ? STAT_GREEN : row.data.bb_pct != null && row.data.bb_pct <= 4 ? STAT_RED : "text-neutral-700 dark:text-neutral-300")}>
+                    <td className={cn("px-2.5 py-1.5 text-center font-medium", bbPctColor(row.data.bb_pct ?? null))}>
                       {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
                     </td>
                   </tr>
@@ -1021,26 +1054,26 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
                 <thead>
                   <tr className="bg-neutral-100/50 dark:bg-neutral-800/50 border-b border-neutral-200/50 dark:border-neutral-700/20">
                     <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Pitch</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">%</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Velo</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BAA</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Whiff</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
-                    <th className="px-1.5 py-1.5 text-right text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">%</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Velo</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BAA</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">SLG</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Whiff</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">K%</th>
+                    <th className="px-1.5 py-1.5 text-center text-[10px] uppercase tracking-wide font-semibold text-neutral-400">BB%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {arsenalData.map((pitch) => (
                     <tr key={pitch.pitch_type} className="border-b border-neutral-100 dark:border-neutral-800/50 last:border-0">
                       <td className="px-2 py-1.5 font-semibold text-neutral-900 dark:text-white">{pitch.pitch_name}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.usage_pct >= 25 ? "text-brand" : "text-neutral-500")}>{pitch.usage_pct}%</td>
-                      <td className="px-1.5 py-1.5 text-right text-neutral-500">{pitch.avg_speed ?? "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#CD4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).k_pct != null && (pitch as any).k_pct >= 30 ? "text-[#CD4444]" : (pitch as any).k_pct != null && (pitch as any).k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
-                      <td className={cn("px-1.5 py-1.5 text-right font-medium", (pitch as any).bb_pct != null && (pitch as any).bb_pct >= 10 ? "text-[#22C55E]" : (pitch as any).bb_pct != null && (pitch as any).bb_pct <= 4 ? "text-[#CD4444]" : "text-neutral-500")}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", pitch.usage_pct >= 25 ? "text-brand" : "text-neutral-500")}>{pitch.usage_pct}%</td>
+                      <td className="px-1.5 py-1.5 text-center text-neutral-500">{pitch.avg_speed ?? "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", baaColor(pitch.baa))}>{fmtAvg(pitch.baa)}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", slgColor(pitch.slg))}>{fmtAvg(pitch.slg)}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", statCell(pitch.whiff_pct, { elite: 15, good: 20, poor: 28, bad: 35 }, false))}>{pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", statCell((pitch as any).k_pct, { elite: 15, good: 20, poor: 28, bad: 35 }, false))}>{(pitch as any).k_pct != null ? `${Math.round((pitch as any).k_pct)}%` : "-"}</td>
+                      <td className={cn("px-1.5 py-1.5 text-center font-medium", statCell((pitch as any).bb_pct, { elite: 10, good: 7, poor: 4, bad: 2 }))}>{(pitch as any).bb_pct != null ? `${Math.round((pitch as any).bb_pct)}%` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1456,19 +1489,19 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
         <span className="text-neutral-500 w-14 text-right">
           {pitch.avg_speed != null ? `${pitch.avg_speed}` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", baaColor(pitch.baa))}>
+        <span className={cn("w-8 text-right font-medium", statText(pitch.baa, { elite: 0.300, good: 0.260, poor: 0.210, bad: 0.180 }) || "text-neutral-500")}>
           {fmtAvg(pitch.baa)}
         </span>
-        <span className={cn("w-8 text-right font-medium", slgColor(pitch.slg))}>
+        <span className={cn("w-8 text-right font-medium", slgTextColor(pitch.slg) || "text-neutral-500")}>
           {fmtAvg(pitch.slg)}
         </span>
-        <span className={cn("w-10 text-right font-medium", pitch.whiff_pct != null && pitch.whiff_pct >= 30 ? "text-[#CD4444]" : pitch.whiff_pct != null && pitch.whiff_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-10 text-right font-medium", statText(pitch.whiff_pct, { elite: 15, good: 20, poor: 28, bad: 35 }, false) || "text-neutral-500")}>
           {pitch.whiff_pct != null ? `${pitch.whiff_pct}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.k_pct != null && pitch.k_pct >= 30 ? "text-[#CD4444]" : pitch.k_pct != null && pitch.k_pct <= 15 ? "text-[#22C55E]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", statText(pitch.k_pct, { elite: 15, good: 20, poor: 28, bad: 35 }, false) || "text-neutral-500")}>
           {pitch.k_pct != null ? `${Math.round(pitch.k_pct)}%` : "-"}
         </span>
-        <span className={cn("w-8 text-right font-medium", pitch.bb_pct != null && pitch.bb_pct >= 10 ? "text-[#22C55E]" : pitch.bb_pct != null && pitch.bb_pct <= 4 ? "text-[#CD4444]" : "text-neutral-500")}>
+        <span className={cn("w-8 text-right font-medium", statText(pitch.bb_pct, { elite: 10, good: 7, poor: 4, bad: 2 }) || "text-neutral-500")}>
           {pitch.bb_pct != null ? `${Math.round(pitch.bb_pct)}%` : "-"}
         </span>
       </div>
@@ -1563,12 +1596,12 @@ function BatterRow({
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-[10px] tabular-nums">
                 <span className="text-neutral-500">AVG <span className="font-semibold text-neutral-900 dark:text-white">{fmtAvg(ds.avg)}</span></span>
-                <span className="text-neutral-500">SLG <span className={cn("font-semibold", slgColor(ds.slg))}>{fmtAvg(ds.slg)}</span></span>
-                <span className="text-neutral-500">wOBA <span className={cn("font-semibold", wobaColor(ds.woba))}>{fmtAvg(ds.woba)}</span></span>
+                <span className="text-neutral-500">SLG <span className={cn("font-semibold", slgTextColor(ds.slg) || "text-neutral-900 dark:text-white")}>{fmtAvg(ds.slg)}</span></span>
+                <span className="text-neutral-500">wOBA <span className={cn("font-semibold", wobaTextColor(ds.woba) || "text-neutral-900 dark:text-white")}>{fmtAvg(ds.woba)}</span></span>
                 <span className="text-neutral-500">HR <span className="font-semibold text-neutral-900 dark:text-white">{ds.hr}</span></span>
-                <span className="text-neutral-500">EV <span className={cn("font-semibold", evColor(ds.ev))}>{ds.ev != null ? ds.ev.toFixed(1) : "-"}</span></span>
-                {batter.k_pct != null && <span className="text-neutral-500">K% <span className={cn("font-semibold", batter.k_pct >= 30 ? "text-red-500" : batter.k_pct <= 15 ? "text-emerald-600" : "text-neutral-700 dark:text-neutral-300")}>{batter.k_pct}%</span></span>}
-                {batter.bb_pct != null && <span className="text-neutral-500">BB% <span className={cn("font-semibold", batter.bb_pct >= 12 ? "text-emerald-600" : batter.bb_pct <= 5 ? "text-red-500" : "text-neutral-700 dark:text-neutral-300")}>{batter.bb_pct}%</span></span>}
+                <span className="text-neutral-500">EV <span className={cn("font-semibold", evTextColor(ds.ev) || "text-neutral-900 dark:text-white")}>{ds.ev != null ? ds.ev.toFixed(1) : "-"}</span></span>
+                {batter.k_pct != null && <span className="text-neutral-500">K% <span className={cn("font-semibold", statText(batter.k_pct, { elite: 15, good: 20, poor: 27, bad: 32 }, false) || "text-neutral-700 dark:text-neutral-300")}>{batter.k_pct}%</span></span>}
+                {batter.bb_pct != null && <span className="text-neutral-500">BB% <span className={cn("font-semibold", statText(batter.bb_pct, { elite: 12, good: 9, poor: 5, bad: 3 }) || "text-neutral-700 dark:text-neutral-300")}>{batter.bb_pct}%</span></span>}
               </div>
             </div>
             <span className={cn("text-[9px] font-bold", badge.text)}>
@@ -1583,7 +1616,7 @@ function BatterRow({
               const splitSlg = split?.slg ?? null;
               return (
                 <span key={p.pitch_type}>
-                  vs {p.pitch_name}: <span className={cn("font-medium", slgColor(splitSlg))}>{fmtAvg(split?.avg ?? null)}/{fmtAvg(splitSlg)}</span>
+                  vs {p.pitch_name}: <span className={cn("font-medium", slgTextColor(splitSlg) || "text-neutral-700 dark:text-neutral-300")}>{fmtAvg(split?.avg ?? null)}/{fmtAvg(splitSlg)}</span>
                   {splitSlg != null && splitSlg >= 0.500 && <span className="ml-0.5">🔥</span>}
                 </span>
               );
@@ -1637,50 +1670,38 @@ function BatterRow({
             </span>
           </div>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.avg, { green: 0.280, yellow: 0.250, red: 0.200, higher: "good" }))}>
-          <span className={cn("font-medium", baaColor(ds.avg))}>{fmtAvg(ds.avg)}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", baaColor(ds.avg))}>
+          {fmtAvg(ds.avg)}
         </td>
-        <td className="px-1.5 py-2 text-xs text-right tabular-nums font-semibold">
-          <span className="text-neutral-900 dark:text-white">{ds.hr}</span>
+        <td className="px-1.5 py-2 text-xs text-center tabular-nums font-semibold text-neutral-900 dark:text-white">
+          {ds.hr}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.slg, { green: 0.500, yellow: 0.400, red: 0.300, higher: "good" }))}>
-          <span className={cn("font-semibold", slgColor(ds.slg))}>{fmtAvg(ds.slg)}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-semibold", slgColor(ds.slg))}>
+          {fmtAvg(ds.slg)}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.iso, { green: 0.220, yellow: 0.160, red: 0.100, higher: "good" }))}>
-          <span className={cn("font-medium", isoColor(ds.iso))}>{fmtAvg(ds.iso)}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", isoColor(ds.iso))}>
+          {fmtAvg(ds.iso)}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.ev, { green: 92, yellow: 89, red: 85, higher: "good" }))}>
-          <span className={cn("font-medium", evColor(ds.ev))}>{ds.ev != null ? ds.ev.toFixed(1) : "-"}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", evColor(ds.ev))}>
+          {ds.ev != null ? ds.ev.toFixed(1) : "-"}
           {batter.recent_avg_ev != null && batter.avg_exit_velo != null && (
             <DeltaArrow current={batter.recent_avg_ev} baseline={batter.avg_exit_velo} higherGood />
           )}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.brl, { green: 10, yellow: 6, red: 3, higher: "good" }))}>
-          <span className={cn("font-medium", barrelColor(ds.brl))}>{ds.brl != null ? `${ds.brl.toFixed(1)}%` : "-"}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", barrelColor(ds.brl))}>
+          {ds.brl != null ? `${ds.brl.toFixed(1)}%` : "-"}
           {batter.recent_barrel_pct != null && batter.barrel_pct != null && (
             <DeltaArrow current={batter.recent_barrel_pct} baseline={batter.barrel_pct} higherGood />
           )}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.woba, { green: 0.370, yellow: 0.320, red: 0.280, higher: "good" }))}>
-          <span className={cn("font-medium", wobaColor(ds.woba))}>{fmtAvg(ds.woba)}</span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", wobaColor(ds.woba))}>
+          {fmtAvg(ds.woba)}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.k_pct ?? null, { green: 15, yellow: 22, red: 30, higher: "bad" }))}>
-          <span className={cn(
-            "font-medium",
-            ds.k_pct != null && ds.k_pct >= 30 ? "text-red-500" :
-            ds.k_pct != null && ds.k_pct <= 15 ? "text-emerald-600" : ""
-          )}>
-            {ds.k_pct != null ? `${ds.k_pct}%` : "-"}
-          </span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", kPctColor(ds.k_pct ?? null))}>
+          {ds.k_pct != null ? `${ds.k_pct}%` : "-"}
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-right tabular-nums", heatBg(ds.bb_pct ?? null, { green: 12, yellow: 8, red: 5, higher: "good" }))}>
-          <span className={cn(
-            "font-medium",
-            ds.bb_pct != null && ds.bb_pct >= 12 ? "text-emerald-600" :
-            ds.bb_pct != null && ds.bb_pct <= 5 ? "text-red-500" : ""
-          )}>
-            {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
-          </span>
+        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", bbPctColor(ds.bb_pct ?? null))}>
+          {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
         </td>
         {/* Odds cell with dropdown */}
         <td className="px-1.5 py-2 text-right relative">
@@ -1703,7 +1724,7 @@ function BatterRow({
               return (
                 <span key={p.pitch_type}>
                   vs {p.pitch_name}:{" "}
-                  <span className={cn("font-medium", slgColor(splitSlg))}>
+                  <span className={cn("font-medium", slgTextColor(splitSlg) || "text-neutral-700 dark:text-neutral-300")}>
                     {fmtAvg(split?.avg ?? null)}/{fmtAvg(splitSlg)}
                   </span>
                   {splitSlg != null && splitSlg >= 0.500 && <span className="ml-0.5">🔥</span>}
@@ -1723,7 +1744,7 @@ function BatterRow({
             {batter.recent_barrel_pct != null && batter.barrel_pct != null && (
               <span>
                 L60:{" "}
-                <span className={cn("font-medium", slgColor(batter.recent_barrel_pct != null ? (batter.recent_barrel_pct >= batter.barrel_pct ? 0.5 : 0.3) : null))}>
+                <span className={cn("font-medium", batter.recent_barrel_pct > batter.barrel_pct + 2 ? STAT_GREEN : batter.recent_barrel_pct < batter.barrel_pct - 2 ? STAT_RED : "text-neutral-500")}>
                   {batter.recent_barrel_pct > batter.barrel_pct + 2 ? "↑" : batter.recent_barrel_pct < batter.barrel_pct - 2 ? "↓" : "→"}
                 </span>
                 <span className="ml-0.5 font-medium text-neutral-600 dark:text-neutral-400">
@@ -1884,7 +1905,7 @@ function BatterExpansion({
                     </div>
                     <div className="text-right">
                       <span className="text-[9px] text-neutral-400 block">SLG</span>
-                      <span className={cn("font-bold", slgColor(split?.slg ?? null))}>{fmtAvg(split?.slg ?? null)}</span>
+                      <span className={cn("font-bold", slgTextColor(split?.slg ?? null) || "text-neutral-700 dark:text-neutral-300")}>{fmtAvg(split?.slg ?? null)}</span>
                     </div>
                     <div className="text-right w-6">
                       <span className="text-[9px] text-neutral-400 block">HR</span>
@@ -2061,8 +2082,8 @@ function BatterExpansion({
                 {[
                   { label: "PA", value: batter.h2h.pa, color: "" },
                   { label: "AVG", value: fmtAvg(batter.h2h.avg), color: "" },
-                  { label: "SLG", value: fmtAvg(batter.h2h.slg), color: slgColor(batter.h2h.slg) },
-                  { label: "HR", value: batter.h2h.hrs, color: batter.h2h.hrs > 0 ? "text-emerald-500" : "" },
+                  { label: "SLG", value: fmtAvg(batter.h2h.slg), color: slgTextColor(batter.h2h.slg) },
+                  { label: "HR", value: batter.h2h.hrs, color: batter.h2h.hrs > 0 ? STAT_GREEN : "" },
                 ].map((s) => (
                   <div key={s.label}>
                     <p className="text-[9px] text-neutral-400">{s.label}</p>
@@ -2097,9 +2118,9 @@ function BatterExpansion({
           <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Recent Form (60d)</h5>
           <div className="flex items-center gap-6">
             {[
-              { label: "Brl%", value: batter.recent_barrel_pct != null ? `${batter.recent_barrel_pct}%` : "-", color: barrelColor(batter.recent_barrel_pct) },
-              { label: "Avg EV", value: batter.recent_avg_ev?.toFixed(1) ?? "-", color: evColor(batter.recent_avg_ev) },
-              { label: "HR", value: batter.recent_hr_count, color: batter.recent_hr_count >= 3 ? "text-emerald-500" : "" },
+              { label: "Brl%", value: batter.recent_barrel_pct != null ? `${batter.recent_barrel_pct}%` : "-", color: barrelTextColor(batter.recent_barrel_pct) },
+              { label: "Avg EV", value: batter.recent_avg_ev?.toFixed(1) ?? "-", color: evTextColor(batter.recent_avg_ev) },
+              { label: "HR", value: batter.recent_hr_count, color: batter.recent_hr_count >= 3 ? STAT_GREEN : "" },
             ].map((s) => (
               <div key={s.label}>
                 <p className="text-[9px] text-neutral-400">{s.label}</p>
@@ -2446,7 +2467,7 @@ function ComparisonView({
                 {topPitchSplits.filter(s => s.pa > 0).slice(0, 2).map((s) => (
                   <div key={s.name} className="flex items-center gap-1">
                     <span className="text-[9px] text-neutral-400">vs {s.name}</span>
-                    <span className={cn("text-[11px] font-bold tabular-nums", slgColor(s.slg))}>
+                    <span className={cn("text-[11px] font-bold tabular-nums", slgTextColor(s.slg) || "text-neutral-700 dark:text-neutral-300")}>
                       {fmtAvg(s.slg)}
                     </span>
                   </div>
@@ -3155,7 +3176,7 @@ export function MlbBatterVsPitcher() {
                               </tr>
                             )}
                             {(() => {
-                              const sThCls = "px-1.5 py-2 text-[10px] uppercase tracking-wide font-semibold text-neutral-500 text-right cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
+                              const sThCls = "px-1.5 py-2 text-[10px] uppercase tracking-wide font-semibold text-neutral-500 text-center cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
                                 <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200/60 dark:border-neutral-700/30">
                                   <th className={cn(sThCls, "text-center pl-3 pr-1 w-8")} onClick={() => handleStdSort("lineup")}>#</th>
@@ -3194,7 +3215,7 @@ export function MlbBatterVsPitcher() {
                                             onClick={() => setOddsSide("under")}
                                             className={cn(
                                               "flex-1 px-2 py-1 text-[10px] font-semibold rounded transition-all",
-                                              oddsSide === "under" ? "bg-white dark:bg-neutral-600 text-[#CD4444] shadow-sm" : "text-neutral-500"
+                                              oddsSide === "under" ? "bg-white dark:bg-neutral-600 text-neutral-900 dark:text-white shadow-sm" : "text-neutral-500"
                                             )}
                                           >Under</button>
                                         </div>
@@ -3299,31 +3320,31 @@ export function MlbBatterVsPitcher() {
                                     {row.label}
                                     {row.extra && <span className="text-[10px] font-normal text-neutral-400 ml-1">{row.extra}</span>}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", baaColor(row.data.avg))}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", baaColor(row.data.avg))}>
                                     {row.data.avg != null ? fmtAvg(row.data.avg) : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold text-neutral-900 dark:text-white" : "font-medium text-neutral-600 dark:text-neutral-400")}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold text-neutral-900 dark:text-white" : "font-medium text-neutral-600 dark:text-neutral-400")}>
                                     {row.data.hr}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", slgColor(row.data.slg))}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", slgColor(row.data.slg))}>
                                     {row.data.slg != null ? fmtAvg(row.data.slg) : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", isoColor(row.data.iso))}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", isoColor(row.data.iso))}>
                                     {row.data.iso != null ? fmtAvg(row.data.iso) : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", "text-neutral-700 dark:text-neutral-300")}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", evColor(row.data.ev))}>
                                     {row.data.ev != null ? row.data.ev.toFixed(1) : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.brl))}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.brl))}>
                                     {row.data.brl != null ? `${row.data.brl.toFixed(1)}%` : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", wobaColor(row.data.woba))}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", wobaColor(row.data.woba))}>
                                     {row.data.woba != null ? fmtAvg(row.data.woba) : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", "text-neutral-700 dark:text-neutral-300")}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", kPctColor(row.data.k_pct ?? null))}>
                                     {row.data.k_pct != null ? `${row.data.k_pct.toFixed(1)}%` : "-"}
                                   </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-right tabular-nums", row.isFirst ? "font-bold" : "font-medium", "text-neutral-700 dark:text-neutral-300")}>
+                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", bbPctColor(row.data.bb_pct ?? null))}>
                                     {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
                                   </td>
                                   <td />
