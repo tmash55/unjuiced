@@ -830,11 +830,20 @@ export async function GET(req: NextRequest) {
     });
 
     // Batter game logs for full traditional stats (one RPC per batter, parallelized)
+    // Query both current and prior season so early-season batters fall back to prior year
     const batterGameLogQueries = batterIds.map((bid) =>
       supabase.rpc("get_mlb_batter_game_logs", {
         p_player_id: bid,
         p_season: season,
-        p_limit: 500, // Full season is ~162 games; use 500 to avoid any RPC truncation
+        p_limit: 500,
+        p_include_prior: false,
+      })
+    );
+    const batterGameLogFallbackQueries = statSeason ? [] : batterIds.map((bid) =>
+      supabase.rpc("get_mlb_batter_game_logs", {
+        p_player_id: bid,
+        p_season: season - 1,
+        p_limit: 500,
         p_include_prior: false,
       })
     );
@@ -871,6 +880,7 @@ export async function GET(req: NextRequest) {
       ...batterHandSplitQueries,  // [16, 17] = batter hand splits for season, season-1
       ...batterPitchSummaryQueries, // [18, 19] = batter pitch type summary for season, season-1
       ...batterGameLogQueries, // [20..20+N-1] = batter game logs (one per batter)
+      ...batterGameLogFallbackQueries, // [20+N..20+2N-1] = batter game logs fallback (prior season)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -1171,9 +1181,15 @@ export async function GET(req: NextRequest) {
     }
 
     const BATTER_LOG_START_IDX = 20;
+    const BATTER_LOG_FALLBACK_IDX = BATTER_LOG_START_IDX + batterIds.length;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
-      const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
+      let gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
+      // Fall back to prior season if current is empty and fallback queries were made
+      if (gameLogs.length === 0 && !noFallback && batterGameLogFallbackQueries.length > 0) {
+        const fbIdx = BATTER_LOG_FALLBACK_IDX + i;
+        gameLogs = Array.isArray(allResults[fbIdx]?.data) ? allResults[fbIdx].data as any[] : [];
+      }
       if (gameLogs.length === 0) continue;
 
       if (i === 0) {
@@ -1189,10 +1205,13 @@ export async function GET(req: NextRequest) {
         const seasonEnd = `${statSeason + 1}-01-01`;
         const beforeCount = filtered.length;
         filtered = filtered.filter((g: any) => {
-          const d = g.game_date ?? g.date ?? "";
-          if (!d || d < seasonStart || d >= seasonEnd) return false;
           const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
+          // Always exclude spring training and exhibition
           if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+          // If date is missing but game_type is regular season, keep it
+          const d = g.game_date ?? g.date ?? "";
+          if (!d) return gameType === "R";
+          if (d < seasonStart || d >= seasonEnd) return false;
           return true;
         });
         if (i === 0 && filtered.length !== beforeCount) {
@@ -1377,10 +1396,11 @@ export async function GET(req: NextRequest) {
             const seasonStart = `${statSeason}-01-01`;
             const seasonEnd = `${statSeason + 1}-01-01`;
             return logs.filter((log: any) => {
-              const d = log.game_date ?? log.date ?? "";
-              if (!d || d < seasonStart || d >= seasonEnd) return false;
               const gameType = (log.game_type ?? log.season_type ?? "").toUpperCase();
               if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+              const d = log.game_date ?? log.date ?? "";
+              if (!d) return gameType === "R";
+              if (d < seasonStart || d >= seasonEnd) return false;
               return true;
             });
           })()

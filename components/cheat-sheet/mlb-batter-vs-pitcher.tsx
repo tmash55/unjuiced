@@ -2621,6 +2621,10 @@ export function MlbBatterVsPitcher() {
     oddsSide
   );
 
+  // Game-level odds from the games list (moneyline, total, spread)
+  const currentGame = games.find((g) => Number(g.game_id) === selectedGameId);
+  const gameOdds = currentGame?.odds ?? null;
+
   // Auto-default hand filter to pitcher's handedness
   useEffect(() => {
     if (pitcher?.hand && handFilter === "all" && !handAutoSet) {
@@ -2937,7 +2941,55 @@ export function MlbBatterVsPitcher() {
                     </div>
                   )}
                   {!isMobile && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      {/* Inline odds */}
+                      {gameOdds && (gameOdds.away_ml || gameOdds.total != null) && currentGame && (
+                        <div className="flex items-center gap-3.5 text-[11px] tabular-nums">
+                          {/* FD logo */}
+                          {(() => { const fdLogo = getBookLogo("fanduel"); return fdLogo ? <img src={fdLogo} alt="FD" className="w-4 h-4 rounded object-contain opacity-60" /> : null; })()}
+                          {/* Moneyline */}
+                          {(gameOdds.away_ml || gameOdds.home_ml) && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400">ML</span>
+                              <span className="flex items-center gap-0.5">
+                                <img src={`/team-logos/mlb/${currentGame.away_team_tricode.toUpperCase()}.svg`} className="w-3 h-3 object-contain" alt="" />
+                                <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.away_ml || "—"}</span>
+                              </span>
+                              <span className="text-neutral-300 dark:text-neutral-600">/</span>
+                              <span className="flex items-center gap-0.5">
+                                <img src={`/team-logos/mlb/${currentGame.home_team_tricode.toUpperCase()}.svg`} className="w-3 h-3 object-contain" alt="" />
+                                <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.home_ml || "—"}</span>
+                              </span>
+                            </div>
+                          )}
+                          {/* Game Total */}
+                          {gameOdds.total != null && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400">O/U</span>
+                              <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.total}</span>
+                            </div>
+                          )}
+                          {/* Team Totals */}
+                          {(gameOdds.away_total != null || gameOdds.home_total != null) && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400">TT</span>
+                              {gameOdds.away_total != null && (
+                                <span className="flex items-center gap-0.5">
+                                  <img src={`/team-logos/mlb/${currentGame.away_team_tricode.toUpperCase()}.svg`} className="w-3 h-3 object-contain" alt="" />
+                                  <span className="font-medium text-neutral-700 dark:text-neutral-300">{gameOdds.away_total}</span>
+                                </span>
+                              )}
+                              {gameOdds.home_total != null && (
+                                <span className="flex items-center gap-0.5">
+                                  <img src={`/team-logos/mlb/${currentGame.home_team_tricode.toUpperCase()}.svg`} className="w-3 h-3 object-contain" alt="" />
+                                  <span className="font-medium text-neutral-700 dark:text-neutral-300">{gameOdds.home_total}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {gameOdds && <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />}
                       {selectedGame && (
                         <span className="text-[11px] text-neutral-400 tabular-nums">{selectedGame.game_status}</span>
                       )}

@@ -21,6 +21,12 @@ export interface MlbGameOdds {
   spread: number | null;
   spread_home_price: string | null;
   spread_away_price: string | null;
+  home_total: number | null;
+  home_total_over_price: string | null;
+  home_total_under_price: string | null;
+  away_total: number | null;
+  away_total_over_price: string | null;
+  away_total_under_price: string | null;
 }
 
 export interface MlbGame {
