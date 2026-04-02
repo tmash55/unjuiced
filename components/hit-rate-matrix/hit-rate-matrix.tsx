@@ -28,6 +28,7 @@ import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { toast } from "sonner";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // =============================================================================
 // TYPES
@@ -933,6 +934,7 @@ function ThresholdCell({
   awayTeam,
   gameDate,
 }: ThresholdCellProps) {
+  const applyState = useStateLink();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [oddsData, setOddsData] = useState<OddsLineResponse | null>(null);
@@ -1102,9 +1104,9 @@ function ThresholdCell({
       ? (book.link_over || getBookFallbackUrl(book.book))
       : (book.link_under || getBookFallbackUrl(book.book));
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
-  }, []);
+  }, [applyState]);
 
   const sortedBooks = useMemo(() => {
     if (!oddsData?.books) return [];

@@ -14,6 +14,7 @@ import { X, ChevronRight, ChevronDown, Loader2, Sparkles, Share2, Trash2, Check,
 import { SportIcon } from "@/components/icons/sport-icons";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { getSportsbookById, sportsbooksNew } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Helper to format side display
 const formatSide = (side: string): string => {
@@ -529,6 +530,7 @@ function FavoriteItem({
   onToggleSelect: () => void;
   filterBook: string | null;
 }) {
+  const applyState = useStateLink();
   const initials = getInitials(favorite.player_name);
   const avatarColor = getAvatarColor(favorite.player_name);
   const fullName = favorite.player_name || "Unknown";
@@ -622,7 +624,7 @@ function FavoriteItem({
       {/* Odds + Bet Button */}
       {betLink ? (
         <a
-          href={betLink}
+          href={applyState(betLink) || betLink}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
@@ -924,6 +926,7 @@ function SlipCard({
   isRemovingLeg: boolean;
   isFetchingSgpOdds: boolean;
 }) {
+  const applyState = useStateLink();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [removingLegId, setRemovingLegId] = useState<string | null>(null);
@@ -1520,7 +1523,7 @@ function SlipCard({
                             return (
                               <a
                                 key={book}
-                                href={betLink}
+                                href={applyState(betLink) || betLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
@@ -1622,6 +1625,7 @@ function SlipCard({
 }
 
 export function FavoritesModal() {
+  const applyState = useStateLink();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"plays" | "slips">("plays");
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -2079,7 +2083,7 @@ export function FavoritesModal() {
                     {/* BET Button - Only show if we have a selected book with odds */}
                     {selectedSportsbook && currentParlayData && (
                       <a
-                        href={getBetDeeplink() || "#"}
+                        href={applyState(getBetDeeplink()) || getBetDeeplink() || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={cn(

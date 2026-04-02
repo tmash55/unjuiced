@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { ChevronDown, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // =============================================================================
 // TYPES
@@ -96,6 +97,7 @@ export function OddsDropdown({
   const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hasFetched = useRef(false);
+  const applyState = useStateLink();
 
   // Detect if user is on mobile device
   const isMobile = useMemo(() => {
@@ -170,15 +172,15 @@ export function OddsDropdown({
   // Handle book click - open link
   const handleBookClick = useCallback((book: BookOddsDetail, side: "over" | "under", e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    const link = side === "over" 
+
+    const link = side === "over"
       ? (book.link_over || getBookFallbackUrl(book.book))
       : (book.link_under || getBookFallbackUrl(book.book));
-    
+
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
-  }, []);
+  }, [applyState]);
 
   // Sort books by best over price
   const sortedBooks = useMemo(() => {
@@ -408,7 +410,7 @@ export function OddsDropdown({
                     onClick={(e) => {
                       e.stopPropagation();
                       const link = getBookFallbackUrl(bestOdds.book);
-                      if (link) window.open(link, "_blank", "noopener,noreferrer");
+                      if (link) window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
                     }}
                     className="px-2 py-1 rounded text-xs font-semibold tabular-nums transition-colors flex items-center gap-1 cursor-pointer hover:bg-[color-mix(in_oklab,var(--accent)_15%,transparent)]"
                     style={{ color: "var(--accent-strong)" }}

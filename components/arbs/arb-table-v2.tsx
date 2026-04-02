@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
 import { motion, AnimatePresence } from "motion/react";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -46,6 +47,7 @@ function formatStake(n: number, step: number): string {
 const columnHelper = createColumnHelper<ArbRowWithId>();
 
 export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundTo = 0, isPro = true }: ArbTableProps) {
+  const applyState = useStateLink();
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
   const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
   const [pinnedRowId, setPinnedRowId] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   // Get book URL - prioritizes direct/mobile link, falls back to book homepage
   const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
     if (mobileUrl) return mobileUrl;
-    if (directUrl) return directUrl;
+    if (directUrl) return applyState(directUrl) || directUrl;
     return getBookFallbackUrl(bk);
   };
 
@@ -218,10 +220,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   const getBestLink = (bookId?: string, desktopUrl?: string | null, mobileUrl?: string | null) => {
     // If on mobile and mobile link exists, use it
     if (isMobile() && mobileUrl) return mobileUrl;
-    
-    // Otherwise use desktop link
-    if (desktopUrl) return desktopUrl;
-    
+
+    // Otherwise use desktop link – apply user-state replacement
+    if (desktopUrl) return applyState(desktopUrl) || desktopUrl;
+
     // Fallback to sportsbook homepage
     return getBookFallbackUrl(bookId);
   };

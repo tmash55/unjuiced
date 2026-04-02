@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ChevronRight, Lock, Trophy, ChevronDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface BestBet {
   id: string;
@@ -148,6 +149,7 @@ function isSuppressedBestBetMarket(bet: BestBet): boolean {
 
 // Premium Bet Row Component - Mobile-first responsive
 function BetRow({ bet }: { bet: BestBet }) {
+  const applyState = useStateLink();
   const bookMeta = getSportsbookById(bet.book);
   const bookLogo = bookMeta?.image?.light;
   const bookName = bookMeta?.name || bet.book;
@@ -229,7 +231,7 @@ function BetRow({ bet }: { bet: BestBet }) {
           {/* CTA Button - Smaller on mobile */}
           {betLink ? (
             <a
-              href={betLink}
+              href={applyState(betLink) || betLink}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(

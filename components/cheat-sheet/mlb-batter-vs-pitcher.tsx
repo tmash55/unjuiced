@@ -19,6 +19,7 @@ import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function OddsSkeleton() {
 }
 
 function OddsCell({ entry, hasSharpAccess = false, isLoading = false }: { entry: BatterOddsEntry | null; hasSharpAccess?: boolean; isLoading?: boolean }) {
+  const applyState = useStateLink();
   if (isLoading) return <OddsSkeleton />;
   if (!entry) return <span className="text-[10px] text-neutral-400">-</span>;
   const [open, setOpen] = useState(false);
@@ -146,7 +148,7 @@ function OddsCell({ entry, hasSharpAccess = false, isLoading = false }: { entry:
             return (
               <a
                 key={book.book}
-                href={link || "#"}
+                href={link ? (applyState(link) || link) : "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => { e.stopPropagation(); if (!link) e.preventDefault(); }}
@@ -626,6 +628,7 @@ const PITCHER_LINE_OPTIONS: Record<string, number[]> = {
 };
 
 function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: number | null; pitcherName: string; hasSharpAccess?: boolean }) {
+  const applyState = useStateLink();
   const [market, setMarket] = useState("player_strikeouts");
   const [line, setLine] = useState(4.5);
   const [showAllBooks, setShowAllBooks] = useState(false);
@@ -687,7 +690,7 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
         </div>
         <p className="text-[9px] text-neutral-400 truncate mb-2">{getSportsbookById(normalizeSportsbookId(entry.best_book))?.name || entry.best_book}</p>
         {link && (
-          <a href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+          <a href={applyState(link) || link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
             className="flex items-center justify-center w-full py-1.5 rounded-md text-[10px] font-semibold transition-colors active:scale-[0.98] bg-neutral-200/60 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-600/50">
             Bet {label}
           </a>
@@ -800,7 +803,7 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
                       <div className="w-16">
                         {over ? (
                           <a
-                            href={overLink || "#"}
+                            href={overLink ? (applyState(overLink) || overLink) : "#"}
                             target="_blank" rel="noopener noreferrer"
                             onClick={(e) => { e.stopPropagation(); if (!overLink) e.preventDefault(); }}
                             className={cn(
@@ -828,7 +831,7 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
                       <div className="w-16 text-right">
                         {under ? (
                           <a
-                            href={underLink || "#"}
+                            href={underLink ? (applyState(underLink) || underLink) : "#"}
                             target="_blank" rel="noopener noreferrer"
                             onClick={(e) => { e.stopPropagation(); if (!underLink) e.preventDefault(); }}
                             className={cn(
@@ -1856,6 +1859,7 @@ function BatterExpansion({
 }) {
   const h2hMeetings = batter.h2h?.last_meetings ?? [];
   const hrFactors = batter.hr_factors ?? [];
+  const applyState = useStateLink();
 
   // Local odds market selector for expanded view
   const [localOddsMarket, setLocalOddsMarket] = useState("player_home_runs");
@@ -2038,7 +2042,7 @@ function BatterExpansion({
                       return (
                         <a
                           key={book.book}
-                          href={link || "#"}
+                          href={link ? (applyState(link) || link) : "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => { if (!link) e.preventDefault(); }}

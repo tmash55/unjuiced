@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Settings, Eye, EyeOff, ChevronRight, DollarSign, Percent } from "lucide-react";
+import { Settings, Eye, EyeOff, ChevronRight, DollarSign, Percent, MapPin } from "lucide-react";
+import { useUserState } from "@/context/preferences-context";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/tooltip";
 import {
@@ -949,7 +950,43 @@ export function GlobalSettingsDropdown({
             </div>
           </div>
         </div>
+
+        {/* State selector for sportsbook deep links */}
+        <StateSelector />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM",
+  "NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA",
+  "WV","WI","WY"
+];
+
+function StateSelector() {
+  const { stateCode, setStateCode } = useUserState();
+
+  return (
+    <div className="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <MapPin className="w-3 h-3 text-neutral-400" />
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Your State</span>
+        </div>
+        <select
+          value={stateCode?.toUpperCase() || ""}
+          onChange={(e) => setStateCode(e.target.value)}
+          className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 cursor-pointer"
+        >
+          <option value="">Not set</option>
+          {US_STATES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      <p className="text-[9px] text-neutral-400 mt-1">Used for sportsbook deep links</p>
+    </div>
   );
 }

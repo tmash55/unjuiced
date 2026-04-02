@@ -6,6 +6,7 @@ import { useAlternateLines, AlternateLine, BookOdds } from "@/hooks/use-alternat
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Zap, TrendingUp, ExternalLink, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Sharp books used for fair odds calculation
 const SHARP_BOOKS = ["pinnacle", "circa", "bookmaker"];
@@ -341,6 +342,7 @@ function AlternateLineRow({ line, onLineSelect, isEven = false }: { line: Altern
 function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: string | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const applyState = useStateLink();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -369,14 +371,14 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
     e.stopPropagation();
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const url = isMobile && book.mobileUrl ? book.mobileUrl : book.url;
-    
+
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
     } else {
       // Fallback to sportsbook homepage
       const sportsbookInfo = getSportsbookById(book.book);
       if (sportsbookInfo?.links?.desktop) {
-        window.open(sportsbookInfo.links.desktop, "_blank", "noopener,noreferrer");
+        window.open(applyState(sportsbookInfo.links.desktop) || sportsbookInfo.links.desktop, "_blank", "noopener,noreferrer");
       }
     }
   };

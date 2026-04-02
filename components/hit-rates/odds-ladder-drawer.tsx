@@ -11,6 +11,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useStateLink } from "@/hooks/use-state-link";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 
 // =============================================================================
@@ -112,22 +113,23 @@ function BookRow({
 }) {
   const logo = getBookLogo(book.book);
   const name = getBookName(book.book);
-  
+  const applyState = useStateLink();
+
   const handleOverClick = useCallback(() => {
     const link = book.link_over || getBookFallbackUrl(book.book);
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
     onClickOver?.();
-  }, [book, onClickOver]);
-  
+  }, [book, onClickOver, applyState]);
+
   const handleUnderClick = useCallback(() => {
     const link = book.link_under || getBookFallbackUrl(book.book);
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
     onClickUnder?.();
-  }, [book, onClickUnder]);
+  }, [book, onClickUnder, applyState]);
   
   return (
     <div

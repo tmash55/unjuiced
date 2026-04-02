@@ -15,6 +15,7 @@ import { getKellyStakeDisplay, getLongOddsStakeMultiplier } from "@/lib/utils/ke
 import { useFavorites } from "@/hooks/use-favorites";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const hexToRgba = (hex: string, alpha: number): string => {
   const normalized = hex.replace("#", "");
@@ -197,8 +198,9 @@ export function MobileEdgeCard({
   kellyPercent = 25,
   boostPercent = 0,
 }: MobileEdgeCardProps) {
+  const applyState = useStateLink();
   const opp = opportunity;
-  
+
   // Favorites state
   const [isToggling, setIsToggling] = useState(false);
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
@@ -764,7 +766,7 @@ export function MobileEdgeCard({
                               type="button"
                               onClick={() => {
                                 const link = pair.over?.mobileLink || pair.over?.link;
-                                if (link) window.open(link, "_blank");
+                                if (link) window.open(applyState(link) || link, "_blank");
                               }}
                               disabled={!pair.over}
                               className={cn(
@@ -804,7 +806,7 @@ export function MobileEdgeCard({
                               type="button"
                               onClick={() => {
                                 const link = pair.under?.mobileLink || pair.under?.link;
-                                if (link) window.open(link, "_blank");
+                                if (link) window.open(applyState(link) || link, "_blank");
                               }}
                               disabled={!pair.under}
                               className={cn(
@@ -853,7 +855,7 @@ export function MobileEdgeCard({
                           type="button"
                           onClick={() => {
                             const link = book.mobileLink || book.link;
-                            if (link) window.open(link, "_blank");
+                            if (link) window.open(applyState(link) || link, "_blank");
                           }}
                           className={cn(
                             "flex items-center justify-between px-1.5 py-1 rounded-md",

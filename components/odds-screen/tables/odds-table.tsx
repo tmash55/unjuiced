@@ -49,6 +49,7 @@ import Lock from '@/icons/lock'
 import { usePlayerInjuries, hasInjuryStatus, getInjuryIconColorClass, isGLeagueAssignment } from '@/hooks/use-player-injuries'
 import { usePrefetchPlayerByOddsId } from '@/hooks/use-prefetch-player'
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from '@/hooks/use-favorites'
+import { useStateLink } from '@/hooks/use-state-link'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -1168,6 +1169,7 @@ export function OddsTable({
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
+  const applyState = useStateLink()
   
   // Use prop if provided, otherwise use from preferences
   const tableView = tableViewProp ?? preferences.tableView ?? 'relaxed'
@@ -2618,7 +2620,7 @@ export function OddsTable({
                   <button
                     onClick={() => {
                       if (book.links.desktop) {
-                          window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
+                          window.open(applyState(book.links.desktop) || book.links.desktop, '_blank', 'noopener,noreferrer')
                       }
                     }}
                     className={cn(
@@ -2725,7 +2727,7 @@ export function OddsTable({
                       e.stopPropagation()
                       const preferredLink = getPreferredLink(odds.link, odds.mobileLink)
                       if (preferredLink) {
-                        window.open(preferredLink, '_blank', 'noopener,noreferrer')
+                        window.open(applyState(preferredLink) || preferredLink, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, firstSide, book.id)
                       }
@@ -2787,7 +2789,7 @@ export function OddsTable({
                       e.stopPropagation()
                       const preferredLink = getPreferredLink(odds.link, odds.mobileLink)
                       if (preferredLink) {
-                        window.open(preferredLink, '_blank', 'noopener,noreferrer')
+                        window.open(applyState(preferredLink) || preferredLink, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, secondSide, book.id)
                       }
@@ -3088,7 +3090,7 @@ export function OddsTable({
           onClick={(e) => {
             e.stopPropagation()
             if (preferredDisplayLink) {
-              window.open(preferredDisplayLink, '_blank', 'noopener,noreferrer')
+              window.open(applyState(preferredDisplayLink) || preferredDisplayLink, '_blank', 'noopener,noreferrer')
             } else if (firstBookId) {
               onOddsClick?.(rowItem, side, firstBookId)
             }

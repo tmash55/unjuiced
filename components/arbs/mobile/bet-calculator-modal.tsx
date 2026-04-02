@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -89,6 +90,8 @@ interface BetCalculatorModalProps {
 }
 
 export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTotal, roundTo = 0 }: BetCalculatorModalProps) {
+  const applyState = useStateLink();
+
   // Check if the opportunity is still available by comparing snapshot with current data
   const isStale = useMemo(() => {
     // If no current row, the opportunity was removed
@@ -202,7 +205,8 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
     // Brief loading state for feedback
     setTimeout(() => {
       const link = getBookUrl(bk, url, mobileUrl);
-      if (link) window.open(link, '_blank', 'noopener,noreferrer');
+      const finalLink = link ? (applyState(link) || link) : link;
+      if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
       // Reset loading after a moment
       setTimeout(() => setLoading(false), 1000);
     }, 150);

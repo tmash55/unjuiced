@@ -535,7 +535,9 @@ export async function GET(req: NextRequest) {
     const { gameId, battingSide, sample, statSeason } = parsed.data;
     const supabase = createServerSupabaseClient();
     const season = statSeason ?? getCurrentSeason();
-    console.log(`[game-matchup] statSeason=${statSeason}, season=${season}, noFallback=${!!statSeason}`);
+    // Always show exactly the selected season — no cross-season fallback
+    const noFallback = true;
+    console.log(`[game-matchup] statSeason=${statSeason}, season=${season}, noFallback=${noFallback}`);
     // ── Round 1: Game info + Lineup (parallel) ──────────────────────────────
 
     const [gameResult, lineupResult] = await Promise.all([
@@ -839,14 +841,7 @@ export async function GET(req: NextRequest) {
         p_include_prior: false,
       })
     );
-    const batterGameLogFallbackQueries = statSeason ? [] : batterIds.map((bid) =>
-      supabase.rpc("get_mlb_batter_game_logs", {
-        p_player_id: bid,
-        p_season: season - 1,
-        p_limit: 500,
-        p_include_prior: false,
-      })
-    );
+    // No fallback queries — show only the selected season's data
 
     // Batter hand splits (real stats from Savant — BA, OBP, SLG, K%, BB% vs L/R)
     const batterHandSplitQueries = seasonsToTry.map((s) =>
@@ -880,7 +875,6 @@ export async function GET(req: NextRequest) {
       ...batterHandSplitQueries,  // [16, 17] = batter hand splits for season, season-1
       ...batterPitchSummaryQueries, // [18, 19] = batter pitch type summary for season, season-1
       ...batterGameLogQueries, // [20..20+N-1] = batter game logs (one per batter)
-      ...batterGameLogFallbackQueries, // [20+N..20+2N-1] = batter game logs fallback (prior season)
     ]);
 
     // Pick the season that has data (prefer current, fall back to prior)
@@ -899,29 +893,14 @@ export async function GET(req: NextRequest) {
     const pitchSummaryCurrent = (allResults[11].data ?? []) as any[];
     const pitchSummaryFallback = (allResults[12].data ?? []) as any[];
 
-    // Use current season if it has data, otherwise fall back (unless user explicitly picked a season)
-    const noFallback = !!statSeason;
-    const pitcherBBs = filterBBsBySample(
-      pitcherBBsCurrent.length > 0 ? pitcherBBsCurrent : (noFallback ? [] : pitcherBBsFallback),
-      sample
-    );
-    const batterBBsRaw = filterBBsBySample(
-      (() => {
-        if (noFallback) return batterBBsCurrent;
-        if (batterBBsCurrent.length === 0) return batterBBsFallback;
-        // Merge: current-season batted balls + fallback for players missing from current
-        const currentPlayerIds = new Set(batterBBsCurrent.map((r: any) => r.batter_id ?? r.player_id));
-        const fallbackFill = batterBBsFallback.filter((r: any) => !currentPlayerIds.has(r.batter_id ?? r.player_id));
-        return [...batterBBsCurrent, ...fallbackFill];
-      })(),
-      sample
-    );
-    const allLogs = pitcherLogsCurrent.length > 0 ? pitcherLogsCurrent : (noFallback ? [] : pitcherLogsFallback);
-    // Apply sample filter to pitcher game logs (sorted by date desc from RPC)
+    // No fallback — use only the selected season's data
+    const pitcherBBs = filterBBsBySample(pitcherBBsCurrent, sample);
+    const batterBBsRaw = filterBBsBySample(batterBBsCurrent, sample);
+    const allLogs = pitcherLogsCurrent;
     const logs = sample !== "season" ? allLogs.slice(0, Number(sample)) : allLogs;
-    const recentBBsRaw = recentBBsCurrent.length > 0 ? recentBBsCurrent : (noFallback ? [] : recentBBsFallback);
-    const pitcherL30BBs = pitcherL30Current.length > 0 ? pitcherL30Current : (noFallback ? [] : pitcherL30Fallback);
-    const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
+    const recentBBsRaw = recentBBsCurrent;
+    const pitcherL30BBs = pitcherL30Current;
+    const pitchSummaryRows = pitchSummaryCurrent;
 
     // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away, ... }
     const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; bb_pct: number | null; put_away: number | null; ba: number | null; obp: number | null; slg: number | null; woba: number | null; pitch_usage: number | null; pitches: number | null }>();
@@ -975,7 +954,7 @@ export async function GET(req: NextRequest) {
     // Pitcher pitchtype hand splits (whiff% vs LHB/RHB)
     const pitcherHandSplitsCurrent = (allResults[14].data ?? []) as any[];
     const pitcherHandSplitsFallback = (allResults[15].data ?? []) as any[];
-    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent.length > 0 ? pitcherHandSplitsCurrent : (noFallback ? [] : pitcherHandSplitsFallback);
+    const pitcherHandSplitsRaw = pitcherHandSplitsCurrent;
     // Build lookup: "pitch_type:hand" -> whiff_percent
     const pitcherHandWhiffMap = new Map<string, number | null>();
     for (const row of pitcherHandSplitsRaw) {
@@ -1005,25 +984,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Batter hand splits from real Savant data — merge current + fallback per row key
-    // (player + pitch_type + hand) so partial 2026 data fills gaps from 2025
+    // Batter hand splits — selected season only
     const batterHandSplitsCurrent = (allResults[16].data ?? []) as any[];
-    const batterHandSplitsFallback = (allResults[17].data ?? []) as any[];
-    const batterHandSplitsRaw = (() => {
-      if (noFallback) return batterHandSplitsCurrent;
-      if (batterHandSplitsCurrent.length === 0) return batterHandSplitsFallback;
-      // Merge at row level: current rows take priority, fallback fills gaps
-      const currentKeys = new Set(batterHandSplitsCurrent.map((r: any) =>
-        `${r.player_id}:${r.pitch_type}:${r.opponent_hand}`
-      ));
-      const fallbackFill = batterHandSplitsFallback.filter((r: any) =>
-        !currentKeys.has(`${r.player_id}:${r.pitch_type}:${r.opponent_hand}`)
-      );
-      return [...batterHandSplitsCurrent, ...fallbackFill];
-    })();
+    const batterHandSplitsRaw = batterHandSplitsCurrent;
 
-    // Also build a fallback-only hand split map (prior season) for per-player cascade
-    const batterHandSplitFallbackMap = new Map<string, any>();
 
     // Build batter hand splits lookup: playerId -> { L: aggregate, R: aggregate }
     interface BatterHandSplitAgg {
@@ -1092,66 +1056,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Build fallback-only hand split map from prior season for per-player cascade
-    if (!noFallback && batterHandSplitsFallback.length > 0) {
-      const fbGrouped = new Map<string, any[]>();
-      for (const row of batterHandSplitsFallback) {
-        const key = `${row.player_id}:${row.opponent_hand}`;
-        const arr = fbGrouped.get(key) || [];
-        arr.push(row);
-        fbGrouped.set(key, arr);
-      }
-      for (const [key, rows] of fbGrouped) {
-        // Only store if NOT already in the main map
-        if (batterHandSplitMap.has(key)) continue;
-        let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0;
-        let weightedBA = 0, weightedSLG = 0, weightedISO = 0, weightedWOBA = 0;
-        let weightedEV = 0, evW = 0, weightedBrl = 0, brlW = 0;
-        let weightedK = 0, kW = 0, weightedBB = 0, bbW = 0;
-        let weightedOBP = 0, obpW = 0;
-        for (const r of rows) {
-          const pa = Number(r.pa ?? 0), ab = Number(r.ab ?? 0);
-          totalPA += pa; totalAB += ab;
-          totalH += Number(r.hits ?? 0);
-          totalHR += Number(r.home_runs ?? 0);
-          const bw = ab > 0 ? ab : pa;
-          if (r.ba != null && bw > 0) weightedBA += Number(r.ba) * bw;
-          if (r.slg != null && bw > 0) weightedSLG += Number(r.slg) * bw;
-          if (r.iso != null && bw > 0) weightedISO += Number(r.iso) * bw;
-          if (r.woba != null && pa > 0) weightedWOBA += Number(r.woba) * pa;
-          if (r.avg_exit_velocity != null && pa > 0) { weightedEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
-          if (r.barrel_percent != null && pa > 0) { weightedBrl += Number(r.barrel_percent) * pa; brlW += pa; }
-          if (r.k_percent != null && pa > 0) { weightedK += Number(r.k_percent) * pa; kW += pa; }
-          if (r.bb_percent != null && pa > 0) { weightedBB += Number(r.bb_percent) * pa; bbW += pa; }
-          if (r.obp != null && pa > 0) { weightedOBP += Number(r.obp) * pa; obpW += pa; }
-        }
-        const bwT = totalAB > 0 ? totalAB : totalPA;
-        batterHandSplitFallbackMap.set(key, {
-          pa: totalPA, ab: totalAB, hits: totalH, hr: totalHR,
-          avg: bwT > 0 && weightedBA > 0 ? Math.round((weightedBA / bwT) * 1000) / 1000 : null,
-          obp: obpW > 0 ? Math.round((weightedOBP / obpW) * 1000) / 1000 : null,
-          slg: bwT > 0 && weightedSLG > 0 ? Math.round((weightedSLG / bwT) * 1000) / 1000 : null,
-          iso: bwT > 0 && weightedISO > 0 ? Math.round((weightedISO / bwT) * 1000) / 1000 : null,
-          woba: totalPA > 0 ? Math.round((weightedWOBA / totalPA) * 1000) / 1000 : null,
-          k_pct: kW > 0 ? Math.round((weightedK / kW) * 10) / 10 : null,
-          bb_pct: bbW > 0 ? Math.round((weightedBB / bbW) * 10) / 10 : null,
-          ev: evW > 0 ? Math.round((weightedEV / evW) * 10) / 10 : null,
-          brl: brlW > 0 ? Math.round((weightedBrl / brlW) * 10) / 10 : null,
-        } as BatterHandSplitAgg);
-      }
-    }
-
-    // Batter pitch type summary (real Savant stats, no hand split)
+    // Batter pitch type summary — selected season only
     const batterPitchSumCurrent = (allResults[18].data ?? []) as any[];
-    const batterPitchSumFallback = (allResults[19].data ?? []) as any[];
-    const batterPitchSumRaw = (() => {
-      if (noFallback) return batterPitchSumCurrent;
-      if (batterPitchSumCurrent.length === 0) return batterPitchSumFallback;
-      // Merge at row level: player + pitch_type
-      const currentKeys = new Set(batterPitchSumCurrent.map((r: any) => `${r.player_id}:${r.pitch_type}`));
-      const fallbackFill = batterPitchSumFallback.filter((r: any) => !currentKeys.has(`${r.player_id}:${r.pitch_type}`));
-      return [...batterPitchSumCurrent, ...fallbackFill];
-    })();
+    const batterPitchSumRaw = batterPitchSumCurrent;
 
     // Build lookup: "playerId:pitchType" -> real stats
     const batterPitchSumMap = new Map<string, {
@@ -1201,15 +1108,9 @@ export async function GET(req: NextRequest) {
     }
 
     const BATTER_LOG_START_IDX = 20;
-    const BATTER_LOG_FALLBACK_IDX = BATTER_LOG_START_IDX + batterIds.length;
     for (let i = 0; i < batterIds.length; i++) {
       const resultIdx = BATTER_LOG_START_IDX + i;
-      let gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
-      // Fall back to prior season if current is empty and fallback queries were made
-      if (gameLogs.length === 0 && !noFallback && batterGameLogFallbackQueries.length > 0) {
-        const fbIdx = BATTER_LOG_FALLBACK_IDX + i;
-        gameLogs = Array.isArray(allResults[fbIdx]?.data) ? allResults[fbIdx].data as any[] : [];
-      }
+      const gameLogs = Array.isArray(allResults[resultIdx]?.data) ? allResults[resultIdx].data as any[] : [];
       if (gameLogs.length === 0) continue;
 
       if (i === 0) {
@@ -2009,7 +1910,7 @@ export async function GET(req: NextRequest) {
       function computeHandSplit(hand: string) {
         const key = `${p.player_id}:${hand}`;
 
-        // 1. Current season Savant hand splits (best source)
+        // Savant hand splits for the selected season
         const realSplit = batterHandSplitMap.get(key);
         if (realSplit && realSplit.pa >= MIN_PA_HAND_SPLIT) {
           return {
@@ -2020,18 +1921,7 @@ export async function GET(req: NextRequest) {
           };
         }
 
-        // 2. Prior season Savant hand splits (fallback for players without current data)
-        const fbSplit = batterHandSplitFallbackMap.get(key) as BatterHandSplitAgg | undefined;
-        if (fbSplit && fbSplit.pa >= MIN_PA_HAND_SPLIT) {
-          return {
-            avg: fbSplit.avg, slg: fbSplit.slg, iso: fbSplit.iso,
-            woba: fbSplit.woba, hr: fbSplit.hr, ev: fbSplit.ev,
-            brl: fbSplit.brl, bbs: fbSplit.pa, obp: fbSplit.obp,
-            k_pct: fbSplit.k_pct, bb_pct: fbSplit.bb_pct,
-          };
-        }
-
-        // 3. Batted balls filtered by pitcher hand (last resort — no K%/BB%)
+        // Batted balls filtered by pitcher hand (no K%/BB% available)
         const hBBs = bbs.filter((b: any) => b.pitcher_hand === hand);
         if (hBBs.length === 0) return null;
         const hAvg = computeAVGFromBBs(hBBs);

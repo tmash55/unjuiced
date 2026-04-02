@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup (using legacy `logo` field)
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -88,6 +89,7 @@ const calculateBetSizes = (overOdds: number, underOdds: number, total: number) =
 };
 
 export function MobileArbCard({ row, id, totalBetAmount, roundTo = 0, isNew, hasChange }: MobileArbCardProps) {
+  const applyState = useStateLink();
   const [expanded, setExpanded] = useState(false);
 
   const roiPct = ((row.roi_bps ?? 0) / 100);
@@ -142,7 +144,8 @@ export function MobileArbCard({ row, id, totalBetAmount, roundTo = 0, isNew, has
   // Open bet link
   const openBet = (bk?: string, url?: string, mobileUrl?: string | null) => {
     const link = getBookUrl(bk, url, mobileUrl);
-    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    const finalLink = link ? (applyState(link) || link) : link;
+    if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
   };
 
   // Format time

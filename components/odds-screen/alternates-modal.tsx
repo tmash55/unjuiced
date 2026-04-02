@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface AlternateLine {
   ln: number;
@@ -174,6 +175,7 @@ export function AlternatesModal({
   playerPosition,
   alternatesType = "player",
 }: AlternatesModalProps) {
+  const applyState = useStateLink();
   const isGame = alternatesType === "game";
   const isSpreadMarket = market.includes('spread') || market.includes('puck_line') || market.includes('run_line') || market.includes('handicap');
   const [viewMode, setViewMode] = useState<ViewMode>('over');
@@ -636,7 +638,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (link) {
-                                              window.open(link, '_blank', 'noopener,noreferrer');
+                                              window.open(applyState(link) || link, '_blank', 'noopener,noreferrer');
                                             }
                                           }}
                                           disabled={!link}
@@ -743,7 +745,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (link) {
-                                              window.open(link, '_blank', 'noopener,noreferrer');
+                                              window.open(applyState(link) || link, '_blank', 'noopener,noreferrer');
                                             }
                                           }}
                                           disabled={!link}

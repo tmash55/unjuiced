@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { GameMatchupResponse } from "@/app/api/mlb/game-matchup/route";
 
 export type { GameMatchupResponse } from "@/app/api/mlb/game-matchup/route";
@@ -46,7 +46,6 @@ export function useMlbGameMatchup({ gameId, battingSide, sample = "season", stat
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
   });
 
   return {

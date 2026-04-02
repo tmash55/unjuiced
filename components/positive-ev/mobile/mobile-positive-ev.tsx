@@ -15,6 +15,7 @@ import { MobileEvModelsBar } from "./mobile-ev-models-bar";
 import type { PositiveEVOpportunity, DevigMethod, SharpPreset, EVMode } from "@/lib/ev/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { PositiveEVFilters } from "../positive-ev-filters";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Sort options
 const SORT_OPTIONS = [
@@ -158,6 +159,7 @@ export function MobilePositiveEV({
   isLoggedIn = false,
   hasEliteAccess = false,
 }: MobilePositiveEVProps) {
+  const applyState = useStateLink();
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState("ev_desc");
@@ -231,9 +233,9 @@ export function MobilePositiveEV({
     // On mobile, prefer the deep link (mobileLink) if available
     const link = opp.book.mobileLink || opp.book.link;
     if (link) {
-      window.open(link, "_blank");
+      window.open(applyState(link) || link, "_blank");
     }
-  }, []);
+  }, [applyState]);
   
   // Format time ago
   const formatTimeAgo = (timestamp: number): string => {

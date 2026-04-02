@@ -10,6 +10,7 @@ import { useSignalOdds, type OddsEntry } from "@/hooks/use-signal-odds"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { format, isToday, isTomorrow, formatDistanceToNow } from "date-fns"
 import useSWR from "swr"
+import { useStateLink } from "@/hooks/use-state-link"
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -85,6 +86,7 @@ function OddsComparison({
   sideAKey: any; sideBKey: any
   oddsFormat: OddsFormat
 }) {
+  const applyState = useStateLink()
   const { odds: sideABooks, isLoading: loadingA } = useSignalOdds(sideAKey)
   const { odds: sideBBooks, isLoading: loadingB } = useSignalOdds(sideBKey)
   const isMobile = useIsMobile()
@@ -182,7 +184,7 @@ function OddsComparison({
                       {formatPrice(row.a)}
                     </span>
                     {getLink(row.a) && (
-                      <a href={getLink(row.a)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      <a href={applyState(getLink(row.a)) || getLink(row.a)!} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                         className="rounded bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20">
                         Bet
                       </a>
@@ -204,7 +206,7 @@ function OddsComparison({
                       {formatPrice(row.b)}
                     </span>
                     {getLink(row.b) && (
-                      <a href={getLink(row.b)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      <a href={applyState(getLink(row.b)) || getLink(row.b)!} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                         className="rounded bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20">
                         Bet
                       </a>

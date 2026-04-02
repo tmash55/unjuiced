@@ -13,6 +13,7 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -463,6 +464,7 @@ export function OpportunitiesTable({
   
   // Favorites hook for betslip functionality
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  const applyState = useStateLink();
   
   // Helper to convert opportunity to favorite params
   // Only includes fields that exist in the user_favorites database table
@@ -1842,8 +1844,9 @@ export function OpportunitiesTable({
 
   const openLink = (bookId?: string, link?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = link || fallback;
-    if (!target) return;
+    const raw = link || fallback;
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
     try {
       window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');

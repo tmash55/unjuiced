@@ -12,6 +12,7 @@ import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } f
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort } from "@/lib/data/markets";
+import { useStateLink } from "@/hooks/use-state-link";
 import { Tooltip } from "@/components/tooltip";
 import {
   Sheet,
@@ -159,19 +160,19 @@ const getBookName = (bookId?: string | null): string => {
   return sb?.name || bookId;
 };
 
-const openBetLink = (snapshot: BookSnapshot | undefined) => {
+const openBetLink = (snapshot: BookSnapshot | undefined, applyStateFn?: ((url: string | null | undefined) => string | null) | null) => {
   if (!snapshot) return;
   const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
   const link = isMobile ? (snapshot.m || snapshot.u) : (snapshot.u || snapshot.m);
-  if (link) window.open(link, "_blank");
+  if (link) window.open((applyStateFn ? applyStateFn(link) : link) || link, "_blank");
 };
 
-const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookId?: string) => {
+const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookId?: string, applyStateFn?: ((url: string | null | undefined) => string | null) | null) => {
   const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
-  
+
   // Try API links first
   let link = links ? (isMobile ? (links.mobile || links.desktop) : (links.desktop || links.mobile)) : null;
-  
+
   // Fallback to sportsbook default links if no API link
   if (!link && bookId) {
     const sportsbook = getSportsbookById(bookId);
@@ -179,9 +180,9 @@ const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookI
       link = isMobile ? (sportsbook.links.mobile || sportsbook.links.desktop) : (sportsbook.links.desktop || sportsbook.links.mobile);
     }
   }
-  
+
   if (link) {
-    window.open(link, "_blank", "noopener,noreferrer");
+    window.open((applyStateFn ? applyStateFn(link) : link) || link, "_blank", "noopener,noreferrer");
   }
 };
 
@@ -533,6 +534,7 @@ interface FavoriteRowProps {
 }
 
 function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedBook, refreshedOdds, priceChange }: FavoriteRowProps) {
+  const applyState = useStateLink();
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Use refreshed odds if available, otherwise fall back to saved snapshot
@@ -647,9 +649,9 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
               // Use refreshed link if available
               const bookData = refreshedOdds?.allBooks?.[displayOdds.bookId];
               if (bookData?.link) {
-                window.open(bookData.link, "_blank");
+                window.open(applyState(bookData.link) || bookData.link, "_blank");
               } else {
-                openBetLink(favorite.books_snapshot?.[displayOdds.bookId]);
+                openBetLink(favorite.books_snapshot?.[displayOdds.bookId], applyState);
               }
             }}
             className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition-opacity"
@@ -753,9 +755,9 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
                       // Use refreshed link if available
                       const refreshedLink = refreshedOdds?.allBooks?.[bookId]?.link;
                       if (refreshedLink) {
-                        window.open(refreshedLink, "_blank");
+                        window.open(applyState(refreshedLink) || refreshedLink, "_blank");
                       } else {
-                        openBetLink(data);
+                        openBetLink(data, applyState);
                       }
                     }}
                     className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
@@ -1193,6 +1195,7 @@ function QuickComparePanel({
   onRetry,
   fromCache,
 }: QuickComparePanelProps) {
+  const applyState = useStateLink();
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showLegs, setShowLegs] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1440,7 +1443,7 @@ function QuickComparePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        openSgpLink(links, bookId);
+                        openSgpLink(links, bookId, applyState);
                       }}
                       className={cn(
                         "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors",
@@ -1491,7 +1494,7 @@ function QuickComparePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        openSgpLink(links, bookId);
+                        openSgpLink(links, bookId, applyState);
                       }}
                       className={cn(
                         "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors",

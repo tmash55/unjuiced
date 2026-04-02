@@ -9,6 +9,7 @@ import type { OddsScreenItem, OddsScreenEvent } from "../types/odds-screen-types
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface AlternatesSheetProps {
   item: OddsScreenItem;
@@ -92,6 +93,7 @@ function getMarketLabel(market: string): string {
 }
 
 export function AlternatesSheet({ item, sport, market, event, isOpen, onClose }: AlternatesSheetProps) {
+  const applyState = useStateLink();
   const [selectedLine, setSelectedLine] = useState<{ line: AlternateLine; side: "over" | "under" } | null>(null);
   const showLogos = hasTeamLogos(sport);
 
@@ -197,7 +199,7 @@ export function AlternatesSheet({ item, sport, market, event, isOpen, onClose }:
   const handleBookClick = (bookId: string, bookData: { u: string | null; m: string | null } | undefined) => {
     const link = bookData?.m || bookData?.u;
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
   };
 

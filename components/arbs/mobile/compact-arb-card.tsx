@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup (using legacy `logo` field)
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -78,6 +79,7 @@ interface CompactArbCardProps {
 }
 
 export function CompactArbCard({ row, totalBetAmount, roundTo = 0, isNew, hasChange, onOpenCalculator, onShowWarning }: CompactArbCardProps) {
+  const applyState = useStateLink();
   const roiPct = ((row.roi_bps ?? 0) / 100);
   const isHighROI = roiPct > 10;
   const overOdds = Number(row.o?.od || 0);
@@ -129,7 +131,8 @@ export function CompactArbCard({ row, totalBetAmount, roundTo = 0, isNew, hasCha
   const openBet = (e: React.MouseEvent, bk?: string, url?: string, mobileUrl?: string | null) => {
     e.stopPropagation();
     const link = getBookUrl(bk, url, mobileUrl);
-    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    const finalLink = link ? (applyState(link) || link) : link;
+    if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
   };
 
   // Format time - compact

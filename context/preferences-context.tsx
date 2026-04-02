@@ -1249,10 +1249,23 @@ export function usePositiveEvPreferences() {
       await updateArbitrageFilters({ minLiquidity });
     }
   }, [updatePositiveEvFilters, updateArbitrageFilters]);
-  
+
   return {
     filters,
     updateFilters: updateFiltersWithLiquidity,
     isLoading,
   };
+}
+
+/**
+ * Returns the user's state code (lowercase, e.g. "nj", "ia") and a setter.
+ * Used for state-specific sportsbook deep links.
+ */
+export function useUserState() {
+  const { preferences, updatePreferences } = usePreferences();
+  const stateCode = preferences?.state_code?.toLowerCase() || null;
+  const setStateCode = useCallback(async (state: string) => {
+    await updatePreferences({ state_code: state.toLowerCase() } as any);
+  }, [updatePreferences]);
+  return { stateCode, setStateCode };
 }

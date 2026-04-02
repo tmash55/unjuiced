@@ -21,6 +21,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import type { FilterPreset } from "@/lib/types/filter-presets";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Sport filter options
 const SPORT_OPTIONS = [
@@ -150,6 +151,7 @@ export function MobileEdgeFinder({
   onKellyPercentChange,
   onRequestMoreResults,
 }: MobileEdgeFinderProps) {
+  const applyState = useStateLink();
   const canUseAutoRefresh = hasAutoRefreshAccess ?? isPro;
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -246,9 +248,9 @@ export function MobileEdgeFinder({
     // This opens the sportsbook app directly instead of the website
     const link = opp.bestMobileLink || opp.bestLink;
     if (link) {
-      window.open(link, "_blank");
+      window.open(applyState(link) || link, "_blank");
     }
-  }, []);
+  }, [applyState]);
   
   // Format time ago
   const formatTimeAgo = (timestamp: number): string => {

@@ -14,6 +14,7 @@ import { useSignalOdds } from "@/hooks/use-signal-odds"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { formatDistanceToNow } from "date-fns"
 import useSWR from "swr"
+import { useStateLink } from "@/hooks/use-state-link"
 
 interface PickDetailPanelProps {
   pick: WhaleSignal
@@ -32,6 +33,7 @@ function formatMoney(n: number): string {
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket, onViewInsider }: PickDetailPanelProps) {
+  const applyState = useStateLink()
   const score = Math.round(pick.signal_score || 0)
   const matchup = pick.event_title || pick.market_title
   const betType = pick.market_label || pick.market_type || ""
@@ -143,7 +145,7 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
             return (
               <button
                 className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700/40 px-2 py-1 text-[11px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
-                onClick={() => window.open(polyLink, '_blank')}
+                onClick={() => window.open(applyState(polyLink) || polyLink, '_blank')}
               >
                 <ExternalLink className="h-3 w-3" />
                 Polymarket
@@ -490,7 +492,7 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
                     </span>
                     {bookLink && (
                       <a
-                        href={bookLink}
+                        href={applyState(bookLink) || bookLink}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}

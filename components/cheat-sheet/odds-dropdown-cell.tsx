@@ -5,6 +5,7 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { OddsData } from "@/hooks/use-cheat-sheet";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -74,6 +75,7 @@ export function OddsDropdownCell({
 }: OddsDropdownCellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const applyState = useStateLink();
 
   // Detect if user is on mobile device
   const isMobile = useMemo(() => {
@@ -148,7 +150,7 @@ export function OddsDropdownCell({
     e.stopPropagation();
     const link = getBookLink(book);
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -163,7 +165,7 @@ export function OddsDropdownCell({
   const handleSingleBookClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (singleBookLink) {
-      window.open(singleBookLink, "_blank", "noopener,noreferrer");
+      window.open(applyState(singleBookLink) || singleBookLink, "_blank", "noopener,noreferrer");
     }
   };
 

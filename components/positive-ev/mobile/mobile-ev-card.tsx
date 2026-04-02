@@ -18,6 +18,7 @@ import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-bo
 import { SportIcon } from "@/components/icons/sport-icons";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
 import { getPrimaryEVCalculation, impliedProbToAmerican } from "@/lib/ev/devig";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
 const EXTREME_EV_THRESHOLD = 1000;
@@ -138,8 +139,9 @@ export function MobileEVCard({
   selectedDevigMethods = ["power", "multiplicative"],
   selectedBooks = [],
 }: MobileEVCardProps) {
+  const applyState = useStateLink();
   const opp = opportunity;
-  
+
   // Favorites state
   const [isToggling, setIsToggling] = useState(false);
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
@@ -843,7 +845,7 @@ export function MobileEVCard({
                               type="button"
                               onClick={() => {
                                 const link = pair.over?.mobileLink || pair.over?.link;
-                                if (link) window.open(link, "_blank");
+                                if (link) window.open(applyState(link) || link, "_blank");
                               }}
                               disabled={!pair.over}
                               className={cn(
@@ -883,7 +885,7 @@ export function MobileEVCard({
                               type="button"
                               onClick={() => {
                                 const link = pair.under?.mobileLink || pair.under?.link;
-                                if (link) window.open(link, "_blank");
+                                if (link) window.open(applyState(link) || link, "_blank");
                               }}
                               disabled={!pair.under}
                               className={cn(
@@ -932,7 +934,7 @@ export function MobileEVCard({
                           type="button"
                           onClick={() => {
                             const link = book.mobileLink || book.link;
-                            if (link) window.open(link, "_blank");
+                            if (link) window.open(applyState(link) || link, "_blank");
                           }}
                           className={cn(
                             "flex items-center justify-between px-2 py-1.5 rounded-lg",

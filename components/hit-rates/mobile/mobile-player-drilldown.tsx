@@ -39,6 +39,7 @@ import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
 import { useTeamShotZoneRanks, SHOT_ZONE_KEYS } from "@/hooks/use-team-shot-zone-ranks";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -214,26 +215,27 @@ function MobileOddsLineRow({
   getOddsHitRateColor,
 }: MobileOddsLineRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const applyState = useStateLink();
+
   const handleBookClick = (book: BookOddsEntry, type: "over" | "under", e: React.MouseEvent) => {
     e.stopPropagation();
     const oddsData = type === "over" ? book.over : book.under;
     if (!oddsData) return;
-    
+
     // Prefer mobile URL on mobile devices
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const url = isMobile
       ? (oddsData.mobileUrl || oddsData.m || oddsData.url || oddsData.u)
       : (oddsData.url || oddsData.u || oddsData.mobileUrl || oddsData.m);
-    
+
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
     } else {
       // Fallback to sportsbook homepage
       const sportsbookInfo = getSportsbookById(book.book);
       if (sportsbookInfo?.links?.mobile || sportsbookInfo?.links?.desktop) {
         const fallbackUrl = isMobile ? (sportsbookInfo.links.mobile || sportsbookInfo.links.desktop) : sportsbookInfo.links.desktop;
-        if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        if (fallbackUrl) window.open(applyState(fallbackUrl) || fallbackUrl, "_blank", "noopener,noreferrer");
       }
     }
   };
@@ -306,7 +308,7 @@ function MobileOddsLineRow({
               onClick={(e) => {
                 e.stopPropagation();
                 const url = lineData.bestOver?.mobileUrl || lineData.bestOver?.url;
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
+                if (url) window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 active:scale-95 transition-transform"
             >
@@ -330,7 +332,7 @@ function MobileOddsLineRow({
               onClick={(e) => {
                 e.stopPropagation();
                 const url = lineData.bestUnder?.mobileUrl || lineData.bestUnder?.url;
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
+                if (url) window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 active:scale-95 transition-transform"
             >
@@ -1883,11 +1885,12 @@ function OddsBadge({
   mobileUrl?: string | null;
 }) {
   const logo = getBookLogo(book);
-  
+  const applyState = useStateLink();
+
   const handleClick = (e: React.MouseEvent) => {
     if (mobileUrl) {
       e.stopPropagation();
-      window.open(mobileUrl, "_blank");
+      window.open(applyState(mobileUrl) || mobileUrl, "_blank");
     }
   };
   
@@ -3718,7 +3721,8 @@ export function MobilePlayerDrilldown({
 }: MobilePlayerDrilldownProps) {
   // Check if mobile nav menu is open (to hide bottom nav)
   const { isMenuOpen } = useMobileNav();
-  
+  const applyState = useStateLink();
+
   const [selectedMarket, setSelectedMarket] = useState(initialProfile.market);
   const [gameCount, setGameCount] = useState<GameCountFilter>(10);
   const [showMarketPicker, setShowMarketPicker] = useState(false);
@@ -5429,7 +5433,7 @@ export function MobilePlayerDrilldown({
                                     <button
                                       key={`${book}-over`}
                                       type="button"
-                                      onClick={() => bookOdds.over?.mobileUrl && window.open(bookOdds.over.mobileUrl, "_blank", "noopener,noreferrer")}
+                                      onClick={() => bookOdds.over?.mobileUrl && window.open(applyState(bookOdds.over.mobileUrl) || bookOdds.over.mobileUrl, "_blank", "noopener,noreferrer")}
                                       className={cn(
                                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all active:scale-95",
                                         isBest 
@@ -5470,7 +5474,7 @@ export function MobilePlayerDrilldown({
                                     <button
                                       key={`${book}-under`}
                                       type="button"
-                                      onClick={() => bookOdds.under?.mobileUrl && window.open(bookOdds.under.mobileUrl, "_blank", "noopener,noreferrer")}
+                                      onClick={() => bookOdds.under?.mobileUrl && window.open(applyState(bookOdds.under.mobileUrl) || bookOdds.under.mobileUrl, "_blank", "noopener,noreferrer")}
                                       className={cn(
                                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all active:scale-95",
                                         isBest 
@@ -5704,7 +5708,7 @@ export function MobilePlayerDrilldown({
                   >
                     <button
                       type="button"
-                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(applyState(odds.bestOver.mobileUrl) || odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestOver}
                       className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
@@ -5750,7 +5754,7 @@ export function MobilePlayerDrilldown({
                   >
                     <button
                       type="button"
-                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(applyState(odds.bestUnder.mobileUrl) || odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestUnder}
                       className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
@@ -6678,7 +6682,7 @@ export function MobilePlayerDrilldown({
                     {/* Over */}
                     <button
                       type="button"
-                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(applyState(odds.bestOver.mobileUrl) || odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
                         "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-900/10",
@@ -6708,7 +6712,7 @@ export function MobilePlayerDrilldown({
                     {/* Under */}
                     <button
                       type="button"
-                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(applyState(odds.bestUnder.mobileUrl) || odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
                         "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/30 dark:to-red-900/10",
