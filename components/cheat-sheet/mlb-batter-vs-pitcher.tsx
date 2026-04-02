@@ -2551,7 +2551,11 @@ export function MlbBatterVsPitcher() {
   const [pitchFilters, setPitchFilters] = useState<string[]>([]); // empty = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
-  const [statSeason, setStatSeason] = useState<number>(2025);
+  const [statSeason, setStatSeason] = useState<number>(() => {
+    // Default to current year from April onwards, prior year otherwise
+    const now = new Date();
+    return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  });
   const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
   const [stdSortAsc, setStdSortAsc] = useState(true);
   const [showBench, setShowBench] = useState(false);
@@ -2949,7 +2953,7 @@ export function MlbBatterVsPitcher() {
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
                     <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
-                      {[2025, 2026].map((yr) => (
+                      {[new Date().getFullYear() - 1, new Date().getFullYear()].map((yr) => (
                         <button
                           key={yr}
                           onClick={() => setStatSeason(yr)}
