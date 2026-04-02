@@ -79,6 +79,7 @@ function toGameRow(row: any) {
     national_broadcast: null,
     neutral_site: false,
     season_type: row.game_type ?? null,
+    odds_game_id: row.odds_game_id ?? null,
     // Enriched below
     weather: null as {
       temperature_f: number | null;
@@ -90,6 +91,16 @@ function toGameRow(row: any) {
       venue_name: string | null;
     } | null,
     park_factor: null as number | null,
+    odds: null as {
+      home_ml: string | null;
+      away_ml: string | null;
+      total: number | null;
+      total_over_price: string | null;
+      total_under_price: string | null;
+      spread: number | null;
+      spread_home_price: string | null;
+      spread_away_price: string | null;
+    } | null,
   };
 }
 
@@ -148,6 +159,7 @@ export async function GET() {
       home_score,
       away_score,
       venue_id,
+      odds_game_id,
       home_probable_pitcher,
       away_probable_pitcher,
       home_team:mlb_teams!mlb_games_home_id_fkey (abbreviation),
@@ -252,6 +264,100 @@ export async function GET() {
       }
     } catch (enrichErr) {
       console.error("[/api/mlb/games] Weather/park enrichment error:", enrichErr);
+    }
+
+    // Enrich with live odds from Redis (best-effort)
+    try {
+      const gamesWithOdds = sortedGames.filter((g) => g.odds_game_id);
+      if (gamesWithOdds.length > 0) {
+        // Fetch ML + total + run_line for each game from FanDuel (primary display book)
+        const ODDS_BOOK = "fanduel";
+        const oddsPromises = gamesWithOdds.flatMap((g) => [
+          redis.get<string>(`odds:mlb:${g.odds_game_id}:game_moneyline:${ODDS_BOOK}`),
+          redis.get<string>(`odds:mlb:${g.odds_game_id}:total_runs:${ODDS_BOOK}`),
+          redis.get<string>(`odds:mlb:${g.odds_game_id}:run_line:${ODDS_BOOK}`),
+        ]);
+
+        const oddsResults = await Promise.all(oddsPromises);
+
+        for (let i = 0; i < gamesWithOdds.length; i++) {
+          const g = gamesWithOdds[i];
+          const mlRaw = oddsResults[i * 3];
+          const totalRaw = oddsResults[i * 3 + 1];
+          const rlRaw = oddsResults[i * 3 + 2];
+
+          const odds: NonNullable<typeof g.odds> = {
+            home_ml: null, away_ml: null,
+            total: null, total_over_price: null, total_under_price: null,
+            spread: null, spread_home_price: null, spread_away_price: null,
+          };
+
+          // Parse moneyline
+          if (mlRaw) {
+            try {
+              const mlData = typeof mlRaw === "string" ? JSON.parse(mlRaw) : mlRaw;
+              for (const [, valStr] of Object.entries(mlData)) {
+                const sel = typeof valStr === "string" ? JSON.parse(valStr) : valStr;
+                if (!sel?.price || sel.side !== "ml") continue;
+                const name = (sel.player || "").toLowerCase();
+                const homeName = (g.home_team_name || "").toLowerCase();
+                const awayName = (g.away_team_name || "").toLowerCase();
+                if (name.includes(homeName.split(" ").pop()!) || homeName.includes(name.split(" ").pop()!)) {
+                  odds.home_ml = sel.price;
+                } else if (name.includes(awayName.split(" ").pop()!) || awayName.includes(name.split(" ").pop()!)) {
+                  odds.away_ml = sel.price;
+                }
+              }
+            } catch (_) { /* skip malformed */ }
+          }
+
+          // Parse total (main line only)
+          if (totalRaw) {
+            try {
+              const totalData = typeof totalRaw === "string" ? JSON.parse(totalRaw) : totalRaw;
+              for (const [key, valStr] of Object.entries(totalData)) {
+                const sel = typeof valStr === "string" ? JSON.parse(valStr) : valStr;
+                if (!sel?.main) continue;
+                if (key.includes("|over|")) {
+                  odds.total = sel.line;
+                  odds.total_over_price = sel.price;
+                } else if (key.includes("|under|")) {
+                  odds.total_under_price = sel.price;
+                }
+              }
+            } catch (_) { /* skip malformed */ }
+          }
+
+          // Parse run line (main ±1.5 only)
+          if (rlRaw) {
+            try {
+              const rlData = typeof rlRaw === "string" ? JSON.parse(rlRaw) : rlRaw;
+              for (const [, valStr] of Object.entries(rlData)) {
+                const sel = typeof valStr === "string" ? JSON.parse(valStr) : valStr;
+                if (!sel?.main || !sel?.price) continue;
+                const line = Number(sel.line);
+                const name = (sel.player || "").toLowerCase();
+                const homeName = (g.home_team_name || "").toLowerCase();
+                if (name.includes(homeName.split(" ").pop()!) || homeName.includes(name.split(" ").pop()!)) {
+                  odds.spread = line;
+                  odds.spread_home_price = sel.price;
+                } else {
+                  odds.spread_away_price = sel.price;
+                }
+              }
+            } catch (_) { /* skip malformed */ }
+          }
+
+          // Only attach if we got at least one piece of data
+          if (odds.home_ml || odds.total || odds.spread != null) {
+            g.odds = odds;
+          }
+        }
+        console.log(`[/api/mlb/games] Odds enriched for ${gamesWithOdds.filter(g => g.odds).length}/${gamesWithOdds.length} games`);
+      }
+    } catch (oddsErr) {
+      console.error("[/api/mlb/games] Odds enrichment error:", oddsErr);
+      // Non-fatal — games still return without odds
     }
 
     const response = {
