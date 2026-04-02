@@ -898,16 +898,19 @@ export async function GET(req: NextRequest) {
     const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
 
     // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away }
-    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null }>();
+    const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; put_away: number | null; bb_pct: number | null }>();
     for (const row of pitchSummaryRows) {
       if (row.pitch_type) {
         pitchSummaryMap.set(row.pitch_type, {
           whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
           k_pct: row.k_percent != null ? Number(row.k_percent) : null,
           put_away: row.put_away != null ? Number(row.put_away) : null,
+          bb_pct: null, // Not in pitchtype_summary table — enriched from hand splits below
         });
       }
     }
+
+    // Note: bb_pct enrichment for pitchSummaryMap happens below after pitcherHandSplits are resolved
 
     // Extract pitcher hot zone grid (zones 1-9)
     const hotZoneRaw = allResults[13]?.data;
@@ -945,6 +948,29 @@ export async function GET(req: NextRequest) {
     const pitcherHandWhiffMap = new Map<string, number | null>();
     for (const row of pitcherHandSplitsRaw) {
       pitcherHandWhiffMap.set(`${row.pitch_type}:${row.opponent_hand}`, row.whiff_percent);
+    }
+
+    // Enrich pitchSummaryMap with bb_pct from hand splits (PA-weighted across L/R)
+    for (const row of pitcherHandSplitsRaw) {
+      if (!row.pitch_type || row.bb_percent == null) continue;
+      const existing = pitchSummaryMap.get(row.pitch_type);
+      if (existing) {
+        const pa = Number(row.pa) || 0;
+        if (existing.bb_pct == null) {
+          (existing as any)._bbW = Number(row.bb_percent) * pa;
+          (existing as any)._bbPA = pa;
+          existing.bb_pct = Math.round(Number(row.bb_percent) * 10) / 10;
+        } else {
+          const prevW = (existing as any)._bbW || 0;
+          const prevPA = (existing as any)._bbPA || 0;
+          const totalPA = prevPA + pa;
+          if (totalPA > 0) {
+            existing.bb_pct = Math.round(((prevW + Number(row.bb_percent) * pa) / totalPA) * 10) / 10;
+            (existing as any)._bbW = prevW + Number(row.bb_percent) * pa;
+            (existing as any)._bbPA = totalPA;
+          }
+        }
+      }
     }
     // Batter hand splits from real Savant data
     const batterHandSplitsCurrent = (allResults[16].data ?? []) as any[];
@@ -1207,6 +1233,7 @@ export async function GET(req: NextRequest) {
         slg: computeSLGFromEvents(bbs),
         whiff_pct: summary?.whiff_pct ?? null,
         k_pct: summary?.k_pct ?? null,
+        bb_pct: summary?.bb_pct ?? null,
         put_away: summary?.put_away ?? null,
         total_batted_balls: bbs.length,
         gb_pct: bbs.length >= 5 ? Math.round((gbCount / bbs.length) * 1000) / 10 : null,
