@@ -12,6 +12,17 @@ export interface MlbGameWeather {
   venue_name: string | null;
 }
 
+export interface MlbGameOdds {
+  home_ml: string | null;
+  away_ml: string | null;
+  total: number | null;
+  total_over_price: string | null;
+  total_under_price: string | null;
+  spread: number | null;
+  spread_home_price: string | null;
+  spread_away_price: string | null;
+}
+
 export interface MlbGame {
   game_id: string;
   game_date: string;
@@ -23,6 +34,7 @@ export interface MlbGame {
   away_team_score: number | null;
   game_status: string;
   venue_id: number | null;
+  odds_game_id: string | null;
   home_probable_pitcher: string | null;
   away_probable_pitcher: string | null;
   is_primetime: boolean | null;
@@ -31,6 +43,7 @@ export interface MlbGame {
   season_type: string | null;
   weather: MlbGameWeather | null;
   park_factor: number | null;
+  odds: MlbGameOdds | null;
 }
 
 interface GamesResponse {
