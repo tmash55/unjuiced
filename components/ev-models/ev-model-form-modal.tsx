@@ -346,6 +346,8 @@ export function EvModelFormModal({
   const [minBooksReference, setMinBooksReference] = useState(2);
   const [minOdds, setMinOdds] = useState(DEFAULT_EV_MODEL_MIN_ODDS);
   const [maxOdds, setMaxOdds] = useState(DEFAULT_EV_MODEL_MAX_ODDS);
+  const [minOddsStr, setMinOddsStr] = useState(String(DEFAULT_EV_MODEL_MIN_ODDS));
+  const [maxOddsStr, setMaxOddsStr] = useState(String(DEFAULT_EV_MODEL_MAX_ODDS));
   const [error, setError] = useState<string | null>(null);
 
   // Fetch dynamic markets
@@ -513,6 +515,8 @@ export function EvModelFormModal({
       setMinBooksReference(model.min_books_reference || 2);
       setMinOdds(model.min_odds ?? DEFAULT_EV_MODEL_MIN_ODDS);
       setMaxOdds(model.max_odds ?? DEFAULT_EV_MODEL_MAX_ODDS);
+      setMinOddsStr(String(model.min_odds ?? DEFAULT_EV_MODEL_MIN_ODDS));
+      setMaxOddsStr(String(model.max_odds ?? DEFAULT_EV_MODEL_MAX_ODDS));
       setExpandedSports(new Set());
       setExpandedCategories(new Set());
       
@@ -589,6 +593,8 @@ export function EvModelFormModal({
       setMinBooksReference(2);
       setMinOdds(DEFAULT_EV_MODEL_MIN_ODDS);
       setMaxOdds(DEFAULT_EV_MODEL_MAX_ODDS);
+      setMinOddsStr(String(DEFAULT_EV_MODEL_MIN_ODDS));
+      setMaxOddsStr(String(DEFAULT_EV_MODEL_MAX_ODDS));
     }
     setError(null);
   }, [open, model?.id]);
@@ -1165,25 +1171,81 @@ export function EvModelFormModal({
                     <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                       Odds Range
                     </Label>
-                    <div className="flex gap-2 mt-3">
-                      <Input
-                        type="number"
-                        value={minOdds}
-                        onChange={(e) => setMinOdds(Number(e.target.value))}
-                        disabled={isLoading}
-                        placeholder="Min"
-                        className="h-8 text-xs font-medium bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-lg"
-                      />
-                      <span className="self-center text-neutral-400">to</span>
-                      <Input
-                        type="number"
-                        value={maxOdds}
-                        onChange={(e) => setMaxOdds(Number(e.target.value))}
-                        disabled={isLoading}
-                        placeholder="Max"
-                        className="h-8 text-xs font-medium bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-lg"
-                      />
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-400">Min</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={minOddsStr}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "" || v === "-" || /^-?\d*$/.test(v)) {
+                              setMinOddsStr(v);
+                              const n = parseInt(v, 10);
+                              if (!isNaN(n)) setMinOdds(n);
+                            }
+                          }}
+                          onBlur={() => {
+                            const n = parseInt(minOddsStr, 10);
+                            if (isNaN(n)) { setMinOddsStr(String(minOdds)); }
+                            else { setMinOdds(n); setMinOddsStr(String(n)); }
+                          }}
+                          disabled={isLoading}
+                          placeholder="e.g. -500"
+                          className="w-full h-9 px-3 text-sm font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-shadow"
+                        />
+                      </div>
+                      <span className="self-end pb-2.5 text-neutral-400 text-xs">to</span>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-400">Max</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={maxOddsStr}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "" || v === "-" || v === "+" || /^[+-]?\d*$/.test(v)) {
+                              setMaxOddsStr(v);
+                              const n = parseInt(v.replace(/^\+/, ""), 10);
+                              if (!isNaN(n)) setMaxOdds(n);
+                            }
+                          }}
+                          onBlur={() => {
+                            const n = parseInt(maxOddsStr.replace(/^\+/, ""), 10);
+                            if (isNaN(n)) { setMaxOddsStr(String(maxOdds)); }
+                            else { setMaxOdds(n); setMaxOddsStr(n >= 0 ? `+${n}` : String(n)); }
+                          }}
+                          disabled={isLoading}
+                          placeholder="e.g. +500"
+                          className="w-full h-9 px-3 text-sm font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-shadow"
+                        />
+                      </div>
                     </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {[
+                        { min: -500, max: 500, label: "-500 to +500" },
+                        { min: -300, max: 300, label: "-300 to +300" },
+                        { min: -200, max: 1000, label: "-200 to +1000" },
+                        { min: -110, max: 2000, label: "-110 to +2000" },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => { setMinOdds(p.min); setMaxOdds(p.max); setMinOddsStr(String(p.min)); setMaxOddsStr(`+${p.max}`); }}
+                          disabled={isLoading}
+                          className={cn(
+                            "px-2 py-1 text-[10px] font-medium rounded-md transition-colors",
+                            minOdds === p.min && maxOdds === p.max
+                              ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-neutral-400 mt-2">American odds range for opportunities</p>
                   </div>
 
                   {/* Sports & Markets */}

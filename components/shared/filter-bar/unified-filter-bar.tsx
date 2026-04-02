@@ -134,6 +134,8 @@ export interface UnifiedFilterBarProps {
   onMaxArbChange?: (value: number) => void;
   totalBetAmount?: number;
   onTotalBetAmountChange?: (value: number) => void;
+  roundTo?: number;
+  onRoundToChange?: (value: number) => void;
   selectedMarketTypes?: ("player" | "game")[];
   onMarketTypesChange?: (types: ("player" | "game")[]) => void;
   
@@ -232,6 +234,8 @@ export function UnifiedFilterBar({
   onMaxArbChange,
   totalBetAmount,
   onTotalBetAmountChange,
+  roundTo,
+  onRoundToChange,
   selectedMarketTypes,
   onMarketTypesChange,
   bankroll,
@@ -471,6 +475,8 @@ export function UnifiedFilterBar({
             onMaxArbChange={onMaxArbChange}
             totalBetAmount={totalBetAmount}
             onTotalBetAmountChange={onTotalBetAmountChange}
+            roundTo={roundTo}
+            onRoundToChange={onRoundToChange}
             selectedMarketTypes={selectedMarketTypes}
             onMarketTypesChange={onMarketTypesChange}
             disabled={locked}

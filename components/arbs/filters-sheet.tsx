@@ -66,6 +66,7 @@ export function FiltersSheet({
   const [minArb, setMinArb] = useState<number>(filters.minArb ?? 0);
   const [maxArb, setMaxArb] = useState<number>(filters.maxArb ?? 20);
   const [totalBetAmount, setTotalBetAmount] = useState<number>(filters.totalBetAmount ?? 200);
+  const [roundTo, setRoundTo] = useState<number>(filters.roundTo ?? 0);
   const [minLiquidity, setMinLiquidity] = useState<number>(filters.minLiquidity ?? 50);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [marketSearchQuery, setMarketSearchQuery] = useState("");
@@ -108,6 +109,7 @@ export function FiltersSheet({
     setMinArb(filters.minArb ?? 0);
     setMaxArb(filters.maxArb ?? 20);
     setTotalBetAmount(filters.totalBetAmount ?? 200);
+    setRoundTo(filters.roundTo ?? 0);
     setMinLiquidity(filters.minLiquidity ?? 50);
     setHasUnsavedChanges(false);
   }, [filters]);
@@ -128,6 +130,7 @@ export function FiltersSheet({
       minArb !== (filters.minArb ?? 0) ||
       maxArb !== (filters.maxArb ?? 20) ||
       totalBetAmount !== (filters.totalBetAmount ?? 200) ||
+      roundTo !== (filters.roundTo ?? 0) ||
       minLiquidity !== (filters.minLiquidity ?? 50);
     
     setHasUnsavedChanges(changed);
@@ -287,6 +290,7 @@ export function FiltersSheet({
       minArb, 
       maxArb, 
       totalBetAmount,
+      roundTo,
       minLiquidity
     });
     setOpen(false);
@@ -306,16 +310,18 @@ export function FiltersSheet({
     setMinArb(0);
     setMaxArb(20);
     setTotalBetAmount(200);
+    setRoundTo(0);
     setMinLiquidity(50);
-    await updateFilters({ 
-      selectedBooks: defaultBooks, 
+    await updateFilters({
+      selectedBooks: defaultBooks,
       selectedSports: defaultSports,
       selectedLeagues: defaultLeagues,
       selectedMarketTypes: defaultMarketTypes,
       selectedMarkets: defaultMarkets,
-      minArb: 0, 
-      maxArb: 20, 
+      minArb: 0,
+      maxArb: 20,
       totalBetAmount: 200,
+      roundTo: 0,
       minLiquidity: 50
     });
   };
@@ -952,6 +958,35 @@ export function FiltersSheet({
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide arbs where max bet is below this amount</p>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Round Bets</Label>
+                  <div className="flex gap-1.5">
+                    {[
+                      { value: 0, label: "Off" },
+                      { value: 1, label: "$1" },
+                      { value: 5, label: "$5" },
+                      { value: 10, label: "$10" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => pro && setRoundTo(opt.value)}
+                        disabled={!pro}
+                        className={cn(
+                          "flex-1 px-2.5 py-2 text-xs font-medium rounded-lg transition-colors",
+                          roundTo === opt.value
+                            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
+                          !pro && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Rounds stakes to avoid flagged decimal bets</p>
                 </div>
               </TabsContent>
             </Tabs>

@@ -15,7 +15,7 @@ interface MobileArbCardProps {
   row: ArbRow;
   id: string;
   totalBetAmount: number;
-  roundBets?: boolean;
+  roundTo?: number;
   isNew?: boolean;
   hasChange?: boolean;
 }
@@ -87,7 +87,7 @@ const calculateBetSizes = (overOdds: number, underOdds: number, total: number) =
   return { over: overStake, under: underStake };
 };
 
-export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNew, hasChange }: MobileArbCardProps) {
+export function MobileArbCard({ row, id, totalBetAmount, roundTo = 0, isNew, hasChange }: MobileArbCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const roiPct = ((row.roi_bps ?? 0) / 100);
@@ -106,15 +106,20 @@ export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNe
   const underStake = customUnder && !isNaN(parseFloat(customUnder)) ? parseFloat(customUnder) : defaultSizes.under;
   
   const formatAmount = (n: number) => {
-    if (roundBets) return `$${Math.round(n)}`;
+    if (roundTo > 0) return `$${Math.round(n / roundTo) * roundTo}`;
     return `$${n.toFixed(2)}`;
   };
 
-  // Calculate profit
+  // Calculate profit (range when rounding active)
   const totalStake = overStake + underStake;
   const overPayout = calculatePayout(overOdds, overStake);
   const underPayout = calculatePayout(underOdds, underStake);
-  const profit = Math.min(overPayout, underPayout) - totalStake;
+  const profitIfOver = overPayout - totalStake;
+  const profitIfUnder = underPayout - totalStake;
+  const profitMin = Math.min(profitIfOver, profitIfUnder);
+  const profitMax = Math.max(profitIfOver, profitIfUnder);
+  const profit = profitMin;
+  const hasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
   
   // Get side labels
   const getSideLabel = (side: "over" | "under") => {
@@ -180,7 +185,7 @@ export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNe
               {roiPct.toFixed(2)}%
             </span>
             <span className="text-sm text-neutral-500 dark:text-neutral-400">
-              ~{formatAmount(profit)}
+              {hasRange ? `${formatAmount(profitMin)} – ${formatAmount(profitMax)}` : `~${formatAmount(profit)}`}
             </span>
           </div>
           

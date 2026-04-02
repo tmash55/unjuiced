@@ -36,7 +36,7 @@ interface PreferencesContextType {
     maxArb?: number;
     totalBetAmount?: number;
     searchQuery?: string;
-    roundBets?: boolean;
+    roundTo?: number;
     minLiquidity?: number;
   }) => Promise<void>;
   
@@ -50,7 +50,7 @@ interface PreferencesContextType {
     maxArb: number;
     totalBetAmount: number;
     searchQuery: string;
-    roundBets: boolean;
+    roundTo: number;
     minLiquidity: number;
   };
   
@@ -197,7 +197,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     maxArb?: number;
     totalBetAmount?: number;
     searchQuery?: string;
-    roundBets?: boolean;
+    roundTo?: number;
     minLiquidity?: number;
   }>({});
   
@@ -499,7 +499,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     maxArb?: number;
     searchQuery?: string;
     totalBetAmount?: number;
-    roundBets?: boolean;
+    roundTo?: number;
     minLiquidity?: number;
   }) => {
     // For anonymous users, update guest state instead of database
@@ -538,8 +538,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (filters.searchQuery !== undefined) {
       updates.arbitrage_search_query = filters.searchQuery;
     }
-    if (filters.roundBets !== undefined) {
-      (updates as any).arbitrage_round_bets = filters.roundBets;
+    if (filters.roundTo !== undefined) {
+      updates.arbitrage_round_to = filters.roundTo;
     }
     if (filters.minLiquidity !== undefined) {
       updates.arbitrage_min_liquidity = filters.minLiquidity;
@@ -664,7 +664,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         maxArb: guestArb.maxArb ?? 20,
         totalBetAmount: guestArb.totalBetAmount ?? 200,
         searchQuery: guestArb.searchQuery ?? "",
-        roundBets: guestArb.roundBets ?? false,
+        roundTo: guestArb.roundTo ?? 0,
         minLiquidity: guestArb.minLiquidity ?? 50,
       };
     }
@@ -681,11 +681,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         maxArb: 20,
         totalBetAmount: 200,
         searchQuery: "",
-        roundBets: false,
+        roundTo: 0,
         minLiquidity: 50,
       };
     }
-    
+
     // Use the user's preferred sportsbooks, or default to all active books for new users
     // The key insight: if preferred_sportsbooks exists in the object, use it (even if empty)
     // Only default to all books if the user has never set preferences
@@ -705,7 +705,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       maxArb: preferences.arbitrage_max_arb ?? 20,
       totalBetAmount: (typeof preferences.arbitrage_total_bet_amount === 'number' ? preferences.arbitrage_total_bet_amount : Number(preferences.arbitrage_total_bet_amount)) ?? 200,
       searchQuery: preferences.arbitrage_search_query || "",
-      roundBets: (preferences as any).arbitrage_round_bets ?? false,
+      roundTo: typeof preferences.arbitrage_round_to === 'number' ? preferences.arbitrage_round_to : Number(preferences.arbitrage_round_to) || 0,
       minLiquidity: (typeof preferences.arbitrage_min_liquidity === 'number' ? preferences.arbitrage_min_liquidity : Number(preferences.arbitrage_min_liquidity)) ?? 50,
     };
   }, [preferences, activeSportsbooks, user, guestArb]);

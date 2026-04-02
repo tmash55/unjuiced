@@ -125,9 +125,11 @@ interface GlobalSettingsDropdownProps {
   onMaxArbChange?: (value: number) => void;
   totalBetAmount?: number;
   onTotalBetAmountChange?: (value: number) => void;
+  roundTo?: number;
+  onRoundToChange?: (value: number) => void;
   selectedMarketTypes?: ("player" | "game")[];
   onMarketTypesChange?: (types: ("player" | "game")[]) => void;
-  
+
   disabled?: boolean;
 }
 
@@ -163,6 +165,8 @@ export function GlobalSettingsDropdown({
   onMaxArbChange,
   totalBetAmount,
   onTotalBetAmountChange,
+  roundTo,
+  onRoundToChange,
   selectedMarketTypes,
   onMarketTypesChange,
   disabled = false,
@@ -555,6 +559,39 @@ export function GlobalSettingsDropdown({
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {/* Round Bets */}
+                  {onRoundToChange && (
+                    <div>
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1.5">
+                        Round Bets
+                      </label>
+                      <div className="flex gap-1">
+                        {[
+                          { value: 0, label: "Off" },
+                          { value: 1, label: "$1" },
+                          { value: 5, label: "$5" },
+                          { value: 10, label: "$10" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => onRoundToChange(opt.value)}
+                            className={cn(
+                              "flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors",
+                              (roundTo ?? 0) === opt.value
+                                ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-1">
+                        Avoids flagged bets with odd decimal amounts
+                      </p>
                     </div>
                   )}
 

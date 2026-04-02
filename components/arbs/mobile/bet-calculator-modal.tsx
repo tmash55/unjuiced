@@ -69,15 +69,26 @@ const humanizeMarket = (mkt?: string) => {
   return titleCase(s);
 };
 
+/** Round a number to the nearest multiple of `step`. 0 = no rounding (2 decimal places). */
+function roundStake(n: number, step: number): number {
+  if (step <= 0) return Math.round(n * 100) / 100;
+  return Math.round(n / step) * step;
+}
+function formatStake(n: number, step: number): string {
+  if (step <= 0) return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  return String(Math.round(n / step) * step);
+}
+
 interface BetCalculatorModalProps {
   row: ArbRow;  // Snapshot row (captured when modal opened)
   currentRow?: ArbRow | null;  // Current version from live data (for staleness detection)
   isOpen: boolean;
   onClose: () => void;
   defaultTotal: number;
+  roundTo?: number;
 }
 
-export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTotal }: BetCalculatorModalProps) {
+export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTotal, roundTo = 0 }: BetCalculatorModalProps) {
   // Check if the opportunity is still available by comparing snapshot with current data
   const isStale = useMemo(() => {
     // If no current row, the opportunity was removed
@@ -105,8 +116,8 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   
   const defaultSizes = useMemo(() => calculateBetSizes(overOdds, underOdds, defaultTotal), [overOdds, underOdds, defaultTotal]);
   
-  const [overAmount, setOverAmount] = useState(defaultSizes.over.toFixed(2));
-  const [underAmount, setUnderAmount] = useState(defaultSizes.under.toFixed(2));
+  const [overAmount, setOverAmount] = useState(formatStake(roundStake(defaultSizes.over, roundTo), roundTo));
+  const [underAmount, setUnderAmount] = useState(formatStake(roundStake(defaultSizes.under, roundTo), roundTo));
   
   // Loading states for bet buttons
   const [loadingOver, setLoadingOver] = useState(false);
@@ -120,8 +131,8 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
         Number(row.u?.od || 0),
         defaultTotal
       );
-      setOverAmount(sizes.over.toFixed(2));
-      setUnderAmount(sizes.under.toFixed(2));
+      setOverAmount(formatStake(roundStake(sizes.over, roundTo), roundTo));
+      setUnderAmount(formatStake(roundStake(sizes.under, roundTo), roundTo));
       // Reset loading states
       setLoadingOver(false);
       setLoadingUnder(false);
@@ -134,8 +145,13 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const totalStake = overStake + underStake;
   const overPayout = calculatePayout(overOdds, overStake);
   const underPayout = calculatePayout(underOdds, underStake);
+  const profitIfOver = overPayout - totalStake;
+  const profitIfUnder = underPayout - totalStake;
+  const profitMin = Math.min(profitIfOver, profitIfUnder);
+  const profitMax = Math.max(profitIfOver, profitIfUnder);
+  const profit = profitMin;
   const guaranteedPayout = Math.min(overPayout, underPayout);
-  const profit = guaranteedPayout - totalStake;
+  const calcHasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
 
   // Handle over amount change
   const handleOverChange = (val: string) => {
@@ -155,16 +171,16 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const handleOverBlur = () => {
     const stake = parseFloat(overAmount);
     if (stake > 0) {
-      const opposite = calculateOppositeStake(stake, overOdds, underOdds);
-      setUnderAmount(opposite.toFixed(2));
+      const opposite = roundStake(calculateOppositeStake(stake, overOdds, underOdds), roundTo);
+      setUnderAmount(formatStake(opposite, roundTo));
     }
   };
 
   const handleUnderBlur = () => {
     const stake = parseFloat(underAmount);
     if (stake > 0) {
-      const opposite = calculateOppositeStake(stake, underOdds, overOdds);
-      setOverAmount(opposite.toFixed(2));
+      const opposite = roundStake(calculateOppositeStake(stake, underOdds, overOdds), roundTo);
+      setOverAmount(formatStake(opposite, roundTo));
     }
   };
 
@@ -172,8 +188,10 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const presets = [50, 100, 200, 500];
   const applyPreset = (total: number) => {
     const sizes = calculateBetSizes(overOdds, underOdds, total);
-    setOverAmount(sizes.over.toFixed(2));
-    setUnderAmount(sizes.under.toFixed(2));
+    const o = roundStake(sizes.over, roundTo);
+    const u = roundStake(sizes.under, roundTo);
+    setOverAmount(formatStake(o, roundTo));
+    setUnderAmount(formatStake(u, roundTo));
   };
 
   // Open bet with loading state
@@ -506,7 +524,11 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 "text-base font-bold tabular-nums transition-all duration-150",
                 isStale ? "text-neutral-400 dark:text-neutral-500 line-through" : profit > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
               )}>
-                {profit > 0 ? "+" : ""}${profit.toFixed(2)}
+                {calcHasRange ? (
+                  <>{profit > 0 ? "+" : ""}${profitMin.toFixed(2)} – ${profitMax.toFixed(2)}</>
+                ) : (
+                  <>{profit > 0 ? "+" : ""}${profit.toFixed(2)}</>
+                )}
               </div>
             </div>
           </div>

@@ -6,7 +6,6 @@ import { GatedArbTable } from "@/components/arbs/gated-arb-table";
 import { useArbsView } from "@/hooks/use-arbs-view";
 import { Button } from "@/components/button";
 import { AlertCircle } from "lucide-react";
-import { useArbitragePreferences } from "@/context/preferences-context";
 import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
@@ -198,9 +197,8 @@ export default function ArbsPage() {
     return () => clearTimeout(t);
   }, [bestRoi]);
 
-  // Get preferences for roundBets setting (filtering now handled by useArbsView via matchesArbRow)
-  const { filters: arbFilters } = useArbitragePreferences();
-  const roundBets = (arbFilters as any)?.roundBets ?? false;
+  // roundTo from the same prefs object (via useArbsView → useArbitragePreferences)
+  const roundTo = prefs?.roundTo ?? 0;
   
   // Debug: Log prefs on each render
   console.log('[ArbitrageContent] Current prefs:', {
@@ -238,7 +236,7 @@ export default function ArbsPage() {
         added={added}
         availableMarkets={availableMarketOptions}
         totalBetAmount={prefs.totalBetAmount}
-        roundBets={roundBets}
+        roundTo={roundTo}
         isPro={pro}
         hasLiveArb={hasLiveArb}
         isLoggedIn={loggedIn}
@@ -327,6 +325,8 @@ export default function ArbsPage() {
       onMaxArbChange={(maxArb) => updateFilters({ maxArb })}
       totalBetAmount={prefs.totalBetAmount ?? 200}
       onTotalBetAmountChange={(totalBetAmount) => updateFilters({ totalBetAmount })}
+      roundTo={roundTo}
+      onRoundToChange={(roundTo) => updateFilters({ roundTo })}
       selectedMarketTypes={(prefs.selectedMarketTypes || ['player', 'game']) as ("player" | "game")[]}
       onMarketTypesChange={(types) => updateFilters({ selectedMarketTypes: types as MarketType[] })}
       // Hidden (arbitrage doesn't have hidden feature, but required)
@@ -400,7 +400,7 @@ export default function ArbsPage() {
           changes={changes}
           added={added}
           totalBetAmount={prefs.totalBetAmount}
-          roundBets={roundBets}
+          roundTo={roundTo}
           isLoggedIn={loggedIn}
           isPro={pro}
           filteredCount={filteredCount}

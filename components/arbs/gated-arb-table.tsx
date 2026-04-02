@@ -17,7 +17,7 @@ interface GatedArbTableProps {
   changes: Map<string, { roi?: "up" | "down"; o?: "up" | "down"; u?: "up" | "down" }>;
   added?: Set<string>;
   totalBetAmount?: number;
-  roundBets?: boolean;
+  roundTo?: number;
   isLoggedIn: boolean;
   isPro: boolean;
   filteredCount?: number; // Number of arbs hidden for free users
@@ -31,7 +31,7 @@ export function GatedArbTable({
   changes,
   added,
   totalBetAmount = 200,
-  roundBets = false,
+  roundTo = 0,
   isLoggedIn,
   isPro,
   filteredCount = 0,
@@ -252,7 +252,7 @@ export function GatedArbTable({
       changes={changes}
       added={added}
       totalBetAmount={totalBetAmount}
-      roundBets={roundBets}
+      roundTo={roundTo}
       isPro={isPro}
     />
     </div>
