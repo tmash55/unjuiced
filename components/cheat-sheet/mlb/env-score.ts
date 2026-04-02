@@ -72,8 +72,8 @@ function elevationScore(row: MlbWeatherReportRow): number {
 function hrImpactScore(row: MlbWeatherReportRow): number {
   const val = row.hrImpactScore;
   if (val == null) return 50;
-  // Map -8..+8 to 0..100
-  return clamp(((val + 8) / 16) * 100, 0, 100);
+  // Value is already on a 0-100 scale from the database
+  return clamp(Math.round(val), 0, 100);
 }
 
 // ── Composite score ─────────────────────────────────────────────────────────
