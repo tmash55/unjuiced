@@ -100,6 +100,12 @@ function toGameRow(row: any) {
       spread: number | null;
       spread_home_price: string | null;
       spread_away_price: string | null;
+      home_total: number | null;
+      home_total_over_price: string | null;
+      home_total_under_price: string | null;
+      away_total: number | null;
+      away_total_over_price: string | null;
+      away_total_under_price: string | null;
     } | null,
   };
 }
@@ -272,24 +278,29 @@ export async function GET() {
       if (gamesWithOdds.length > 0) {
         // Fetch ML + total + run_line for each game from FanDuel (primary display book)
         const ODDS_BOOK = "fanduel";
+        const MARKETS_PER_GAME = 4;
         const oddsPromises = gamesWithOdds.flatMap((g) => [
           redis.get<string>(`odds:mlb:${g.odds_game_id}:game_moneyline:${ODDS_BOOK}`),
           redis.get<string>(`odds:mlb:${g.odds_game_id}:total_runs:${ODDS_BOOK}`),
           redis.get<string>(`odds:mlb:${g.odds_game_id}:run_line:${ODDS_BOOK}`),
+          redis.get<string>(`odds:mlb:${g.odds_game_id}:team_total_runs:${ODDS_BOOK}`),
         ]);
 
         const oddsResults = await Promise.all(oddsPromises);
 
         for (let i = 0; i < gamesWithOdds.length; i++) {
           const g = gamesWithOdds[i];
-          const mlRaw = oddsResults[i * 3];
-          const totalRaw = oddsResults[i * 3 + 1];
-          const rlRaw = oddsResults[i * 3 + 2];
+          const mlRaw = oddsResults[i * MARKETS_PER_GAME];
+          const totalRaw = oddsResults[i * MARKETS_PER_GAME + 1];
+          const rlRaw = oddsResults[i * MARKETS_PER_GAME + 2];
+          const ttRaw = oddsResults[i * MARKETS_PER_GAME + 3];
 
           const odds: NonNullable<typeof g.odds> = {
             home_ml: null, away_ml: null,
             total: null, total_over_price: null, total_under_price: null,
             spread: null, spread_home_price: null, spread_away_price: null,
+            home_total: null, home_total_over_price: null, home_total_under_price: null,
+            away_total: null, away_total_over_price: null, away_total_under_price: null,
           };
 
           // Parse moneyline
@@ -348,8 +359,35 @@ export async function GET() {
             } catch (_) { /* skip malformed */ }
           }
 
+          // Parse team totals (main lines only)
+          if (ttRaw) {
+            try {
+              const ttData = typeof ttRaw === "string" ? JSON.parse(ttRaw) : ttRaw;
+              const homeLast = (g.home_team_name || "").toLowerCase().split(" ").pop()!;
+              const awayLast = (g.away_team_name || "").toLowerCase().split(" ").pop()!;
+              for (const [key, valStr] of Object.entries(ttData)) {
+                const sel = typeof valStr === "string" ? JSON.parse(valStr) : valStr;
+                if (!sel?.main) continue;
+                const selName = (sel.player || "").toLowerCase();
+                const isHome = selName.includes(homeLast);
+                const isAway = selName.includes(awayLast);
+                if (isHome && key.includes("|over|")) {
+                  odds.home_total = sel.line;
+                  odds.home_total_over_price = sel.price;
+                } else if (isHome && key.includes("|under|")) {
+                  odds.home_total_under_price = sel.price;
+                } else if (isAway && key.includes("|over|")) {
+                  odds.away_total = sel.line;
+                  odds.away_total_over_price = sel.price;
+                } else if (isAway && key.includes("|under|")) {
+                  odds.away_total_under_price = sel.price;
+                }
+              }
+            } catch (_) { /* skip malformed */ }
+          }
+
           // Only attach if we got at least one piece of data
-          if (odds.home_ml || odds.total || odds.spread != null) {
+          if (odds.home_ml || odds.total || odds.spread != null || odds.home_total != null) {
             g.odds = odds;
           }
         }

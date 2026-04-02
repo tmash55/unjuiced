@@ -923,23 +923,17 @@ export async function GET(req: NextRequest) {
     const pitcherL30BBs = pitcherL30Current.length > 0 ? pitcherL30Current : (noFallback ? [] : pitcherL30Fallback);
     const pitchSummaryRows = pitchSummaryCurrent.length > 0 ? pitchSummaryCurrent : (noFallback ? [] : pitchSummaryFallback);
 
-    // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away }
+    // Build pitch type summary lookup: pitch_type -> { whiff_percent, k_percent, put_away, ... }
     const pitchSummaryMap = new Map<string, { whiff_pct: number | null; k_pct: number | null; bb_pct: number | null; put_away: number | null; ba: number | null; obp: number | null; slg: number | null; woba: number | null; pitch_usage: number | null; pitches: number | null }>();
     for (const row of pitchSummaryRows) {
       if (row.pitch_type) {
-        const ba = row.ba != null ? Number(row.ba) : null;
-        const obp = row.obp != null ? Number(row.obp) : null;
-        // Compute BB% from OBP and BA: bb% ≈ ((OBP - BA) / (1 - BA)) * 100
-        const bbPct = ba != null && obp != null && ba < 1
-          ? Math.round(((obp - ba) / (1 - ba)) * 1000) / 10
-          : null;
         pitchSummaryMap.set(row.pitch_type, {
           whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
           k_pct: row.k_percent != null ? Number(row.k_percent) : null,
-          bb_pct: bbPct,
+          bb_pct: null, // Not in pitchtype_summary table — enriched from hand splits below
           put_away: row.put_away != null ? Number(row.put_away) : null,
-          ba,
-          obp,
+          ba: row.ba != null ? Number(row.ba) : null,
+          obp: row.obp != null ? Number(row.obp) : null,
           slg: row.slg != null ? Number(row.slg) : null,
           woba: row.woba != null ? Number(row.woba) : null,
           pitch_usage: row.pitch_usage != null ? Number(row.pitch_usage) : null,
@@ -947,6 +941,8 @@ export async function GET(req: NextRequest) {
         });
       }
     }
+
+    // Note: bb_pct enrichment for pitchSummaryMap happens below after pitcherHandSplits are resolved
 
     // Extract pitcher hot zone grid (zones 1-9)
     const hotZoneRaw = allResults[13]?.data;
@@ -985,6 +981,30 @@ export async function GET(req: NextRequest) {
     for (const row of pitcherHandSplitsRaw) {
       pitcherHandWhiffMap.set(`${row.pitch_type}:${row.opponent_hand}`, row.whiff_percent);
     }
+
+    // Enrich pitchSummaryMap with bb_pct from hand splits (PA-weighted across L/R)
+    for (const row of pitcherHandSplitsRaw) {
+      if (!row.pitch_type || row.bb_percent == null) continue;
+      const existing = pitchSummaryMap.get(row.pitch_type);
+      if (existing) {
+        const pa = Number(row.pa) || 0;
+        if (existing.bb_pct == null) {
+          (existing as any)._bbW = Number(row.bb_percent) * pa;
+          (existing as any)._bbPA = pa;
+          existing.bb_pct = Math.round(Number(row.bb_percent) * 10) / 10;
+        } else {
+          const prevW = (existing as any)._bbW || 0;
+          const prevPA = (existing as any)._bbPA || 0;
+          const totalPA = prevPA + pa;
+          if (totalPA > 0) {
+            existing.bb_pct = Math.round(((prevW + Number(row.bb_percent) * pa) / totalPA) * 10) / 10;
+            (existing as any)._bbW = prevW + Number(row.bb_percent) * pa;
+            (existing as any)._bbPA = totalPA;
+          }
+        }
+      }
+    }
+
     // Batter hand splits from real Savant data — merge current + fallback per row key
     // (player + pitch_type + hand) so partial 2026 data fills gaps from 2025
     const batterHandSplitsCurrent = (allResults[16].data ?? []) as any[];
