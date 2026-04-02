@@ -517,6 +517,7 @@ export async function GET(req: NextRequest) {
       gameId: searchParams.get("gameId"),
       battingSide: searchParams.get("battingSide") ?? undefined,
       sample: searchParams.get("sample") ?? undefined,
+      statSeason: searchParams.get("statSeason") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -1106,6 +1107,44 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Fallback: for batters without game logs, try mlb_batting_season_stats (camelCase, person_id)
+    const missingBatterIds = batterIds.filter((id) => !batterTraditionalMap.has(id));
+    if (missingBatterIds.length > 0) {
+      const { data: bssRows } = await supabase
+        .from("mlb_batting_season_stats")
+        .select("person_id, gamesPlayed, atBats, hits, homeRuns, doubles, triples, rbi, baseOnBalls, strikeOuts, hitByPitch, stolenBases, plateAppearances, totalBases, avg, obp, slg, ops, sacFlies, sacBunts")
+        .in("person_id", missingBatterIds)
+        .eq("season", season);
+      if (bssRows && bssRows.length > 0) {
+        for (const row of bssRows) {
+          const pa = Number(row.plateAppearances ?? 0);
+          const ab = Number(row.atBats ?? 0);
+          const h = Number(row.hits ?? 0);
+          const hr = Number(row.homeRuns ?? 0);
+          const bb = Number(row.baseOnBalls ?? 0);
+          const k = Number(row.strikeOuts ?? 0);
+          const avgVal = row.avg != null ? Number(row.avg) : (ab > 0 ? h / ab : null);
+          const obpVal = row.obp != null ? Number(row.obp) : null;
+          const slgVal = row.slg != null ? Number(row.slg) : null;
+          batterTraditionalMap.set(row.person_id, {
+            pa, ab, hits: h, hr,
+            doubles: Number(row.doubles ?? 0), triples: Number(row.triples ?? 0),
+            rbi: Number(row.rbi ?? 0), bb, k,
+            hbp: Number(row.hitByPitch ?? 0), sb: Number(row.stolenBases ?? 0),
+            total_bases: Number(row.totalBases ?? 0), games: Number(row.gamesPlayed ?? 0),
+            avg: avgVal != null ? Math.round(avgVal * 1000) / 1000 : null,
+            obp: obpVal != null ? Math.round(obpVal * 1000) / 1000 : null,
+            slg: slgVal != null ? Math.round(slgVal * 1000) / 1000 : null,
+            ops: row.ops != null ? Math.round(Number(row.ops) * 1000) / 1000 : null,
+            iso: avgVal != null && slgVal != null ? Math.round((slgVal - avgVal) * 1000) / 1000 : null,
+            k_pct: pa >= 10 ? Math.round((k / pa) * 1000) / 10 : null,
+            bb_pct: pa >= 10 ? Math.round((bb / pa) * 1000) / 10 : null,
+          });
+        }
+        console.log(`[game-matchup] batter season stats fallback: ${bssRows.length} batters filled from mlb_batting_season_stats`);
+      }
+    }
+
     // ── Process Pitcher ─────────────────────────────────────────────────────
 
     const pitcherHand = pitcherBBs.length > 0 ? pitcherBBs[0].pitcher_hand : null;
@@ -1241,6 +1280,58 @@ export async function GET(req: NextRequest) {
         losses,
         hr_fb_pct: hrFbPct != null ? Math.round(hrFbPct * 10) / 10 : null,
       };
+    }
+
+    // Fallback: if game logs didn't produce season stats, try mlb_pitching_season_stats table
+    // This table uses camelCase columns and person_id (from MLB boxscore pipeline)
+    if (pitcherSeasonStats.era == null && pitcherId) {
+      const { data: pss } = await supabase
+        .from("mlb_pitching_season_stats")
+        .select("*")
+        .eq("person_id", pitcherId)
+        .eq("season", season)
+        .limit(1)
+        .maybeSingle();
+      if (pss) {
+        // Parse innings pitched: "6.2" means 6⅔ innings (partial = thirds, not tenths)
+        const ipStr = String(pss.inningsPitched ?? "0");
+        const ipParts = ipStr.split(".");
+        const fullInnings = parseInt(ipParts[0], 10) || 0;
+        const partialInnings = ipParts[1] ? (parseInt(ipParts[1], 10) || 0) / 3 : 0;
+        const ip = fullInnings + partialInnings;
+
+        const er = Number(pss.earnedRuns ?? 0);
+        const h = Number(pss.hits ?? 0);
+        const bb = Number(pss.baseOnBalls ?? 0);
+        const k = Number(pss.strikeOuts ?? 0);
+        const hr = Number(pss.homeRuns ?? 0);
+        const gs = Number(pss.gamesStarted ?? pss.gamesPlayed ?? 0);
+        const w = Number(pss.wins ?? 0);
+        const l = Number(pss.losses ?? 0);
+
+        const era = ip > 0 ? (er / ip) * 9 : null;
+        const whip = ip > 0 ? (h + bb) / ip : null;
+        const kPer9 = ip > 0 ? (k / ip) * 9 : null;
+        const bbPer9 = ip > 0 ? (bb / ip) * 9 : null;
+        const hrPer9 = ip > 0 ? (hr / ip) * 9 : null;
+        const fip = ip > 0 ? ((13 * hr + 3 * bb - 2 * k) / ip) + 3.10 : null;
+
+        pitcherSeasonStats = {
+          era: era != null ? Math.round(era * 100) / 100 : null,
+          whip: whip != null ? Math.round(whip * 100) / 100 : null,
+          k_per_9: kPer9 != null ? Math.round(kPer9 * 10) / 10 : null,
+          bb_per_9: bbPer9 != null ? Math.round(bbPer9 * 10) / 10 : null,
+          hr_per_9: hrPer9 != null ? Math.round(hrPer9 * 100) / 100 : null,
+          fip: fip != null ? Math.round(fip * 100) / 100 : null,
+          innings_pitched: Math.round(ip * 10) / 10,
+          games_started: gs,
+          opp_avg: ip > 0 ? Math.round((h / (ip * 3 + h)) * 1000) / 1000 : null,
+          wins: w,
+          losses: l,
+          hr_fb_pct: null, // not available from season stats table
+        };
+        console.log(`[game-matchup] pitcher season stats fallback: pitcher=${pitcherId} season=${season} ERA=${pitcherSeasonStats.era} IP=${ip} GS=${gs}`);
+      }
     }
 
     // Compute HR/FB from batted balls if not from logs
@@ -1470,6 +1561,12 @@ export async function GET(req: NextRequest) {
     const primaryPitchType = arsenal.length > 0 ? arsenal[0].pitch_type : null;
     const pitcherPitchTypes = arsenal.map((a) => a.pitch_type);
 
+    // Dynamic PA minimums: lower thresholds early in season when samples are tiny
+    // By late April most starters have 50+ PA; by June 200+
+    const isEarlySeason = (pitcherSeasonStats.games_started ?? 0) <= 5;
+    const MIN_PA_PITCH_TYPE = isEarlySeason ? 1 : 3;   // pitch type summary
+    const MIN_PA_HAND_SPLIT = isEarlySeason ? 2 : 5;   // batter hand splits
+
     const batters: BatterMatchup[] = lineup.map((p: any) => {
       const bbs = batterBBMap.get(p.player_id) || [];
       const avg = computeAVGFromBBs(bbs);
@@ -1485,7 +1582,7 @@ export async function GET(req: NextRequest) {
       // Use real Savant data from mlb_batter_pitchtype_summary, with batted ball fallback
       const pitchSplits: BatterPitchSplit[] = pitcherPitchTypes.map((pt) => {
         const realData = batterPitchSumMap.get(`${p.player_id}:${pt}`);
-        if (realData && realData.pa >= 3) {
+        if (realData && realData.pa >= MIN_PA_PITCH_TYPE) {
           // Get HR count from batted balls since pitchtype_summary doesn't have it
           const ptHRs = bbs.filter((b: any) => b.pitch_type === pt && (b.event_type || "").toLowerCase() === "home_run").length;
           return {
@@ -1529,7 +1626,7 @@ export async function GET(req: NextRequest) {
         return pitcherPitchTypes.map((pt) => {
           // Use real data from mlb_batter_pitchtype_hand_splits
           const realData = batterPitchHandMap.get(`${p.player_id}:${pt}:${hand}`);
-          if (realData && realData.pa >= 3) {
+          if (realData && realData.pa >= MIN_PA_PITCH_TYPE) {
             return {
               pitch_type: pt,
               pitch_name: PITCH_TYPE_NAMES[pt] || pt,
@@ -1678,7 +1775,7 @@ export async function GET(req: NextRequest) {
       function computeHandSplit(hand: string) {
         // Use real Savant hand splits if available (opponent_hand = pitcher hand)
         const realSplit = batterHandSplitMap.get(`${p.player_id}:${hand}`);
-        if (realSplit && realSplit.pa >= 5) {
+        if (realSplit && realSplit.pa >= MIN_PA_HAND_SPLIT) {
           return {
             avg: realSplit.avg,
             slg: realSplit.slg,
@@ -1802,9 +1899,12 @@ export async function GET(req: NextRequest) {
     const usedSeason = pitcherBBs === pitcherBBsCurrent ? season : season - 1;
     console.log(`[/api/mlb/game-matchup] ${Date.now() - startTime}ms | game=${gameId} side=${battingSide} batters=${batters.length} pitcherBBs=${totalPitcherBBs} season=${usedSeason}`);
 
+    // Shorter cache early in season when data changes rapidly (new game logs flowing in)
+    const cacheMaxAge = isEarlySeason ? 60 : 300;
+    const cacheStale = isEarlySeason ? 120 : 600;
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+        "Cache-Control": `public, max-age=${cacheMaxAge}, stale-while-revalidate=${cacheStale}`,
       },
     });
   } catch (error: any) {
