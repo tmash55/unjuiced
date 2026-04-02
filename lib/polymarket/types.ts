@@ -260,6 +260,8 @@ export interface SignalPreferences {
   signal_date_range?: string;         // "today" | "3d" | "7d" | "all"
   signal_min_odds?: number;           // Min American odds (e.g., -200)
   signal_max_odds?: number;           // Max American odds (e.g., +500)
+  signal_market_types?: string[];     // Market type filter (moneyline, spread, total, futures)
+  signal_hide_delay?: number;         // Hours after game start to keep showing picks (0 = hide immediately, default)
   signal_show_hidden?: boolean;       // Show hidden picks (default true)
 }
 

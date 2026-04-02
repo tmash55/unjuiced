@@ -154,6 +154,8 @@ function countActiveFilters(prefs: SignalPreferences): number {
   if (prefs.signal_date_range && prefs.signal_date_range !== "all") n++
   if (prefs.signal_min_odds != null) n++
   if (prefs.signal_max_odds != null) n++
+  if (prefs.signal_market_types && prefs.signal_market_types.length > 0) n++
+  if ((prefs.signal_hide_delay ?? 0) > 0) n++
   return n
 }
 
@@ -269,6 +271,22 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
                 />
               </div>
 
+              {/* Post-Start Visibility */}
+              <div>
+                <SectionLabel>Show picks after game starts</SectionLabel>
+                <Seg
+                  options={[
+                    { value: "0", label: "Hide" },
+                    { value: "1", label: "1 hr" },
+                    { value: "2", label: "2 hrs" },
+                    { value: "3", label: "3 hrs" },
+                  ]}
+                  value={String(prefs.signal_hide_delay || 0)}
+                  onChange={(v) => onUpdate({ signal_hide_delay: Number(v) })}
+                />
+                <Hint>Keep picks visible for this long after game time. Default hides immediately.</Hint>
+              </div>
+
               {/* Slippage */}
               <div>
                 <SectionLabel>Max slippage vs sportsbook</SectionLabel>
@@ -318,6 +336,44 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
                 />
               </div>
 
+              {/* Market Type */}
+              <div>
+                <SectionLabel>Market type</SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: "moneyline", label: "Moneyline" },
+                    { id: "spread", label: "Spread" },
+                    { id: "total", label: "Total" },
+                    { id: "futures", label: "Futures" },
+                  ].map((mt) => {
+                    const selected = prefs.signal_market_types ?? []
+                    const isActive = selected.includes(mt.id)
+                    return (
+                      <button
+                        key={mt.id}
+                        type="button"
+                        onClick={() => {
+                          const current = prefs.signal_market_types ?? []
+                          const next = isActive
+                            ? current.filter((t) => t !== mt.id)
+                            : [...current, mt.id]
+                          onUpdate({ signal_market_types: next.length > 0 ? next : undefined })
+                        }}
+                        className={cn(
+                          "px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-all active:scale-95",
+                          isActive
+                            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                            : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        )}
+                      >
+                        {mt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <Hint>Filter by market type. No selection shows all.</Hint>
+              </div>
+
               {/* Reset */}
               {activeCount > 0 && (
                 <button
@@ -329,6 +385,8 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
                     signal_date_range: "all",
                     signal_min_odds: undefined,
                     signal_max_odds: undefined,
+                    signal_market_types: undefined,
+                    signal_hide_delay: 0,
                   })}
                   className="w-full py-2 text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 border border-neutral-200 dark:border-neutral-800/40 rounded-lg transition-colors active:scale-[0.98]"
                 >

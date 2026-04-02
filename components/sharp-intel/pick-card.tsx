@@ -19,6 +19,7 @@ interface PickCardProps {
   onViewInsider?: (walletAddress: string) => void
   onHide?: () => void
   isHidden?: boolean
+  isFollowed?: boolean
   isTourTarget?: boolean
 }
 
@@ -28,7 +29,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(0)}`
 }
 
-export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider, onHide, isHidden, isTourTarget }: PickCardProps) {
+export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket, onViewMarket, onViewInsider, onHide, isHidden, isFollowed, isTourTarget }: PickCardProps) {
   const score = Math.round(pick.signal_score || 0)
   const sport = (pick.sport || "").toUpperCase()
   const matchup = pick.event_title || pick.market_title
@@ -121,9 +122,10 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
               <TierBadge tier={pick.tier} size="xs" {...(isTourTarget ? { "data-tour": "tier-badge" } : {})} />
               <button
                 onClick={(e) => { e.stopPropagation(); onViewInsider?.(pick.wallet_address); }}
-                className="font-mono text-[11px] font-semibold text-neutral-500 dark:text-neutral-500 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                className="font-mono text-[11px] font-semibold text-neutral-500 dark:text-neutral-500 tabular-nums hover:text-sky-600 dark:hover:text-sky-400 transition-colors flex items-center gap-1"
               >
                 {walletDisplay}
+                {isFollowed && <span className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400 shrink-0" />}
               </button>
             </div>
 

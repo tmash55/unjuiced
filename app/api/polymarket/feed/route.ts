@@ -178,6 +178,8 @@ export async function GET(req: NextRequest) {
     const dateRange = sp.get("dateRange") || undefined;
     const minOdds = parseFloat(sp.get("minOdds") || "") || undefined;
     const maxOdds = parseFloat(sp.get("maxOdds") || "") || undefined;
+    const marketTypesFilter = sp.get("marketTypes")?.split(",").filter(Boolean) || undefined;
+    const hideDelay = parseInt(sp.get("hideDelay") || "0", 10) || 0;
 
     // Build signals query
     let query = supabase
@@ -220,12 +222,15 @@ export async function GET(req: NextRequest) {
     }
     if (minStake > 0) query = query.gte("bet_size", minStake);
     if (minQuality > 0) query = query.gte("quality_score", minQuality);
+    if (marketTypesFilter && marketTypesFilter.length > 0) {
+      query = query.in("market_type", marketTypesFilter);
+    }
 
     if (resolvedFilter === "true") query = query.eq("resolved", true);
     else if (resolvedFilter === "false") {
       query = query.eq("resolved", false);
-      // Filter out games that have already started — picks are no longer actionable
-      const cutoff = new Date().toISOString();
+      // Filter out games past their start time (+ optional delay hours)
+      const cutoff = new Date(Date.now() - hideDelay * 60 * 60 * 1000).toISOString();
       query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
     }
 

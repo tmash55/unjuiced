@@ -22,6 +22,8 @@ const SIGNAL_FIELDS = [
   "signal_date_range",
   "signal_min_odds",
   "signal_max_odds",
+  "signal_market_types",
+  "signal_hide_delay",
   "signal_show_hidden",
 ] as const;
 
@@ -64,6 +66,8 @@ export async function GET() {
       signal_date_range: row?.signal_date_range ?? "all",
       signal_min_odds: row?.signal_min_odds ?? undefined,
       signal_max_odds: row?.signal_max_odds ?? undefined,
+      signal_market_types: row?.signal_market_types ?? undefined,
+      signal_hide_delay: row?.signal_hide_delay ?? 0,
       signal_show_hidden: row?.signal_show_hidden ?? true,
     };
 

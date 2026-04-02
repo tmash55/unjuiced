@@ -228,6 +228,7 @@ export default function SharpSignalsPage() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [marketSort, setMarketSort] = useState<string>("liquidity");
   const leftPanelRef = useRef<HTMLDivElement>(null);
+  const seenSportsRef = useRef<Set<string>>(new Set());
 
   // Clear selections when filters change
   useEffect(() => {
@@ -266,9 +267,15 @@ export default function SharpSignalsPage() {
       // Odds range filter
       if (prefs.signal_min_odds != null) params.set("minOdds", String(prefs.signal_min_odds));
       if (prefs.signal_max_odds != null) params.set("maxOdds", String(prefs.signal_max_odds));
+      // Min stake filter
+      if (prefs.signal_min_stake && prefs.signal_min_stake > 0) params.set("minStake", String(prefs.signal_min_stake));
+      // Market type filter
+      if (prefs.signal_market_types && prefs.signal_market_types.length > 0) params.set("marketTypes", prefs.signal_market_types.join(","));
+      // Hide delay (hours after game start to keep showing picks)
+      if (prefs.signal_hide_delay && prefs.signal_hide_delay > 0) params.set("hideDelay", String(prefs.signal_hide_delay));
       return `/api/polymarket/feed?${params}`;
     },
-    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, minScore, showMySharps, followedWallets, prefs.signal_date_range, prefs.signal_min_odds, prefs.signal_max_odds]
+    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, minScore, showMySharps, followedWallets, prefs.signal_date_range, prefs.signal_min_odds, prefs.signal_max_odds, prefs.signal_min_stake, prefs.signal_market_types, prefs.signal_hide_delay]
   );
 
   const {
@@ -595,11 +602,13 @@ export default function SharpSignalsPage() {
     : allMarkets;
 
 
-  // Derive available sports from loaded data
-  const availableSports = [...new Set([
+  // Derive available sports from loaded data — accumulate across filter changes so pills never disappear
+  const currentSports = [
     ...allPicks.map((p: WhaleSignal) => p.sport).filter(Boolean),
     ...allMarkets.map((m: GameData) => m.sport).filter(Boolean),
-  ])] as string[]
+  ];
+  currentSports.forEach((s) => seenSportsRef.current.add(s));
+  const availableSports = [...seenSportsRef.current] as string[]
 
   // Auto-select first item when data loads or tab changes
   if (tab === "picks" && picks.length > 0 && !selectedPick) {
@@ -939,6 +948,7 @@ export default function SharpSignalsPage() {
                   onViewInsider={(addr) => {
                     setModalWalletAddress(addr);
                   }}
+                  isFollowed={followedWallets.includes(pick.wallet_address)}
                 />
               ))}
               {/* Infinite scroll sentinel */}
