@@ -1593,12 +1593,13 @@ function BatterRow({
     k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
   const badge = gradeBadge(batter.matchup_grade, batter.hr_probability_score);
-  const hasPlatoon =
-    (batter.batting_hand === "L" && pitcher.hand === "R") ||
-    (batter.batting_hand === "R" && pitcher.hand === "L");
+  const hasPlatoon = pitcher
+    ? (batter.batting_hand === "L" && pitcher.hand === "R") ||
+      (batter.batting_hand === "R" && pitcher.hand === "L")
+    : false;
 
   // Top 2 pitcher pitches for inline splits
-  const top2Pitches = pitcher.arsenal.slice(0, 2);
+  const top2Pitches = pitcher?.arsenal?.slice(0, 2) ?? [];
 
   if (isMobile) {
     return (
