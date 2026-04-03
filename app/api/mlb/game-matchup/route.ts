@@ -1868,27 +1868,26 @@ export async function GET(req: NextRequest) {
       if (recentHRs >= 3) hrFactors.push({ label: `${recentHRs} HR in last 60 days`, positive: true });
 
       // HR probability score (0-100)
-      // When current season PA is low (<50), use a higher baseline and only
-      // apply bonuses — never penalize from tiny sample stats
+      // Early season (<50 PA): start at 40 baseline, only mild boosts, no penalties
+      // Full season (50+ PA): start at 30 baseline, use full stat-driven scoring
       const batterPA = batterTraditionalMap.get(p.player_id)?.pa ?? 0;
       const hasEnoughPA = batterPA >= 50;
-      let hrScore = hasEnoughPA ? 35 : 50; // early season: start at 50 (neutral-positive)
-      if (hasPlatoonAdv) hrScore += 10;
+      let hrScore = hasEnoughPA ? 30 : 40;
+      if (hasPlatoonAdv) hrScore += 8;
       if (hasEnoughPA) {
-        // Full season: use stats for both bonuses and penalties
-        if (iso != null) hrScore += Math.min(Math.max((iso - 0.120) * 200, -12), 20);
-        if (barrelPct != null) hrScore += Math.min(Math.max((barrelPct - 5) * 2, -8), 15);
-        if (primarySplit?.slg != null) hrScore += Math.min(Math.max((primarySplit.slg - 0.400) * 60, -8), 15);
+        if (iso != null) hrScore += Math.min(Math.max((iso - 0.120) * 200, -15), 20);
+        if (barrelPct != null) hrScore += Math.min(Math.max((barrelPct - 5) * 2, -10), 15);
+        if (primarySplit?.slg != null) hrScore += Math.min(Math.max((primarySplit.slg - 0.400) * 60, -10), 15);
       } else {
-        // Early season: only boost from strong signals, never penalize
-        if (iso != null && iso >= 0.150) hrScore += Math.min((iso - 0.100) * 150, 15);
-        if (barrelPct != null && barrelPct >= 5) hrScore += Math.min((barrelPct - 3) * 2, 12);
-        if (primarySplit?.slg != null && primarySplit.slg >= 0.350) hrScore += Math.min((primarySplit.slg - 0.300) * 50, 12);
+        // Early season: smaller boosts, no penalties, tighter caps
+        if (iso != null && iso >= 0.200) hrScore += Math.min((iso - 0.150) * 100, 8);
+        if (barrelPct != null && barrelPct >= 8) hrScore += Math.min((barrelPct - 5) * 1.5, 8);
+        if (primarySplit?.slg != null && primarySplit.slg >= 0.500) hrScore += Math.min((primarySplit.slg - 0.400) * 40, 8);
       }
-      if (h2h && h2h.hrs > 0) hrScore += Math.min(h2h.hrs * 4, 12);
-      if (pitcherProfile.hr_per_9 != null && pitcherProfile.hr_per_9 >= 1.2) hrScore += 6;
-      if (pitcherProfile.hr_per_9 != null && pitcherProfile.hr_per_9 >= 1.6) hrScore += 4; // extra for HR-prone pitchers
-      hrScore = Math.max(10, Math.min(95, Math.round(hrScore)));
+      if (h2h && h2h.hrs > 0) hrScore += Math.min(h2h.hrs * 3, 10);
+      if (pitcherProfile.hr_per_9 != null && pitcherProfile.hr_per_9 >= 1.2) hrScore += 5;
+      if (pitcherProfile.hr_per_9 != null && pitcherProfile.hr_per_9 >= 1.6) hrScore += 3;
+      hrScore = Math.max(5, Math.min(95, Math.round(hrScore)));
 
       // Overlap score: what % of pitcher's top 3 pitches does the batter slug >= .400 vs
       const topPitches = arsenal.slice(0, 3);
