@@ -3178,7 +3178,7 @@ export function MlbBatterVsPitcher() {
               <div className="flex flex-col xl:flex-row gap-4">
                 {/* Left: Pitcher Column */}
                 <div data-tour="pitcher-card" className="xl:w-[38%] xl:sticky xl:top-0 xl:self-start">
-                  {pitcher && (
+                  {pitcher ? (
                     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-4">
                       <PitcherProfileCard
                         pitcher={pitcher}
@@ -3189,13 +3189,30 @@ export function MlbBatterVsPitcher() {
                         hasSharpAccess={hasSharpAccess}
                       />
                     </div>
+                  ) : (
+                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+                          <span className="text-xl text-neutral-400 dark:text-neutral-600">?</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">Pitcher TBD</p>
+                          <p className="text-xs text-neutral-400">Starting pitcher has not been announced</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-3 w-3/4 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+                        <div className="h-3 w-1/2 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+                        <div className="h-3 w-2/3 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 {/* Right: Lineup Column */}
                 <div className="xl:w-[62%] space-y-3">
                   {/* Batter controls — view toggle + pitch pills + hand filter */}
-                  {batters.length > 0 && pitcher && (
+                  {batters.length > 0 && (
                     <div data-tour="batter-controls" className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-3 py-2.5 space-y-2">
                       {/* Row 1: View toggle + hand filter */}
                       <div className="flex items-center justify-between gap-3">
@@ -3241,7 +3258,7 @@ export function MlbBatterVsPitcher() {
                         </div>
                       </div>
                       {/* Row 2: Pitch pills */}
-                      {pitcher.arsenal.length > 0 && (
+                      {pitcher && pitcher.arsenal.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1">
                           <button
                             onClick={() => setPitchFilters([])}
