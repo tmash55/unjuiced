@@ -1904,8 +1904,8 @@ function BatterExpansion({
   // Fetch hot zone data lazily when expanded
   const { data: hotZone, isLoading: hotZoneLoading, isFetching: hotZoneFetching } = useMlbHotZone(
     batter.player_id,
-    pitcher.player_id,
-    true, // always enabled when rendered (only rendered when expanded)
+    pitcher?.player_id ?? 0,
+    !!pitcher, // only fetch when pitcher exists
     zonePitchType
   );
 
@@ -1917,7 +1917,7 @@ function BatterExpansion({
         <div className={cn("rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3", isMobile ? "" : "col-span-3")}>
           <div className="flex items-center gap-1.5 mb-2.5">
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">
-              vs {pitcher.name.split(" ").pop()} — Pitch Splits
+              {pitcher ? `vs ${pitcher.name.split(" ").pop()} — Pitch Splits` : "Pitch Splits"}
             </h5>
             <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></Tooltip></TooltipProvider>
           </div>

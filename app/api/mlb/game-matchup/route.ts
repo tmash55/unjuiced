@@ -738,7 +738,14 @@ export async function GET(req: NextRequest) {
         .in("batter_id", batterIds.length > 0 ? batterIds : [0])
         .eq("season", season);
 
-      const [bbResult, ...logResults] = await Promise.all([noPitcherBBQuery, ...noPitcherBatterLogQueries]);
+      // Also fetch hand splits for vs RHP / vs LHP
+      const noPitcherHandSplitQuery = supabase
+        .from("mlb_batter_pitchtype_hand_splits")
+        .select("player_id, opponent_hand, pitch_type, pa, ab, hits, home_runs, strikeouts, ba, obp, slg, iso, woba, k_percent, bb_percent, whiff_percent, barrel_percent, hard_hit_percent, avg_exit_velocity")
+        .in("player_id", batterIds.length > 0 ? batterIds : [0])
+        .eq("season_year", season);
+
+      const [bbResult, handSplitResult, ...logResults] = await Promise.all([noPitcherBBQuery, noPitcherHandSplitQuery, ...noPitcherBatterLogQueries]);
 
       // Build traditional stats from game logs
       const noBatterTraditionalMap = new Map<number, any>();
@@ -796,12 +803,63 @@ export async function GET(req: NextRequest) {
         noBBMap.set(bb.batter_id, arr);
       }
 
+      // Build hand splits: playerId:hand -> aggregated stats
+      const noHandSplitRows = (handSplitResult.data ?? []) as any[];
+      const noHandSplitMap = new Map<string, { pa: number; avg: number | null; slg: number | null; iso: number | null; woba: number | null; obp: number | null; hr: number; ev: number | null; brl: number | null; k_pct: number | null; bb_pct: number | null }>();
+      {
+        const grouped = new Map<string, any[]>();
+        for (const row of noHandSplitRows) {
+          const key = `${row.player_id}:${row.opponent_hand}`;
+          const arr = grouped.get(key) || [];
+          arr.push(row);
+          grouped.set(key, arr);
+        }
+        for (const [key, rows] of grouped) {
+          let totalPA = 0, totalHR = 0;
+          let wBA = 0, wSLG = 0, wISO = 0, wOBP = 0, wWOBA = 0, wEV = 0, wBRL = 0, wK = 0, wBB = 0;
+          let evW = 0, brlW = 0, kW = 0, bbW = 0;
+          for (const r of rows) {
+            const pa = Number(r.pa ?? 0), ab = Number(r.ab ?? 0);
+            totalPA += pa; totalHR += Number(r.home_runs ?? 0);
+            const bw = ab > 0 ? ab : pa;
+            if (r.ba != null && bw > 0) wBA += Number(r.ba) * bw;
+            if (r.slg != null && bw > 0) wSLG += Number(r.slg) * bw;
+            if (r.iso != null && bw > 0) wISO += Number(r.iso) * bw;
+            if (r.obp != null && pa > 0) wOBP += Number(r.obp) * pa;
+            if (r.woba != null && pa > 0) wWOBA += Number(r.woba) * pa;
+            if (r.avg_exit_velocity != null && pa > 0) { wEV += Number(r.avg_exit_velocity) * pa; evW += pa; }
+            if (r.barrel_percent != null && pa > 0) { wBRL += Number(r.barrel_percent) * pa; brlW += pa; }
+            if (r.k_percent != null && pa > 0) { wK += Number(r.k_percent) * pa; kW += pa; }
+            if (r.bb_percent != null && pa > 0) { wBB += Number(r.bb_percent) * pa; bbW += pa; }
+          }
+          const bwT = rows.reduce((s, r) => s + (Number(r.ab ?? 0) > 0 ? Number(r.ab ?? 0) : Number(r.pa ?? 0)), 0);
+          noHandSplitMap.set(key, {
+            pa: totalPA, hr: totalHR,
+            avg: bwT > 0 ? Math.round((wBA / bwT) * 1000) / 1000 : null,
+            slg: bwT > 0 ? Math.round((wSLG / bwT) * 1000) / 1000 : null,
+            iso: bwT > 0 ? Math.round((wISO / bwT) * 1000) / 1000 : null,
+            obp: totalPA > 0 ? Math.round((wOBP / totalPA) * 1000) / 1000 : null,
+            woba: totalPA > 0 ? Math.round((wWOBA / totalPA) * 1000) / 1000 : null,
+            ev: evW > 0 ? Math.round((wEV / evW) * 10) / 10 : null,
+            brl: brlW > 0 ? Math.round((wBRL / brlW) * 10) / 10 : null,
+            k_pct: kW > 0 ? Math.round((wK / kW) * 10) / 10 : null,
+            bb_pct: bbW > 0 ? Math.round((wBB / bbW) * 10) / 10 : null,
+          });
+        }
+      }
+
       const noPitcherBatters = lineup.map((p: any) => {
         const trad = noBatterTraditionalMap.get(p.player_id);
         const bbs = noBBMap.get(p.player_id) || [];
         if (bbs.length > 0 && bbs[0].batter_hand) p.batting_hand = bbs[0].batter_hand;
         const barrelPct = computeBarrelPct(bbs);
         const avgEV = computeAvgEV(bbs);
+
+        const buildSplit = (hand: string) => {
+          const hs = noHandSplitMap.get(`${p.player_id}:${hand}`);
+          if (!hs || hs.pa < 2) return null;
+          return { avg: hs.avg, slg: hs.slg, iso: hs.iso, woba: hs.woba, hr: hs.hr, ev: hs.ev, brl: hs.brl, bbs: hs.pa, obp: hs.obp, k_pct: hs.k_pct, bb_pct: hs.bb_pct };
+        };
 
         return {
           ...buildEmptyBatter(p),
@@ -821,6 +879,10 @@ export async function GET(req: NextRequest) {
           total_batted_balls: bbs.length,
           k_pct: trad?.k_pct ?? null,
           bb_pct: trad?.bb_pct ?? null,
+          hand_splits: {
+            vs_rhp: buildSplit("R"),
+            vs_lhp: buildSplit("L"),
+          },
           matchup_grade: "neutral" as const,
           matchup_reason: "No opposing pitcher announced",
         };
