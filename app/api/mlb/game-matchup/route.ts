@@ -723,16 +723,120 @@ export async function GET(req: NextRequest) {
     console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} (dailyLineup=${dailyLineup?.length ?? 0}) batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
 
     if (!pitcherId) {
-      // No probable pitcher set — return basic structure
+      // No probable pitcher — still fetch batter season stats
+      const noPitcherBatterLogQueries = batterIds.map((bid) =>
+        supabase.rpc("get_mlb_batter_game_logs", {
+          p_player_id: bid,
+          p_season: season,
+          p_limit: 500,
+          p_include_prior: false,
+        })
+      );
+      const noPitcherBBQuery = supabase
+        .from("mlb_batted_balls")
+        .select("batter_id, exit_velocity, launch_angle, trajectory, hardness, pitch_type, event_type, is_hit, is_barrel, is_out, game_date, batter_hand")
+        .in("batter_id", batterIds.length > 0 ? batterIds : [0])
+        .eq("season", season);
+
+      const [bbResult, ...logResults] = await Promise.all([noPitcherBBQuery, ...noPitcherBatterLogQueries]);
+
+      // Build traditional stats from game logs
+      const noBatterTraditionalMap = new Map<number, any>();
+      for (let i = 0; i < batterIds.length; i++) {
+        const gameLogs = Array.isArray(logResults[i]?.data) ? logResults[i].data as any[] : [];
+        let filtered = gameLogs;
+        if (season >= new Date().getFullYear()) {
+          const seasonStart = `${season}-01-01`;
+          const seasonEnd = `${season + 1}-01-01`;
+          filtered = gameLogs.filter((g: any) => {
+            const gameType = (g.game_type ?? g.season_type ?? "").toUpperCase();
+            if (gameType === "S" || gameType === "ST" || gameType === "E") return false;
+            const d = g.game_date ?? g.date ?? "";
+            if (!d) return gameType === "R";
+            if (d < seasonStart || d >= seasonEnd) return false;
+            return true;
+          });
+        }
+        if (sample !== "season") filtered = filtered.slice(0, Number(sample));
+        if (filtered.length === 0) continue;
+
+        let totalPA = 0, totalAB = 0, totalH = 0, totalHR = 0, total2B = 0, total3B = 0;
+        let totalBB = 0, totalK = 0, totalHBP = 0, totalTB = 0;
+        for (const g of filtered) {
+          totalPA += Number(g.plate_appearances ?? 0);
+          totalAB += Number(g.at_bats ?? 0);
+          totalH += Number(g.hits ?? 0);
+          totalHR += Number(g.home_runs ?? 0);
+          total2B += Number(g.doubles ?? 0);
+          total3B += Number(g.triples ?? 0);
+          totalBB += Number(g.base_on_balls ?? 0);
+          totalK += Number(g.strike_outs ?? 0);
+          totalHBP += Number(g.hit_by_pitch ?? 0);
+          totalTB += Number(g.total_bases ?? 0);
+        }
+        const avg = totalAB > 0 ? Math.round((totalH / totalAB) * 1000) / 1000 : null;
+        const obp = totalPA > 0 ? Math.round(((totalH + totalBB + totalHBP) / totalPA) * 1000) / 1000 : null;
+        const slg = totalAB > 0 ? Math.round((totalTB / totalAB) * 1000) / 1000 : null;
+        noBatterTraditionalMap.set(batterIds[i], {
+          pa: totalPA, avg, obp, slg,
+          ops: obp != null && slg != null ? Math.round((obp + slg) * 1000) / 1000 : null,
+          iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
+          hr: totalHR,
+          k_pct: totalPA >= 10 ? Math.round((totalK / totalPA) * 1000) / 10 : null,
+          bb_pct: totalPA >= 10 ? Math.round((totalBB / totalPA) * 1000) / 10 : null,
+        });
+      }
+
+      // Build batted ball stats
+      const allBBs = (bbResult.data ?? []) as any[];
+      const noBBMap = new Map<number, any[]>();
+      for (const bb of allBBs) {
+        const arr = noBBMap.get(bb.batter_id) || [];
+        arr.push(bb);
+        noBBMap.set(bb.batter_id, arr);
+      }
+
+      const noPitcherBatters = lineup.map((p: any) => {
+        const trad = noBatterTraditionalMap.get(p.player_id);
+        const bbs = noBBMap.get(p.player_id) || [];
+        if (bbs.length > 0 && bbs[0].batter_hand) p.batting_hand = bbs[0].batter_hand;
+        const barrelPct = computeBarrelPct(bbs);
+        const avgEV = computeAvgEV(bbs);
+
+        return {
+          ...buildEmptyBatter(p),
+          pa: trad?.pa ?? 0,
+          avg: trad?.avg ?? null,
+          obp: trad?.obp ?? null,
+          slg: trad?.slg ?? null,
+          ops: trad?.ops ?? null,
+          iso: trad?.iso ?? null,
+          hr_count: trad?.hr ?? 0,
+          barrel_pct: barrelPct != null ? Math.round(barrelPct * 10) / 10 : null,
+          avg_exit_velo: avgEV != null ? Math.round(avgEV * 10) / 10 : null,
+          woba: trad && trad.pa >= 5 ? (() => {
+            const singles = (trad.avg != null && trad.pa > 0) ? Math.max(0, Math.round(trad.avg * (trad.pa - trad.hr))) : 0;
+            return Math.round(((0.69 * (trad.bb_pct ? trad.bb_pct / 100 * trad.pa : 0) + 0.88 * singles + 2.00 * trad.hr) / trad.pa) * 1000) / 1000;
+          })() : null,
+          total_batted_balls: bbs.length,
+          k_pct: trad?.k_pct ?? null,
+          bb_pct: trad?.bb_pct ?? null,
+          matchup_grade: "neutral" as const,
+          matchup_reason: "No opposing pitcher announced",
+        };
+      });
+
+      noPitcherBatters.sort((a, b) => (a.lineup_position ?? 99) - (b.lineup_position ?? 99));
+
       return NextResponse.json(
         {
           game: buildGameResponse(game, homeAbbr, awayAbbr, venueName),
           pitcher: null,
-          batters: lineup.map((p: any) => buildEmptyBatter(p)),
-          summary: { strong_count: 0, neutral_count: 0, weak_count: 0, strong_names: [], key_insight: null, lineup_grade: "C", top_hr_targets: [], pitcher_tags: [] },
+          batters: noPitcherBatters,
+          summary: { strong_count: 0, neutral_count: 0, weak_count: 0, strong_names: [], key_insight: "Opposing pitcher TBD — showing batter season stats", lineup_grade: "C", top_hr_targets: [], pitcher_tags: [] },
           meta: { batting_side: battingSide, sample, pitcher_pitch_types: [], lineup_confirmed: lineupConfirmed },
         },
-        { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" } }
+        { headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=60" } }
       );
     }
 

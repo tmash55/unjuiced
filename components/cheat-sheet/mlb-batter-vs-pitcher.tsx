@@ -3292,27 +3292,7 @@ export function MlbBatterVsPitcher() {
 
                   {/* Lineup Table */}
                   <div data-tour="batter-table">
-                  {batters.length > 0 && !pitcher ? (
-                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
-                      <div className="text-center space-y-2">
-                        <Users className="w-6 h-6 mx-auto text-neutral-400" />
-                        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Lineup Available</p>
-                        <p className="text-xs text-neutral-400">
-                          {batters.length} batters in the lineup. Full matchup stats will populate once the opposing pitcher is announced.
-                        </p>
-                        <div className="flex flex-wrap justify-center gap-2 pt-2">
-                          {batters.filter(b => b.lineup_position != null).sort((a, b) => (a.lineup_position ?? 99) - (b.lineup_position ?? 99)).map((b) => (
-                            <div key={b.player_id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 text-xs">
-                              <span className="text-neutral-400 tabular-nums w-3">{b.lineup_position}</span>
-                              <img src={getMlbHeadshotUrl(b.player_id, "tiny")} alt="" className="w-5 h-5 rounded-full object-cover bg-neutral-200 dark:bg-neutral-800" />
-                              <span className="font-medium text-neutral-700 dark:text-neutral-300">{b.player_name.split(" ").pop()}</span>
-                              <span className={cn("text-[10px]", b.batting_hand === "L" ? "text-sky-500" : b.batting_hand === "S" ? "text-amber-500" : "text-neutral-400")}>{b.batting_hand}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : batters.length > 0 ? (
+                  {batters.length > 0 ? (
                     viewMode === "comparison" && pitcher ? (
                       <ComparisonView
                         batters={displayBatters}
