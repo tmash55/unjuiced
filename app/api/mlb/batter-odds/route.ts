@@ -64,8 +64,13 @@ export async function GET(req: NextRequest) {
     const CHUNK = 50;
     for (let i = 0; i < redisKeys.length; i += CHUNK) {
       const chunk = redisKeys.slice(i, i + CHUNK);
-      const vals = await redis.mget<OddsValue[]>(...chunk);
-      redisValues.push(...vals);
+      try {
+        const vals = await redis.mget<OddsValue[]>(...chunk);
+        redisValues.push(...vals);
+      } catch (err) {
+        console.warn(`[batter-odds] Redis mget failed for chunk ${i}:`, err);
+        redisValues.push(...chunk.map(() => null));
+      }
     }
 
     // Parse: book → { selectionKey: oddsObj }

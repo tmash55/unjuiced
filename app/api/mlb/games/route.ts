@@ -286,7 +286,7 @@ export async function GET() {
           redis.get<string>(`odds:mlb:${g.odds_game_id}:team_total_runs:${ODDS_BOOK}`),
         ]);
 
-        const oddsResults = await Promise.all(oddsPromises);
+        const oddsResults = await Promise.all(oddsPromises.map(p => p.catch(() => null)));
 
         for (let i = 0; i < gamesWithOdds.length; i++) {
           const g = gamesWithOdds[i];
