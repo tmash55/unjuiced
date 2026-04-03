@@ -711,19 +711,8 @@ export async function GET(req: NextRequest) {
 
     console.log(`[/api/mlb/game-matchup] lineup=${lineup.length} (dailyLineup=${dailyLineup?.length ?? 0}) batterIds=[${batterIds.slice(0, 5).join(",")}] battingTeamId=${battingTeamId} allProfiles=${allProfiles.length} profileTeamIds=[${[...new Set(allProfiles.map((p: any) => p.team_id))].join(",")}]`);
 
-    if (!pitcherId) {
-      // No probable pitcher set — return basic structure
-      return NextResponse.json(
-        {
-          game: buildGameResponse(game, homeAbbr, awayAbbr, venueName),
-          pitcher: null,
-          batters: lineup.map((p: any) => buildEmptyBatter(p)),
-          summary: { strong_count: 0, neutral_count: 0, weak_count: 0, strong_names: [], key_insight: null, lineup_grade: "C", top_hr_targets: [], pitcher_tags: [] },
-          meta: { batting_side: battingSide, sample, pitcher_pitch_types: [] },
-        },
-        { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" } }
-      );
-    }
+    const hasPitcher = !!pitcherId;
+    // When no pitcher, we still load batter data below — just skip pitcher-specific queries
 
     // ── Round 2: Pitcher data + Batter data (parallel) ──────────────────────
 
@@ -735,13 +724,16 @@ export async function GET(req: NextRequest) {
 
     // Query both seasons in parallel for pitcher + batter BBs to pick the one with data
     // Always fetch all season data; sample filtering is applied post-query by game count
+    const emptyResult = Promise.resolve({ data: [], error: null });
     const pitcherBBQueries = seasonsToTry.map((s) =>
-      supabase
-        .from("mlb_batted_balls")
-        .select(bbSelect)
-        .eq("pitcher_id", pitcherId)
-        .eq("season", s)
-        .limit(5000) // Pitcher can have ~800 BBs/season
+      hasPitcher
+        ? supabase
+            .from("mlb_batted_balls")
+            .select(bbSelect)
+            .eq("pitcher_id", pitcherId!)
+            .eq("season", s)
+            .limit(5000)
+        : emptyResult
     );
 
     const batterBBQueries = seasonsToTry.map((s) =>
@@ -754,20 +746,24 @@ export async function GET(req: NextRequest) {
     );
 
     // H2H: all-time batter vs pitcher (no season filter)
-    const h2hQuery = supabase
-      .from("mlb_batted_balls")
-      .select(bbSelect)
-      .in("batter_id", batterIds.length > 0 ? batterIds : [0])
-      .eq("pitcher_id", pitcherId);
+    const h2hQuery = hasPitcher
+      ? supabase
+          .from("mlb_batted_balls")
+          .select(bbSelect)
+          .in("batter_id", batterIds.length > 0 ? batterIds : [0])
+          .eq("pitcher_id", pitcherId!)
+      : emptyResult;
 
     // Pitcher game logs — try both seasons
     const pitcherLogsQueries = seasonsToTry.map((s) =>
-      supabase.rpc("get_mlb_pitcher_game_logs", {
-        p_player_id: pitcherId,
+      hasPitcher
+        ? supabase.rpc("get_mlb_pitcher_game_logs", {
+        p_player_id: pitcherId!,
         p_season: s,
         p_limit: 100,
         p_include_prior: false,
       })
+        : emptyResult
     );
 
     // Recent form: last 60 days (covers offseason gaps)
@@ -786,41 +782,49 @@ export async function GET(req: NextRequest) {
     const l30Cutoff = new Date();
     l30Cutoff.setDate(l30Cutoff.getDate() - 30);
     const pitcherL30Queries = seasonsToTry.map((s) =>
-      supabase
-        .from("mlb_batted_balls")
-        .select(bbSelect)
-        .eq("pitcher_id", pitcherId)
-        .eq("season", s)
-        .gte("game_date", l30Cutoff.toISOString().slice(0, 10))
+      hasPitcher
+        ? supabase
+            .from("mlb_batted_balls")
+            .select(bbSelect)
+            .eq("pitcher_id", pitcherId!)
+            .eq("season", s)
+            .gte("game_date", l30Cutoff.toISOString().slice(0, 10))
+        : emptyResult
     );
 
     // Pitcher pitch type summary (season stats with whiff%, k%, put_away)
     // Try both table names: original and the new populated table
     const pitchTypeSummaryQueries = seasonsToTry.map((s) =>
-      supabase
-        .from("mlb_pitcher_pitchtype_summary")
-        .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches")
-        .eq("player_id", pitcherId)
-        .eq("season_year", s)
+      hasPitcher
+        ? supabase
+            .from("mlb_pitcher_pitchtype_summary")
+            .select("pitch_type, whiff_percent, k_percent, put_away, pitch_usage, pitches")
+            .eq("player_id", pitcherId!)
+            .eq("season_year", s)
+        : emptyResult
     );
 
     // Pitcher pitch type hand splits (whiff% vs LHB/RHB per pitch type)
     const pitcherHandSplitQueries = seasonsToTry.map((s) =>
-      supabase
-        .from("mlb_pitcher_pitchtype_hand_splits")
-        .select("pitch_type, opponent_hand, whiff_percent, ba, slg, woba, hard_hit_percent, pitches, pa, ab, hits, home_runs, strikeouts, k_percent, bb_percent, obp, iso, barrel_percent, avg_exit_velocity, singles, doubles, triples")
-        .eq("player_id", pitcherId)
-        .eq("season_year", s)
+      hasPitcher
+        ? supabase
+            .from("mlb_pitcher_pitchtype_hand_splits")
+            .select("pitch_type, opponent_hand, whiff_percent, ba, slg, woba, hard_hit_percent, pitches, pa, ab, hits, home_runs, strikeouts, k_percent, bb_percent, obp, iso, barrel_percent, avg_exit_velocity, singles, doubles, triples")
+            .eq("player_id", pitcherId!)
+            .eq("season_year", s)
+        : emptyResult
     );
 
     // Pitcher hot zone (3x3 grid) — always season for stable zone distribution
-    const pitcherHotZoneQuery = supabase.rpc("get_mlb_hot_zone_matchup", {
-      p_batter_id: batterIds[0] ?? 0, // required param, we only use pitcher zones
-      p_pitcher_id: pitcherId,
-      p_batter_window: "season",
-      p_pitcher_window: "season",
-      p_season: season,
-    });
+    const pitcherHotZoneQuery = hasPitcher
+      ? supabase.rpc("get_mlb_hot_zone_matchup", {
+          p_batter_id: batterIds[0] ?? 0,
+          p_pitcher_id: pitcherId!,
+          p_batter_window: "season",
+          p_pitcher_window: "season",
+          p_season: season,
+        })
+      : emptyResult;
 
     // Batter game logs for full traditional stats (one RPC per batter, parallelized)
     const batterGameLogQueries = batterIds.map((bid) =>

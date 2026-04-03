@@ -31,7 +31,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getPreset } from "@/lib/odds/presets";
 import { americanToImpliedProb, devigMultiple, impliedProbToAmerican } from "@/lib/ev/devig";
-import { redis, parseRedisValue, hashCacheKey, hgetallSafe, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
+import { redis, parseRedisValue, hashCacheKey, hgetallSafe, hgetallPerEvent, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
 
 // ---------------------------------------------------------------------------
 // Types — kept identical to original so frontend stays unchanged
@@ -389,7 +389,8 @@ export async function GET(req: NextRequest) {
         for (const presetCandidate of presetCandidates) {
           rowsKey = `edge:${sport}:rows:${presetCandidate}`;
           try {
-            allFields = await hgetallSafe(rowsKey);
+            // Use per-event hashes (v2) with fallback to single hash (v1)
+            allFields = await hgetallPerEvent(sport, presetCandidate, "edge");
           } catch (err) {
             console.warn(`[opportunities] HGETALL failed for ${sport}/${presetCandidate}:`, err);
             allFields = null;
