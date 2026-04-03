@@ -17,7 +17,7 @@ import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-o
 import { useHasSharpAccess } from "@/hooks/use-entitlements";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
-import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare } from "lucide-react";
+import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
 
@@ -77,11 +77,8 @@ function OddsSkeleton() {
 
 function OddsCell({ entry, hasSharpAccess = false, isLoading = false }: { entry: BatterOddsEntry | null; hasSharpAccess?: boolean; isLoading?: boolean }) {
   const applyState = useStateLink();
-  if (isLoading) return <OddsSkeleton />;
-  if (!entry) return <span className="text-[10px] text-neutral-400">-</span>;
   const [open, setOpen] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
-  const sorted = [...entry.all_books].sort((a, b) => b.price - a.price);
 
   // Click outside to close
   React.useEffect(() => {
@@ -92,6 +89,10 @@ function OddsCell({ entry, hasSharpAccess = false, isLoading = false }: { entry:
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  if (isLoading) return <OddsSkeleton />;
+  if (!entry) return <span className="text-[10px] text-neutral-400">-</span>;
+  const sorted = [...entry.all_books].sort((a, b) => b.price - a.price);
 
   return (
     <div className="relative" ref={ref}>
@@ -400,15 +401,22 @@ function trendColor(trend: "up" | "down" | "flat" | null | undefined): string {
   return "";
 }
 
-function gradeBadge(grade: "strong" | "neutral" | "weak") {
-  switch (grade) {
-    case "strong":
-      return { label: "STRONG", text: STAT_GREEN };
-    case "neutral":
-      return { label: "NEUTRAL", text: "text-neutral-500 dark:text-neutral-400" };
-    case "weak":
-      return { label: "WEAK", text: STAT_RED };
+function gradeBadge(grade: "strong" | "neutral" | "weak", hrScore?: number | null) {
+  // Map to letter grades using matchup grade + HR score for granularity
+  const score = hrScore ?? 50;
+  if (grade === "strong") {
+    if (score >= 75) return { label: "A+", text: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/15" };
+    if (score >= 65) return { label: "A", text: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/15" };
+    return { label: "B+", text: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/8 dark:bg-emerald-500/10" };
   }
+  if (grade === "weak") {
+    if (score <= 30) return { label: "D", text: "text-red-500 dark:text-red-400", bg: "bg-red-500/10 dark:bg-red-500/15" };
+    return { label: "C-", text: "text-red-400 dark:text-red-400", bg: "bg-red-500/8 dark:bg-red-500/10" };
+  }
+  // neutral
+  if (score >= 60) return { label: "B", text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/8 dark:bg-amber-500/10" };
+  if (score >= 45) return { label: "C+", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/8 dark:bg-neutral-500/10" };
+  return { label: "C", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/8 dark:bg-neutral-500/10" };
 }
 
 // ── Game List Row ────────────────────────────────────────────────────────────
@@ -1584,7 +1592,7 @@ function BatterRow({
     bbs: batter.total_batted_balls,
     k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
-  const badge = gradeBadge(batter.matchup_grade);
+  const badge = gradeBadge(batter.matchup_grade, batter.hr_probability_score);
   const hasPlatoon =
     (batter.batting_hand === "L" && pitcher.hand === "R") ||
     (batter.batting_hand === "R" && pitcher.hand === "L");
@@ -1616,11 +1624,11 @@ function BatterRow({
                 <span className="text-neutral-500">wOBA <span className={cn("font-semibold", wobaTextColor(ds.woba) || "text-neutral-900 dark:text-white")}>{fmtAvg(ds.woba)}</span></span>
                 <span className="text-neutral-500">HR <span className="font-semibold text-neutral-900 dark:text-white">{ds.hr}</span></span>
                 <span className="text-neutral-500">EV <span className={cn("font-semibold", evTextColor(ds.ev) || "text-neutral-900 dark:text-white")}>{ds.ev != null ? ds.ev.toFixed(1) : "-"}</span></span>
-                {batter.k_pct != null && <span className="text-neutral-500">K% <span className={cn("font-semibold", statText(batter.k_pct, { elite: 15, good: 20, poor: 27, bad: 32 }, false) || "text-neutral-700 dark:text-neutral-300")}>{batter.k_pct}%</span></span>}
-                {batter.bb_pct != null && <span className="text-neutral-500">BB% <span className={cn("font-semibold", statText(batter.bb_pct, { elite: 12, good: 9, poor: 5, bad: 3 }) || "text-neutral-700 dark:text-neutral-300")}>{batter.bb_pct}%</span></span>}
+                {batter.k_pct != null && <span className="text-neutral-500">K% <span className={cn("font-semibold", statText(batter.k_pct, { elite: 15, good: 20, poor: 27, bad: 32 }, false) || "text-neutral-700 dark:text-neutral-300")}>{batter.k_pct.toFixed(1)}%</span></span>}
+                {batter.bb_pct != null && <span className="text-neutral-500">BB% <span className={cn("font-semibold", statText(batter.bb_pct, { elite: 12, good: 9, poor: 5, bad: 3 }) || "text-neutral-700 dark:text-neutral-300")}>{batter.bb_pct.toFixed(1)}%</span></span>}
               </div>
             </div>
-            <span className={cn("text-[9px] font-bold", badge.text)}>
+            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", badge.text, badge.bg)}>
               {badge.label}
             </span>
             <ChevronRight className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform", expanded && "rotate-90")} />
@@ -1659,10 +1667,11 @@ function BatterRow({
       <tr
         onClick={onToggle}
         className={cn(
-          "cursor-pointer transition-all duration-150 border-b border-neutral-100/80 dark:border-neutral-800/30",
+          "cursor-pointer transition-all duration-150 group",
+          "border-b border-neutral-200/40 dark:border-neutral-800/20",
           expanded
-            ? "bg-sky-50/40 dark:bg-sky-500/[0.04]"
-            : "hover:bg-neutral-50/80 dark:hover:bg-neutral-800/20"
+            ? "bg-sky-50/50 dark:bg-sky-500/[0.05]"
+            : "bg-white dark:bg-neutral-900/40 hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
         )}
       >
         <td className="pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center">
@@ -1714,10 +1723,10 @@ function BatterRow({
           {fmtAvg(ds.woba)}
         </td>
         <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", kPctColor(ds.k_pct ?? null))}>
-          {ds.k_pct != null ? `${ds.k_pct}%` : "-"}
+          {ds.k_pct != null ? `${ds.k_pct.toFixed(1)}%` : "-"}
         </td>
         <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", bbPctColor(ds.bb_pct ?? null))}>
-          {ds.bb_pct != null ? `${ds.bb_pct}%` : "-"}
+          {ds.bb_pct != null ? `${ds.bb_pct.toFixed(1)}%` : "-"}
         </td>
         {/* Odds cell with dropdown */}
         <td className="px-1.5 py-2 text-right relative">
@@ -1729,8 +1738,8 @@ function BatterRow({
       </tr>
       {/* Pitch splits row (always visible below main row) */}
       <tr className={cn(
-        "border-b border-neutral-200/40 dark:border-neutral-700/20",
-        expanded ? "bg-sky-50/40 dark:bg-sky-500/[0.04]" : ""
+        "border-b border-neutral-200/30 dark:border-neutral-800/15",
+        expanded ? "bg-sky-50/50 dark:bg-sky-500/[0.05]" : "bg-white dark:bg-neutral-900/40"
       )}>
         <td colSpan={13} className="px-3 pb-2.5 pt-0">
           <div className="ml-9 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-neutral-400 dark:text-neutral-500">
@@ -1769,7 +1778,7 @@ function BatterRow({
                 </span>
               </span>
             )}
-            <span className={cn("text-[9px] font-bold", badge.text)}>
+            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", badge.text, badge.bg)}>
               {badge.label}
             </span>
           </div>
@@ -1778,7 +1787,7 @@ function BatterRow({
       {/* Expansion */}
       {expanded && (
         <tr>
-          <td colSpan={13} className="px-3 pb-4 bg-brand/5 dark:bg-brand/10">
+          <td colSpan={13} className="px-3 pb-4 bg-neutral-50/80 dark:bg-neutral-800/15 border-b border-neutral-200/40 dark:border-neutral-700/20">
             <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} />
           </td>
         </tr>
@@ -1902,12 +1911,15 @@ function BatterExpansion({
   return (
     <div className={cn("pt-3", isMobile ? "px-3 pb-3" : "ml-8")}>
       {/* Top section: Pitch splits + HR Score side by side */}
-      <div className={cn("grid gap-4 mb-4", isMobile ? "grid-cols-1" : "grid-cols-5")}>
+      <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-5")}>
         {/* Pitch Type Table — 3 cols wide */}
-        <div className={cn(isMobile ? "" : "col-span-3")}>
-          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">
-            vs {pitcher.name.split(" ").pop()} — Pitch Splits
-          </h5>
+        <div className={cn("rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3", isMobile ? "" : "col-span-3")}>
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">
+              vs {pitcher.name.split(" ").pop()} — Pitch Splits
+            </h5>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></Tooltip></TooltipProvider>
+          </div>
           <div className="space-y-1">
             {pitcher.arsenal.map((a) => {
               const split = batter.pitch_splits.find((s) => s.pitch_type === a.pitch_type);
@@ -1953,8 +1965,11 @@ function BatterExpansion({
         </div>
 
         {/* HR Score + Factors — 2 cols wide */}
-        <div className={cn(isMobile ? "" : "col-span-2")}>
-          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">HR Score</h5>
+        <div className={cn("rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3", isMobile ? "" : "col-span-2")}>
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">HR Score</h5>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite home run probability score (0-100) based on ISO, barrel rate, pitch matchups, H2H history, platoon advantage, and pitcher HR tendency.</TooltipContent></Tooltip></TooltipProvider>
+          </div>
           <HRScoreBar score={batter.hr_probability_score} />
           {hrFactors.length > 0 && (
             <div className="mt-3 space-y-1.5">
@@ -2092,11 +2107,14 @@ function BatterExpansion({
         </div>
       </div>
 
-      {/* Bottom section: H2H + Recent Form — single row, no card borders */}
-      <div className={cn("grid gap-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/40", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+      {/* Bottom section: H2H + Recent Form */}
+      <div className={cn("grid gap-3 mt-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
         {/* H2H */}
-        <div>
-          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Head-to-Head</h5>
+        <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Head-to-Head</h5>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Career stats for this batter vs this specific pitcher across all seasons.</TooltipContent></Tooltip></TooltipProvider>
+          </div>
           {batter.h2h && batter.h2h.pa > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center gap-6 text-center">
@@ -2135,8 +2153,11 @@ function BatterExpansion({
         </div>
 
         {/* Recent Form */}
-        <div>
-          <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">Recent Form (60d)</h5>
+        <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Recent Form (60d)</h5>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Contact quality and power metrics from the last 60 days. EV Trend shows avg exit velocity per game day.</TooltipContent></Tooltip></TooltipProvider>
+          </div>
           <div className="flex items-center gap-6">
             {[
               { label: "Brl%", value: batter.recent_barrel_pct != null ? `${batter.recent_barrel_pct}%` : "-", color: barrelTextColor(batter.recent_barrel_pct) },
@@ -2149,7 +2170,8 @@ function BatterExpansion({
               </div>
             ))}
             {sparkline.length >= 2 && (
-              <div className="ml-auto">
+              <div className="ml-auto text-right">
+                <p className="text-[9px] text-neutral-400 mb-0.5">EV Trend</p>
                 <MiniSparkline values={sparkline} width={80} height={24} />
               </div>
             )}
@@ -2946,6 +2968,66 @@ export function MlbBatterVsPitcher() {
                       </div>
                     </div>
                   )}
+                  {/* Mobile: Odds + Weather row */}
+                  {isMobile && currentGame && (
+                    <div className="flex items-center justify-between gap-2 px-0.5 pt-1 border-t border-neutral-100 dark:border-neutral-800/20">
+                      {/* Odds */}
+                      {gameOdds && (gameOdds.away_ml || gameOdds.total != null) && (
+                        <div className="flex items-center gap-2 text-[10px] tabular-nums">
+                          {(() => { const fdLogo = getBookLogo("fanduel"); return fdLogo ? <img src={fdLogo} alt="" className="w-3.5 h-3.5 rounded object-contain opacity-50" /> : null; })()}
+                          {(gameOdds.away_ml || gameOdds.home_ml) && (
+                            <span className="flex items-center gap-0.5 text-neutral-400">
+                              <img src={`/team-logos/mlb/${currentGame.away_team_tricode.toUpperCase()}.svg`} className="w-2.5 h-2.5 object-contain" alt="" />
+                              <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.away_ml}</span>
+                              <span className="mx-0.5">/</span>
+                              <img src={`/team-logos/mlb/${currentGame.home_team_tricode.toUpperCase()}.svg`} className="w-2.5 h-2.5 object-contain" alt="" />
+                              <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.home_ml}</span>
+                            </span>
+                          )}
+                          {gameOdds.total != null && (
+                            <span className="text-neutral-400">
+                              O/U <span className="font-bold text-neutral-900 dark:text-white">{gameOdds.total}</span>
+                            </span>
+                          )}
+                          {(gameOdds.away_total != null || gameOdds.home_total != null) && (
+                            <span className="flex items-center gap-0.5 text-neutral-400">
+                              TT
+                              <img src={`/team-logos/mlb/${currentGame.away_team_tricode.toUpperCase()}.svg`} className="w-2.5 h-2.5 object-contain ml-0.5" alt="" />
+                              <span className="font-medium text-neutral-700 dark:text-neutral-300">{gameOdds.away_total ?? "-"}</span>
+                              <span className="mx-0.5">/</span>
+                              <img src={`/team-logos/mlb/${currentGame.home_team_tricode.toUpperCase()}.svg`} className="w-2.5 h-2.5 object-contain" alt="" />
+                              <span className="font-medium text-neutral-700 dark:text-neutral-300">{gameOdds.home_total ?? "-"}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* Weather */}
+                      {currentGame.weather && (
+                        <div className="flex items-center gap-1.5 text-[10px] tabular-nums text-neutral-400">
+                          {currentGame.weather.temperature_f != null && (
+                            <span className="font-semibold text-neutral-900 dark:text-white">{currentGame.weather.temperature_f}°</span>
+                          )}
+                          {currentGame.weather.wind_speed_mph != null && currentGame.weather.wind_speed_mph > 0 && (
+                            <span className="flex items-center gap-0.5">
+                              <span className="font-medium">{currentGame.weather.wind_speed_mph}mph</span>
+                              {currentGame.weather.wind_impact && (
+                                <span className={cn(
+                                  "font-semibold",
+                                  currentGame.weather.wind_impact === "Blowing Out" ? "text-emerald-600 dark:text-emerald-400" :
+                                  currentGame.weather.wind_impact === "Blowing In" ? "text-red-500 dark:text-red-400" :
+                                  "text-neutral-400"
+                                )}>
+                                  {currentGame.weather.wind_impact === "Blowing Out" ? "Out" :
+                                   currentGame.weather.wind_impact === "Blowing In" ? "In" :
+                                   currentGame.weather.wind_label?.split(" ").pop() || ""}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {!isMobile && (
                     <div className="flex items-center gap-3">
                       {/* Inline odds */}
@@ -3006,42 +3088,77 @@ export function MlbBatterVsPitcher() {
                   )}
                 </div>
 
-                {/* Pitcher controls — season + sample (desktop only) */}
-                {pitcher && !isMobile && (
-                  <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mr-1">Pitcher</span>
-                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
-                      {[new Date().getFullYear() - 1, new Date().getFullYear()].map((yr) => (
-                        <button
-                          key={yr}
-                          onClick={() => setStatSeason(yr)}
-                          className={cn(
-                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
-                            statSeason === yr
-                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                {/* Row 2: Pitcher filters + Weather (desktop only) */}
+                {!isMobile && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-neutral-100 dark:border-neutral-800/20">
+                    {/* Left: Pitcher season + sample filters */}
+                    {pitcher && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">Pitcher</span>
+                        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {[new Date().getFullYear() - 1, new Date().getFullYear()].map((yr) => (
+                            <button
+                              key={yr}
+                              onClick={() => setStatSeason(yr)}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
+                                statSeason === yr
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {yr}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                          {SAMPLE_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setSample(opt.value)}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
+                                sample === opt.value
+                                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Right: Weather + mini wind compass */}
+                    {currentGame?.weather && (
+                      <div className="flex items-center gap-2.5 text-[11px] tabular-nums">
+                        {/* Text stats */}
+                        <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+                          {currentGame.weather.temperature_f != null && (
+                            <span className="font-semibold text-neutral-900 dark:text-white">{currentGame.weather.temperature_f}°F</span>
                           )}
-                        >
-                          {yr}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
-                      {SAMPLE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setSample(opt.value)}
-                          className={cn(
-                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
-                            sample === opt.value
-                              ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                          {currentGame.weather.wind_speed_mph != null && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-medium">{currentGame.weather.wind_speed_mph} mph</span>
+                              {currentGame.weather.wind_impact && (
+                                <span className={cn(
+                                  "font-semibold",
+                                  currentGame.weather.wind_impact === "Blowing Out" ? "text-emerald-600 dark:text-emerald-400" :
+                                  currentGame.weather.wind_impact === "Blowing In" ? "text-red-500 dark:text-red-400" :
+                                  "text-neutral-500"
+                                )}>
+                                  {currentGame.weather.wind_impact}
+                                </span>
+                              )}
+                            </span>
                           )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                          {currentGame.weather.roof_type && currentGame.weather.roof_type !== "Open" && (
+                            <span className="font-medium">{currentGame.weather.roof_type}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3218,13 +3335,13 @@ export function MlbBatterVsPitcher() {
                         )}
                       </div>
                     ) : (
-                      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-x-auto">
-                        <table className="w-full">
+                      <div className="rounded-xl bg-neutral-50/50 dark:bg-neutral-900/80 border border-neutral-200/60 dark:border-neutral-800/50 overflow-x-auto shadow-sm">
+                        <table className="w-full border-separate border-spacing-0">
                           <thead>
                             {/* Lineup status row */}
                             {!matchupLoading && batters.length > 0 && (
-                              <tr className="border-b border-neutral-100 dark:border-neutral-800/40">
-                                <th colSpan={13} className="px-3 py-1.5">
+                              <tr>
+                                <th colSpan={13} className="px-4 py-2 bg-white dark:bg-neutral-900 border-b border-neutral-200/40 dark:border-neutral-800/40">
                                   <div className="flex items-center justify-between">
                                     <span className={cn(
                                       "inline-flex items-center gap-1.5 text-[10px] font-semibold",
@@ -3232,7 +3349,7 @@ export function MlbBatterVsPitcher() {
                                     )}>
                                       {isLineupConfirmed ? (
                                         <>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                           Confirmed
                                         </>
                                       ) : (
@@ -3255,9 +3372,9 @@ export function MlbBatterVsPitcher() {
                               </tr>
                             )}
                             {(() => {
-                              const sThCls = "px-1.5 py-2 text-[10px] uppercase tracking-wide font-semibold text-neutral-500 text-center cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
+                              const sThCls = "px-1.5 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-neutral-400 dark:text-neutral-500 text-center cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
-                                <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200/60 dark:border-neutral-700/30">
+                                <tr className="bg-white dark:bg-neutral-900/60 border-b border-neutral-200/60 dark:border-neutral-700/20">
                                   <th className={cn(sThCls, "text-center pl-3 pr-1 w-8")} onClick={() => handleStdSort("lineup")}>#</th>
                                   <th className={cn(sThCls, "text-left px-2")}>Batter</th>
                                   <th className={sThCls} onClick={() => handleStdSort("ba")}>BA{stdSortIcon("ba")}</th>
@@ -3391,7 +3508,7 @@ export function MlbBatterVsPitcher() {
                                 { label: `Righties (${lineupTotals.rhb})`, data: lineupTotals.righties, extra: null, isFirst: false },
                               ] as const).map((row) => row.data && (
                                 <tr key={row.label} className={cn(
-                                  "bg-neutral-50/80 dark:bg-neutral-800/50",
+                                  "bg-neutral-100/60 dark:bg-neutral-800/40",
                                   row.isFirst ? "border-t-2 border-neutral-300 dark:border-neutral-600" : "border-t border-neutral-200 dark:border-neutral-700"
                                 )}>
                                   <td className="pl-3 pr-1 py-1.5" />
