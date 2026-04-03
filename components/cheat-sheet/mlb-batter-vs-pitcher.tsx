@@ -2694,7 +2694,9 @@ export function MlbBatterVsPitcher() {
       return {
         avg: wavg((s) => s.avg), slg: wavg((s) => s.slg), woba: wavg((s) => s.woba ?? null), iso: wavg((s) => s.iso),
         hr: matched.reduce((sum, s) => sum + s.hrs, 0), ev: wavg((s) => s.avg_ev ?? null), brl: wavg((s) => s.barrel_pct),
-        bbs: totalBBs, k_pct: null, bb_pct: null,
+        bbs: totalBBs,
+        k_pct: wavg((s) => s.k_pct ?? null),
+        bb_pct: wavg((s) => s.bb_pct ?? null),
       };
     }
 
