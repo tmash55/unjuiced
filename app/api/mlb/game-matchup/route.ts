@@ -1868,11 +1868,17 @@ export async function GET(req: NextRequest) {
       if (recentHRs >= 3) hrFactors.push({ label: `${recentHRs} HR in last 60 days`, positive: true });
 
       // HR probability score (0-100)
-      let hrScore = 30; // baseline
+      // When current season PA is low (<50), don't penalize from sparse stats —
+      // only apply bonuses from what we can observe, keep baseline neutral
+      const hasEnoughPA = (batterTraditionalMap.get(p.player_id)?.pa ?? 0) >= 50;
+      let hrScore = hasEnoughPA ? 30 : 40; // higher baseline for small samples
       if (hasPlatoonAdv) hrScore += 8;
-      if (iso != null) hrScore += Math.min(Math.max((iso - 0.120) * 200, -15), 20);
-      if (barrelPct != null) hrScore += Math.min(Math.max((barrelPct - 5) * 2, -10), 15);
-      if (primarySplit?.slg != null) hrScore += Math.min(Math.max((primarySplit.slg - 0.400) * 60, -10), 15);
+      if (iso != null && hasEnoughPA) hrScore += Math.min(Math.max((iso - 0.120) * 200, -15), 20);
+      else if (iso != null && iso >= 0.200) hrScore += 15; // only boost, don't penalize small samples
+      if (barrelPct != null && hasEnoughPA) hrScore += Math.min(Math.max((barrelPct - 5) * 2, -10), 15);
+      else if (barrelPct != null && barrelPct >= 8) hrScore += 10; // only boost
+      if (primarySplit?.slg != null && hasEnoughPA) hrScore += Math.min(Math.max((primarySplit.slg - 0.400) * 60, -10), 15);
+      else if (primarySplit?.slg != null && primarySplit.slg >= 0.500) hrScore += 10; // only boost
       if (h2h && h2h.hrs > 0) hrScore += Math.min(h2h.hrs * 3, 10);
       if (pitcherProfile.hr_per_9 != null && pitcherProfile.hr_per_9 >= 1.2) hrScore += 5;
       hrScore = Math.max(5, Math.min(95, Math.round(hrScore)));

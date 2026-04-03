@@ -629,6 +629,8 @@ export async function GET(req: NextRequest) {
         iso: ptAvg != null && ptSlg != null ? Math.round((ptSlg - ptAvg) * 1000) / 1000 : null,
         batted_balls: ptBBs.length,
         hrs: ptBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
+        k_pct: null,
+        bb_pct: null,
         barrel_pct: computeBarrelPct(ptBBs),
         woba: ptWoba != null ? Math.round(ptWoba * 1000) / 1000 : null,
         avg_ev: ptEV != null ? Math.round(ptEV * 10) / 10 : null,
