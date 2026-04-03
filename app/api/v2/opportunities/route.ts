@@ -31,7 +31,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getPreset } from "@/lib/odds/presets";
 import { americanToImpliedProb, devigMultiple, impliedProbToAmerican } from "@/lib/ev/devig";
-import { redis, parseRedisValue, hashCacheKey, hgetallSafe, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
+import { redis, parseRedisValue, hashCacheKey, hgetallSafe, hgetallPerEvent, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
 
 // ---------------------------------------------------------------------------
 // Types — kept identical to original so frontend stays unchanged
@@ -367,12 +367,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Step 2: Read per-sport pre-computed EVRow data ────────────────────
-    // Strategy: Try pre-built JSON key first (fast single GET), fall back
-    // to HGETALL on the hash if the response key doesn't exist yet.
-    //
-    // New key format: edge:response:{preset}:{sport} → single JSON string
-    // Old key format: edge:{sport}:rows:{preset} → HASH with 1000s of fields
+    // ── Step 2: Read per-sport pre-computed EVRow data via HGETALL ────────
+    // Worker writes EVRow objects to ev:{sport}:rows:{preset} HASH.
+    // We use HGETALL to read all rows from each per-sport hash directly,
+    // avoiding the global ZSET entirely (which has a race condition when
+    // multiple sports write in parallel — DEL+ZADD causes only the last
+    // sport to survive).
     let allOpportunities: Opportunity[] = [];
     let workerDataFound = false;
 
@@ -384,51 +384,25 @@ export async function GET(req: NextRequest) {
           ? ["next_best", "market_average", "pinnacle"]
           : [workerPreset];
 
-        let rows: any[] | null = null;
-        let usedKey = "";
-
+        let allFields: Record<string, string> | null = null;
+        let rowsKey = "";
         for (const presetCandidate of presetCandidates) {
-          // ── Try pre-built response key first (single GET, fast) ──
-          const responseKey = `edge:response:${presetCandidate}:${sport}`;
+          rowsKey = `edge:${sport}:rows:${presetCandidate}`;
           try {
-            const rawResponse = await redis.get<any>(responseKey);
-            if (rawResponse) {
-              const parsed = typeof rawResponse === "string" ? JSON.parse(rawResponse) : rawResponse;
-              // Response key contains an array of EVRow objects (or an object with a rows array)
-              const rowsArray = Array.isArray(parsed) ? parsed : (parsed?.rows ?? parsed?.data ?? null);
-              if (rowsArray && rowsArray.length > 0) {
-                rows = rowsArray;
-                usedKey = responseKey;
-                break;
-              }
-            }
-          } catch (err) {
-            // Silent — fall through to HGETALL
-          }
-
-          // ── Fallback: HGETALL on the hash ──
-          const rowsKey = `edge:${sport}:rows:${presetCandidate}`;
-          try {
-            const allFields = await hgetallSafe(rowsKey);
-            if (allFields && Object.keys(allFields).length > 0) {
-              rows = Object.entries(allFields).map(([seid, rawValue]) => {
-                const row = parseRedisValue<any>(rawValue, `${rowsKey}:${seid}`);
-                return row;
-              }).filter(Boolean);
-              usedKey = rowsKey;
-              break;
-            }
+            // Use per-event hashes (v2) with fallback to single hash (v1)
+            allFields = await hgetallPerEvent(sport, presetCandidate, "edge");
           } catch (err) {
             console.warn(`[opportunities] HGETALL failed for ${sport}/${presetCandidate}:`, err);
+            allFields = null;
           }
+          if (allFields && Object.keys(allFields).length > 0) break;
         }
 
-        const rowCount = rows?.length ?? 0;
-        console.log(`[opportunities] ${sport}: key=${usedKey} rows=${rowCount}`);
-        if (!rows || rowCount === 0) return;
+        if (!allFields || Object.keys(allFields).length === 0) return;
         workerDataFound = true;
 
-        for (const row of rows) {
+        for (const [seid, rawValue] of Object.entries(allFields)) {
+          const row = parseRedisValue<any>(rawValue, `${rowsKey}:${seid}`);
           if (!row) continue;
 
           // Filter out live / already-started games (matches production behavior)

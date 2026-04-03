@@ -225,3 +225,95 @@ export async function hgetallSafe(key: string): Promise<Record<string, string> |
 
   return null;
 }
+
+/**
+ * Fetch edge/EV rows using per-event hashes (v2 architecture).
+ *
+ * Instead of one giant HGETALL on `edge:{sport}:rows:{preset}` (which can be 50MB+),
+ * this reads `active_events:{sport}` then pipelines small HGETALLs on per-event hashes:
+ *   `edge:{sport}:{eventId}:{preset}`
+ *
+ * Falls back to the old single-hash format if no per-event keys exist (transition period).
+ *
+ * Returns the same Record<seid, jsonString> that hgetallSafe returns.
+ */
+export async function hgetallPerEvent(
+  sport: string,
+  preset: string,
+  keyPrefix: "edge" | "ev" = "edge"
+): Promise<Record<string, string> | null> {
+  // Step 1: Get active event IDs
+  const eventIds = await runRedisCommandSafe(["SMEMBERS", `active_events:${sport}`]) as string[] | null;
+  if (!eventIds || eventIds.length === 0) {
+    // Fallback to old single-hash format
+    return hgetallSafe(`${keyPrefix}:${sport}:rows:${preset}`);
+  }
+
+  // Step 2: Pipeline HGETALL on per-event hashes
+  const pipelineUrl = `${endpointUrl}/pipeline`;
+  const commands = eventIds.map((eid) => [
+    "HGETALL",
+    `${keyPrefix}:${sport}:${eid}:${preset}`,
+  ]);
+
+  // Chunk into batches of 20 to avoid oversized requests
+  const BATCH_SIZE = 20;
+  const merged: Record<string, string> = {};
+  let foundAny = false;
+
+  for (let i = 0; i < commands.length; i += BATCH_SIZE) {
+    const batch = commands.slice(i, i + BATCH_SIZE);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort("pipeline_timeout"), 15000);
+
+    try {
+      const res = await fetch(pipelineUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${endpointToken}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        signal: controller.signal,
+        body: JSON.stringify(batch),
+      });
+
+      if (!res.ok) {
+        console.warn(`[redis] hgetallPerEvent pipeline HTTP ${res.status} for ${sport}/${preset}`);
+        continue;
+      }
+
+      const results = await res.json();
+      if (!Array.isArray(results)) continue;
+
+      for (const item of results) {
+        const result = item?.result;
+        if (!result) continue;
+
+        if (typeof result === "object" && !Array.isArray(result)) {
+          for (const [field, value] of Object.entries(result)) {
+            merged[field] = value as string;
+            foundAny = true;
+          }
+        } else if (Array.isArray(result) && result.length >= 2) {
+          for (let j = 0; j < result.length; j += 2) {
+            merged[result[j]] = result[j + 1];
+            foundAny = true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[redis] hgetallPerEvent pipeline failed for ${sport}/${preset} batch ${i}`, err);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  if (foundAny) {
+    return merged;
+  }
+
+  // Fallback: no per-event keys found, try old single-hash format
+  console.log(`[redis] hgetallPerEvent: no per-event data for ${sport}/${preset}, falling back to single hash`);
+  return hgetallSafe(`${keyPrefix}:${sport}:rows:${preset}`);
+}

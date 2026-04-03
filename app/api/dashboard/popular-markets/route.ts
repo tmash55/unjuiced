@@ -28,7 +28,7 @@
 export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
-import { redis, parseRedisValue, hgetallSafe } from "@/lib/shared-redis-client";
+import { redis, parseRedisValue, hgetallSafe, hgetallPerEvent } from "@/lib/shared-redis-client";
 import { getMarketDisplay, normalizeRawMarket } from "@/lib/odds/types";
 import { impliedProbToAmerican } from "@/lib/ev/devig";
 
@@ -364,7 +364,7 @@ export async function GET(req: NextRequest) {
 
           const edgeKey = `edge:${sport}:rows:${EDGE_PRESET}`;
           try {
-            const allFields = await hgetallSafe(edgeKey);
+            const allFields = await hgetallPerEvent(sport, EDGE_PRESET, "edge");
             processRows(allFields, sport, "edge");
           } catch (err) {
             console.warn(`[dashboard/popular-markets] Failed edge for ${sport}:`, err);
