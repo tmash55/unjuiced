@@ -322,7 +322,7 @@ export function GameScoreboard({
     }
     for (const [, group] of groups) {
       if (group.length < 2) continue;
-      group.sort((a, b) => (a.game_status || "").localeCompare(b.game_status || "") || Number(a.game_id) - Number(b.game_id));
+      group.sort((a, b) => Number(a.game_id) - Number(b.game_id));
       group.forEach((g, i) => map.set(g.game_id, `Game ${i + 1}`));
     }
     return map;
