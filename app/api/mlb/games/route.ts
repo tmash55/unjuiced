@@ -80,6 +80,8 @@ function toGameRow(row: any) {
     neutral_site: false,
     season_type: row.game_type ?? null,
     odds_game_id: row.odds_game_id ?? null,
+    home_team_record: null as string | null,
+    away_team_record: null as string | null,
     // Enriched below
     weather: null as {
       temperature_f: number | null;
@@ -164,12 +166,14 @@ export async function GET() {
       away_name,
       home_score,
       away_score,
+      home_id,
+      away_id,
       venue_id,
       odds_game_id,
       home_probable_pitcher,
       away_probable_pitcher,
-      home_team:mlb_teams!mlb_games_home_id_fkey (abbreviation),
-      away_team:mlb_teams!mlb_games_away_id_fkey (abbreviation)
+      home_team:mlb_teams!mlb_games_home_id_fkey (abbreviation, team_id),
+      away_team:mlb_teams!mlb_games_away_id_fkey (abbreviation, team_id)
     `;
 
     // Fetch today + next 2 days to always show today's games plus tomorrow
@@ -213,6 +217,61 @@ export async function GET() {
     const normalized = allGames.map(toGameRow);
     const sortedGames = sortGamesByDateTime(normalized);
     const dates = [...new Set(sortedGames.map((g) => g.game_date))];
+
+    // Compute team records (W-L) from final games this season
+    try {
+      const currentYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric" }).format(new Date()));
+      const seasonStart = `${currentYear}-01-01`;
+      const { data: finalGames } = await supabase
+        .from("mlb_games")
+        .select("home_id, away_id, home_score, away_score, status_detailed_state")
+        .gte("game_date", seasonStart)
+        .eq("game_type", "R")
+        .or("status_detailed_state.ilike.%final%,status.ilike.%final%");
+
+      if (finalGames && finalGames.length > 0) {
+        const records = new Map<number, { wins: number; losses: number }>();
+        const ensureRecord = (id: number) => {
+          if (!records.has(id)) records.set(id, { wins: 0, losses: 0 });
+          return records.get(id)!;
+        };
+        for (const fg of finalGames) {
+          if (fg.home_score == null || fg.away_score == null) continue;
+          const homeRec = ensureRecord(fg.home_id);
+          const awayRec = ensureRecord(fg.away_id);
+          if (fg.home_score > fg.away_score) {
+            homeRec.wins++;
+            awayRec.losses++;
+          } else if (fg.away_score > fg.home_score) {
+            awayRec.wins++;
+            homeRec.losses++;
+          }
+        }
+
+        // Build team_id->abbreviation map from our games
+        const idToAbbr = new Map<number, string>();
+        for (const g of allGames as any[]) {
+          const ht = g.home_team;
+          const at = g.away_team;
+          const homeAbbr = Array.isArray(ht) ? ht[0]?.abbreviation : ht?.abbreviation;
+          const awayAbbr = Array.isArray(at) ? at[0]?.abbreviation : at?.abbreviation;
+          if (g.home_id && homeAbbr) idToAbbr.set(g.home_id, homeAbbr);
+          if (g.away_id && awayAbbr) idToAbbr.set(g.away_id, awayAbbr);
+        }
+        const abbrToRecord = new Map<string, string>();
+        for (const [id, rec] of records) {
+          const abbr = idToAbbr.get(id);
+          if (abbr) abbrToRecord.set(abbr, `${rec.wins}-${rec.losses}`);
+        }
+
+        for (const g of sortedGames) {
+          (g as any).home_team_record = abbrToRecord.get(g.home_team_tricode) ?? null;
+          (g as any).away_team_record = abbrToRecord.get(g.away_team_tricode) ?? null;
+        }
+      }
+    } catch (recordErr) {
+      console.error("[/api/mlb/games] Team records enrichment error:", recordErr);
+    }
 
     // Enrich with weather + park factors (best-effort, don't block on failure)
     try {

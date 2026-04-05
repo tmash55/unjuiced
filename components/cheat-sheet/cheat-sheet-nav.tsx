@@ -12,11 +12,15 @@ import {
   Trophy,
   Medal,
   CloudSun,
-  Zap,
-  Target,
   ShieldOff,
-  Crosshair,
 } from "lucide-react";
+import {
+  IconScoreboard,
+  IconRadar,
+  IconShieldOff,
+  IconBolt,
+  IconChartBarPopular,
+} from "@tabler/icons-react";
 import Chart from "@/icons/chart";
 
 interface CheatSheetTab {
@@ -84,42 +88,42 @@ const NBA_TABS: CheatSheetTab[] = [
 
 const MLB_TABS: CheatSheetTab[] = [
   {
-    slug: "hit-rates",
-    label: "Hit Rates",
-    shortLabel: "Hit Rates",
-    icon: Chart,
-    href: "/hit-rates/mlb",
-    comingSoon: true,
+    slug: "game-center",
+    label: "Game Center",
+    shortLabel: "Game Center",
+    icon: IconScoreboard,
   },
   {
-    slug: "slate-insights",
-    label: "Slate Insights",
-    shortLabel: "Slate",
-    icon: BarChart3,
-  },
-  {
-    slug: "hr-command-center",
-    label: "HR Command Center",
-    shortLabel: "HR Center",
-    icon: Target,
+    slug: "prop-command-center",
+    label: "Prop Center",
+    shortLabel: "Props",
+    icon: IconRadar,
   },
   {
     slug: "nrfi",
     label: "NRFI",
     shortLabel: "NRFI",
-    icon: ShieldOff,
+    icon: IconShieldOff,
   },
   {
     slug: "exit-velocity",
     label: "Exit Velocity",
     shortLabel: "Exit Velo",
-    icon: Zap,
+    icon: IconBolt,
   },
   {
     slug: "weather-report",
     label: "Weather Report",
     shortLabel: "Weather",
     icon: CloudSun,
+  },
+  {
+    slug: "hit-rates",
+    label: "Hit Rates",
+    shortLabel: "Hit Rates",
+    icon: IconChartBarPopular,
+    href: "/hit-rates/mlb",
+    comingSoon: true,
   },
 ];
 

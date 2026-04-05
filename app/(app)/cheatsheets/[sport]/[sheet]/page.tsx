@@ -39,7 +39,10 @@ import { MlbBatterVsPitcher } from "@/components/cheat-sheet/mlb-batter-vs-pitch
 import { SlateInsightsTour, TourTrigger as SlateInsightsTourTrigger } from "@/components/cheat-sheet/slate-insights-tour";
 import { MlbIndividualMatchup } from "@/components/cheat-sheet/mlb-individual-matchup";
 import { MlbNrfiSheet } from "@/components/mlb/nrfi/nrfi-sheet";
+import { MlbPitcherWeakness } from "@/components/cheat-sheet/mlb-pitcher-weakness";
 import { MlbHRCommandCenter } from "@/components/cheat-sheet/mlb-hr-command-center";
+import { GameCenterPage } from "@/components/game-center/game-center-page";
+import { MlbPropCommandCenter } from "@/components/cheat-sheet/mlb-prop-command-center";
 import { HRCommandCenterTour, HRCommandCenterTourTrigger, NRFITour, NRFITourTrigger, ExitVelocityTour, ExitVelocityTourTrigger, WeatherReportTour, WeatherReportTourTrigger } from "@/components/cheat-sheet/mlb-tours";
 
 // Gating constants
@@ -170,7 +173,7 @@ function MobileUpgradeBanner() {
 }
 
 const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet", "slate-insights", "weather-report", "exit-velocity", "nrfi", "hr-command-center", "batter-vs-pitcher"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet", "slate-insights", "weather-report", "exit-velocity", "nrfi", "hr-command-center", "batter-vs-pitcher", "pitcher-weakness", "game-center", "prop-command-center"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -229,6 +232,18 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
     title: "Batter vs Pitcher",
     description: "Head-to-head batter vs pitcher matchup analysis",
   },
+  "pitcher-weakness": {
+    title: "Pitcher Weakness",
+    description: "Pitcher vulnerability analysis by batting order and inning with edge scores",
+  },
+  "game-center": {
+    title: "Game Center",
+    description: "Unified game hub — Slate Insights + Pitcher Weakness in one view",
+  },
+  "prop-command-center": {
+    title: "Prop Center",
+    description: "Universal prop scoring engine — composite scores, factor breakdowns, and odds across 7 markets",
+  },
 };
 
 export default function CheatSheetPage({ 
@@ -270,6 +285,15 @@ export default function CheatSheetPage({
   }
   if (sport === "mlb" && sheet === "hr-command-center") {
     return <MlbHRCommandCenterPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "pitcher-weakness") {
+    return <MlbPitcherWeaknessPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "game-center") {
+    return <MlbGameCenterPage sport={sport} sheet={sheet} />;
+  }
+  if (sport === "mlb" && sheet === "prop-command-center") {
+    return <MlbPropCommandCenterPage sport={sport} sheet={sheet} />;
   }
 
   // NBA / shared sheet routing
@@ -412,6 +436,57 @@ function MlbHRCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet
         <MlbHRCommandCenter />
       </MlbGatedSection>
       <HRCommandCenterTour />
+    </AppPageLayout>
+  );
+}
+
+function MlbPitcherWeaknessPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbGatedSection sheet={sheet} title="Pitcher Weakness" subtitle="Pitcher vulnerability analysis with batting order splits, inning heatmaps, and edge scores." previewHeight="450px">
+        <MlbPitcherWeakness />
+      </MlbGatedSection>
+    </AppPageLayout>
+  );
+}
+
+function MlbGameCenterPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbGatedSection sheet={sheet} title="Game Center" subtitle="Unified game hub with Slate Insights and Pitcher Weakness in one view." previewHeight="600px">
+        <GameCenterPage />
+      </MlbGatedSection>
+    </AppPageLayout>
+  );
+}
+
+function MlbPropCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
+      stickyContextBar
+    >
+      <MlbGatedSection sheet={sheet} title="Prop Center" subtitle="Universal prop scoring engine with composite scores, factor breakdowns, and odds comparison across 7 markets." previewHeight="600px">
+        <MlbPropCommandCenter />
+      </MlbGatedSection>
     </AppPageLayout>
   );
 }

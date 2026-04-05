@@ -224,17 +224,17 @@ function fmtStat(val: number | null, digits = 2): string {
 // 5-tier: strong green → light green → neutral → light red → strong red
 // Works on both light and dark mode via opacity-based backgrounds
 
-const STAT_GREEN = "text-[#16A34A] dark:text-[#4ADE80]";
-const STAT_AMBER = "text-[#CA8A04] dark:text-[#FACC15]";
-const STAT_RED   = "text-[#FC1414] dark:text-[#FC5555]";
+const STAT_GREEN = "text-[#22C55E] dark:text-[#4ADE80]";
+const STAT_AMBER = "text-[#EAB308] dark:text-[#FACC15]";
+const STAT_RED   = "text-[#EF4444] dark:text-[#F87171]";
 
 // Cell background + text combos for heatmap-style cells
-// White text on colored bg — matches competitor's high-contrast heatmap style
-const CELL_STRONG_GREEN = "bg-[#16A34A]/30 dark:bg-[#22C55E]/30 text-[#15803D] dark:text-white";
-const CELL_LIGHT_GREEN  = "bg-[#16A34A]/15 dark:bg-[#22C55E]/18 text-[#15803D] dark:text-white/90";
+// Vivid solid colors on dark, opacity-based on light — high contrast for scanning
+const CELL_STRONG_GREEN = "bg-emerald-100 dark:bg-emerald-500/50 text-emerald-800 dark:text-white font-bold";
+const CELL_LIGHT_GREEN  = "bg-emerald-50 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300";
 const CELL_NEUTRAL      = "text-neutral-700 dark:text-neutral-300";
-const CELL_LIGHT_RED    = "bg-[#FC1414]/15 dark:bg-[#FC1414]/20 text-[#FC1414] dark:text-white/90";
-const CELL_STRONG_RED   = "bg-[#FC1414]/25 dark:bg-[#FC1414]/35 text-[#FC1414] dark:text-white";
+const CELL_LIGHT_RED    = "bg-red-50 dark:bg-red-500/25 text-red-600 dark:text-red-300";
+const CELL_STRONG_RED   = "bg-red-100 dark:bg-red-500/50 text-red-800 dark:text-white font-bold";
 
 /** 5-tier cell style: returns bg + text classes for heatmap cells. Higher = good by default. */
 function statCell(
@@ -323,9 +323,9 @@ function barrelTextColor(val: number | null): string {
 function heatBg(val: number | null, thresholds: { green: number; yellow: number; red: number; higher: "good" | "bad" }, intense = false): string {
   if (val == null) return "";
   const isHighGood = thresholds.higher === "good";
-  const g = intense ? "bg-[#16A34A]/25" : "bg-[#16A34A]/12";
-  const y = intense ? "bg-[#CA8A04]/20" : "bg-[#CA8A04]/10";
-  const r = intense ? "bg-[#FC1414]/25" : "bg-[#FC1414]/12";
+  const g = intense ? "bg-emerald-100 dark:bg-emerald-500/40" : "bg-emerald-50 dark:bg-emerald-500/20";
+  const y = intense ? "bg-amber-100 dark:bg-amber-500/35" : "bg-amber-50 dark:bg-amber-500/18";
+  const r = intense ? "bg-red-100 dark:bg-red-500/40" : "bg-red-50 dark:bg-red-500/20";
   if (isHighGood) {
     if (val >= thresholds.green) return g;
     if (val >= thresholds.yellow) return y;
@@ -405,18 +405,18 @@ function gradeBadge(grade: "strong" | "neutral" | "weak", hrScore?: number | nul
   // Map to letter grades using matchup grade + HR score for granularity
   const score = hrScore ?? 50;
   if (grade === "strong") {
-    if (score >= 75) return { label: "A+", text: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/15" };
-    if (score >= 65) return { label: "A", text: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/15" };
-    return { label: "B+", text: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/8 dark:bg-emerald-500/10" };
+    if (score >= 75) return { label: "A+", text: "text-[#22C55E] dark:text-[#4ADE80]", bg: "bg-[#22C55E]/15 dark:bg-[#22C55E]/20" };
+    if (score >= 65) return { label: "A", text: "text-[#22C55E] dark:text-[#4ADE80]", bg: "bg-[#22C55E]/12 dark:bg-[#22C55E]/18" };
+    return { label: "B+", text: "text-[#22C55E] dark:text-[#4ADE80]", bg: "bg-[#22C55E]/10 dark:bg-[#22C55E]/15" };
   }
   if (grade === "weak") {
-    if (score <= 30) return { label: "D", text: "text-red-500 dark:text-red-400", bg: "bg-red-500/10 dark:bg-red-500/15" };
-    return { label: "C-", text: "text-red-400 dark:text-red-400", bg: "bg-red-500/8 dark:bg-red-500/10" };
+    if (score <= 30) return { label: "D", text: "text-[#EF4444] dark:text-[#F87171]", bg: "bg-[#EF4444]/15 dark:bg-[#EF4444]/20" };
+    return { label: "C-", text: "text-[#EF4444] dark:text-[#F87171]", bg: "bg-[#EF4444]/12 dark:bg-[#EF4444]/18" };
   }
   // neutral
-  if (score >= 60) return { label: "B", text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/8 dark:bg-amber-500/10" };
-  if (score >= 45) return { label: "C+", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/8 dark:bg-neutral-500/10" };
-  return { label: "C", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/8 dark:bg-neutral-500/10" };
+  if (score >= 60) return { label: "B", text: "text-[#EAB308] dark:text-[#FACC15]", bg: "bg-[#EAB308]/12 dark:bg-[#EAB308]/18" };
+  if (score >= 45) return { label: "C+", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/10 dark:bg-neutral-500/12" };
+  return { label: "C", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/10 dark:bg-neutral-500/12" };
 }
 
 // ── Game List Row ────────────────────────────────────────────────────────────
@@ -2569,20 +2569,44 @@ function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatch
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function MlbBatterVsPitcher() {
-  const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
-  const [battingSide, setBattingSide] = useState<"home" | "away">("away");
-  const [sample, setSample] = useState<"season" | "30" | "15" | "7">("season");
+export interface MlbBatterVsPitcherProps {
+  externalGameId?: number | null;
+  externalSeason?: number;
+  externalSample?: "season" | "30" | "15" | "7";
+  externalBattingSide?: "home" | "away";
+  embedded?: boolean;
+}
+
+export function MlbBatterVsPitcher({
+  externalGameId,
+  externalSeason,
+  externalSample,
+  externalBattingSide,
+  embedded = false,
+}: MlbBatterVsPitcherProps = {}) {
+  const [internalGameId, setInternalGameId] = useState<number | null>(null);
+  const [internalBattingSide, setInternalBattingSide] = useState<"home" | "away">("away");
+  const [internalSample, setInternalSample] = useState<"season" | "30" | "15" | "7">("season");
   const [expandedBatterId, setExpandedBatterId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"standard" | "comparison">("standard");
   const [pitchFilters, setPitchFilters] = useState<string[]>([]); // empty = "All Pitches"
   const [handFilter, setHandFilter] = useState<"all" | "rhp" | "lhp">("all"); // auto-defaults to pitcher's hand
   const [handAutoSet, setHandAutoSet] = useState(false); // tracks if hand filter was auto-set
-  const [statSeason, setStatSeason] = useState<number>(() => {
+  const [internalSeason, setInternalSeason] = useState<number>(() => {
     // Default to current year from April onwards, prior year otherwise
     const now = new Date();
     return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   });
+
+  // Use external values when provided, fall back to internal state
+  const selectedGameId = externalGameId ?? internalGameId;
+  const setSelectedGameId = (id: number | null) => { if (!embedded) setInternalGameId(id); };
+  const battingSide = externalBattingSide ?? internalBattingSide;
+  const setBattingSide = (side: "home" | "away") => { if (!embedded) setInternalBattingSide(side); };
+  const sample = externalSample ?? internalSample;
+  const setSample = (s: "season" | "30" | "15" | "7") => { if (!embedded) setInternalSample(s); };
+  const statSeason = externalSeason ?? internalSeason;
+  const setStatSeason = (s: number) => { if (!embedded) setInternalSeason(s); };
   const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
   const [stdSortAsc, setStdSortAsc] = useState(true);
   const [showBench, setShowBench] = useState(false);
@@ -2606,7 +2630,7 @@ export function MlbBatterVsPitcher() {
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess: hasSharpAccess } = useHasSharpAccess();
-  const { games, isLoading: gamesLoading } = useMlbGames();
+  const { games, isLoading: gamesLoading } = useMlbGames(!embedded);
 
   // Filter out finished games — users only care about upcoming/live
   const activeGames = useMemo(() =>
@@ -2617,12 +2641,12 @@ export function MlbBatterVsPitcher() {
     [games]
   );
 
-  // Auto-select first upcoming game
+  // Auto-select first upcoming game (only in standalone mode)
   useEffect(() => {
-    if (activeGames.length > 0 && selectedGameId == null) {
+    if (!embedded && activeGames.length > 0 && selectedGameId == null) {
       setSelectedGameId(Number(activeGames[0].game_id));
     }
-  }, [activeGames, selectedGameId]);
+  }, [activeGames, selectedGameId, embedded]);
 
   // Reset expanded batter and filters when changing game/side
   useEffect(() => {
@@ -2800,19 +2824,19 @@ export function MlbBatterVsPitcher() {
 
   return (
     <div className="space-y-3">
-      {gamesLoading ? (
+      {!embedded && gamesLoading ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-12 text-center">
             <Loader2 className="w-5 h-5 animate-spin mx-auto text-neutral-400 mb-2" />
             <p className="text-sm text-neutral-500">Loading games...</p>
           </div>
-        ) : activeGames.length === 0 ? (
+        ) : !embedded && activeGames.length === 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-12 text-center">
             <p className="text-sm text-neutral-500">{games.length > 0 ? "All games have finished" : "No games scheduled today"}</p>
           </div>
         ) : (
           <>
-            {/* ── Section A: Game Selector ── */}
-            {isMobile ? (
+            {/* ── Section A: Game Selector (hidden in embedded mode) ── */}
+            {!embedded && (isMobile ? (
               /* Mobile: dropdown game selector */
               <MobileGameSelector
                 games={activeGames}
@@ -2860,10 +2884,10 @@ export function MlbBatterVsPitcher() {
                   })()}
                 </div>
               </div>
-            )}
+            ))}
 
-            {/* ── Section B: Team Toggle + Context + Filters ── */}
-            {game && (
+            {/* ── Section B: Team Toggle + Context + Filters (hidden in embedded mode) ── */}
+            {!embedded && game && (
               <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
                 {/* Row 1: Team toggle + summary stats */}
                 <div className={cn(

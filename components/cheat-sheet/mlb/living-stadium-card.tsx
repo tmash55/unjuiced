@@ -200,7 +200,27 @@ function keyDrivers(row: MlbWeatherReportRow): string[] {
   return drivers.slice(0, 3);
 }
 
-export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
+export function LivingStadiumCard({ row, windOverride }: {
+  row: MlbWeatherReportRow;
+  /** Override wind + weather data (e.g., from hourly forecast timeline) */
+  windOverride?: {
+    windSpeedMph: number;
+    windRelativeDeg: number;
+    windLabel: string;
+    cloudCoverPct?: number | null;
+    precipProbability?: number | null;
+  } | null;
+}) {
+  // Use override if provided, otherwise fall back to row-level data
+  const effectiveRow = windOverride ? {
+    ...row,
+    windSpeedMph: windOverride.windSpeedMph,
+    windRelativeDeg: windOverride.windRelativeDeg,
+    windLabel: windOverride.windLabel,
+    cloudCoverPct: windOverride.cloudCoverPct ?? row.cloudCoverPct,
+    precipProbability: windOverride.precipProbability ?? row.precipProbability,
+  } : row;
+  const _row = effectiveRow;
   const cardId = `living-stadium-${row.gameId}`;
   const outfieldRaw = toPoints(row.stadiumGeometry?.outfieldOuter ?? []);
   const infieldRaw = toPoints(row.stadiumGeometry?.infieldOuter ?? []);
@@ -247,8 +267,8 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const minWallHeight = numericWallHeights.length > 0 ? Math.min(...numericWallHeights) : 0;
   const maxWallHeight = numericWallHeights.length > 0 ? Math.max(...numericWallHeights) : 0;
 
-  const windSpeed = Number(row.windSpeedMph ?? 0);
-  const windVector = polarVector(Number(row.windRelativeDeg ?? 0));
+  const windSpeed = Number(_row.windSpeedMph ?? 0);
+  const windVector = polarVector(Number(_row.windRelativeDeg ?? 0));
   const homePoint =
     normalizedPlate.length > 0
       ? normalizedPlate.reduce(
@@ -355,7 +375,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const heatEndX = homeX + windVector.x * 130;
   const heatEndY = homeY + windVector.y * 130;
   const windFlowDuration = `${clamp(6 - windSpeed * 0.15, 1.8, 5.5)}s`;
-  const windFlowRotationDeg = Number(row.windRelativeDeg ?? 0) - 90;
+  const windFlowRotationDeg = Number(_row.windRelativeDeg ?? 0) - 90;
   const windShiftPx = 80 + clamp(windSpeed, 0, 24) * 6;
   const windOpacity = clamp(0.25 + windSpeed / 35, 0.3, 0.85);
   const windCompassCx = VIEWBOX_WIDTH - 40;
@@ -363,8 +383,8 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const windCompassR = 19;
   const wxIconCx = 40;
   const wxIconCy = 38;
-  const wxCloudCover = row.cloudCoverPct ?? 50;
-  const wxPrecip = row.precipProbability ?? 0;
+  const wxCloudCover = _row.cloudCoverPct ?? 50;
+  const wxPrecip = _row.precipProbability ?? 0;
   const wxIsRainy = wxPrecip > 25;
   const wxIsCloudy = wxCloudCover > 65 && !wxIsRainy;
   const wxIsPartly = wxCloudCover > 30 && !wxIsCloudy && !wxIsRainy;
@@ -834,13 +854,13 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
           </div>
         </div>
 
+
         {/* Full-width weather pills */}
         <div className="border-t border-neutral-200/40 dark:border-white/[0.06]">
           <div className="px-3 pt-2">
             <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-neutral-500 dark:text-white/35">Game Conditions</p>
           </div>
           <div className="px-3 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Temp */}
             <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
               <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <Thermometer className="h-3 w-3 shrink-0" /> Temp
@@ -850,22 +870,18 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 {row.feelsLikeF != null ? `Feels ${formatNumber(row.feelsLikeF, 0)}°` : "\u00A0"}
               </p>
             </div>
-
-            {/* Wind */}
             <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
               <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <Wind className="h-3 w-3 shrink-0" /> Wind
               </p>
               <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none tabular-nums">
-                {formatNumber(row.windSpeedMph, 0)}
+                {formatNumber(_row.windSpeedMph, 0)}
                 <span className="text-xs font-medium text-neutral-400 dark:text-white/50 ml-1">mph</span>
               </p>
               <p className="text-[10px] text-sky-700 dark:text-sky-300/70 mt-1.5 truncate">
-                {row.windLabel || (row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0")}
+                {_row.windLabel || (_row.windGustMph != null ? `gusts ${formatNumber(_row.windGustMph, 0)} mph` : "\u00A0")}
               </p>
             </div>
-
-            {/* Rain */}
             <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
               <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <CloudRain className="h-3 w-3 shrink-0" /> Rain
@@ -877,8 +893,6 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 {row.cloudCoverPct != null ? `${Math.round(row.cloudCoverPct)}% cloud cover` : "\u00A0"}
               </p>
             </div>
-
-            {/* Venue */}
             <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
               <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2">Venue</p>
               <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none truncate">{row.roofType || "—"}</p>
