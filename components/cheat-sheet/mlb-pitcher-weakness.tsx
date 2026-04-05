@@ -1230,8 +1230,8 @@ function MatchupCard({
   const edgeSpots = useMemo(() => {
     const spots = new Set<number>();
     for (let i = 1; i <= 9; i++) {
-      const pitcherSplit = pitcher.batting_order_splits.find((s) => s.slot === `b${i}`);
-      const batter = lineup.find((b) => b.batting_order === i);
+      const pitcherSplit = pitcher.batting_order_splits.find((s: any) => s.slot === `b${i}`);
+      const batter = lineup.find((b: any) => b.batting_order === i);
       const pitcherSlg = pitcherSplit?.slg ?? null;
       const batterSlg = batter?.spot_stats?.slg ?? null;
       if (isPitcherRowGreen(pitcherSlg) && isBatterRowGreen(batterSlg)) {
