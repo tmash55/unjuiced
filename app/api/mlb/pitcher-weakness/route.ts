@@ -161,8 +161,22 @@ export async function GET(req: NextRequest) {
     const homePitcherId = game.home_probable_pitcher_id;
     const awayPitcherId = game.away_probable_pitcher_id;
 
-    // ── 2. Parallel queries ──────────────────────────────────────────────
+    // ── 2. Fetch pitcher handedness ───────────────────────────────────────
     const pitcherIds = [homePitcherId, awayPitcherId].filter(Boolean) as number[];
+
+    // Look up pitcher hand from player data
+    const pitcherHandMap = new Map<number, string>();
+    if (pitcherIds.length > 0) {
+      const { data: playerRows } = await supabase
+        .from("mlb_players_hr")
+        .select("mlb_player_id, throws")
+        .in("mlb_player_id", pitcherIds);
+      for (const row of playerRows ?? []) {
+        if (row.throws) pitcherHandMap.set(row.mlb_player_id, row.throws);
+      }
+    }
+
+    // ── 3. Parallel queries ──────────────────────────────────────────────
 
     const [splitsResult, lineupResult, batterSplitsResult] = await Promise.all([
       // Pitcher splits (batting_order + inning) for both pitchers
@@ -225,9 +239,8 @@ export async function GET(req: NextRequest) {
       // Estimate GS from inning splits (count of innings with data)
       totalGS = inningRows.filter((r: any) => r.split_code === "i01" && Number(r.plate_appearances ?? 0) > 0).length || 0;
 
-      // Determine hand from the game data
-      // We don't have hand in splits — use a placeholder, the frontend can override from game data
-      const hand = "R"; // Will be enriched if we have more data
+      // Look up pitcher hand from player data
+      const hand = pitcherHandMap.get(pitcherId) ?? "R";
 
       return {
         player_id: pitcherId,
