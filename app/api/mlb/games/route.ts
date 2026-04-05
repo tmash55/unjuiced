@@ -48,8 +48,11 @@ function formatScheduledStatus(gameDateTime: string | null): string {
 function getDisplayStatus(statusDetailed: string | null, gameDateTime: string | null): string {
   const status = statusDetailed?.toLowerCase() ?? "";
   if (status.includes("final")) return "Final";
+  if (status.includes("delayed")) return statusDetailed || "Delayed";
+  if (status.includes("suspended")) return statusDetailed || "Suspended";
+  if (status.includes("postponed")) return "Postponed";
   if (status.includes("in progress") || status.includes("manager challenge")) {
-    return statusDetailed || "In Progress";
+    return "In Progress";
   }
   return formatScheduledStatus(gameDateTime);
 }
