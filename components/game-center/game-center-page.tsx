@@ -38,6 +38,27 @@ const SAMPLE_OPTIONS: { label: string; value: GameCenterSample; shortLabel: stri
   { value: "7", label: "Last 7", shortLabel: "7" },
 ];
 
+// ── Doubleheader Detection ───────────────────────────────────────────────────
+
+/** Build a map of game_id → "Gm 1" | "Gm 2" for doubleheader games */
+function buildDoubleheaderMap(games: MlbGame[]): Map<string, string> {
+  const map = new Map<string, string>();
+  // Group by date + matchup (sorted tricodes to handle home/away)
+  const groups = new Map<string, MlbGame[]>();
+  for (const g of games) {
+    const key = `${g.game_date}:${[g.away_team_tricode, g.home_team_tricode].sort().join("-")}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(g);
+  }
+  for (const [, group] of groups) {
+    if (group.length < 2) continue;
+    // Sort by game time/id to determine Gm 1 vs Gm 2
+    group.sort((a, b) => (a.game_status || "").localeCompare(b.game_status || "") || Number(a.game_id) - Number(b.game_id));
+    group.forEach((g, i) => map.set(g.game_id, `Gm ${i + 1}`));
+  }
+  return map;
+}
+
 // ── Game Switcher Dropdown ───────────────────────────────────────────────────
 
 function lastNameOnly(name: string | null): string {
@@ -57,6 +78,7 @@ function GameSwitcher({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const dhMap = useMemo(() => buildDoubleheaderMap(games), [games]);
 
   // Click outside to close
   useEffect(() => {
@@ -83,7 +105,12 @@ function GameSwitcher({
         {selected && (
           <>
             <img src={`/team-logos/mlb/${selected.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
-            <span className="text-xs font-semibold">{selected.away_team_tricode} @ {selected.home_team_tricode}</span>
+            <span className="text-xs font-semibold">
+              {selected.away_team_tricode} @ {selected.home_team_tricode}
+              {dhMap.get(selected.game_id) && (
+                <span className="ml-1 text-[9px] text-brand font-bold">({dhMap.get(selected.game_id)})</span>
+              )}
+            </span>
             <img src={`/team-logos/mlb/${selected.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
           </>
         )}
@@ -130,6 +157,9 @@ function GameSwitcher({
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-semibold text-neutral-900 dark:text-white">
                         {g.away_team_tricode} @ {g.home_team_tricode}
+                        {dhMap.get(g.game_id) && (
+                          <span className="ml-1 text-[9px] text-brand font-bold">({dhMap.get(g.game_id)})</span>
+                        )}
                       </div>
                       <div className="text-[10px] text-neutral-500 truncate">
                         {lastNameOnly(g.away_probable_pitcher)} vs {lastNameOnly(g.home_probable_pitcher)}

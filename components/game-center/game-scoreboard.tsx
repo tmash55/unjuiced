@@ -55,10 +55,12 @@ function ScoreboardCard({
   game,
   onClick,
   isMobile,
+  dhLabel,
 }: {
   game: MlbGame;
   onClick: () => void;
   isMobile: boolean;
+  dhLabel?: string;
 }) {
   const w = game.weather;
   const odds = game.odds;
@@ -91,6 +93,9 @@ function ScoreboardCard({
               </div>
             </div>
             <div className="flex flex-col items-center px-3 shrink-0">
+              {dhLabel && (
+                <span className="text-[8px] font-bold text-brand uppercase tracking-wider mb-0.5">{dhLabel}</span>
+              )}
               {isFinal ? (
                 <div className="flex items-center gap-2.5">
                   <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
@@ -170,6 +175,9 @@ function ScoreboardCard({
 
           {/* Center divider + time/score */}
           <div className="flex flex-col items-center px-6 shrink-0">
+            {dhLabel && (
+              <span className="text-[9px] font-bold text-brand uppercase tracking-wider mb-0.5">{dhLabel}</span>
+            )}
             {isFinal ? (
               <div className="flex items-center gap-3">
                 <span className="text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
@@ -295,6 +303,23 @@ export function GameScoreboard({
     [games]
   );
 
+  // Detect doubleheaders
+  const dhMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groups = new Map<string, MlbGame[]>();
+    for (const g of visibleGames) {
+      const key = `${g.game_date}:${[g.away_team_tricode, g.home_team_tricode].sort().join("-")}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(g);
+    }
+    for (const [, group] of groups) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => (a.game_status || "").localeCompare(b.game_status || "") || Number(a.game_id) - Number(b.game_id));
+      group.forEach((g, i) => map.set(g.game_id, `Game ${i + 1}`));
+    }
+    return map;
+  }, [visibleGames]);
+
   // Group by date
   const grouped = useMemo(() => {
     const groups: { date: string; label: string; games: MlbGame[] }[] = [];
@@ -340,6 +365,7 @@ export function GameScoreboard({
                 game={g}
                 onClick={() => onSelectGame(Number(g.game_id))}
                 isMobile={isMobile}
+                dhLabel={dhMap.get(g.game_id)}
               />
             ))}
           </div>
