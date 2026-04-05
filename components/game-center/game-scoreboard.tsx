@@ -66,6 +66,8 @@ function ScoreboardCard({
   const odds = game.odds;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
+  const isLive = gameStatus.toLowerCase().includes("progress");
+  const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
 
@@ -96,10 +98,12 @@ function ScoreboardCard({
               {dhLabel && (
                 <span className="text-[8px] font-bold text-brand uppercase tracking-wider mb-0.5">{dhLabel}</span>
               )}
-              {isFinal ? (
+              {hasScore ? (
                 <div className="flex items-center gap-2.5">
                   <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Final</span>
+                  <span className={cn("text-[9px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                    {isLive ? "Live" : "Final"}
+                  </span>
                   <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
                 </div>
               ) : (
@@ -178,10 +182,14 @@ function ScoreboardCard({
             {dhLabel && (
               <span className="text-[9px] font-bold text-brand uppercase tracking-wider mb-0.5">{dhLabel}</span>
             )}
-            {isFinal ? (
+            {hasScore ? (
               <div className="flex items-center gap-3">
                 <span className="text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Final</span>
+                <div className="flex flex-col items-center">
+                  <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                    {isLive ? "Live" : "Final"}
+                  </span>
+                </div>
                 <span className="text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
               </div>
             ) : (

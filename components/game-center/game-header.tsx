@@ -44,6 +44,8 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
   const odds = game.odds;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
+  const isLive = gameStatus.toLowerCase().includes("progress");
+  const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
 
@@ -84,10 +86,14 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
 
           {/* Center: game info */}
           <div className="flex flex-col items-center gap-1 px-4 shrink-0">
-            {isFinal ? (
+            {hasScore ? (
               <div className="flex items-center gap-4">
                 <span className="text-2xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Final</span>
+                <div className="flex flex-col items-center">
+                  <span className={cn("text-xs font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                    {isLive ? "Live" : "Final"}
+                  </span>
+                </div>
                 <span className="text-2xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
               </div>
             ) : (
@@ -210,6 +216,8 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
   const odds = game.odds;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
+  const isLive = gameStatus.toLowerCase().includes("progress");
+  const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
 
@@ -238,20 +246,18 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
 
           {/* Center */}
           <div className="flex flex-col items-center gap-1 px-3 shrink-0">
-            {isFinal ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Final</span>
-                  <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
-                </div>
-              </>
+            {hasScore ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
+                <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                  {isLive ? "Live" : "Final"}
+                </span>
+                <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
+              </div>
             ) : (
-              <>
-                <div className="text-xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-                  {gameStatus}
-                </div>
-              </>
+              <div className="text-xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
+                {gameStatus}
+              </div>
             )}
             {odds?.total != null && (
               <div className="flex items-center gap-1 mt-0.5">
