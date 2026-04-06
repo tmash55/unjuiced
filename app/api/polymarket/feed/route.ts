@@ -717,10 +717,12 @@ export async function GET(req: NextRequest) {
         return aTime - bTime;
       });
     } else if (sortBy === "edge") {
-      // Largest edge (polymarket entry vs sportsbook implied prob) first
+      // Largest actual edge (polymarket price - sportsbook implied prob) first
       aggregated.sort((a, b) => {
-        const aEdge = a.score_breakdown?.edge ?? 0;
-        const bEdge = b.score_breakdown?.edge ?? 0;
+        const aBookImpl = a.best_book_decimal ? 1 / a.best_book_decimal : 0;
+        const bBookImpl = b.best_book_decimal ? 1 / b.best_book_decimal : 0;
+        const aEdge = (a.entry_price ?? 0) - aBookImpl;
+        const bEdge = (b.entry_price ?? 0) - bBookImpl;
         return bEdge - aEdge;
       });
     } else if (sortBy === "roi") {
