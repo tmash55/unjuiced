@@ -14,6 +14,7 @@ import {
   type GameInfo,
 } from "@/hooks/use-mlb-pitcher-weakness";
 import { useMlbGameMatchup, type BatterMatchup, type BatterPitchSplit } from "@/hooks/use-mlb-game-matchup";
+import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-odds";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { Loader2, ChevronRight, AlertTriangle, Users, ChevronDown, Zap, Info } from "lucide-react";
@@ -961,6 +962,7 @@ function BatterLineupTable({
                         batter={b}
                         matchupBatter={matchupBatters.find((mb) => mb.player_id === b.player_id) ?? null}
                         isLoading={matchupLoading && matchupBatters.length === 0}
+                        gameId={gameId}
                       />
                     </td>
                   </tr>
@@ -976,16 +978,39 @@ function BatterLineupTable({
 
 // ── Batter Expanded Detail ──────────────────────────────────────────────────
 
+const PROP_MARKETS = [
+  { key: "player_home_runs", label: "HR", defaultLine: 0.5, lines: [0.5] },
+  { key: "player_hits", label: "H", defaultLine: 0.5, lines: [0.5, 1.5, 2.5] },
+  { key: "player_total_bases", label: "TB", defaultLine: 0.5, lines: [0.5, 1.5, 2.5, 3.5] },
+  { key: "player_rbis", label: "RBI", defaultLine: 0.5, lines: [0.5, 1.5] },
+  { key: "player_runs", label: "R", defaultLine: 0.5, lines: [0.5, 1.5] },
+  { key: "player_hits__runs__rbis", label: "HRR", defaultLine: 0.5, lines: [0.5, 1.5, 2.5, 3.5] },
+  { key: "player_stolen_bases", label: "SB", defaultLine: 0.5, lines: [0.5] },
+];
+
+function normalizePlayerForOdds(name: string): string {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
 function RichBatterDetail({
   batter,
   matchupBatter,
   isLoading,
+  gameId,
 }: {
   batter: LineupBatter;
   matchupBatter: BatterMatchup | null;
   isLoading: boolean;
+  gameId: number | null;
 }) {
   const applyState = useStateLink();
+  const [oddsMarket, setOddsMarket] = useState(PROP_MARKETS[0].key);
+  const [oddsLine, setOddsLine] = useState(0.5);
+  const marketDef = PROP_MARKETS.find((m) => m.key === oddsMarket) ?? PROP_MARKETS[0];
+
+  // Fetch odds for selected market/line
+  const { odds: allOdds, isFetching: oddsFetching } = useMlbBatterOdds(gameId, oddsMarket, oddsLine, "over");
+  const playerOdds = allOdds[normalizePlayerForOdds(batter.player_name)] ?? null;
 
   if (isLoading) {
     return (
@@ -1194,14 +1219,92 @@ function RichBatterDetail({
             </div>
           )}
 
-          {/* Prop Odds */}
+          {/* Prop Odds — interactive with market tabs + line selector */}
           <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
-            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">Prop Odds</h5>
-            <div className="flex items-center gap-3 flex-wrap">
-              <OddsBadge label="HR" odds={batter.odds.hr} />
-              <OddsBadge label="Hits" odds={batter.odds.hits} />
-              <OddsBadge label="Ks" odds={batter.odds.strikeouts} />
+            <div className="flex items-center justify-between mb-2">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500">Prop Odds</h5>
+              {playerOdds?.ev_pct != null && playerOdds.ev_pct > 0 && (
+                <span className="text-[9px] font-bold text-emerald-400">
+                  Fair {playerOdds.fair_american} +{playerOdds.ev_pct.toFixed(1)}%
+                </span>
+              )}
             </div>
+
+            {/* Market tabs */}
+            <div className="flex items-center gap-0.5 mb-2 overflow-x-auto scrollbar-hide">
+              {PROP_MARKETS.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={(e) => { e.stopPropagation(); setOddsMarket(m.key); setOddsLine(m.defaultLine); }}
+                  className={cn(
+                    "px-2 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-all",
+                    oddsMarket === m.key
+                      ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Line selector (if multiple lines available) */}
+            {marketDef.lines.length > 1 && (
+              <div className="flex items-center gap-0.5 mb-2">
+                {marketDef.lines.map((ln) => (
+                  <button
+                    key={ln}
+                    onClick={(e) => { e.stopPropagation(); setOddsLine(ln); }}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-semibold transition-all",
+                      oddsLine === ln
+                        ? "bg-brand/10 text-brand"
+                        : "text-neutral-400 hover:text-neutral-600"
+                    )}
+                  >
+                    {ln}+
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* All books grid */}
+            {playerOdds ? (
+              <div className="flex flex-wrap gap-1.5">
+                {playerOdds.all_books
+                  .sort((a, b) => b.price - a.price)
+                  .map((book, i) => {
+                    const bLogo = getBookLogo(book.book);
+                    const link = getPreferredLink(book.link, book.mobile_link);
+                    const isBest = i === 0;
+                    return (
+                      <a
+                        key={book.book}
+                        href={link ? (applyState(link) || link) : "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation(); if (!link) e.preventDefault(); }}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold tabular-nums transition-colors",
+                          isBest
+                            ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20"
+                            : "bg-neutral-100 dark:bg-neutral-800/40 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700/40"
+                        )}
+                      >
+                        {bLogo && <img src={bLogo} alt="" className="h-3.5 w-3.5 rounded object-contain" />}
+                        {formatOddsPrice(book.price)}
+                      </a>
+                    );
+                  })}
+              </div>
+            ) : oddsFetching ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
+                <span className="text-[10px] text-neutral-400">Loading odds...</span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-neutral-500">No odds available</div>
+            )}
           </div>
         </div>
       </div>
