@@ -448,8 +448,10 @@ function OddsCell({ player, marketConfig }: { player: PropScorePlayer; marketCon
 
   const logo = player.best_odds_book ? getBookLogo(player.best_odds_book) : null;
   const snapshot = player.odds_snapshot ?? {};
+  const targetLine = player.line;
+  // Only show books offering the same line as the player's consensus line
   const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null)
+    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
     .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999));
 
   return (
@@ -634,8 +636,9 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
   const expandedStats = player.expanded_stats ?? {};
   const allData = { ...keyStats, ...expandedStats };
   const snapshot = player.odds_snapshot ?? {};
+  const targetLine = player.line;
   const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null)
+    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
     .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999));
   const bestBook = player.best_odds_book;
 
