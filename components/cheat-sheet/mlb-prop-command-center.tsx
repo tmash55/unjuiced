@@ -75,7 +75,7 @@ const MARKETS: MarketConfig[] = [
     shortLabel: "HR",
     playerType: "batter",
     lineLabel: "HR",
-    lineOptions: [0.5],
+    lineOptions: [0.5, 1.5, 2.5],
     columns: [
       { key: "barrel_pct", label: "Brl%", shortLabel: "Brl", format: "pct", tooltip: "Barrel rate" },
       { key: "max_exit_velo", label: "Max EV", shortLabel: "EV", format: "speed", tooltip: "Maximum exit velocity" },
@@ -1440,7 +1440,7 @@ export function MlbPropCommandCenter() {
   // Process players: apply line selection, fix best_odds to target line
   const players = useMemo(() => {
     const raw = propResult.players;
-    const FIXED_LINES: Record<string, number> = { hr: 0.5 };
+    const FIXED_LINES: Record<string, number> = {}; // No forced lines — use Default/selector
 
     return raw.map((p) => {
       // Determine target line: user-selected > fixed > consensus (null = use API default)
