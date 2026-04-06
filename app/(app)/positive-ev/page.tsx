@@ -52,6 +52,7 @@ import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
 import { americanToImpliedProb, impliedProbToAmerican, calculateMultiEV, getPrimaryEVCalculation } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
@@ -1148,15 +1149,17 @@ export default function PositiveEVPage() {
     }
   }, [toggleFavorite]);
   
-  // Open bet link (uses mobile link on mobile devices)
+  // Open bet link (uses mobile link on mobile devices, applies user state code)
+  const applyState = useStateLink();
   const openLink = useCallback((bookId?: string, link?: string | null, mobileLink?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = chooseBookLink(link ?? undefined, mobileLink ?? undefined, fallback ?? undefined);
-    if (!target) return;
+    const raw = chooseBookLink(link ?? undefined, mobileLink ?? undefined, fallback ?? undefined);
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     try {
       window.open(target, "_blank", "noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes");
     } catch { void 0; }
-  }, []);
+  }, [applyState]);
 
   const handleOpenLineHistory = useCallback((opp: PositiveEVOpportunity) => {
     const combinedMarket = `${opp.market || ""} ${opp.marketDisplay || ""}`.toLowerCase();
