@@ -101,9 +101,12 @@ const MARKETS: MarketConfig[] = [
     factors: [
       { key: "recent_k9", label: "Recent K's", tooltip: "Recent starts K/9 rate — measures current form" },
       { key: "k_rate", label: "K Rate", tooltip: "Season K rate — overall strikeout ability" },
-      { key: "whiff", label: "Whiff", tooltip: "Swing-and-miss rate — pitch quality indicator" },
-      { key: "put_away", label: "Put-Away", tooltip: "Two-strike put-away rate — finishing ability" },
+      { key: "whiff", label: "Whiff", tooltip: "Swing-and-miss rate — pitch stuff quality" },
+      { key: "csw", label: "CSW", tooltip: "Called strikes + whiffs rate — pitch command + stuff combined" },
+      { key: "chase", label: "Chase", tooltip: "Chase rate — how often batters swing at pitches outside the zone" },
       { key: "opp_lineup_k", label: "Opponent", tooltip: "Opposing lineup K-rate — higher means easier to strike out" },
+      { key: "bvp", label: "BvP", tooltip: "Batter vs pitcher history — career K performance against these batters" },
+      { key: "durability", label: "Durability", tooltip: "Innings depth — ability to go deep in games for more K opportunities" },
       { key: "ballpark", label: "Ballpark", tooltip: "Park strikeout factor" },
     ],
   },
@@ -310,6 +313,8 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   k_per_9:            { elite: 10, good: 8.5, poor: 6.5, bad: 5, higher: true },
   whiff_pct:          { elite: 30, good: 25, poor: 18, bad: 14, higher: true },
   opp_lineup_k_rate:  { elite: 28, good: 24, poor: 20, bad: 17, higher: true },
+  csw_pct:            { elite: 32, good: 28, poor: 24, bad: 20, higher: true },
+  chase_rate:         { elite: 35, good: 30, poor: 24, bad: 20, higher: true },
   // Hits market
   xba:                { elite: 0.300, good: 0.270, poor: 0.220, bad: 0.190, higher: true },
   recent_ba:          { elite: 0.320, good: 0.280, poor: 0.220, bad: 0.180, higher: true },
@@ -336,7 +341,7 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
 
 // Stats where 0 means "no data" rather than an actual zero value
 const ZERO_IS_NULL_STATS = new Set([
-  "opp_lineup_k_rate", "k_rate", "whiff_pct", "sb_attempt_rate", "success_rate",
+  "opp_lineup_k_rate", "k_rate", "whiff_pct", "csw_pct", "chase_rate", "sb_attempt_rate", "success_rate",
   "hard_hit_pct", "barrel_pct", "opp_lineup_ba", "opp_woba",
   "xba", "recent_ba", "vs_hand_ba", "slg", "xslg", "rbi_rate", "base_traffic", "obp",
   "sprint_speed", "contact_rate", "babip", "iso", "recent_xslg", "vs_hand_iso",
@@ -559,8 +564,10 @@ const MARKET_STATS: Record<string, StatDisplayItem[]> = {
     { key: "k_last_5_avg", label: "Avg K/Start (L5)", format: "stat", group: "K Ability" },
     { key: "recent_ip_avg", label: "Avg IP/Start", format: "stat", group: "K Ability" },
     { key: "whiff_pct", label: "Whiff Rate", format: "pct", group: "Arsenal" },
-    { key: "put_away_avg", label: "Put-Away Rate", format: "pct", group: "Arsenal" },
+    { key: "csw_pct", label: "CSW Rate", format: "pct", group: "Arsenal" },
+    { key: "chase_rate", label: "Chase Rate", format: "pct", group: "Arsenal" },
     { key: "opp_lineup_k_rate", label: "Opp Lineup K%", format: "pct", group: "Opponent" },
+    { key: "bvp_batters_qualifying", label: "BvP Qualifying", format: "int", group: "Opponent" },
   ],
   hits: [
     { key: "xba", label: "xBA", format: "avg", group: "Batting" },
@@ -652,7 +659,7 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
   });
 
   // Opposing lineup K-rates (pitcher_k market)
-  const oppKRates: number[] = expandedStats?.opp_k_rates ?? expandedStats?.opp_lineup_k_rates ?? [];
+  const oppKRates: number[] = expandedStats?.opp_k_rates_hand_weighted ?? expandedStats?.opp_k_rates_raw ?? expandedStats?.opp_k_rates ?? [];
   const hasOppKRates = marketConfig.key === "pitcher_k" && Array.isArray(oppKRates) && oppKRates.length > 0;
 
   // Best pitch whiff (pitcher_k market)
