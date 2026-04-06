@@ -1463,6 +1463,14 @@ export function MlbPropCommandCenter() {
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
 
+          // Compute avg implied from all books at this line (fairer than best odds)
+          const lineBooks = Object.values(updated.odds_snapshot ?? {}).filter(
+            (d) => d && d.line === targetLine && d.over != null
+          );
+          const avgImplied = lineBooks.length > 0
+            ? lineBooks.reduce((sum, d) => sum + oddsToImplied(d!.over!), 0) / lineBooks.length
+            : null;
+
           // Recompute model probability + edge for hits market at different lines
           const ks = p.key_stats ?? {};
           const effectiveBA = ks.effective_ba as number | undefined;
@@ -1470,12 +1478,20 @@ export function MlbPropCommandCenter() {
           if (effectiveBA && expABs && targetLine != null && p.market === "hits") {
             const threshold = targetLine + 0.5; // 0.5 line = 1+ hits, 1.5 = 2+, etc.
             const modelProb = pHitsOver(effectiveBA, expABs, threshold);
-            const impliedProb = oddsToImplied(bestPrice);
-            const edge = impliedProb > 0 ? ((modelProb - impliedProb) / impliedProb) * 100 : null;
+            const edgeBase = avgImplied ?? oddsToImplied(bestPrice);
+            const edge = edgeBase > 0 ? ((modelProb - edgeBase) / edgeBase) * 100 : null;
             updated = {
               ...updated,
               model_prob: modelProb,
-              implied_prob: impliedProb,
+              implied_prob: avgImplied ?? oddsToImplied(bestPrice),
+              edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
+            };
+          } else if (avgImplied != null && updated.model_prob != null) {
+            // For non-hits markets with a line change, recompute edge vs avg implied
+            const edge = avgImplied > 0 ? ((updated.model_prob - avgImplied) / avgImplied) * 100 : null;
+            updated = {
+              ...updated,
+              implied_prob: avgImplied,
               edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
             };
           }
