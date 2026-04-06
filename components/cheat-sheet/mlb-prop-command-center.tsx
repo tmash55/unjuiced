@@ -1443,9 +1443,9 @@ export function MlbPropCommandCenter() {
     const FIXED_LINES: Record<string, number> = { hr: 0.5 };
 
     return raw.map((p) => {
-      // Determine target line: user-selected > fixed > consensus
+      // Determine target line: user-selected > fixed > consensus (null = use API default)
       const fixedLine = FIXED_LINES[p.market];
-      const targetLine = selectedLine ?? fixedLine ?? p.line;
+      const targetLine = selectedLine != null ? selectedLine : (fixedLine ?? p.line);
 
       let updated = { ...p, line: targetLine };
 
@@ -1648,23 +1648,32 @@ export function MlbPropCommandCenter() {
             <div className="flex items-center gap-2 mt-2">
               <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Line</span>
               <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
-                {marketConfig.lineOptions.map((ln) => {
-                  const isActive = selectedLine === ln || (selectedLine == null && ln === marketConfig.lineOptions![0]);
-                  return (
-                    <button
-                      key={ln}
-                      onClick={() => setSelectedLine(ln === marketConfig.lineOptions![0] && selectedLine === null ? null : ln)}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
-                        isActive
-                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                      )}
-                    >
-                      {ln}+
-                    </button>
-                  );
-                })}
+                {/* Default — uses each player's consensus line from the API */}
+                <button
+                  onClick={() => setSelectedLine(null)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
+                    selectedLine === null
+                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  )}
+                >
+                  Default
+                </button>
+                {marketConfig.lineOptions.map((ln) => (
+                  <button
+                    key={ln}
+                    onClick={() => setSelectedLine(ln)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
+                      selectedLine === ln
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {ln}+
+                  </button>
+                ))}
               </div>
             </div>
           )}
