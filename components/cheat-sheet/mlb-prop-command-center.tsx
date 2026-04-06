@@ -1830,7 +1830,8 @@ export function MlbPropCommandCenter() {
                               isExpanded
                                 ? "bg-neutral-50 dark:bg-neutral-800/40"
                                 : "hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20",
-                              isStarted && "bg-neutral-900/5 dark:bg-neutral-950/30"
+                              gameState === "final" && "opacity-50",
+                              gameState === "live" && "bg-neutral-900/5 dark:bg-neutral-950/30"
                             )}
                           >
                             {/* Rank */}
