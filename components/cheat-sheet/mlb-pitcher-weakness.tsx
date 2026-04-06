@@ -999,131 +999,211 @@ function RichBatterDetail({
   const mb = matchupBatter;
 
   return (
-    <div className="border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 py-3 space-y-3">
-      {/* Row 1: Matchup grade + Key stats */}
-      <div className="flex items-start gap-4">
-        {mb && (
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              "text-[10px] font-bold px-2 py-1 rounded-lg uppercase",
-              mb.matchup_grade === "strong" ? "bg-emerald-500/15 text-emerald-400" :
-              mb.matchup_grade === "weak" ? "bg-red-500/15 text-red-400" :
-              "bg-neutral-500/10 text-neutral-400"
-            )}>
-              {mb.matchup_grade}
-            </span>
-            {mb.matchup_reason && (
-              <span className="text-[10px] text-neutral-500 max-w-[200px] truncate">{mb.matchup_reason}</span>
-            )}
-          </div>
-        )}
-      </div>
+    <div className="border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/30 dark:bg-neutral-800/15 px-4 py-4">
+      {/* Two-column layout on desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
-      {/* Row 2: Key Statcast stats */}
-      {mb && (
-        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 text-center">
-          {mb.avg_exit_velo != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">EV</div>
-              <div className={cn("text-xs font-bold tabular-nums", (mb.avg_exit_velo ?? 0) >= 90 ? "text-emerald-400" : "text-neutral-200")}>{mb.avg_exit_velo.toFixed(1)}</div>
-            </div>
-          )}
-          {mb.barrel_pct != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">Brl%</div>
-              <div className={cn("text-xs font-bold tabular-nums", (mb.barrel_pct ?? 0) >= 10 ? "text-emerald-400" : "text-neutral-200")}>{mb.barrel_pct.toFixed(1)}%</div>
-            </div>
-          )}
-          {mb.hard_hit_pct != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">Hard%</div>
-              <div className="text-xs font-bold tabular-nums text-neutral-200">{mb.hard_hit_pct.toFixed(1)}%</div>
-            </div>
-          )}
-          {mb.woba != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">wOBA</div>
-              <div className={cn("text-xs font-bold tabular-nums", (mb.woba ?? 0) >= 0.340 ? "text-emerald-400" : "text-neutral-200")}>{mb.woba.toFixed(3)}</div>
-            </div>
-          )}
-          {mb.k_pct != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">K%</div>
-              <div className={cn("text-xs font-bold tabular-nums", (mb.k_pct ?? 100) <= 20 ? "text-emerald-400" : (mb.k_pct ?? 0) >= 30 ? "text-red-400" : "text-neutral-200")}>{mb.k_pct.toFixed(1)}%</div>
-            </div>
-          )}
-          {mb.bb_pct != null && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-neutral-400">BB%</div>
-              <div className="text-xs font-bold tabular-nums text-neutral-200">{mb.bb_pct.toFixed(1)}%</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Row 3: Pitch Splits */}
-      {mb && mb.pitch_splits.length > 0 && (
-        <div>
-          <div className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400 mb-1.5">Pitch Splits</div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[9px] uppercase tracking-wider text-neutral-400 mb-1">
-              <span className="w-14">Pitch</span>
-              <span className="w-10">BBs</span>
-              <span className="w-10 text-right">AVG</span>
-              <span className="w-10 text-right">SLG</span>
-              <span className="w-10 text-right">K%</span>
-            </div>
-            {mb.pitch_splits.slice(0, 5).map((ps) => (
-              <div key={ps.pitch_type} className="flex items-center gap-2 text-[11px]">
-                <span className="w-14 shrink-0 font-medium text-neutral-500 truncate">{ps.pitch_name || ps.pitch_type}</span>
-                <span className="w-10 text-neutral-400 tabular-nums">{ps.batted_balls}</span>
-                <span className={cn("w-10 text-right tabular-nums font-bold",
-                  (ps.avg ?? 0) >= 0.300 ? "text-emerald-400" : (ps.avg ?? 0) <= 0.150 ? "text-red-400" : "text-neutral-300"
-                )}>{ps.avg != null ? fmtAvg(ps.avg) : "-"}</span>
-                <span className={cn("w-10 text-right tabular-nums font-bold",
-                  (ps.slg ?? 0) >= 0.500 ? "text-emerald-400" : (ps.slg ?? 0) <= 0.200 ? "text-red-400" : "text-neutral-300"
-                )}>{ps.slg != null ? fmtAvg(ps.slg) : "-"}</span>
-                <span className={cn("w-10 text-right tabular-nums",
-                  (ps.k_pct ?? 0) >= 30 ? "text-red-400" : (ps.k_pct ?? 0) <= 15 ? "text-emerald-400" : "text-neutral-400"
-                )}>{ps.k_pct != null ? `${ps.k_pct.toFixed(0)}%` : "-"}</span>
+        {/* Left column (3/5): Pitch Splits */}
+        <div className="md:col-span-3">
+          {mb && mb.pitch_splits.length > 0 ? (
+            <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2.5">Pitch Splits</h5>
+              <div className="space-y-1">
+                {mb.pitch_splits.map((ps) => {
+                  const isHittable = (ps.slg ?? 0) >= 0.450;
+                  return (
+                    <div key={ps.pitch_type} className={cn(
+                      "flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-xs tabular-nums",
+                      isHittable ? "bg-emerald-500/5 dark:bg-emerald-500/[0.04]" : ""
+                    )}>
+                      <span className="font-semibold text-neutral-900 dark:text-white w-20 truncate">{ps.pitch_name || ps.pitch_type}</span>
+                      <div className="flex-1 flex items-center gap-4 justify-end">
+                        <div className="text-right">
+                          <span className="text-[9px] text-neutral-400 block">AVG</span>
+                          <span className={cn("font-medium", (ps.avg ?? 0) >= 0.300 ? "text-emerald-400" : "text-neutral-300")}>{fmtAvg(ps.avg)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] text-neutral-400 block">SLG</span>
+                          <span className={cn("font-bold", (ps.slg ?? 0) >= 0.500 ? "text-emerald-400" : (ps.slg ?? 0) <= 0.200 ? "text-red-400" : "text-neutral-300")}>{fmtAvg(ps.slg)}</span>
+                        </div>
+                        <div className="text-right w-6">
+                          <span className="text-[9px] text-neutral-400 block">HR</span>
+                          <span className="font-medium text-neutral-300">{ps.hrs ?? 0}</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400 w-10 text-right">{ps.batted_balls} PA</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+              {/* Pitch Overlap */}
+              {mb.overlap_score != null && (
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/40 px-2.5">
+                  <span className="text-[10px] text-neutral-400">Pitch Overlap</span>
+                  <span className={cn("text-xs font-bold tabular-nums",
+                    mb.overlap_score >= 60 ? "text-emerald-500" : mb.overlap_score >= 30 ? "text-amber-500" : "text-red-400"
+                  )}>{mb.overlap_score}%</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">Season Stats</h5>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div><div className="text-[9px] text-neutral-400">OPS</div><div className="text-xs font-bold tabular-nums text-neutral-200">{fmtAvg(batter.season_ops)}</div></div>
+                <div><div className="text-[9px] text-neutral-400">AVG</div><div className="text-xs font-bold tabular-nums text-neutral-200">{fmtAvg(batter.season_avg)}</div></div>
+                <div><div className="text-[9px] text-neutral-400">SLG</div><div className="text-xs font-bold tabular-nums text-neutral-200">{fmtAvg(batter.season_slg)}</div></div>
+                <div><div className="text-[9px] text-neutral-400">HR</div><div className="text-xs font-bold tabular-nums text-neutral-200">{batter.season_hr}</div></div>
+              </div>
+            </div>
+          )}
+
+          {/* H2H + Recent Form row */}
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            {/* H2H */}
+            <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">Head-to-Head</h5>
+              {mb?.h2h && mb.h2h.pa > 0 ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-400">Record</span>
+                    <span className="font-bold text-neutral-200 tabular-nums">{mb.h2h.hits}-{mb.h2h.pa} ({fmtAvg(mb.h2h.avg)})</span>
+                  </div>
+                  {mb.h2h.hrs > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-neutral-400">HR</span>
+                      <span className="font-bold text-emerald-400 tabular-nums">{mb.h2h.hrs}</span>
+                    </div>
+                  )}
+                  {mb.h2h.last_meetings.length > 0 && (
+                    <div className="pt-1 mt-1 border-t border-neutral-100 dark:border-neutral-800/30 space-y-0.5">
+                      {mb.h2h.last_meetings.slice(0, 3).map((m, i) => (
+                        <div key={i} className="flex items-center justify-between text-[10px]">
+                          <span className="text-neutral-400">{m.date}</span>
+                          <span className="text-neutral-300 tabular-nums">{m.hits}-{m.pa}{m.hrs > 0 ? ` (${m.hrs} HR)` : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[10px] text-neutral-500">No career data vs this pitcher</div>
+              )}
+            </div>
+
+            {/* Recent Form */}
+            <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+              <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">Recent Form (60D)</h5>
+              {mb ? (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div className="text-[9px] text-neutral-400">Brl%</div>
+                    <div className={cn("text-xs font-bold tabular-nums", (mb.recent_barrel_pct ?? 0) >= 10 ? "text-emerald-400" : "text-neutral-300")}>
+                      {mb.recent_barrel_pct != null ? `${mb.recent_barrel_pct.toFixed(1)}%` : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-neutral-400">Avg EV</div>
+                    <div className={cn("text-xs font-bold tabular-nums", (mb.recent_avg_ev ?? 0) >= 90 ? "text-emerald-400" : "text-neutral-300")}>
+                      {mb.recent_avg_ev != null ? mb.recent_avg_ev.toFixed(1) : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-neutral-400">HR</div>
+                    <div className="text-xs font-bold tabular-nums text-neutral-300">{mb.recent_hr_count}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[10px] text-neutral-500">-</div>
+              )}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Row 4: H2H vs Pitcher */}
-      {mb?.h2h && mb.h2h.pa > 0 && (
-        <div className="flex items-center gap-4 text-[10px] text-neutral-500 pt-2 border-t border-neutral-100 dark:border-neutral-800/30">
-          <span className="uppercase tracking-wider font-semibold text-neutral-400">H2H</span>
-          <span className="tabular-nums font-bold text-neutral-200">
-            {mb.h2h.hits}-{mb.h2h.pa} ({mb.h2h.avg != null ? mb.h2h.avg.toFixed(3) : "-"})
-          </span>
-          {mb.h2h.hrs > 0 && (
-            <span className="tabular-nums font-bold text-emerald-400">{mb.h2h.hrs} HR</span>
+        {/* Right column (2/5): HR Score + Matchup + Odds */}
+        <div className="md:col-span-2 space-y-3">
+          {/* Matchup Grade + HR Score */}
+          {mb && (
+            <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500">Matchup</h5>
+                <span className={cn(
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+                  mb.matchup_grade === "strong" ? "bg-emerald-500/15 text-emerald-400" :
+                  mb.matchup_grade === "weak" ? "bg-red-500/15 text-red-400" :
+                  "bg-neutral-500/10 text-neutral-400"
+                )}>
+                  {mb.matchup_grade}
+                </span>
+              </div>
+
+              {/* HR Score bar */}
+              {mb.hr_probability_score != null && (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] text-neutral-400">HR Score</span>
+                    <span className={cn("text-sm font-black tabular-nums",
+                      mb.hr_probability_score >= 80 ? "text-emerald-400" :
+                      mb.hr_probability_score >= 60 ? "text-blue-400" :
+                      mb.hr_probability_score >= 40 ? "text-amber-400" : "text-neutral-400"
+                    )}>{mb.hr_probability_score}</span>
+                  </div>
+                  <div className="h-2 bg-neutral-200 dark:bg-neutral-700/30 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full",
+                      mb.hr_probability_score >= 80 ? "bg-emerald-500" :
+                      mb.hr_probability_score >= 60 ? "bg-blue-500" :
+                      mb.hr_probability_score >= 40 ? "bg-amber-500" : "bg-neutral-500"
+                    )} style={{ width: `${mb.hr_probability_score}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* HR Factors */}
+              {mb.hr_factors.length > 0 && (
+                <div className="space-y-1">
+                  {mb.hr_factors.map((f, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                      <span className={cn("font-bold", f.positive ? "text-emerald-400" : "text-red-400")}>{f.positive ? "+" : "-"}</span>
+                      <span className="text-neutral-400">{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Key stats */}
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800/30 text-center">
+                {mb.avg_exit_velo != null && (
+                  <div>
+                    <div className="text-[9px] text-neutral-400">EV</div>
+                    <div className={cn("text-xs font-bold tabular-nums", mb.avg_exit_velo >= 90 ? "text-emerald-400" : "text-neutral-300")}>{mb.avg_exit_velo.toFixed(1)}</div>
+                  </div>
+                )}
+                {mb.barrel_pct != null && (
+                  <div>
+                    <div className="text-[9px] text-neutral-400">Brl%</div>
+                    <div className={cn("text-xs font-bold tabular-nums", mb.barrel_pct >= 10 ? "text-emerald-400" : "text-neutral-300")}>{mb.barrel_pct.toFixed(1)}%</div>
+                  </div>
+                )}
+                {mb.iso != null && (
+                  <div>
+                    <div className="text-[9px] text-neutral-400">ISO</div>
+                    <div className={cn("text-xs font-bold tabular-nums", mb.iso >= 0.200 ? "text-emerald-400" : "text-neutral-300")}>{fmtAvg(mb.iso)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Row 5: HR factors */}
-      {mb && mb.hr_factors.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
-          {mb.hr_factors.map((f, i) => (
-            <span key={i} className={cn(
-              "text-[9px] font-semibold px-1.5 py-0.5 rounded-full",
-              f.positive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-            )}>
-              {f.positive ? "+" : "-"} {f.label}
-            </span>
-          ))}
+          {/* Prop Odds */}
+          <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">Prop Odds</h5>
+            <div className="flex items-center gap-3 flex-wrap">
+              <OddsBadge label="HR" odds={batter.odds.hr} />
+              <OddsBadge label="Hits" odds={batter.odds.hits} />
+              <OddsBadge label="Ks" odds={batter.odds.strikeouts} />
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Row 6: Odds */}
-      <div className="flex items-center gap-4 pt-2 border-t border-neutral-100 dark:border-neutral-800/30">
-        <OddsBadge label="HR" odds={batter.odds.hr} />
-        <OddsBadge label="Hits" odds={batter.odds.hits} />
-        <OddsBadge label="Ks" odds={batter.odds.strikeouts} />
       </div>
     </div>
   );
