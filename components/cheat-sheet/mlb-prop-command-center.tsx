@@ -1104,8 +1104,15 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
               {player.edge_pct != null ? `${player.edge_pct > 0 ? "+" : ""}${player.edge_pct.toFixed(1)}%` : "-"}
             </span>
           </div>
-          <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
-            <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
+          <div className="flex items-center gap-1">
+            {player.hit_over != null && (
+              <span className={cn("text-base", player.hit_over ? "text-emerald-400" : "text-red-400")}>
+                {player.hit_over ? "✓" : "✗"}
+              </span>
+            )}
+            <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
+              <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
+            </div>
           </div>
         </div>
       </button>
@@ -1714,10 +1721,22 @@ export function MlbPropCommandCenter() {
                               </div>
                             </td>
 
-                            {/* Score — compact */}
+                            {/* Score + Result */}
                             <td className="px-2 py-2 text-center">
-                              <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
-                                <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
+                              <div className="inline-flex items-center gap-1.5">
+                                <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
+                                  <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
+                                </div>
+                                {player.hit_over != null && (
+                                  <div className="flex flex-col items-center">
+                                    <span className={cn("text-sm", player.hit_over ? "text-emerald-400" : "text-red-400")}>
+                                      {player.hit_over ? "✓" : "✗"}
+                                    </span>
+                                    {player.actual_stat != null && (
+                                      <span className="text-[8px] text-neutral-400 tabular-nums leading-none">{player.actual_stat}</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </td>
 
