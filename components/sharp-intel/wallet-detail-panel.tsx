@@ -130,6 +130,12 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
     return Object.entries(raw).sort((a, b) => b[1].bets - a[1].bets)
   })()
 
+  // Derive accurate totals from sport_breakdown (top-level wins/losses are stale)
+  const derivedWins = sportEntries.reduce((sum, [, s]) => sum + (s.w || 0), 0)
+  const derivedLosses = sportEntries.reduce((sum, [, s]) => sum + (s.l || 0), 0)
+  const derivedTotal = derivedWins + derivedLosses
+  const derivedWinRate = derivedTotal > 0 ? (derivedWins / derivedTotal) * 100 : 0
+
   return (
     <div className="flex h-full flex-col overflow-y-auto pr-1">
       {/* Header */}
@@ -143,9 +149,9 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
           </div>
           <div className="flex items-center gap-2 text-xs tabular-nums">
             <span className="text-neutral-400">
-              {wallet.wins}-{wallet.losses}
+              {derivedWins}-{derivedLosses}
               <span className="text-neutral-400 dark:text-neutral-600 ml-1">
-                ({wallet.win_rate != null ? wallet.win_rate.toFixed(0) : "—"}%)
+                ({derivedTotal > 0 ? derivedWinRate.toFixed(0) : "—"}%)
               </span>
             </span>
             <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
@@ -197,7 +203,7 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
           <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
             <span className="text-neutral-500">Total trades</span>
             <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {((wallet.poly_total_trades ?? 0) + wallet.wins + wallet.losses).toLocaleString()}
+              {((wallet.poly_total_trades ?? 0) + derivedTotal).toLocaleString()}
             </span>
           </div>
         </Tooltip>
@@ -205,8 +211,8 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
           <div className="flex items-center justify-between px-3 py-2 text-xs cursor-help">
             <span className="text-neutral-500">Sports tracked</span>
             <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {(wallet.wins + wallet.losses).toLocaleString()}
-              <span className="text-neutral-400 dark:text-neutral-500 ml-1.5">({wallet.wins}-{wallet.losses})</span>
+              {derivedTotal.toLocaleString()}
+              <span className="text-neutral-400 dark:text-neutral-500 ml-1.5">({derivedWins}-{derivedLosses})</span>
             </span>
           </div>
         </Tooltip>
@@ -357,6 +363,11 @@ export function WalletDetailPanel({ wallet, oddsFormat, isFollowing, onToggleFol
                     </span>
                     <p className="text-neutral-600 text-[11px]">
                       {formatMoney(bet.bet_size)}
+                      {(bet as any).wager_count > 1 && (
+                        <span className="text-neutral-400 dark:text-neutral-600 ml-1">
+                          ({(bet as any).wager_count} fills)
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
