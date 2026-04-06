@@ -65,6 +65,7 @@ interface MarketConfig {
   columns: MarketColumnDef[];
   factors: MarketFactorDef[];
   lineLabel: string;  // e.g., "K's", "Hits"
+  lineOptions?: number[];  // Available lines for line selector (e.g., [0.5, 1.5, 2.5])
 }
 
 const MARKETS: MarketConfig[] = [
@@ -74,6 +75,7 @@ const MARKETS: MarketConfig[] = [
     shortLabel: "HR",
     playerType: "batter",
     lineLabel: "HR",
+    lineOptions: [0.5],
     columns: [
       { key: "barrel_pct", label: "Brl%", shortLabel: "Brl", format: "pct", tooltip: "Barrel rate" },
       { key: "max_exit_velo", label: "Max EV", shortLabel: "EV", format: "speed", tooltip: "Maximum exit velocity" },
@@ -120,6 +122,7 @@ const MARKETS: MarketConfig[] = [
     shortLabel: "Hits",
     playerType: "batter",
     lineLabel: "Hits",
+    lineOptions: [0.5, 1.5, 2.5],
     columns: [
       { key: "xba", label: "xBA", shortLabel: "xBA", format: "avg", tooltip: "Expected batting average (Statcast)" },
       { key: "contact_rate", label: "Contact", shortLabel: "Cont", format: "pct", tooltip: "Contact rate (100 - K%)" },
@@ -149,6 +152,7 @@ const MARKETS: MarketConfig[] = [
     shortLabel: "TB",
     playerType: "batter",
     lineLabel: "TB",
+    lineOptions: [0.5, 1.5, 2.5, 3.5],
     columns: [
       { key: "xslg", label: "xSLG", shortLabel: "xSLG", format: "avg", tooltip: "Expected slugging (Statcast)" },
       { key: "barrel_pct", label: "Brl%", shortLabel: "Brl", format: "pct", tooltip: "Barrel rate" },
@@ -170,6 +174,7 @@ const MARKETS: MarketConfig[] = [
     shortLabel: "RBI",
     playerType: "batter",
     lineLabel: "RBI",
+    lineOptions: [0.5, 1.5],
     columns: [
       { key: "rbi_rate", label: "RBI Rate", shortLabel: "Rate", format: "avg", tooltip: "RBI per plate appearance" },
       { key: "slg", label: "SLG", shortLabel: "SLG", format: "avg", tooltip: "Slugging percentage" },
@@ -751,11 +756,18 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
 
             {/* Column 2: Grouped Stats */}
             <div className="flex flex-col gap-3">
-              {[...groups.entries()].map(([group, items]) => (
+              {[...groups.entries()].map(([group, items]) => {
+                // Filter out items with null/undefined/zero values
+                const visibleItems = items.filter((item) => {
+                  const val = allData[item.key];
+                  return val != null && val !== 0 && val !== "";
+                });
+                if (visibleItems.length === 0) return null;
+                return (
                 <div key={group}>
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">{group}</h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    {items.map((item) => {
+                    {visibleItems.map((item) => {
                       const val = allData[item.key];
                       return (
                         <React.Fragment key={item.key}>
@@ -768,7 +780,8 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Column 3: Market-specific hero + Odds */}
@@ -1379,6 +1392,7 @@ export function MlbPropCommandCenter() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>("all");
+  const [selectedLine, setSelectedLine] = useState<number | null>(null); // null = use consensus
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -1397,20 +1411,19 @@ export function MlbPropCommandCenter() {
   // Fetch prop scores — all markets including HR now use the same source
   const propResult = useMlbPropScores(selectedDate, selectedMarket);
 
-  // Process players: force HR line to 0.5, fix best_odds to consensus line
+  // Process players: apply line selection, fix best_odds to target line
   const players = useMemo(() => {
     const raw = propResult.players;
-    // Markets where line should always be fixed
     const FIXED_LINES: Record<string, number> = { hr: 0.5 };
 
     return raw.map((p) => {
+      // Determine target line: user-selected > fixed > consensus
       const fixedLine = FIXED_LINES[p.market];
-      const targetLine = fixedLine ?? p.line;
+      const targetLine = selectedLine ?? fixedLine ?? p.line;
 
-      // Override line for fixed-line markets
-      let updated = fixedLine != null ? { ...p, line: fixedLine } : p;
+      let updated = { ...p, line: targetLine };
 
-      // Fix best_odds: filter to target line from odds_snapshot
+      // Filter best_odds to target line from odds_snapshot
       if (updated.odds_snapshot && targetLine != null) {
         let bestPrice: number | null = null;
         let bestBook: string | null = null;
@@ -1423,12 +1436,15 @@ export function MlbPropCommandCenter() {
         }
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
+        } else {
+          // No books at this line — clear odds
+          updated = { ...updated, best_odds: null, best_odds_book: null };
         }
       }
 
       return updated;
     });
-  }, [propResult.players]);
+  }, [propResult.players, selectedLine]);
   const isLoading = propResult.isLoading;
   const availableDates = propResult.availableDates;
 
@@ -1438,6 +1454,7 @@ export function MlbPropCommandCenter() {
     setSortField("score");
     setSortDirection("desc");
     setSelectedGame("all");
+    setSelectedLine(null);
   }, [selectedMarket]);
 
   // Auto-advance to available date
@@ -1567,6 +1584,32 @@ export function MlbPropCommandCenter() {
               </button>
             ))}
           </div>
+
+          {/* Line selector — only show for markets with multiple lines */}
+          {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Line</span>
+              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
+                {marketConfig.lineOptions.map((ln) => {
+                  const isActive = selectedLine === ln || (selectedLine == null && ln === marketConfig.lineOptions![0]);
+                  return (
+                    <button
+                      key={ln}
+                      onClick={() => setSelectedLine(ln === marketConfig.lineOptions![0] && selectedLine === null ? null : ln)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
+                        isActive
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                    >
+                      {ln}+
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Divider */}
