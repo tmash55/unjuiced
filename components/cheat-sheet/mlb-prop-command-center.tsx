@@ -1748,7 +1748,16 @@ export function MlbPropCommandCenter() {
                                     <Image src={`/team-logos/mlb/${player.team_abbr.toUpperCase()}.svg`} alt="" width={12} height={12} className="shrink-0" />
                                     <span className="font-bold text-neutral-900 dark:text-white truncate text-xs">{player.player_name}</span>
                                     {player.batting_order && (
-                                      <span className="text-[9px] text-neutral-400 shrink-0">#{player.batting_order}</span>
+                                      <Tooltip content={`Batting ${player.batting_order}${player.batting_order <= 3 ? " — top of order, more ABs" : player.batting_order <= 5 ? " — middle order, RBI spot" : player.batting_order <= 7 ? " — lower order" : " — bottom of order, fewer ABs"}`} side="top">
+                                        <span className={cn(
+                                          "text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 cursor-help tabular-nums",
+                                          player.batting_order <= 2 ? "bg-emerald-500/10 text-emerald-400" :
+                                          player.batting_order <= 5 ? "bg-brand/10 text-brand" :
+                                          "bg-neutral-500/10 text-neutral-400"
+                                        )}>
+                                          #{player.batting_order}
+                                        </span>
+                                      </Tooltip>
                                     )}
                                     <LineupBadge status={player.lineup_status} />
                                   </div>
