@@ -1830,7 +1830,7 @@ export function MlbPropCommandCenter() {
                               isExpanded
                                 ? "bg-neutral-50 dark:bg-neutral-800/40"
                                 : "hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20",
-                              isStarted && "opacity-60"
+                              isStarted && "bg-neutral-900/5 dark:bg-neutral-950/30"
                             )}
                           >
                             {/* Rank */}
@@ -1907,11 +1907,15 @@ export function MlbPropCommandCenter() {
                                       {game.game_status}
                                     </span>
                                   )}
-                                  {gameState === "live" && (
-                                    <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 uppercase leading-none">Live</span>
+                                  {gameState === "live" && game && (
+                                    <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 leading-none tabular-nums">
+                                      {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                    </span>
                                   )}
-                                  {gameState === "final" && (
-                                    <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-neutral-500/15 text-neutral-400 uppercase leading-none">Final</span>
+                                  {gameState === "final" && game && (
+                                    <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-neutral-500/15 text-neutral-400 leading-none tabular-nums">
+                                      F {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                    </span>
                                   )}
                                 </div>
                               </div>
