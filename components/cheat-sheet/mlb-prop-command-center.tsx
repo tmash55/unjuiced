@@ -1350,25 +1350,36 @@ export function MlbPropCommandCenter() {
   // Fetch prop scores — all markets including HR now use the same source
   const propResult = useMlbPropScores(selectedDate, selectedMarket);
 
-  // Process players with consensus line odds fix
+  // Process players: force HR line to 0.5, fix best_odds to consensus line
   const players = useMemo(() => {
     const raw = propResult.players;
-    // Fix best_odds: filter to consensus line from odds_snapshot
+    // Markets where line should always be fixed
+    const FIXED_LINES: Record<string, number> = { hr: 0.5 };
+
     return raw.map((p) => {
-      if (!p.odds_snapshot || !p.line) return p;
-      let bestPrice: number | null = null;
-      let bestBook: string | null = null;
-      for (const [book, data] of Object.entries(p.odds_snapshot)) {
-        if (!data || data.line !== p.line || data.over == null) continue;
-        if (bestPrice == null || data.over > bestPrice) {
-          bestPrice = data.over;
-          bestBook = book;
+      const fixedLine = FIXED_LINES[p.market];
+      const targetLine = fixedLine ?? p.line;
+
+      // Override line for fixed-line markets
+      let updated = fixedLine != null ? { ...p, line: fixedLine } : p;
+
+      // Fix best_odds: filter to target line from odds_snapshot
+      if (updated.odds_snapshot && targetLine != null) {
+        let bestPrice: number | null = null;
+        let bestBook: string | null = null;
+        for (const [book, data] of Object.entries(updated.odds_snapshot)) {
+          if (!data || data.line !== targetLine || data.over == null) continue;
+          if (bestPrice == null || data.over > bestPrice) {
+            bestPrice = data.over;
+            bestBook = book;
+          }
+        }
+        if (bestPrice != null) {
+          updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
         }
       }
-      if (bestPrice != null) {
-        return { ...p, best_odds: bestPrice, best_odds_book: bestBook };
-      }
-      return p;
+
+      return updated;
     });
   }, [propResult.players]);
   const isLoading = propResult.isLoading;
