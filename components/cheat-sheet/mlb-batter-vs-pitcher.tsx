@@ -15,6 +15,8 @@ import {
 import { useMlbHotZone, type BatterZoneCell, type PitcherZoneCell, type OverlayZoneCell } from "@/hooks/use-mlb-hot-zone";
 import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-odds";
 import { useHasSharpAccess } from "@/hooks/use-entitlements";
+import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
+import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
@@ -1571,6 +1573,7 @@ function BatterRow({
   hasSharpAccess,
   oddsLoading,
   gameId,
+  propScores,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1584,6 +1587,7 @@ function BatterRow({
   hasSharpAccess?: boolean;
   oddsLoading?: boolean;
   gameId?: number | null;
+  propScores?: Record<string, PropScorePlayer>;
 }) {
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -1592,7 +1596,10 @@ function BatterRow({
     bbs: batter.total_batted_balls,
     k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
-  const badge = gradeBadge(batter.matchup_grade, batter.hr_probability_score);
+  // Use prop score HR score if available, otherwise fall back to matchup HR score
+  const hrPropScore = propScores?.hr?.composite_score;
+  const hrScoreDisplay = hrPropScore ?? batter.hr_probability_score;
+  const badge = gradeBadge(batter.matchup_grade, hrScoreDisplay);
   const hasPlatoon = pitcher
     ? (batter.batting_hand === "L" && pitcher.hand === "R") ||
       (batter.batting_hand === "R" && pitcher.hand === "L")
@@ -2664,6 +2671,19 @@ export function MlbBatterVsPitcher({
     statSeason,
   });
 
+  // Prop scores for the selected game — overlay onto batter rows
+  const { players: allPropScores } = useMlbPropScores(undefined, undefined, !!selectedGameId);
+  const propScoreMap = useMemo(() => {
+    const map = new Map<number, Record<string, PropScorePlayer>>();
+    if (!selectedGameId) return map;
+    for (const p of allPropScores) {
+      if (p.game_id !== selectedGameId) continue;
+      if (!map.has(p.player_id)) map.set(p.player_id, {});
+      map.get(p.player_id)![p.market] = p;
+    }
+    return map;
+  }, [allPropScores, selectedGameId]);
+
   // Batter odds for the odds column
   const { odds: batterOdds, isFetching: oddsFetching } = useMlbBatterOdds(
     selectedGameId,
@@ -3346,6 +3366,7 @@ export function MlbBatterVsPitcher({
                             hasSharpAccess={hasSharpAccess}
                             oddsLoading={oddsFetching}
                             gameId={selectedGameId}
+                            propScores={propScoreMap.get(b.player_id)}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
