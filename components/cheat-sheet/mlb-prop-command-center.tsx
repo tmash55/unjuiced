@@ -358,6 +358,32 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   opp_woba:           { elite: 0.370, good: 0.340, poor: 0.300, bad: 0.270, higher: true },
 };
 
+/** Binomial probability: P(hits >= threshold) given effective BA and expected ABs */
+function pHitsOver(effectiveBA: number, expectedABs: number, threshold: number): number {
+  if (effectiveBA <= 0 || expectedABs <= 0) return 0;
+  const n = Math.round(expectedABs);
+  const p = Math.min(effectiveBA, 0.999);
+  const q = 1 - p;
+
+  // Compute P(X < threshold) = sum of P(X = k) for k = 0 to threshold-1
+  let cdf = 0;
+  for (let k = 0; k < threshold; k++) {
+    // Binomial coefficient * p^k * q^(n-k)
+    let coeff = 1;
+    for (let i = 0; i < k; i++) {
+      coeff *= (n - i) / (i + 1);
+    }
+    cdf += coeff * Math.pow(p, k) * Math.pow(q, n - k);
+  }
+  return Math.max(0, Math.min(1, 1 - cdf));
+}
+
+/** Convert American odds to implied probability */
+function oddsToImplied(american: number): number {
+  if (american > 0) return 100 / (american + 100);
+  return Math.abs(american) / (Math.abs(american) + 100);
+}
+
 // Stats where 0 means "no data" rather than an actual zero value
 const ZERO_IS_NULL_STATS = new Set([
   "opp_lineup_k_rate", "k_rate", "whiff_pct", "csw_pct", "chase_rate", "sb_attempt_rate", "success_rate",
@@ -1436,8 +1462,24 @@ export function MlbPropCommandCenter() {
         }
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
+
+          // Recompute model probability + edge for hits market at different lines
+          const ks = p.key_stats ?? {};
+          const effectiveBA = ks.effective_ba as number | undefined;
+          const expABs = ks.exp_abs as number | undefined;
+          if (effectiveBA && expABs && targetLine != null && p.market === "hits") {
+            const threshold = targetLine + 0.5; // 0.5 line = 1+ hits, 1.5 = 2+, etc.
+            const modelProb = pHitsOver(effectiveBA, expABs, threshold);
+            const impliedProb = oddsToImplied(bestPrice);
+            const edge = impliedProb > 0 ? ((modelProb - impliedProb) / impliedProb) * 100 : null;
+            updated = {
+              ...updated,
+              model_prob: modelProb,
+              implied_prob: impliedProb,
+              edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
+            };
+          }
         } else {
-          // No books at this line — clear odds
           updated = { ...updated, best_odds: null, best_odds_book: null };
         }
       }
