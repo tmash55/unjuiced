@@ -1092,6 +1092,17 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
             {player.line != null && (
               <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{player.line} {marketConfig.lineLabel}</span>
             )}
+            {player.hit_over != null && (
+              <span className={cn(
+                "inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none",
+                player.hit_over
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-red-500/15 text-red-400"
+              )}>
+                {player.hit_over ? "✓" : "✗"}
+                {player.actual_stat != null && <span className="tabular-nums">{player.actual_stat}</span>}
+              </span>
+            )}
           </div>
         </div>
 
@@ -1104,15 +1115,8 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
               {player.edge_pct != null ? `${player.edge_pct > 0 ? "+" : ""}${player.edge_pct.toFixed(1)}%` : "-"}
             </span>
           </div>
-          <div className="flex items-center gap-1">
-            {player.hit_over != null && (
-              <span className={cn("text-base", player.hit_over ? "text-emerald-400" : "text-red-400")}>
-                {player.hit_over ? "✓" : "✗"}
-              </span>
-            )}
-            <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
-              <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
-            </div>
+          <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
+            <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
           </div>
         </div>
       </button>
@@ -1690,11 +1694,26 @@ export function MlbPropCommandCenter() {
                                     )}
                                     <LineupBadge status={player.lineup_status} />
                                   </div>
-                                  {player.line != null && (
-                                    <span className="text-[10px] font-mono font-semibold text-neutral-500 tabular-nums">
-                                      {player.line}+ {marketConfig.lineLabel}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-1.5">
+                                    {player.line != null && (
+                                      <span className="text-[10px] font-mono font-semibold text-neutral-500 tabular-nums">
+                                        {player.line}+ {marketConfig.lineLabel}
+                                      </span>
+                                    )}
+                                    {player.hit_over != null && (
+                                      <span className={cn(
+                                        "inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none",
+                                        player.hit_over
+                                          ? "bg-emerald-500/15 text-emerald-400"
+                                          : "bg-red-500/15 text-red-400"
+                                      )}>
+                                        {player.hit_over ? "✓" : "✗"}
+                                        {player.actual_stat != null && (
+                                          <span className="tabular-nums">{player.actual_stat}</span>
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1721,22 +1740,10 @@ export function MlbPropCommandCenter() {
                               </div>
                             </td>
 
-                            {/* Score + Result */}
+                            {/* Score */}
                             <td className="px-2 py-2 text-center">
-                              <div className="inline-flex items-center gap-1.5">
-                                <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
-                                  <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
-                                </div>
-                                {player.hit_over != null && (
-                                  <div className="flex flex-col items-center">
-                                    <span className={cn("text-sm", player.hit_over ? "text-emerald-400" : "text-red-400")}>
-                                      {player.hit_over ? "✓" : "✗"}
-                                    </span>
-                                    {player.actual_stat != null && (
-                                      <span className="text-[8px] text-neutral-400 tabular-nums leading-none">{player.actual_stat}</span>
-                                    )}
-                                  </div>
-                                )}
+                              <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
+                                <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
                               </div>
                             </td>
 
