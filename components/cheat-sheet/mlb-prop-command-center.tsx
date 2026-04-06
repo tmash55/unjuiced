@@ -80,11 +80,15 @@ const MARKETS: MarketConfig[] = [
       { key: "hard_hit_pct", label: "Hard%", shortLabel: "Hard", format: "pct", tooltip: "Hard hit percentage" },
     ],
     factors: [
-      { key: "power", label: "Power" },
-      { key: "pitcher", label: "Pitcher" },
-      { key: "park", label: "Park" },
-      { key: "environment", label: "Env" },
-      { key: "matchup", label: "Matchup" },
+      { key: "power", label: "Power", tooltip: "Batter power — barrel rate, exit velo, ISO (40%)" },
+      { key: "matchup", label: "Matchup", tooltip: "Composite matchup quality (20%)" },
+      { key: "pitcher", label: "Pitcher", tooltip: "Pitcher vulnerability — HR/9, FB%, hard contact (18%)" },
+      { key: "park", label: "Park", tooltip: "Park HR factor (15%)" },
+      { key: "environment", label: "Env", tooltip: "Weather + altitude impact (7%)" },
+      { key: "platoon", label: "Platoon", tooltip: "Handedness matchup advantage (L vs R, etc.)" },
+      { key: "surge", label: "Surge", tooltip: "Recent form — z-score vs season baseline" },
+      { key: "bvp", label: "BvP", tooltip: "Batter vs pitcher career HR history (Bayesian)" },
+      { key: "batting_order", label: "Order", tooltip: "Lineup position bonus — higher order = more PAs" },
     ],
   },
   {
@@ -329,6 +333,7 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   base_traffic:       { elite: 0.370, good: 0.330, poor: 0.290, bad: 0.260, higher: true },
   // HR market
   max_exit_velo:      { elite: 112, good: 108, poor: 104, bad: 100, higher: true },
+  iso:                { elite: 0.250, good: 0.200, poor: 0.130, bad: 0.080, higher: true },
   // Pitcher H market
   h_per_9:            { elite: 10, good: 8.5, poor: 7, bad: 6, higher: true },
   recent_h_per_9:     { elite: 10, good: 8.5, poor: 7, bad: 6, higher: true },
@@ -553,11 +558,26 @@ function kRateBg(rate: number): string {
 interface StatDisplayItem {
   key: string;
   label: string;
-  format: "avg" | "pct" | "pct100" | "stat" | "int" | "raw";
+  format: "avg" | "pct" | "pct100" | "stat" | "int" | "raw" | "speed";
   group?: string;
 }
 
 const MARKET_STATS: Record<string, StatDisplayItem[]> = {
+  hr: [
+    { key: "barrel_pct", label: "Barrel%", format: "pct", group: "Power" },
+    { key: "max_exit_velo", label: "Max Exit Velo", format: "speed", group: "Power" },
+    { key: "hard_hit_pct", label: "Hard Hit%", format: "pct", group: "Power" },
+    { key: "iso", label: "ISO", format: "avg", group: "Power" },
+    { key: "park_hr_factor", label: "Park HR Factor", format: "int", group: "Park" },
+    { key: "pitcher_fb_pct", label: "Pitcher FB%", format: "pct", group: "Pitcher" },
+    { key: "pitcher_hard_hit", label: "Pitcher Hard Hit%", format: "pct", group: "Pitcher" },
+    { key: "pitcher_k_rate", label: "Pitcher K%", format: "pct", group: "Pitcher" },
+    { key: "bvp_hr", label: "BvP HR", format: "int", group: "History" },
+    { key: "bvp_pa", label: "BvP PA", format: "int", group: "History" },
+    { key: "recent_barrel", label: "Recent Barrel%", format: "pct", group: "Recent" },
+    { key: "wind_speed", label: "Wind Speed", format: "int", group: "Environment" },
+    { key: "elevation_ft", label: "Elevation", format: "int", group: "Environment" },
+  ],
   pitcher_k: [
     { key: "k_per_9", label: "K/9", format: "stat", group: "K Ability" },
     { key: "k_rate", label: "K%", format: "pct", group: "K Ability" },
@@ -631,6 +651,7 @@ function formatDisplayStat(val: any, format: StatDisplayItem["format"]): string 
     case "pct100": return `${(num * 100).toFixed(1)}%`;
     case "stat": return num.toFixed(1);
     case "int": return String(Math.round(num));
+    case "speed": return num.toFixed(1);
     default: return String(val);
   }
 }
