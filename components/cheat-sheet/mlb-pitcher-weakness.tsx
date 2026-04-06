@@ -13,6 +13,7 @@ import {
   type LineupBatter,
   type GameInfo,
 } from "@/hooks/use-mlb-pitcher-weakness";
+import { useMlbGameMatchup, type BatterMatchup, type BatterPitchSplit } from "@/hooks/use-mlb-game-matchup";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { Loader2, ChevronRight, AlertTriangle, Users, ChevronDown, Zap, Info } from "lucide-react";
@@ -698,13 +699,27 @@ function BatterLineupTable({
   isMobile,
   expandedBatterId,
   onToggleBatter,
+  gameId,
+  statSeason,
+  battingSide,
 }: {
   lineup: LineupBatter[];
   isMobile: boolean;
   expandedBatterId: number | null;
   onToggleBatter: (id: number) => void;
+  gameId: number | null;
+  statSeason: number;
+  battingSide: "home" | "away";
 }) {
   const applyState = useStateLink();
+
+  // Lazy-load rich matchup data when a batter is expanded
+  const shouldFetchMatchup = expandedBatterId != null && gameId != null;
+  const { batters: matchupBatters, isLoading: matchupLoading } = useMlbGameMatchup({
+    gameId: shouldFetchMatchup ? gameId : null,
+    battingSide,
+    statSeason,
+  });
   // Track which batting order spot each batter is viewing (default: their actual spot)
   const [selectedSpots, setSelectedSpots] = useState<Record<number, string>>({});
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
@@ -938,11 +953,15 @@ function BatterLineupTable({
                     </td>
                   )}
                 </tr>
-                {/* Expanded batter detail */}
+                {/* Expanded batter detail — rich version with matchup data */}
                 {isExpanded && b && (
                   <tr>
                     <td colSpan={isMobile ? 5 : 16} className="p-0">
-                      <BatterExpandedDetail batter={b} />
+                      <RichBatterDetail
+                        batter={b}
+                        matchupBatter={matchupBatters.find((mb) => mb.player_id === b.player_id) ?? null}
+                        isLoading={matchupLoading && matchupBatters.length === 0}
+                      />
                     </td>
                   </tr>
                 )}
@@ -956,6 +975,159 @@ function BatterLineupTable({
 }
 
 // ── Batter Expanded Detail ──────────────────────────────────────────────────
+
+function RichBatterDetail({
+  batter,
+  matchupBatter,
+  isLoading,
+}: {
+  batter: LineupBatter;
+  matchupBatter: BatterMatchup | null;
+  isLoading: boolean;
+}) {
+  const applyState = useStateLink();
+
+  if (isLoading) {
+    return (
+      <div className="border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 py-4 flex items-center justify-center">
+        <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
+        <span className="ml-2 text-xs text-neutral-500">Loading matchup data...</span>
+      </div>
+    );
+  }
+
+  const mb = matchupBatter;
+
+  return (
+    <div className="border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 py-3 space-y-3">
+      {/* Row 1: Matchup grade + Key stats */}
+      <div className="flex items-start gap-4">
+        {mb && (
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "text-[10px] font-bold px-2 py-1 rounded-lg uppercase",
+              mb.matchup_grade === "strong" ? "bg-emerald-500/15 text-emerald-400" :
+              mb.matchup_grade === "weak" ? "bg-red-500/15 text-red-400" :
+              "bg-neutral-500/10 text-neutral-400"
+            )}>
+              {mb.matchup_grade}
+            </span>
+            {mb.matchup_reason && (
+              <span className="text-[10px] text-neutral-500 max-w-[200px] truncate">{mb.matchup_reason}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Row 2: Key Statcast stats */}
+      {mb && (
+        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 text-center">
+          {mb.avg_exit_velo != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">EV</div>
+              <div className={cn("text-xs font-bold tabular-nums", (mb.avg_exit_velo ?? 0) >= 90 ? "text-emerald-400" : "text-neutral-200")}>{mb.avg_exit_velo.toFixed(1)}</div>
+            </div>
+          )}
+          {mb.barrel_pct != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">Brl%</div>
+              <div className={cn("text-xs font-bold tabular-nums", (mb.barrel_pct ?? 0) >= 10 ? "text-emerald-400" : "text-neutral-200")}>{mb.barrel_pct.toFixed(1)}%</div>
+            </div>
+          )}
+          {mb.hard_hit_pct != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">Hard%</div>
+              <div className="text-xs font-bold tabular-nums text-neutral-200">{mb.hard_hit_pct.toFixed(1)}%</div>
+            </div>
+          )}
+          {mb.woba != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">wOBA</div>
+              <div className={cn("text-xs font-bold tabular-nums", (mb.woba ?? 0) >= 0.340 ? "text-emerald-400" : "text-neutral-200")}>{mb.woba.toFixed(3)}</div>
+            </div>
+          )}
+          {mb.k_pct != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">K%</div>
+              <div className={cn("text-xs font-bold tabular-nums", (mb.k_pct ?? 100) <= 20 ? "text-emerald-400" : (mb.k_pct ?? 0) >= 30 ? "text-red-400" : "text-neutral-200")}>{mb.k_pct.toFixed(1)}%</div>
+            </div>
+          )}
+          {mb.bb_pct != null && (
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-neutral-400">BB%</div>
+              <div className="text-xs font-bold tabular-nums text-neutral-200">{mb.bb_pct.toFixed(1)}%</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Row 3: Pitch Splits */}
+      {mb && mb.pitch_splits.length > 0 && (
+        <div>
+          <div className="text-[9px] uppercase tracking-wider font-semibold text-neutral-400 mb-1.5">Pitch Splits</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-[9px] uppercase tracking-wider text-neutral-400 mb-1">
+              <span className="w-14">Pitch</span>
+              <span className="w-10">BBs</span>
+              <span className="w-10 text-right">AVG</span>
+              <span className="w-10 text-right">SLG</span>
+              <span className="w-10 text-right">K%</span>
+            </div>
+            {mb.pitch_splits.slice(0, 5).map((ps) => (
+              <div key={ps.pitch_type} className="flex items-center gap-2 text-[11px]">
+                <span className="w-14 shrink-0 font-medium text-neutral-500 truncate">{ps.pitch_name || ps.pitch_type}</span>
+                <span className="w-10 text-neutral-400 tabular-nums">{ps.batted_balls}</span>
+                <span className={cn("w-10 text-right tabular-nums font-bold",
+                  (ps.avg ?? 0) >= 0.300 ? "text-emerald-400" : (ps.avg ?? 0) <= 0.150 ? "text-red-400" : "text-neutral-300"
+                )}>{ps.avg != null ? fmtAvg(ps.avg) : "-"}</span>
+                <span className={cn("w-10 text-right tabular-nums font-bold",
+                  (ps.slg ?? 0) >= 0.500 ? "text-emerald-400" : (ps.slg ?? 0) <= 0.200 ? "text-red-400" : "text-neutral-300"
+                )}>{ps.slg != null ? fmtAvg(ps.slg) : "-"}</span>
+                <span className={cn("w-10 text-right tabular-nums",
+                  (ps.k_pct ?? 0) >= 30 ? "text-red-400" : (ps.k_pct ?? 0) <= 15 ? "text-emerald-400" : "text-neutral-400"
+                )}>{ps.k_pct != null ? `${ps.k_pct.toFixed(0)}%` : "-"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 4: H2H vs Pitcher */}
+      {mb?.h2h && mb.h2h.pa > 0 && (
+        <div className="flex items-center gap-4 text-[10px] text-neutral-500 pt-2 border-t border-neutral-100 dark:border-neutral-800/30">
+          <span className="uppercase tracking-wider font-semibold text-neutral-400">H2H</span>
+          <span className="tabular-nums font-bold text-neutral-200">
+            {mb.h2h.hits}-{mb.h2h.pa} ({mb.h2h.avg != null ? mb.h2h.avg.toFixed(3) : "-"})
+          </span>
+          {mb.h2h.hrs > 0 && (
+            <span className="tabular-nums font-bold text-emerald-400">{mb.h2h.hrs} HR</span>
+          )}
+        </div>
+      )}
+
+      {/* Row 5: HR factors */}
+      {mb && mb.hr_factors.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {mb.hr_factors.map((f, i) => (
+            <span key={i} className={cn(
+              "text-[9px] font-semibold px-1.5 py-0.5 rounded-full",
+              f.positive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+            )}>
+              {f.positive ? "+" : "-"} {f.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Row 6: Odds */}
+      <div className="flex items-center gap-4 pt-2 border-t border-neutral-100 dark:border-neutral-800/30">
+        <OddsBadge label="HR" odds={batter.odds.hr} />
+        <OddsBadge label="Hits" odds={batter.odds.hits} />
+        <OddsBadge label="Ks" odds={batter.odds.strikeouts} />
+      </div>
+    </div>
+  );
+}
 
 function BatterExpandedDetail({ batter }: { batter: LineupBatter }) {
   const applyState = useStateLink();
@@ -1215,6 +1387,9 @@ function MatchupCard({
   isMobile,
   expandedBatterId,
   onToggleBatter,
+  gameId,
+  statSeason,
+  battingSide,
 }: {
   pitcher: PitcherData;
   lineup: LineupBatter[];
@@ -1225,6 +1400,9 @@ function MatchupCard({
   isMobile: boolean;
   expandedBatterId: number | null;
   onToggleBatter: (id: number) => void;
+  gameId: number | null;
+  statSeason: number;
+  battingSide: "home" | "away";
 }) {
   // Pre-compute edge spots: pitcher weak (SLG >= .400) AND batter strong (SLG >= .450)
   const edgeSpots = useMemo(() => {
@@ -1278,6 +1456,9 @@ function MatchupCard({
             isMobile={isMobile}
             expandedBatterId={expandedBatterId}
             onToggleBatter={onToggleBatter}
+            gameId={gameId}
+            statSeason={statSeason}
+            battingSide={battingSide}
           />
         </div>
 
@@ -1337,6 +1518,9 @@ function MatchupCard({
               isMobile={false}
               expandedBatterId={expandedBatterId}
               onToggleBatter={onToggleBatter}
+              gameId={gameId}
+              statSeason={statSeason}
+              battingSide={battingSide}
             />
           </div>
         </div>
@@ -1522,6 +1706,9 @@ export function MlbPitcherWeakness({
               isMobile={isMobile}
               expandedBatterId={expandedBatterId}
               onToggleBatter={handleToggleBatter}
+              gameId={selectedGameId}
+              statSeason={statSeason}
+              battingSide="home"
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">
@@ -1541,6 +1728,9 @@ export function MlbPitcherWeakness({
               isMobile={isMobile}
               expandedBatterId={expandedBatterId}
               onToggleBatter={handleToggleBatter}
+              gameId={selectedGameId}
+              statSeason={statSeason}
+              battingSide="away"
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">
