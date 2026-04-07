@@ -11,7 +11,7 @@ import { AppSidebar } from "@/components/nav/side-nav/app-sidebar"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useActivityTracker } from "@/hooks/use-activity-tracker"
 import { LoadingSpinner } from "@/components/icons/loading-spinner"
-import { BetslipFab } from "@/components/betslip/betslip-fab"
+import { BetslipFab, BetslipHeaderButton } from "@/components/betslip/betslip-fab"
 import { FeatureAnnouncementModal } from "@/components/feature-announcements/feature-announcement-modal"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Tooltip, TooltipProvider } from "@/components/tooltip"
@@ -63,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Right side - State, My Plays, Theme Toggle, Help */}
           <div className="flex items-center gap-1">
             <NavStateSelector compact />
-            {/* Betslip FAB renders as a floating button, not inline */}
+            <BetslipHeaderButton />
             <ModeToggle />
             <Link
               href="/support"
