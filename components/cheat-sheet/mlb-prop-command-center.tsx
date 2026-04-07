@@ -154,18 +154,31 @@ const MARKETS: MarketConfig[] = [
     lineLabel: "TB",
     lineOptions: [0.5, 1.5, 2.5, 3.5],
     columns: [
-      { key: "xslg", label: "xSLG", shortLabel: "xSLG", format: "avg", tooltip: "Expected slugging (Statcast)" },
+      { key: "xslg", label: "xSLG", shortLabel: "xSLG", format: "avg", tooltip: "Expected slugging or xSLG blend" },
       { key: "barrel_pct", label: "Brl%", shortLabel: "Brl", format: "pct", tooltip: "Barrel rate" },
       { key: "hard_hit_pct", label: "Hard%", shortLabel: "Hard", format: "pct", tooltip: "Hard hit percentage" },
     ],
     factors: [
-      { key: "recent", label: "Recent" },
+      { key: "barrel", label: "Barrel", tooltip: "Barrel rate — perfect contact" },
+      { key: "iso", label: "ISO", tooltip: "Isolated power" },
+      { key: "xslg_blend", label: "xSLG", tooltip: "2/3 xSLG + 1/3 SLG blend" },
+      { key: "hard_hit", label: "Hard Hit", tooltip: "Hard hit percentage" },
+      { key: "recent_xslg", label: "Recent", tooltip: "Recent xSLG trend" },
+      { key: "ld_pct", label: "Line Drive", tooltip: "Line drive percentage" },
+      { key: "pitcher_xslg", label: "P xSLG", tooltip: "Pitcher SLG allowed" },
+      { key: "pitcher_barrel", label: "P Barrel", tooltip: "Pitcher barrel rate allowed" },
+      { key: "vs_hand", label: "vs Hand", tooltip: "Performance vs pitcher handedness" },
+      { key: "bvp", label: "BvP", tooltip: "Batter vs pitcher history" },
+      { key: "batting_order", label: "Order", tooltip: "Lineup position PA bonus" },
+      { key: "park", label: "Park", tooltip: "Park TB factor composite" },
+      { key: "weather", label: "Weather", tooltip: "Temperature + wind impact" },
+      { key: "avg_exit_velo", label: "Exit Velo", tooltip: "Average exit velocity" },
+      { key: "surge", label: "Surge", tooltip: "Recent form z-score" },
+      // Fallbacks for old data
       { key: "xslg", label: "xSLG" },
-      { key: "iso", label: "ISO" },
-      { key: "hard_hit", label: "Hard Hit" },
-      { key: "vs_hand", label: "vs Hand" },
       { key: "opp_hr9", label: "Opp HR/9" },
       { key: "ballpark", label: "Ballpark" },
+      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -647,13 +660,19 @@ const MARKET_STATS: Record<string, StatDisplayItem[]> = {
     { key: "form_diff", label: "Form Trend", format: "stat", group: "Recent" },
   ],
   tb: [
+    { key: "xslg_blend", label: "xSLG Blend", format: "avg", group: "Power" },
     { key: "slg", label: "SLG", format: "avg", group: "Power" },
     { key: "xslg", label: "xSLG", format: "avg", group: "Power" },
     { key: "iso", label: "ISO", format: "avg", group: "Power" },
     { key: "barrel_pct", label: "Barrel%", format: "pct", group: "Power" },
     { key: "hard_hit_pct", label: "Hard Hit%", format: "pct", group: "Power" },
-    { key: "recent_xslg", label: "Recent xSLG", format: "avg", group: "Recent" },
+    { key: "avg_exit_velo", label: "Avg Exit Velo", format: "speed", group: "Power" },
+    { key: "pitcher_slg_allowed", label: "Pitcher SLG", format: "avg", group: "Matchup" },
+    { key: "pitcher_barrel_allowed", label: "Pitcher Brl%", format: "pct", group: "Matchup" },
     { key: "vs_hand_iso", label: "vs Hand ISO", format: "avg", group: "Matchup" },
+    { key: "park_tb_factor", label: "Park TB Factor", format: "int", group: "Park" },
+    { key: "expected_tb", label: "Expected TB", format: "stat", group: "Model" },
+    { key: "effective_slg", label: "Effective SLG", format: "avg", group: "Model" },
   ],
   rbi: [
     { key: "rbi_rate", label: "RBI/PA", format: "avg", group: "Production" },
@@ -1804,6 +1823,11 @@ export function MlbPropCommandCenter() {
                         <SortBtn field="best_odds" current={sortField} dir={sortDirection} onClick={handleSort}>Odds</SortBtn>
                       </Th>
                       <Th>
+                        <Tooltip content="Model probability — how likely this outcome is based on our scoring model" side="top">
+                          <span className="cursor-help text-[10px]">Prob</span>
+                        </Tooltip>
+                      </Th>
+                      <Th>
                         <Tooltip content="Model edge: positive = value bet opportunity" side="top">
                           <span className="cursor-help">
                             <SortBtn field="edge_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Edge</SortBtn>
@@ -1946,6 +1970,17 @@ export function MlbPropCommandCenter() {
                             {/* Odds */}
                             <td className="px-2 py-2 text-center">
                               <OddsCell player={player} marketConfig={marketConfig} />
+                            </td>
+
+                            {/* Prob */}
+                            <td className="px-2 py-2 text-center">
+                              {player.model_prob != null ? (
+                                <span className="text-[11px] font-semibold tabular-nums text-neutral-500 dark:text-neutral-400">
+                                  {(player.model_prob * 100).toFixed(0)}%
+                                </span>
+                              ) : (
+                                <span className="text-xs text-neutral-500">-</span>
+                              )}
                             </td>
 
                             {/* Edge */}
