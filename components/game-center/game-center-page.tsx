@@ -153,29 +153,31 @@ function GameSwitcher({
                         : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                     )}
                   >
-                    <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-5 h-5 object-contain shrink-0" alt="" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-neutral-900 dark:text-white">
-                        {g.away_team_tricode} @ {g.home_team_tricode}
-                        {dhMap.get(g.game_id) && (
-                          <span className="ml-1 text-[9px] text-brand font-bold">({dhMap.get(g.game_id)})</span>
-                        )}
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      {/* Away team row */}
+                      <div className="flex items-center gap-1.5">
+                        <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                        <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.away_team_tricode}</span>
+                        <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.away_probable_pitcher)}</span>
+                        {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.away_team_score}</span>}
                       </div>
-                      <div className="text-[10px] text-neutral-500 truncate">
-                        {lastNameOnly(g.away_probable_pitcher)} vs {lastNameOnly(g.home_probable_pitcher)}
+                      {/* Home team row */}
+                      <div className="flex items-center gap-1.5">
+                        <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                        <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.home_team_tricode}</span>
+                        <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.home_probable_pitcher)}</span>
+                        {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.home_team_score}</span>}
                       </div>
-                    </div>
-                    <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-5 h-5 object-contain shrink-0" alt="" />
-                    <div className="text-right shrink-0">
-                      {isFinal ? (
-                        <div className="text-[10px] font-bold text-neutral-900 dark:text-white tabular-nums">
-                          {g.away_team_score}-{g.home_team_score}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-neutral-500 tabular-nums">{g.game_status}</div>
+                      {dhMap.get(g.game_id) && (
+                        <span className="text-[9px] text-brand font-bold">Game {dhMap.get(g.game_id)}</span>
                       )}
                     </div>
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                      {!isFinal && (
+                        <span className="text-[10px] text-neutral-500 tabular-nums whitespace-nowrap">{g.game_status}</span>
+                      )}
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                    </div>
                   </button>
                 </React.Fragment>
               );

@@ -433,6 +433,9 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   era:                { elite: 3, good: 3.5, poor: 4.5, bad: 5.5, higher: false },
   whip:               { elite: 1.05, good: 1.2, poor: 1.4, bad: 1.6, higher: false },
   opp_woba:           { elite: 0.370, good: 0.340, poor: 0.300, bad: 0.270, higher: true },
+  // H+R+RBI market
+  obp:                { elite: 0.380, good: 0.340, poor: 0.290, bad: 0.250, higher: true },
+  expected_combo:     { elite: 3.5, good: 3.0, poor: 2.2, bad: 1.8, higher: true },
 };
 
 /** Convert American odds to implied probability */
@@ -1563,26 +1566,28 @@ function GameFilterDropdown({
                       : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                   )}
                 >
-                  <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-5 h-5 object-contain shrink-0" alt="" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-neutral-900 dark:text-white">
-                      {g.away_team_tricode} @ {g.home_team_tricode}
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    {/* Away team row */}
+                    <div className="flex items-center gap-1.5">
+                      <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.away_team_tricode}</span>
+                      <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.away_probable_pitcher)}</span>
+                      {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.away_team_score}</span>}
                     </div>
-                    <div className="text-[10px] text-neutral-500 truncate">
-                      {lastNameOnly(g.away_probable_pitcher)} vs {lastNameOnly(g.home_probable_pitcher)}
+                    {/* Home team row */}
+                    <div className="flex items-center gap-1.5">
+                      <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.home_team_tricode}</span>
+                      <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.home_probable_pitcher)}</span>
+                      {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.home_team_score}</span>}
                     </div>
                   </div>
-                  <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-5 h-5 object-contain shrink-0" alt="" />
-                  <div className="text-right shrink-0">
-                    {isFinal ? (
-                      <span className="text-[10px] font-bold text-neutral-900 dark:text-white tabular-nums">
-                        {g.away_team_score}-{g.home_team_score}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-neutral-500 tabular-nums">{g.game_status}</span>
+                  <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                    {!isFinal && (
+                      <span className="text-[10px] text-neutral-500 tabular-nums whitespace-nowrap">{g.game_status}</span>
                     )}
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
                   </div>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
                 </button>
               );
             })}
@@ -1661,12 +1666,16 @@ export function MlbPropCommandCenter() {
   const marketConfig = MARKET_MAP.get(selectedMarket) ?? MARKETS[0];
 
   // Fetch games list for game filter dropdown + status lookup
-  const { games: allGames } = useMlbGames();
+  const { games: allGamesRaw } = useMlbGames();
+  // Filter games to selected date only
+  const allGames = useMemo(() => {
+    return allGamesRaw.filter((g) => g.game_date === selectedDate);
+  }, [allGamesRaw, selectedDate]);
   const gameMap = useMemo(() => {
     const map = new Map<number, MlbGame>();
-    allGames.forEach((g) => map.set(Number(g.game_id), g));
+    allGamesRaw.forEach((g) => map.set(Number(g.game_id), g));
     return map;
-  }, [allGames]);
+  }, [allGamesRaw]);
 
   // Fetch prop scores — all markets including HR now use the same source
   const propResult = useMlbPropScores(selectedDate, selectedMarket);
@@ -1921,41 +1930,6 @@ export function MlbPropCommandCenter() {
               </button>
             ))}
           </div>
-
-          {/* Line selector — only show for markets with multiple lines */}
-          {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Line</span>
-              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
-                {/* Default — uses each player's consensus line from the API */}
-                <button
-                  onClick={() => setSelectedLine(null)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
-                    selectedLine === null
-                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  )}
-                >
-                  Default
-                </button>
-                {marketConfig.lineOptions.map((ln) => (
-                  <button
-                    key={ln}
-                    onClick={() => setSelectedLine(ln)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
-                      selectedLine === ln
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    )}
-                  >
-                    {ln}+
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Divider */}
@@ -1969,12 +1943,38 @@ export function MlbPropCommandCenter() {
               onDateChange={setSelectedDate}
               availableDates={availableDates}
             />
-            <FilterDivider />
-            <SegmentedControl
-              value={String(minScore)}
-              onChange={(v) => setMinScore(Number(v))}
-              options={MIN_SCORE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
-            />
+            {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
+              <>
+                <FilterDivider />
+                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
+                  <button
+                    onClick={() => setSelectedLine(null)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all",
+                      selectedLine === null
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    Default
+                  </button>
+                  {marketConfig.lineOptions.map((ln) => (
+                    <button
+                      key={ln}
+                      onClick={() => setSelectedLine(ln)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
+                        selectedLine === ln
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                    >
+                      {ln}+
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             {allGames.length > 1 && (
               <>
                 <FilterDivider />
@@ -2002,12 +2002,35 @@ export function MlbPropCommandCenter() {
             </div>
             <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
             <div className="flex items-center gap-2 w-full">
-              <SegmentedControl
-                fullWidth
-                value={String(minScore)}
-                onChange={(v) => setMinScore(Number(v))}
-                options={MIN_SCORE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
-              />
+              {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
+                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
+                  <button
+                    onClick={() => setSelectedLine(null)}
+                    className={cn(
+                      "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
+                      selectedLine === null
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    Def
+                  </button>
+                  {marketConfig.lineOptions.map((ln) => (
+                    <button
+                      key={ln}
+                      onClick={() => setSelectedLine(ln)}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
+                        selectedLine === ln
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                    >
+                      {ln}+
+                    </button>
+                  ))}
+                </div>
+              )}
               {allGames.length > 1 && (
                 <GameFilterDropdown
                   games={allGames}
