@@ -404,6 +404,32 @@ function oddsToImplied(american: number): number {
   return Math.abs(american) / (Math.abs(american) + 100);
 }
 
+/** Books that share the same Kambi odds engine — only count once for avg */
+const KAMBI_BOOKS = new Set(["betparx", "bally-bet", "betrivers"]);
+
+/** Compute deduped average implied probability from odds snapshot at a given line */
+function avgImpliedDeduped(
+  snapshot: Record<string, { line: number; over: number | null; under: number | null; mobile_link: string | null }> | null,
+  targetLine: number | null
+): number | null {
+  if (!snapshot || targetLine == null) return null;
+  let kambiIncluded = false;
+  const impliedValues: number[] = [];
+  for (const [book, data] of Object.entries(snapshot)) {
+    if (!data || data.over == null) continue;
+    if (targetLine != null && data.line !== targetLine) continue;
+    // Deduplicate Kambi books — only count the first one
+    if (KAMBI_BOOKS.has(book)) {
+      if (kambiIncluded) continue;
+      kambiIncluded = true;
+    }
+    impliedValues.push(oddsToImplied(data.over));
+  }
+  return impliedValues.length > 0
+    ? impliedValues.reduce((a, b) => a + b, 0) / impliedValues.length
+    : null;
+}
+
 // Stats where 0 means "no data" rather than an actual zero value
 const ZERO_IS_NULL_STATS = new Set([
   "opp_lineup_k_rate", "k_rate", "whiff_pct", "csw_pct", "chase_rate", "sb_attempt_rate", "success_rate",
@@ -1501,13 +1527,8 @@ export function MlbPropCommandCenter() {
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
 
-          // Compute avg implied from all books at this line (fairer than best odds)
-          const lineBooks = Object.values(updated.odds_snapshot ?? {}).filter(
-            (d) => d && d.line === targetLine && d.over != null
-          );
-          const avgImplied = lineBooks.length > 0
-            ? lineBooks.reduce((sum, d) => sum + oddsToImplied(d!.over!), 0) / lineBooks.length
-            : null;
+          // Compute deduped avg implied (Kambi books counted once)
+          const avgImplied = avgImpliedDeduped(updated.odds_snapshot, targetLine);
 
           // Recompute model probability + edge for hits market at different lines
           const ks = p.key_stats ?? {};
@@ -1991,15 +2012,27 @@ export function MlbPropCommandCenter() {
                               <OddsCell player={player} marketConfig={marketConfig} />
                             </td>
 
-                            {/* Prob */}
+                            {/* Prob — model vs market */}
                             <td className="px-2 py-2 text-center">
-                              {player.model_prob != null ? (
-                                <span className="text-[11px] font-semibold tabular-nums text-neutral-500 dark:text-neutral-400">
-                                  {(player.model_prob * 100).toFixed(0)}%
-                                </span>
-                              ) : (
-                                <span className="text-xs text-neutral-500">-</span>
-                              )}
+                              {(() => {
+                                const marketImpl = avgImpliedDeduped(player.odds_snapshot, player.line);
+                                const modelProb = player.model_prob;
+                                if (modelProb == null && marketImpl == null) return <span className="text-xs text-neutral-500">-</span>;
+                                return (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    {modelProb != null && (
+                                      <span className="text-[11px] font-bold tabular-nums text-neutral-900 dark:text-white">
+                                        {(modelProb * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                    {marketImpl != null && (
+                                      <span className="text-[9px] tabular-nums text-neutral-400">
+                                        Mkt {(marketImpl * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Edge */}
