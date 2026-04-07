@@ -150,7 +150,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const applyState = useStateLink();
 
-  // Local selection state (all checked by default)
+  // Selection state persists across open/close — only reset when favorites list changes
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -159,6 +159,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
   const compareCache = useRef<Map<string, Record<string, SgpBookOdds>>>(new Map());
+  const prevFavIdsRef = useRef<string>("");
 
   // Live odds via SSE
   const { refreshedOdds: streamRefreshedOdds, changes: streamChanges } = useFavoritesStream({
@@ -177,22 +178,38 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
     return map;
   }, [streamRefreshedOdds]);
 
-  // Auto-select all when panel opens + auto-fetch compare
+  // Track favorites list — only reset selection when the list actually changes
+  const currentFavIds = favorites.map((f) => f.id).sort().join(",");
   useEffect(() => {
-    if (open) {
-      setSelectedIds(new Set(favorites.map((f) => f.id)));
-      setShowBreakdown(false);
-      setExpandedLegId(null);
+    const changed = prevFavIdsRef.current !== currentFavIds;
+    prevFavIdsRef.current = currentFavIds;
+
+    if (changed) {
+      // Favorites changed (added/removed) — auto-select new ones, keep existing selections
+      setSelectedIds((prev) => {
+        const currentIds = new Set(favorites.map((f) => f.id));
+        // If empty selection or first load, select all
+        if (prev.size === 0) return currentIds;
+        // Keep previous selections that still exist + auto-select any new ones
+        const next = new Set<string>();
+        for (const id of currentIds) {
+          if (prev.has(id) || !prevFavIdsRef.current) next.add(id);
+          // New favorite (wasn't in prev set) — auto-select it
+          else next.add(id);
+        }
+        return next;
+      });
+      // Invalidate compare cache since legs changed
       setCompareOdds({});
-      // Auto-show compare if 2+ plays
-      if (favorites.length >= 2) {
-        setShowCompare(true);
-        setIsLoadingCompare(true); // show loading state immediately
-      } else {
-        setShowCompare(false);
-      }
     }
-  }, [open, favorites]);
+  }, [currentFavIds, favorites]);
+
+  // When panel opens, show compare if 2+ selected (but don't reset selection)
+  useEffect(() => {
+    if (open && selectedIds.size >= 2) {
+      setShowCompare(true);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
