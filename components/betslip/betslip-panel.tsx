@@ -29,6 +29,7 @@ import {
   Layers,
   Search,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -266,10 +267,13 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
     }
   }, [selectedFavorites, refreshedOddsMap, compareCacheKey]);
 
-  // Auto-fetch compare when panel opens or selection changes
+  // Auto-fetch compare when panel opens or selection changes (skip cache on selection change)
+  const prevCacheKeyRef = useRef(compareCacheKey);
   useEffect(() => {
     if (open && showCompare && selectedFavorites.length >= 2) {
-      fetchCompare();
+      const selectionChanged = prevCacheKeyRef.current !== compareCacheKey;
+      prevCacheKeyRef.current = compareCacheKey;
+      fetchCompare(selectionChanged); // force refresh if selection changed
     }
   }, [open, showCompare, compareCacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -670,7 +674,16 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                         <span className="text-xs text-neutral-500">Fetching parlay odds...</span>
                       </div>
                     ) : fullBooks.length === 0 && partialBooks.length === 0 ? (
-                      <p className="text-xs text-neutral-400 text-center py-4">No sportsbooks returned odds for this combo</p>
+                      <div className="text-center py-4">
+                        <p className="text-xs text-neutral-400">No sportsbooks returned odds for this combo</p>
+                        <button
+                          onClick={() => fetchCompare(true)}
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-brand bg-brand/10 hover:bg-brand/20 transition-colors"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Retry
+                        </button>
+                      </div>
                     ) : (
                       <div className="space-y-1">
                         {fullBooks.length > 0 && (
@@ -679,7 +692,17 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                                 Parlay Odds ({totalSelectedLegs} legs)
                               </span>
-                              <span className="text-[10px] text-neutral-400">{fullBooks.length} books</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-neutral-400">{fullBooks.length} books</span>
+                                <button
+                                  onClick={() => fetchCompare(true)}
+                                  disabled={isLoadingCompare}
+                                  className="p-1 rounded text-neutral-400 hover:text-brand hover:bg-brand/10 transition-colors disabled:opacity-50"
+                                  title="Refresh odds"
+                                >
+                                  <RefreshCw className={cn("w-3 h-3", isLoadingCompare && "animate-spin")} />
+                                </button>
+                              </div>
                             </div>
                             {fullBooks.map(([bookId, odds], idx) => {
                               const isBest = idx === 0;
