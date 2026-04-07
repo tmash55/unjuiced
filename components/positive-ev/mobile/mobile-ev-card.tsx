@@ -501,11 +501,32 @@ export function MobileEVCard({
           </div>
         </div>
         
-        {/* Row 2: Market */}
+        {/* Row 2: Market + Model badge */}
         <div className="flex items-center justify-between gap-2 mt-1">
-          <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-            {marketDisplay}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
+              {marketDisplay}
+            </span>
+            {(() => {
+              const oppModel = opp as typeof opp & { modelId?: string; modelName?: string; modelColor?: string };
+              if (oppModel.modelId && oppModel.modelId !== "default" && oppModel.modelName) {
+                const color = oppModel.modelColor || "#8B5CF6";
+                return (
+                  <span
+                    className="text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none border truncate max-w-[70px]"
+                    style={{
+                      color,
+                      borderColor: color,
+                      backgroundColor: `${color}1A`,
+                    }}
+                  >
+                    {oppModel.modelName}
+                  </span>
+                );
+              }
+              return null;
+            })()}
+          </div>
         </div>
       </div>
       

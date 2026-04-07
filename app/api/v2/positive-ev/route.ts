@@ -401,7 +401,26 @@ export async function GET(req: NextRequest) {
           if (maxOdds != null && bookAm > maxOdds) continue;
           if (marketsFilter && !marketsFilter.includes(processedRow.mkt)) continue;
           if (booksFilter && processedRow.book?.id && !booksFilter.includes(normalizeBookIdForFrontend(processedRow.book.id))) continue;
-          if (processedRow.ev_data?.all_books && minBooksPerSide > 1 && processedRow.ev_data.all_books.length < minBooksPerSide) continue;
+          if (processedRow.ev_data?.all_books && minBooksPerSide > 1) {
+            const allBooks = processedRow.ev_data.all_books;
+            let relevantCount: number;
+
+            if (customSharpBooksParam && customSharpBooksParam.length > 0) {
+              // Custom model: count how many of the selected sharp books have odds for this side
+              const sharpSet = new Set(customSharpBooksParam.map((b: string) => canonicalizeCustomBookId(b)));
+              relevantCount = allBooks.filter((b: any) => {
+                const bookId = canonicalizeCustomBookId(normalizeBookIdForFrontend(b.id || b.book || ""));
+                return sharpSet.has(bookId);
+              }).length;
+            } else if (booksFilter) {
+              // Book filter active: count only selected bettable books
+              relevantCount = allBooks.filter((b: any) => booksFilter.includes(normalizeBookIdForFrontend(b.id || b.book || ""))).length;
+            } else {
+              // No filter: count all books
+              relevantCount = allBooks.length;
+            }
+            if (relevantCount < minBooksPerSide) continue;
+          }
           if (marketType !== "all" && inferRowMarketType(processedRow) !== marketType) continue;
 
           // Mode filter
