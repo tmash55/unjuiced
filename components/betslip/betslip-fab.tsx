@@ -29,28 +29,39 @@ export function BetslipFab() {
 
   return (
     <>
-      {/* Desktop FAB — hidden on mobile (header button used instead) */}
+      {/* Desktop FAB — pill that expands on hover to show label */}
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed z-40 hidden md:flex items-center justify-center rounded-full shadow-lg transition-all",
-          "bg-brand hover:bg-brand/90 text-white",
+          "fixed z-40 hidden md:flex items-center gap-2 bottom-6 right-6",
+          "rounded-full shadow-lg transition-all duration-300 group",
           "ring-1 ring-brand/20 hover:ring-brand/40",
-          hasItems ? "w-12 h-12 bottom-6 right-6" : "w-10 h-10 bottom-6 right-6 opacity-60",
+          hasItems
+            ? "bg-brand hover:bg-brand/90 text-white h-12 px-4 hover:px-5"
+            : "bg-neutral-800 dark:bg-neutral-800 hover:bg-brand text-neutral-400 hover:text-white h-10 px-3 hover:px-4",
         )}
         aria-label={`Open betslip (${count} plays)`}
       >
-        <ReceiptText className={cn("shrink-0", hasItems ? "w-5 h-5" : "w-4 h-4")} />
+        <ReceiptText className={cn(
+          "shrink-0 transition-transform duration-200",
+          hasItems ? "w-5 h-5" : "w-4 h-4 group-hover:scale-110",
+        )} />
 
-        {hasItems && (
-          <span
-            className={cn(
-              "absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center",
-              "rounded-full bg-white text-brand text-[11px] font-black shadow-sm ring-2 ring-brand",
-              pulse && "animate-bounce"
-            )}
-          >
-            {count > 99 ? "99+" : count}
+        {/* Label — always visible when has items, fade-in on hover when empty */}
+        <span className={cn(
+          "text-xs font-semibold whitespace-nowrap transition-all duration-300 overflow-hidden",
+          hasItems
+            ? "max-w-20 opacity-100"
+            : "max-w-0 opacity-0 group-hover:max-w-20 group-hover:opacity-100",
+        )}>
+          {hasItems ? `${count} Play${count !== 1 ? "s" : ""}` : "Betslip"}
+        </span>
+
+        {/* Badge — only when has items */}
+        {hasItems && pulse && (
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
           </span>
         )}
       </button>
