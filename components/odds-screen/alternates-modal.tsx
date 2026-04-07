@@ -256,7 +256,7 @@ export function AlternatesModal({
               books: enrichBooks,
             }),
           })
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error('enrich failed'); return r.json(); })
             .then(data => {
               if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0) {
                 const favoriteId = result.favorite?.id;

@@ -183,12 +183,13 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
       setSelectedIds(new Set(favorites.map((f) => f.id)));
       setShowBreakdown(false);
       setExpandedLegId(null);
+      setCompareOdds({});
       // Auto-show compare if 2+ plays
       if (favorites.length >= 2) {
         setShowCompare(true);
+        setIsLoadingCompare(true); // show loading state immediately
       } else {
         setShowCompare(false);
-        setCompareOdds({});
       }
     }
   }, [open, favorites]);
