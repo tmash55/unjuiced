@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
+import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react'
+import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown, ChevronsUpDown, Heart } from 'lucide-react'
 import { Star } from '@/components/star'
@@ -1108,20 +1109,6 @@ function FavoriteButton({ item, side, sport, market, visibleSportsbooks }: Favor
       }
     }
 
-    // Debug: Log SGP tokens per book at save time
-    const sgpSummary: Record<string, string | null> = {}
-    for (const [bookId, snap] of Object.entries(booksSnapshot)) {
-      sgpSummary[bookId] = snap.sgp ? snap.sgp.slice(0, 20) + '...' : null
-    }
-    const withSgp = Object.entries(sgpSummary).filter(([, v]) => v).length
-    const total = Object.keys(sgpSummary).length
-    console.log(
-      `[Favorite] ${clickIsPlayer ? clickItem.entity?.name : clickItem.event?.awayTeam + ' @ ' + clickItem.event?.homeTeam}`,
-      `| ${market} ${side} ${line}`,
-      `| SGP tokens: ${withSgp}/${total} books`,
-      sgpSummary
-    )
-
     const params: AddFavoriteParams = {
       type: clickIsPlayer ? 'player' : 'game',
       sport,
@@ -1146,11 +1133,21 @@ function FavoriteButton({ item, side, sport, market, visibleSportsbooks }: Favor
     }
 
     toggleFavorite(params).then((result) => {
-      // After save, enrich with live SGP tokens from Redis as backup
+      // Toast feedback
+      if (result?.action === 'added') {
+        const label = clickIsPlayer ? clickItem.entity?.name : (clickItem.event?.awayTeam ? `${clickItem.event.awayTeam} @ ${clickItem.event.homeTeam}` : 'Play')
+        toast.success(`Saved to betslip`, {
+          description: label || undefined,
+          duration: 3000,
+        })
+      } else if (result?.action === 'removed') {
+        toast('Removed from betslip', { duration: 2000 })
+      }
+
+      // After save, enrich books missing SGP tokens from Redis
       if (result?.action === 'added' && clickItem.event?.id) {
         const enrichBooks = Object.keys(booksSnapshot).filter(b => !booksSnapshot[b].sgp)
         if (enrichBooks.length > 0) {
-          console.log(`[Favorite] Enriching ${enrichBooks.length} books missing SGP tokens...`)
           fetch('/api/v2/favorites/enrich-sgp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1167,34 +1164,25 @@ function FavoriteButton({ item, side, sport, market, visibleSportsbooks }: Favor
             .then(r => r.json())
             .then(data => {
               if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0) {
-                console.log(`[Favorite] Enriched SGP tokens:`, data.sgp_tokens)
-                // Update the saved favorite's books_snapshot with new tokens
                 const favoriteId = result.favorite?.id
                 if (favoriteId) {
-                  const enrichedSnapshot = { ...booksSnapshot }
+                  const enriched = { ...booksSnapshot }
                   for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
-                    if (enrichedSnapshot[bookId]) {
-                      enrichedSnapshot[bookId] = { ...enrichedSnapshot[bookId], sgp: token as string }
+                    if (enriched[bookId]) {
+                      enriched[bookId] = { ...enriched[bookId], sgp: token as string }
                     }
                   }
-                  // Patch the favorite in the database
                   import('@/libs/supabase/client').then(({ createClient }) => {
-                    const supabase = createClient()
-                    supabase
+                    createClient()
                       .from('user_favorites')
-                      .update({ books_snapshot: enrichedSnapshot })
+                      .update({ books_snapshot: enriched })
                       .eq('id', favoriteId)
-                      .then(({ error }) => {
-                        if (error) console.error('[Favorite] Failed to update SGP tokens:', error)
-                        else console.log(`[Favorite] Updated ${Object.keys(data.sgp_tokens).length} SGP tokens for ${favoriteId}`)
-                      })
+                      .then(() => {})
                   })
                 }
-              } else {
-                console.log('[Favorite] No additional SGP tokens found from Redis')
               }
             })
-            .catch(err => console.warn('[Favorite] Enrich SGP failed:', err))
+            .catch(() => {})
         }
       }
     }).catch(() => {

@@ -21,7 +21,7 @@ import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
-import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer";
+// Betslip FAB replaces the old favorites drawer triggers (rendered at layout level)
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
@@ -262,7 +262,6 @@ export function Nav({
                   <>
                     {user ? (
                       <>
-                        <FavoritesDrawerTrigger />
                         <AccountDropdown user={user} />
                       </>
                     ) : (
@@ -415,7 +414,7 @@ function MobileNav({ domain }: { domain: string }) {
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
-      {user && <MobileFavoritesDrawerTrigger />}
+      {/* Betslip FAB handles this at layout level */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex size-8 items-center justify-center rounded-md text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800"

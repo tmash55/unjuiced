@@ -183,13 +183,13 @@ export function AlternatesModal({
   
   // Favorites functionality
   const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
-  
-  // Helper to build favorite params for an alternate line
-  const buildAlternateFavoriteParams = React.useCallback((
+
+  // Save favorite for an alternate line, then enrich any missing SGP tokens from Redis
+  const saveAlternateFavorite = React.useCallback((
     line: number,
     side: 'over' | 'under',
     alternateData: AlternateLine
-  ): AddFavoriteParams => {
+  ) => {
     // Build books_snapshot from alternate line data
     const booksSnapshot: Record<string, BookSnapshot> = {};
     for (const [bookId, bookOdds] of Object.entries(alternateData.books)) {
@@ -215,8 +215,8 @@ export function AlternatesModal({
       }
     }
 
-    return {
-      type: 'player',
+    const params: AddFavoriteParams = {
+      type: alternatesType === 'game' ? 'game' : 'player',
       sport,
       event_id: eventId || '',
       game_date: startTime?.split('T')[0] || null,
@@ -237,7 +237,51 @@ export function AlternatesModal({
       best_book_at_save: bestBook,
       source: 'alternates_modal',
     };
-  }, [sport, eventId, startTime, homeTeam, awayTeam, playerId, playerName, team, playerPosition, selectedMarket]);
+
+    toggleFavorite(params).then((result) => {
+      // Enrich books missing SGP tokens from Redis
+      if (result?.action === 'added' && eventId) {
+        const enrichBooks = Object.keys(booksSnapshot).filter(b => !booksSnapshot[b].sgp);
+        if (enrichBooks.length > 0) {
+          fetch('/api/v2/favorites/enrich-sgp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sport,
+              event_id: eventId,
+              market: selectedMarket,
+              player_name: playerName || '',
+              line,
+              side,
+              books: enrichBooks,
+            }),
+          })
+            .then(r => r.json())
+            .then(data => {
+              if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0) {
+                const favoriteId = result.favorite?.id;
+                if (favoriteId) {
+                  const enriched = { ...booksSnapshot };
+                  for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                    if (enriched[bookId]) {
+                      enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                    }
+                  }
+                  import('@/libs/supabase/client').then(({ createClient }) => {
+                    createClient()
+                      .from('user_favorites')
+                      .update({ books_snapshot: enriched })
+                      .eq('id', favoriteId)
+                      .then(() => {});
+                  });
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    });
+  }, [sport, eventId, startTime, homeTeam, awayTeam, playerId, playerName, team, playerPosition, selectedMarket, alternatesType, toggleFavorite]);
 
   // Lookup the NBA player ID from the odds player ID (only for NBA/WNBA)
   const { data: playerLookupData, isLoading: isLookingUpPlayer } = usePlayerLookup({
@@ -385,55 +429,38 @@ export function AlternatesModal({
             className="fixed inset-4 sm:inset-6 md:inset-8 lg:inset-x-[10%] lg:inset-y-6 z-50 flex flex-col bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/40"
           >
             {/* Header */}
-            <div className="flex flex-col border-b border-neutral-200/60 dark:border-neutral-800/40">
-              <div className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-4">
-                  {/* Team Logo */}
+            <div className="border-b border-neutral-200/60 dark:border-neutral-800/40">
+              <div className="flex items-center justify-between px-5 py-3.5">
+                <div className="flex items-center gap-3">
                   {team && (
-                    <div className="w-11 h-11 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-neutral-200/60 dark:ring-neutral-700/30">
+                    <div className="w-9 h-9 rounded-lg bg-neutral-50 dark:bg-neutral-800/60 flex items-center justify-center overflow-hidden shrink-0">
                       <img
                         src={getTeamLogoUrl(team, sport)}
                         alt={team}
-                        className="w-7 h-7 object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
                     </div>
                   )}
                   <div>
-                    <div className="flex items-center gap-2.5 mb-0.5">
-                      <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-                        {playerName}
-                      </h2>
-                      {team && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800/60 rounded">
-                          {team}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-neutral-900 dark:text-white">{playerName}</h2>
+                      {team && <span className="text-[10px] font-bold text-neutral-400">{team}</span>}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-                      <span className="font-medium text-neutral-600 dark:text-neutral-300">
-                        {formatMarket(selectedMarket)}
-                      </span>
-                      <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
-                      <span>Alt Lines</span>
-                    </div>
+                    <span className="text-[11px] font-medium text-brand">{formatMarket(selectedMarket)}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {/* View Player Profile Button */}
+                <div className="flex items-center gap-2">
                   {showProfileLink && (
                     <a
                       href={`/hit-rates/${sport}/player/${nbaPlayerId}?market=${selectedMarket}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hidden sm:flex items-center gap-2 px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all shadow-sm"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                     >
-                      <User className="w-3.5 h-3.5" />
-                      View Advanced Stats
-                      <ChevronRight className="w-3 h-3 opacity-50" />
+                      <User className="w-3 h-3" />
+                      Stats
                     </a>
                   )}
 
@@ -448,7 +475,7 @@ export function AlternatesModal({
                         key={opt.key}
                         onClick={() => setViewMode(opt.key)}
                         className={cn(
-                          "px-3 py-1.5 text-[11px] font-medium rounded-md transition-all",
+                          "px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all",
                           viewMode === opt.key
                             ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
                             : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -459,7 +486,6 @@ export function AlternatesModal({
                     ))}
                   </div>
 
-                  {/* Close Button */}
                   <button
                     onClick={onClose}
                     className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
@@ -470,16 +496,16 @@ export function AlternatesModal({
               </div>
 
               {/* Market Tabs */}
-              <div className="px-5 pb-3 overflow-x-auto scrollbar-hide">
-                <div className="flex items-center gap-1.5 min-w-max">
+              <div className="px-5 pb-2.5 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1 min-w-max">
                   {availableMarkets.map((mk) => (
                     <button
                       key={mk.key}
                       onClick={() => handleMarketChange(mk.key)}
                       className={cn(
-                        "px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap active:scale-95",
+                        "px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap",
                         selectedMarket === mk.key
-                          ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                          ? "bg-brand text-white shadow-sm"
                           : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/60"
                       )}
                     >
@@ -514,33 +540,22 @@ export function AlternatesModal({
                 <div className="absolute inset-0 overflow-auto">
                   <table className="w-full border-collapse text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm">
-                        <th className="sticky left-0 z-20 bg-white dark:bg-neutral-950 px-4 py-2.5 text-left text-[10px] font-semibold text-neutral-400 uppercase tracking-wider border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[72px]">
+                      <tr className="bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/40">
+                        <th className="sticky left-0 z-20 bg-white dark:bg-neutral-950 px-4 py-2 text-left text-[10px] font-bold text-neutral-400 uppercase tracking-wider min-w-[60px]">
                           {viewMode === 'both' ? 'Line' : viewMode.toUpperCase()}
                         </th>
-                        <th className="px-1.5 py-2.5 text-center border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[36px]">
-                          <span className="sr-only">Favorite</span>
-                        </th>
+                        <th className="px-1 py-2 text-center min-w-[32px]" />
                         {availableSportsbooks.map((bookId: string) => {
                           const sb = getSportsbookById(bookId);
                           const logoUrl = sb?.image?.square || sb?.image?.light;
                           return (
-                            <th
-                              key={bookId}
-                              className="px-1.5 py-2.5 text-center border-b border-neutral-200/60 dark:border-neutral-800/40 min-w-[64px]"
-                            >
+                            <th key={bookId} className="px-1 py-2 text-center min-w-[60px]">
                               <Tooltip content={sb?.name || bookId}>
                                 <div className="flex items-center justify-center">
                                   {logoUrl ? (
-                                    <img
-                                      src={logoUrl}
-                                      alt={sb?.name || bookId}
-                                      className="h-5 w-auto max-w-[24px] object-contain"
-                                    />
+                                    <img src={logoUrl} alt={sb?.name || bookId} className="h-5 w-5 object-contain" />
                                   ) : (
-                                    <span className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase">
-                                      {bookId.slice(0, 3)}
-                                    </span>
+                                    <span className="text-[9px] font-bold text-neutral-500 uppercase">{bookId.slice(0, 3)}</span>
                                   )}
                                 </div>
                               </Tooltip>
@@ -599,8 +614,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;
-                                            const params = buildAlternateFavoriteParams(alt.ln, 'over', alt);
-                                            toggleFavorite(params);
+                                            saveAlternateFavorite(alt.ln, 'over', alt);
                                           }}
                                           disabled={isToggling}
                                           className={cn(
@@ -643,12 +657,12 @@ export function AlternatesModal({
                                           }}
                                           disabled={!link}
                                           className={cn(
-                                            "inline-block px-2.5 py-1.5 text-xs font-semibold tabular-nums rounded-md transition-all",
-                                            link && "cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
+                                            "inline-block px-2 py-1 text-xs font-bold tabular-nums rounded-md transition-all",
+                                            link && "cursor-pointer hover:brightness-110 active:scale-[0.97]",
                                             !link && "cursor-default",
                                             isBest
-                                              ? "[background:color-mix(in_oklab,var(--accent)_15%,var(--card))] [color:var(--accent-strong)] [border:1px_solid_color-mix(in_oklab,var(--accent)_40%,transparent)] dark:[background:color-mix(in_oklab,var(--accent)_20%,var(--card))] dark:[color:var(--accent-weak)]"
-                                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                                              : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/50"
                                           )}
                                         >
                                           {formatOdds(odds.price)}
@@ -700,8 +714,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;
-                                            const params = buildAlternateFavoriteParams(alt.ln, 'under', alt);
-                                            toggleFavorite(params);
+                                            saveAlternateFavorite(alt.ln, 'under', alt);
                                           }}
                                           disabled={isToggling}
                                           className={cn(
@@ -750,12 +763,12 @@ export function AlternatesModal({
                                           }}
                                           disabled={!link}
                                           className={cn(
-                                            "inline-block px-2.5 py-1.5 text-xs font-semibold tabular-nums rounded-md transition-all",
-                                            link && "cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
+                                            "inline-block px-2 py-1 text-xs font-bold tabular-nums rounded-md transition-all",
+                                            link && "cursor-pointer hover:brightness-110 active:scale-[0.97]",
                                             !link && "cursor-default",
                                             isBest
-                                              ? "[background:color-mix(in_oklab,var(--accent)_15%,var(--card))] [color:var(--accent-strong)] [border:1px_solid_color-mix(in_oklab,var(--accent)_40%,transparent)] dark:[background:color-mix(in_oklab,var(--accent)_20%,var(--card))] dark:[color:var(--accent-weak)]"
-                                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                                              : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/50"
                                           )}
                                         >
                                           {formatOdds(odds.price)}

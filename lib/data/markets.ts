@@ -1698,12 +1698,26 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'receiving_yards': 'REC YDS',
       'receptions': 'REC',
       
-      // Baseball
+      // Baseball — batter_ prefix (legacy Redis keys)
       'batter_home_runs': 'HR',
-      'batter_hits': 'H',
+      'batter_hits': 'Hits',
       'batter_total_bases': 'TB',
       'batter_rbis': 'RBI',
-      'pitcher_strikeouts': 'K',
+      'batter_runs_scored': 'Runs',
+      'batter_stolen_bases': 'SB',
+      'batter_hits_runs_rbis': 'H+R+RBI',
+      'batter_singles': '1B',
+      'batter_doubles': '2B',
+      'batter_triples': '3B',
+      'batter_strikeouts': 'Batter Ks',
+      'pitcher_strikeouts': 'Ks',
+      'pitcher_earned_runs': 'ER',
+      'pitcher_hits_allowed': 'Hits Allowed',
+      'pitcher_walks_allowed': 'Walks',
+      'pitcher_outs': 'Outs',
+      'game_total_runs': 'Total Runs',
+      'total_runs': 'Total Runs',
+      'run_line': 'Run Line',
       
       // First Basket / First Scorer
       'first_basket': '1st 🏀',

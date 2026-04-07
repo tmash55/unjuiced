@@ -11,7 +11,7 @@ import { favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
 import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } from "@/hooks/use-favorites-stream";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { useStateLink } from "@/hooks/use-state-link";
 import { Tooltip } from "@/components/tooltip";
 import {
@@ -595,10 +595,25 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
     }
     return favorite.home_team || "Unknown";
   })();
-  const marketDisplay = formatMarketLabelShort(favorite.market) || favorite.market;
-  const lineDisplay = favorite.line !== null ? favorite.line : "";
-  const sideDisplay = formatSide(favorite.side);
   const timeLabel = formatFavoriteTime(favorite.start_time || favorite.game_date);
+
+  // Smart market/line/side display
+  const isMoneyline = favorite.market?.includes("moneyline");
+  const isSpread = favorite.market?.includes("spread") || favorite.market?.includes("run_line");
+  const marketLabel = formatMarketLabelShort(favorite.market) || formatMarketLabel(favorite.market) || favorite.market;
+
+  // Build the prop description line
+  const propLine = (() => {
+    if (isMoneyline) return "Moneyline";
+    if (isSpread) {
+      const spreadVal = favorite.line != null ? (favorite.side === "over" ? `+${favorite.line}` : `-${favorite.line}`) : "";
+      return `${spreadVal} Spread`;
+    }
+    // Player/game props: "O 5.5 Strikeouts", "U 8.5 Total"
+    const side = formatSide(favorite.side);
+    const line = favorite.line != null ? favorite.line : "";
+    return `${side} ${line} ${marketLabel}`;
+  })();
 
   return (
     <div className={cn(
@@ -607,7 +622,7 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
     )}>
       {/* Main row */}
       <div className="flex items-center gap-2.5 px-4 py-3">
-        {/* Selection indicator — tap whole left side to toggle */}
+        {/* Selection indicator */}
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
           className={cn(
@@ -630,13 +645,17 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
               {playerOrTeam}
             </span>
             {favorite.player_team && (
-              <span className="text-[10px] font-medium text-neutral-400 shrink-0">{favorite.player_team}</span>
+              <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0">{favorite.player_team}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[11px] font-medium text-brand">{sideDisplay} {lineDisplay}</span>
-            <span className="text-[10px] text-neutral-400">{marketDisplay}</span>
-            {timeLabel && <span className="text-[10px] text-neutral-400">· {timeLabel}</span>}
+            <span className="text-[11px] font-semibold text-brand">{propLine}</span>
+            {timeLabel && (
+              <>
+                <span className="text-neutral-300 dark:text-neutral-700">·</span>
+                <span className="text-[10px] text-neutral-400">{timeLabel}</span>
+              </>
+            )}
           </div>
         </button>
 
@@ -1768,7 +1787,6 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     }
 
     const betType = classifyBetType(selectedFavorites);
-    console.log(`[SGP Compare] Bet type: ${betType}, ${selectedFavorites.length} legs`)
 
     if (betType === "parlay") {
       const parlayOdds = calculateCompareParlayOdds(selectedFavorites, refreshedOddsMap);
@@ -1782,23 +1800,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     }
     
     // Use refreshed odds data for live SGP tokens (this finds more books)
-    const { full: booksWithFullSupport, partial } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
-
-    console.log(`[SGP Compare] Books with full SGP support: [${booksWithFullSupport.join(', ')}]`)
-    if (partial.size > 0) {
-      console.log(`[SGP Compare] Partial support:`, Object.fromEntries(partial))
-    }
-
-    // Log per-leg SGP token availability
-    selectedFavorites.forEach((fav, i) => {
-      const tokens: string[] = []
-      if (fav.books_snapshot) {
-        Object.entries(fav.books_snapshot).forEach(([book, data]) => {
-          if (data.sgp) tokens.push(book)
-        })
-      }
-      console.log(`[SGP Compare] Leg ${i + 1}: ${fav.player_name || fav.home_team} — ${tokens.length} books with SGP tokens: [${tokens.join(', ')}]`)
-    })
+    const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
 
     if (booksWithFullSupport.length === 0) {
       toast.error("No sportsbooks support all selected legs as a parlay");
@@ -1827,16 +1829,6 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       }
       
       const data = await response.json();
-      console.log(`[SGP Compare] API response:`, {
-        booksReturned: data.odds ? Object.keys(data.odds) : [],
-        results: data.odds ? Object.fromEntries(
-          Object.entries(data.odds).map(([book, odds]: [string, any]) => [
-            book,
-            { price: odds.price, hasLinks: !!odds.links, error: odds.error }
-          ])
-        ) : {},
-        error: data.error,
-      })
 
       if (data.error) {
         setCompareError(data.error);

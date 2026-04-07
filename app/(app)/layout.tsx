@@ -11,7 +11,7 @@ import { AppSidebar } from "@/components/nav/side-nav/app-sidebar"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useActivityTracker } from "@/hooks/use-activity-tracker"
 import { LoadingSpinner } from "@/components/icons/loading-spinner"
-import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer"
+import { BetslipFab } from "@/components/betslip/betslip-fab"
 import { FeatureAnnouncementModal } from "@/components/feature-announcements/feature-announcement-modal"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Tooltip, TooltipProvider } from "@/components/tooltip"
@@ -63,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Right side - State, My Plays, Theme Toggle, Help */}
           <div className="flex items-center gap-1">
             <NavStateSelector compact />
-            <MobileFavoritesDrawerTrigger />
+            {/* Betslip FAB renders as a floating button, not inline */}
             <ModeToggle />
             <Link
               href="/support"
@@ -125,8 +125,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Right side - State, My Plays, Theme Toggle, Help */}
             <div className="flex items-center gap-1.5">
               <NavStateSelector />
-              {/* My Plays Drawer - has its own tooltip inside */}
-              <FavoritesDrawerTrigger />
+              {/* Betslip FAB renders as a floating button, not inline */}
               
               {/* Theme Toggle */}
               <Tooltip content="Toggle theme" side="bottom">
@@ -165,6 +164,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <FeatureAnnouncementModal />
+      <BetslipFab />
     </div>
   )
 }
