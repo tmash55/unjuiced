@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/libs/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { getFavoriteOddsMarketKey } from "@/lib/odds/types";
 
@@ -264,32 +264,23 @@ export function useFavorites() {
   // ─────────────────────────────────────────────────────────────────────────
   // Create a Set of favorite keys for fast lookup
   // ─────────────────────────────────────────────────────────────────────────
-  const favoriteKeys = new Set(
-    favorites.map((f) =>
-      createFavoriteKey({
+  const { favoriteKeys, favoritesByKey } = useMemo(() => {
+    const keys = new Set<string>();
+    const byKey = new Map<string, Favorite>();
+    for (const f of favorites) {
+      const key = createFavoriteKey({
         event_id: f.event_id,
         type: f.type,
         player_id: f.player_id,
         market: f.market,
         line: f.line,
         side: f.side,
-      })
-    )
-  );
-  
-  // Create a map from key to favorite for quick lookup
-  const favoritesByKey = new Map<string, Favorite>();
-  favorites.forEach((f) => {
-    const key = createFavoriteKey({
-      event_id: f.event_id,
-      type: f.type,
-      player_id: f.player_id,
-      market: f.market,
-      line: f.line,
-      side: f.side,
-    });
-    favoritesByKey.set(key, f);
-  });
+      });
+      keys.add(key);
+      byKey.set(key, f);
+    }
+    return { favoriteKeys: keys, favoritesByKey: byKey };
+  }, [favorites]);
   
   // ─────────────────────────────────────────────────────────────────────────
   // MUTATION: Add a favorite
@@ -575,7 +566,7 @@ export function useFavorites() {
   // ─────────────────────────────────────────────────────────────────────────
   // HELPER: Check if a specific item is favorited
   // ─────────────────────────────────────────────────────────────────────────
-  const isFavorited = (params: {
+  const isFavorited = useCallback((params: {
     event_id: string;
     type: "player" | "game";
     player_id?: string | null;
@@ -585,12 +576,12 @@ export function useFavorites() {
   }): boolean => {
     const key = createFavoriteKey(params);
     return favoriteKeys.has(key);
-  };
-  
+  }, [favoriteKeys]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // HELPER: Get a favorite by key
   // ─────────────────────────────────────────────────────────────────────────
-  const getFavorite = (params: {
+  const getFavorite = useCallback((params: {
     event_id: string;
     type: "player" | "game";
     player_id?: string | null;
@@ -600,7 +591,7 @@ export function useFavorites() {
   }): Favorite | undefined => {
     const key = createFavoriteKey(params);
     return favoritesByKey.get(key);
-  };
+  }, [favoritesByKey]);
   
   return {
     // Data

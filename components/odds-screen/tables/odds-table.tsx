@@ -1034,6 +1034,193 @@ export interface ColumnConfig {
   width?: string
 }
 
+// ── Isolated Favorite Button ─────────────────────────────────────────────────
+// Isolated component — owns its own useFavorites() call so the main table
+// never re-renders on favorite state changes. Uses optimistic local state
+// for instant heart fill. NO useCallback on handleClick — reads item
+// directly on each click to avoid stale closure issues with live-updating data.
+
+interface FavoriteButtonProps {
+  item: OddsTableItem
+  side: 'over' | 'under'
+  sport: string
+  market: string
+  visibleSportsbooks: string[]
+}
+
+function FavoriteButton({ item, side, sport, market, visibleSportsbooks }: FavoriteButtonProps) {
+  const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites()
+  const [optimisticState, setOptimisticState] = useState<boolean | null>(null)
+
+  const { userBest, globalBest } = calculateUserBestOdds(item, side, visibleSportsbooks)
+  const displayOdds = userBest || globalBest
+  const isPlayer = item.entity?.type === 'player'
+
+  const isFavoritedServer = isFavorited({
+    event_id: item.event?.id || '',
+    type: isPlayer ? 'player' : 'game',
+    market,
+    side,
+    line: displayOdds?.line ?? null,
+    player_id: isPlayer ? item.entity?.id || null : null,
+  })
+
+  // Sync optimistic state back to server state once settled
+  useEffect(() => {
+    if (optimisticState !== null && optimisticState === isFavoritedServer) {
+      setOptimisticState(null)
+    }
+  }, [isFavoritedServer, optimisticState])
+
+  const isFilled = optimisticState ?? isFavoritedServer
+  const isDisabled = !displayOdds
+
+  // No useCallback — reads item/displayOdds fresh on every click to avoid stale data
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!isLoggedIn || !displayOdds) return
+
+    // Instant optimistic toggle
+    setOptimisticState(!isFilled)
+
+    // Snapshot the current item data at click time
+    const clickItem = item
+    const clickOdds = displayOdds
+    const clickIsPlayer = clickItem.entity?.type === 'player'
+
+    // Determine the line from the best odds
+    const fallbackLine = side === 'over'
+      ? clickItem.odds?.best?.over?.line ?? clickItem.odds?.best?.under?.line
+      : clickItem.odds?.best?.under?.line ?? clickItem.odds?.best?.over?.line
+    const line = clickOdds.line ?? fallbackLine ?? null
+
+    // Build books snapshot — only books matching the saved line
+    const booksSnapshot: Record<string, BookSnapshot> = {}
+    for (const [bookId, bookOdds] of Object.entries(clickItem.odds?.books || {})) {
+      const sideOdds = side === 'over' ? bookOdds.over : bookOdds.under
+      if (sideOdds && (line == null || sideOdds.line === line)) {
+        booksSnapshot[bookId] = {
+          price: sideOdds.price,
+          u: sideOdds.link || null,
+          m: sideOdds.mobileLink || null,
+          sgp: sideOdds.sgp || null,
+        }
+      }
+    }
+
+    // Debug: Log SGP tokens per book at save time
+    const sgpSummary: Record<string, string | null> = {}
+    for (const [bookId, snap] of Object.entries(booksSnapshot)) {
+      sgpSummary[bookId] = snap.sgp ? snap.sgp.slice(0, 20) + '...' : null
+    }
+    const withSgp = Object.entries(sgpSummary).filter(([, v]) => v).length
+    const total = Object.keys(sgpSummary).length
+    console.log(
+      `[Favorite] ${clickIsPlayer ? clickItem.entity?.name : clickItem.event?.awayTeam + ' @ ' + clickItem.event?.homeTeam}`,
+      `| ${market} ${side} ${line}`,
+      `| SGP tokens: ${withSgp}/${total} books`,
+      sgpSummary
+    )
+
+    const params: AddFavoriteParams = {
+      type: clickIsPlayer ? 'player' : 'game',
+      sport,
+      event_id: clickItem.event?.id || '',
+      game_date: clickItem.event?.startTime?.split('T')[0] || null,
+      home_team: clickItem.event?.homeTeam || null,
+      away_team: clickItem.event?.awayTeam || null,
+      start_time: clickItem.event?.startTime || null,
+      player_id: clickIsPlayer ? clickItem.entity?.id || null : null,
+      player_name: clickIsPlayer ? clickItem.entity?.name || null : null,
+      player_team: clickItem.entity?.team || null,
+      player_position: clickItem.entity?.details || null,
+      market,
+      line,
+      side,
+      odds_key: `odds:${sport}:${clickItem.event?.id}:${market}`,
+      odds_selection_id: clickItem.id,
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: clickOdds.price || null,
+      best_book_at_save: clickOdds.book || null,
+      source: 'odds_screen',
+    }
+
+    toggleFavorite(params).then((result) => {
+      // After save, enrich with live SGP tokens from Redis as backup
+      if (result?.action === 'added' && clickItem.event?.id) {
+        const enrichBooks = Object.keys(booksSnapshot).filter(b => !booksSnapshot[b].sgp)
+        if (enrichBooks.length > 0) {
+          console.log(`[Favorite] Enriching ${enrichBooks.length} books missing SGP tokens...`)
+          fetch('/api/v2/favorites/enrich-sgp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sport,
+              event_id: clickItem.event.id,
+              market,
+              player_name: clickIsPlayer ? clickItem.entity?.name || '' : '',
+              line,
+              side,
+              books: enrichBooks,
+            }),
+          })
+            .then(r => r.json())
+            .then(data => {
+              if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0) {
+                console.log(`[Favorite] Enriched SGP tokens:`, data.sgp_tokens)
+                // Update the saved favorite's books_snapshot with new tokens
+                const favoriteId = result.favorite?.id
+                if (favoriteId) {
+                  const enrichedSnapshot = { ...booksSnapshot }
+                  for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                    if (enrichedSnapshot[bookId]) {
+                      enrichedSnapshot[bookId] = { ...enrichedSnapshot[bookId], sgp: token as string }
+                    }
+                  }
+                  // Patch the favorite in the database
+                  import('@/libs/supabase/client').then(({ createClient }) => {
+                    const supabase = createClient()
+                    supabase
+                      .from('user_favorites')
+                      .update({ books_snapshot: enrichedSnapshot })
+                      .eq('id', favoriteId)
+                      .then(({ error }) => {
+                        if (error) console.error('[Favorite] Failed to update SGP tokens:', error)
+                        else console.log(`[Favorite] Updated ${Object.keys(data.sgp_tokens).length} SGP tokens for ${favoriteId}`)
+                      })
+                  })
+                }
+              } else {
+                console.log('[Favorite] No additional SGP tokens found from Redis')
+              }
+            })
+            .catch(err => console.warn('[Favorite] Enrich SGP failed:', err))
+        }
+      }
+    }).catch(() => {
+      setOptimisticState(null)
+    })
+  }
+
+  return (
+    <Tooltip content={isFilled ? "Remove from My Plays" : "Add to My Plays"}>
+      <button
+        onClick={handleClick}
+        disabled={isDisabled}
+        className={cn(
+          "p-1 rounded transition-colors",
+          isFilled
+            ? "text-red-500"
+            : "text-neutral-400 hover:text-red-400 dark:text-neutral-500 dark:hover:text-red-400",
+          isDisabled && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <Heart className={cn("w-4 h-4", isFilled && "fill-current")} />
+      </button>
+    </Tooltip>
+  )
+}
+
 export interface OddsTableProps extends Partial<TableInteractionHandlers> {
   data: OddsTableItem[]
   loading?: boolean
@@ -1247,60 +1434,6 @@ export function OddsTable({
 
   // VC-Grade: Use centralized, cached Pro status
   const { isPro, isLoading: isLoadingPro } = useIsPro()
-  
-  // Favorites functionality
-  const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites()
-  
-  // Helper to build favorite params from an odds table item
-  const buildFavoriteParams = useCallback((
-    item: OddsTableItem,
-    side: 'over' | 'under' = 'over',
-    bestOddsOverride?: OddsPrice | null
-  ): AddFavoriteParams => {
-    // Build books_snapshot from item.odds.books
-    const booksSnapshot: Record<string, BookSnapshot> = {};
-    for (const [bookId, bookOdds] of Object.entries(item.odds?.books || {})) {
-      const sideOdds = side === 'over' ? bookOdds.over : bookOdds.under;
-      if (sideOdds) {
-        booksSnapshot[bookId] = {
-          price: sideOdds.price,
-          u: sideOdds.link || null,
-          m: sideOdds.mobileLink || null,
-          sgp: sideOdds.sgp || null,
-        };
-      }
-    }
-
-    const isPlayer = item.entity?.type === 'player';
-    const fallbackLine = side === 'over' 
-      ? item.odds?.best?.over?.line ?? item.odds?.best?.under?.line
-      : item.odds?.best?.under?.line ?? item.odds?.best?.over?.line;
-    const bestOdds = bestOddsOverride ?? (side === 'over' ? item.odds?.best?.over : item.odds?.best?.under);
-    const line = bestOdds?.line ?? fallbackLine;
-    
-    return {
-      type: isPlayer ? 'player' : 'game',
-      sport,
-      event_id: item.event?.id || '',
-      game_date: item.event?.startTime?.split('T')[0] || null,
-      home_team: item.event?.homeTeam || null,
-      away_team: item.event?.awayTeam || null,
-      start_time: item.event?.startTime || null,
-      player_id: isPlayer ? item.entity?.id || null : null,
-      player_name: isPlayer ? item.entity?.name || null : null,
-      player_team: item.entity?.team || null,
-      player_position: item.entity?.details || null,
-      market: marketStr,
-      line: line ?? null,
-      side,
-      odds_key: `odds:${sport}:${item.event?.id}:${marketStr}`,
-      odds_selection_id: item.id,
-      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
-      best_price_at_save: bestOdds?.price || null,
-      best_book_at_save: bestOdds?.book || null,
-      source: 'odds_screen',
-    };
-  }, [sport, marketStr])
   
   // Prefetch player data on hover for faster modal loading
   const prefetchPlayer = usePrefetchPlayerByOddsId()
@@ -2492,14 +2625,14 @@ export function OddsTable({
           const item = info.row.original
           const marketStr = typeof market === 'string' ? market : ''
           const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
-          
+
           return (
             <div className={cn(
               "flex items-center justify-center",
               isSingleLine ? "" : "flex-col gap-0.5"
             )}>
-              {renderFavoriteButton(item, 'over', effectiveVisibleSportsbooks)}
-              {!isSingleLine && renderFavoriteButton(item, 'under', effectiveVisibleSportsbooks)}
+              <FavoriteButton item={item} side="over" sport={sport} market={marketStr} visibleSportsbooks={effectiveVisibleSportsbooks} />
+              {!isSingleLine && <FavoriteButton item={item} side="under" sport={sport} market={marketStr} visibleSportsbooks={effectiveVisibleSportsbooks} />}
             </div>
           )
         }
@@ -3111,53 +3244,6 @@ export function OddsTable({
         </Tooltip>
         {betterOddsIndicator}
       </div>
-    )
-  }
-
-  // Render a heart button for favoriting
-  const renderFavoriteButton = (
-    rowItem: OddsTableItem,
-    side: 'over' | 'under',
-    visibleSportsbooks: string[]
-  ) => {
-    const marketStr = typeof market === 'string' ? market : ''
-    const { userBest, globalBest } = calculateUserBestOdds(rowItem, side, visibleSportsbooks)
-    const displayOdds = userBest || globalBest
-    const isPlayer = rowItem.entity?.type === 'player'
-    
-    const isFavoritedSide = isFavorited({
-      event_id: rowItem.event?.id || '',
-      type: isPlayer ? 'player' : 'game',
-      market: marketStr,
-      side,
-      line: displayOdds?.line ?? null,
-      player_id: isPlayer ? rowItem.entity?.id || null : null,
-    })
-
-    const isDisabled = !displayOdds
-
-    return (
-      <Tooltip content={isFavoritedSide ? "Remove from My Plays" : "Add to My Plays"}>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            if (!isLoggedIn) return
-            if (!displayOdds) return
-            const params = buildFavoriteParams(rowItem, side, displayOdds)
-            toggleFavorite(params)
-          }}
-          disabled={isToggling || isDisabled}
-          className={cn(
-            "p-1 rounded transition-colors",
-            isFavoritedSide 
-              ? "text-red-500" 
-              : "text-neutral-400 hover:text-red-400 dark:text-neutral-500 dark:hover:text-red-400",
-            (isToggling || isDisabled) && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          <Heart className={cn("w-4 h-4", isFavoritedSide && "fill-current")} />
-        </button>
-      </Tooltip>
     )
   }
 
