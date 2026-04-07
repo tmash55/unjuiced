@@ -1848,6 +1848,14 @@ export default function PositiveEVPage() {
               const evWorst = activeMethodValues.length > 0 ? Math.min(...activeMethodValues) : opp.evCalculations.evWorst;
               const evBest = activeMethodValues.length > 0 ? Math.max(...activeMethodValues) : opp.evCalculations.evBest;
               const displayEV = evCase === "best" ? evBest : evWorst;
+
+              // Apply min/max EV filter
+              const minEvFilter = savedFilters.minEv ?? 0;
+              const maxEvFilter = savedFilters.maxEv ?? Infinity;
+              if (displayEV < minEvFilter || displayEV > maxEvFilter) {
+                if (!isExpanded) return null; // Keep expanded rows visible
+              }
+
               const evFormat = formatEVPercent(displayEV);
               const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               

@@ -175,18 +175,30 @@ export function MobilePositiveEV({
   // Filter and sort opportunities
   const filteredOpportunities = useMemo(() => {
     let filtered = [...opportunities];
-    
+
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(opp => 
+      filtered = filtered.filter(opp =>
         opp.playerName?.toLowerCase().includes(query) ||
         opp.homeTeam?.toLowerCase().includes(query) ||
         opp.awayTeam?.toLowerCase().includes(query) ||
         opp.market?.toLowerCase().includes(query)
       );
     }
-    
+
+    // Min/Max EV filter
+    if (minEv > 0 || (maxEv != null && maxEv < Infinity)) {
+      filtered = filtered.filter(opp => {
+        const ev = evCase === "best"
+          ? (opp.evCalculations?.evBest ?? 0)
+          : (opp.evCalculations?.evWorst ?? 0);
+        if (minEv > 0 && ev < minEv) return false;
+        if (maxEv != null && ev > maxEv) return false;
+        return true;
+      });
+    }
+
     // Sort
     filtered.sort((a, b) => {
       const field = currentSort.field;
@@ -210,7 +222,7 @@ export function MobilePositiveEV({
     });
     
     return filtered;
-  }, [opportunities, searchQuery, currentSort]);
+  }, [opportunities, searchQuery, currentSort, minEv, maxEv, evCase]);
   
   // Visible opportunities
   const visibleOpportunities = useMemo(() => {
