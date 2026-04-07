@@ -109,6 +109,25 @@ function getHardHitColor(pct: number): string {
   return "text-neutral-500 dark:text-neutral-400";
 }
 
+// Cell background + text for table heatmap (3-tier: elite green, good green, poor red)
+const CELL_ELITE = "bg-emerald-100 dark:bg-emerald-500/40 text-emerald-800 dark:text-white font-bold";
+const CELL_GOOD  = "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300";
+const CELL_POOR  = "bg-red-50 dark:bg-red-500/20 text-red-600 dark:text-red-300";
+
+function cellColor(val: number, elite: number, good: number, poor: number): string {
+  if (val >= elite) return CELL_ELITE;
+  if (val >= good) return CELL_GOOD;
+  if (val < poor) return CELL_POOR;
+  return "";
+}
+
+const getEvCell = (v: number) => cellColor(v, 93, 90, 85);
+const getBarrelCell = (v: number) => cellColor(v, 15, 10, 4);
+const getHardHitCell = (v: number) => cellColor(v, 50, 40, 28);
+const getSlgCell = (v: number) => cellColor(v, 0.550, 0.450, 0.300);
+const getIsoCell = (v: number) => cellColor(v, 0.250, 0.180, 0.100);
+const getSweetSpotCell = (v: number) => cellColor(v, 40, 33, 20);
+
 function getSlgColor(slg: number): string {
   if (slg >= 0.550) return "text-emerald-600 dark:text-emerald-400";
   if (slg >= 0.450) return "text-green-600 dark:text-green-400";
@@ -1386,9 +1405,9 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Avg EV */}
-                          <td className="px-3 py-2.5">
+                          <td className={cn("px-3 py-2.5", getEvCell(leader.avg_exit_velo))}>
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className={cn("text-sm font-bold tabular-nums", getEvColor(leader.avg_exit_velo))}>
+                              <span className={cn("text-sm font-bold tabular-nums", !getEvCell(leader.avg_exit_velo) && getEvColor(leader.avg_exit_velo))}>
                                 {leader.avg_exit_velo.toFixed(1)}
                               </span>
                               <EvMeter value={leader.avg_exit_velo} />
@@ -1399,16 +1418,16 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Max EV */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold tabular-nums", getEvColor(leader.max_exit_velo))}>
+                          <td className={cn("px-3 py-2.5 text-center", getEvCell(leader.max_exit_velo))}>
+                            <span className={cn("text-sm font-semibold tabular-nums", !getEvCell(leader.max_exit_velo) && getEvColor(leader.max_exit_velo))}>
                               {leader.max_exit_velo.toFixed(1)}
                             </span>
                           </td>
 
                           {/* Barrel % */}
-                          <td className="px-3 py-2.5 text-center">
+                          <td className={cn("px-3 py-2.5 text-center", getBarrelCell(leader.barrel_pct))}>
                             <div className="flex flex-col items-center">
-                              <span className={cn("text-sm font-bold tabular-nums", getBarrelColor(leader.barrel_pct))}>
+                              <span className={cn("text-sm font-bold tabular-nums", !getBarrelCell(leader.barrel_pct) && getBarrelColor(leader.barrel_pct))}>
                                 {leader.barrel_pct.toFixed(1)}%
                               </span>
                               <span className="text-[10px] text-neutral-400 tabular-nums">{leader.barrels} brl</span>
@@ -1416,17 +1435,17 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Hard Hit % */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-bold tabular-nums", getHardHitColor(leader.hard_hit_pct))}>
+                          <td className={cn("px-3 py-2.5 text-center", getHardHitCell(leader.hard_hit_pct))}>
+                            <span className={cn("text-sm font-bold tabular-nums", !getHardHitCell(leader.hard_hit_pct) && getHardHitColor(leader.hard_hit_pct))}>
                               {leader.hard_hit_pct.toFixed(1)}%
                             </span>
                           </td>
 
                           {/* Sweet Spot % */}
-                          <td className="px-3 py-2.5 text-center">
+                          <td className={cn("px-3 py-2.5 text-center", getSweetSpotCell(leader.sweet_spot_pct))}>
                             <span className={cn(
                               "text-sm font-semibold tabular-nums",
-                              leader.sweet_spot_pct >= 40 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
+                              !getSweetSpotCell(leader.sweet_spot_pct) && (leader.sweet_spot_pct >= 40 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400")
                             )}>
                               {leader.sweet_spot_pct.toFixed(1)}%
                             </span>
@@ -1440,15 +1459,15 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* xSLG */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-bold tabular-nums", getSlgColor(leader.xslg))}>
+                          <td className={cn("px-3 py-2.5 text-center", getSlgCell(leader.xslg))}>
+                            <span className={cn("text-sm font-bold tabular-nums", !getSlgCell(leader.xslg) && getSlgColor(leader.xslg))}>
                               {leader.xslg.toFixed(3)}
                             </span>
                           </td>
 
                           {/* Actual SLG */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold tabular-nums", getSlgColor(leader.actual_slg))}>
+                          <td className={cn("px-3 py-2.5 text-center", getSlgCell(leader.actual_slg))}>
+                            <span className={cn("text-sm font-semibold tabular-nums", !getSlgCell(leader.actual_slg) && getSlgColor(leader.actual_slg))}>
                               {leader.actual_slg.toFixed(3)}
                             </span>
                           </td>

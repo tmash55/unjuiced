@@ -44,6 +44,7 @@ import { MlbHRCommandCenter } from "@/components/cheat-sheet/mlb-hr-command-cent
 import { GameCenterPage } from "@/components/game-center/game-center-page";
 import { MlbPropCommandCenter } from "@/components/cheat-sheet/mlb-prop-command-center";
 import { HRCommandCenterTour, HRCommandCenterTourTrigger, NRFITour, NRFITourTrigger, ExitVelocityTour, ExitVelocityTourTrigger, WeatherReportTour, WeatherReportTourTrigger } from "@/components/cheat-sheet/mlb-tours";
+import { MlbGlossaryDialog } from "@/components/cheat-sheet/mlb-glossary-dialog";
 
 // Gating constants
 const FREE_USER_MAX_ROWS = 7;
@@ -339,7 +340,7 @@ function MlbWeatherReportSheet({ sport, sheet }: { sport: SupportedSport; sheet:
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
-      headerActions={<WeatherReportTourTrigger />}
+      headerActions={<><MlbGlossaryDialog /><WeatherReportTourTrigger /></>}
     >
       <MlbWeatherReport />
       <WeatherReportTour />
@@ -356,7 +357,7 @@ function MlbExitVelocitySheet({ sport, sheet }: { sport: SupportedSport; sheet: 
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
-      headerActions={<ExitVelocityTourTrigger />}
+      headerActions={<><MlbGlossaryDialog /><ExitVelocityTourTrigger /></>}
     >
       <MlbGatedSection sheet={sheet} title="Exit Velocity Leaders" subtitle="See which batters are hitting the ball hardest against today's pitchers." previewHeight="400px">
         <MlbExitVelocity />
@@ -375,7 +376,7 @@ function MlbBatterVsPitcherPage({ sport, sheet }: { sport: SupportedSport; sheet
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
-      headerActions={<SlateInsightsTourTrigger />}
+      headerActions={<><MlbGlossaryDialog /><SlateInsightsTourTrigger /></>}
     >
       <MlbGatedSection sheet={sheet} title="Slate Insights" subtitle="Deep-dive every batter vs pitcher matchup with pitch splits, H2H, and zone analysis." previewHeight="600px">
         <MlbBatterVsPitcher />
@@ -394,6 +395,7 @@ function MlbIndividualMatchupPage({ sport, sheet }: { sport: SupportedSport; she
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<MlbGlossaryDialog />}
     >
       <MlbGatedSection sheet={sheet} title="Batter vs Pitcher" subtitle="Individual matchup breakdown with hot zones, spray charts, and pitch-level splits.">
         <MlbIndividualMatchup />
@@ -411,7 +413,7 @@ function MlbNrfiPage({ sport, sheet }: { sport: SupportedSport; sheet: Supported
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
-      headerActions={<NRFITourTrigger />}
+      headerActions={<><MlbGlossaryDialog /><NRFITourTrigger /></>}
     >
       <MlbGatedSection sheet={sheet} title="NRFI Analysis" subtitle="Find the best No Run First Inning bets with pitcher scoreless rates and odds." previewHeight="450px">
         <MlbNrfiSheet />
@@ -430,7 +432,7 @@ function MlbHRCommandCenterPage({ sport, sheet }: { sport: SupportedSport; sheet
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
-      headerActions={<HRCommandCenterTourTrigger />}
+      headerActions={<><MlbGlossaryDialog /><HRCommandCenterTourTrigger /></>}
     >
       <MlbGatedSection sheet={sheet} title="HR Command Center" subtitle="Our 5-layer HR scoring model with live odds across 14+ sportsbooks." previewHeight="450px">
         <MlbHRCommandCenter />
@@ -449,6 +451,7 @@ function MlbPitcherWeaknessPage({ sport, sheet }: { sport: SupportedSport; sheet
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<MlbGlossaryDialog />}
     >
       <MlbGatedSection sheet={sheet} title="Pitcher Weakness" subtitle="Pitcher vulnerability analysis with batting order splits, inning heatmaps, and edge scores." previewHeight="450px">
         <MlbPitcherWeakness />
@@ -466,6 +469,7 @@ function MlbGameCenterPage({ sport, sheet }: { sport: SupportedSport; sheet: Sup
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<MlbGlossaryDialog />}
     >
       <MlbGatedSection sheet={sheet} title="Game Center" subtitle="Unified game hub with Slate Insights and Pitcher Weakness in one view." previewHeight="600px">
         <GameCenterPage />
@@ -483,6 +487,7 @@ function MlbPropCommandCenterPage({ sport, sheet }: { sport: SupportedSport; she
       sport={sport}
       contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} isCheatSheetPage />}
       stickyContextBar
+      headerActions={<MlbGlossaryDialog />}
     >
       <MlbGatedSection sheet={sheet} title="Prop Center" subtitle="Universal prop scoring engine with composite scores, factor breakdowns, and odds comparison across 7 markets." previewHeight="600px">
         <MlbPropCommandCenter />

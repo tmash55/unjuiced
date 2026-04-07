@@ -25,6 +25,7 @@ export interface PropScorePlayer {
     line: number;
     over: number | null;
     under: number | null;
+    link?: string | null;
     mobile_link: string | null;
   }> | null;
   // Results (populated after game resolves)

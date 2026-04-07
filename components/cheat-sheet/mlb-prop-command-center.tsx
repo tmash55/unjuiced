@@ -6,6 +6,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
+import { usePropLiveOdds } from "@/hooks/use-prop-live-odds";
 import { useMlbGames, type MlbGame } from "@/hooks/use-mlb-games";
 import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
@@ -66,6 +67,7 @@ interface MarketConfig {
   factors: MarketFactorDef[];
   lineLabel: string;  // e.g., "K's", "Hits"
   lineOptions?: number[];  // Available lines for line selector (e.g., [0.5, 1.5, 2.5])
+  hideOdds?: boolean;  // true for markets with no sportsbook odds (e.g., fantasy points)
 }
 
 const MARKETS: MarketConfig[] = [
@@ -281,19 +283,49 @@ const MARKETS: MarketConfig[] = [
     playerType: "pitcher",
     lineLabel: "ER",
     columns: [
-      { key: "era", label: "ERA", shortLabel: "ERA", format: "stat", tooltip: "Earned run average" },
-      { key: "whip", label: "WHIP", shortLabel: "WHIP", format: "stat", tooltip: "Walks + hits per inning pitched" },
+      { key: "fip", label: "FIP", shortLabel: "FIP", format: "stat", tooltip: "Fielding independent pitching — #1 factor (18%)" },
+      { key: "k_bb_pct", label: "K-BB%", shortLabel: "K-BB", format: "pct", tooltip: "Strikeout minus walk rate — most stable pitcher metric (10%)" },
       { key: "opp_woba", label: "Opp wOBA", shortLabel: "Opp", format: "avg", tooltip: "Opposing lineup wOBA" },
     ],
     factors: [
-      { key: "era", label: "ERA" },
-      { key: "whip", label: "WHIP" },
-      { key: "fip", label: "FIP" },
-      { key: "recent_er", label: "Recent" },
-      { key: "opp_woba", label: "Opp wOBA" },
-      { key: "ballpark", label: "Ballpark" },
-      { key: "temperature", label: "Temp" },
-      { key: "wind", label: "Wind" },
+      { key: "pitcher_fip", label: "FIP", tooltip: "Fielding independent pitching (18%)" },
+      { key: "pitcher_k_bb_pct", label: "K-BB%", tooltip: "Strikeout minus walk rate (10%)" },
+      { key: "pitcher_hr9", label: "HR/9", tooltip: "Home runs per 9 innings (8%)" },
+      { key: "opp_woba", label: "Opp wOBA", tooltip: "Opposing lineup wOBA (10%)" },
+      { key: "opp_iso", label: "Opp ISO", tooltip: "Opposing lineup isolated power (7%)" },
+      { key: "opp_barrel_rate", label: "Opp Barrel", tooltip: "Opposing lineup barrel rate (5%)" },
+      { key: "park_run_factor", label: "Park", tooltip: "Park run factor (5%)" },
+      { key: "environment", label: "Environment", tooltip: "Weather impact — neutral for roofed stadiums (5%)" },
+      { key: "defense_oaa", label: "Defense", tooltip: "Team defensive OAA (3%)" },
+      { key: "projected_ip", label: "Proj IP", tooltip: "Projected innings pitched (8%)" },
+      { key: "platoon_composition", label: "Platoon", tooltip: "Lineup platoon composition (3%)" },
+      { key: "recent_er_avg", label: "Recent ER", tooltip: "Recent ER per start average (5%)" },
+      { key: "form_trend", label: "Form", tooltip: "Recent form trend (3%)" },
+    ],
+  },
+  {
+    key: "h_r_rbi",
+    label: "H+R+RBI",
+    shortLabel: "H+R+RBI",
+    playerType: "batter",
+    lineLabel: "H+R+RBI",
+    lineOptions: [1.5, 2.5, 3.5, 4.5],
+    columns: [
+      { key: "xba", label: "xBA", shortLabel: "xBA", format: "avg", tooltip: "Expected batting average from Statcast" },
+      { key: "obp", label: "OBP", shortLabel: "OBP", format: "avg", tooltip: "On-base percentage" },
+      { key: "expected_combo", label: "Exp Combo", shortLabel: "Exp", format: "stat", tooltip: "Expected H+R+RBI per game from model" },
+    ],
+    factors: [
+      { key: "contact_quality", label: "Contact", tooltip: "Contact quality (xBA, barrel rate)" },
+      { key: "power", label: "Power", tooltip: "ISO and extra-base hit ability" },
+      { key: "rbi_opportunity", label: "RBI Opp", tooltip: "RBI opportunity (base traffic, lineup spot)" },
+      { key: "runs_opportunity", label: "Runs Opp", tooltip: "Runs opportunity (OBP, speed, lineup spot)" },
+      { key: "pitcher_vulnerability", label: "Pitcher", tooltip: "Opposing pitcher vulnerability (FIP)" },
+      { key: "platoon_matchup", label: "Platoon", tooltip: "Platoon advantage vs pitcher hand" },
+      { key: "park_factor", label: "Park", tooltip: "Park run factor" },
+      { key: "weather", label: "Weather", tooltip: "Temperature + wind impact" },
+      { key: "recent_form", label: "Recent", tooltip: "Recent H+R+RBI production" },
+      { key: "batting_order", label: "Order", tooltip: "Batting order position" },
     ],
   },
 ];
@@ -403,26 +435,6 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   opp_woba:           { elite: 0.370, good: 0.340, poor: 0.300, bad: 0.270, higher: true },
 };
 
-/** Binomial probability: P(hits >= threshold) given effective BA and expected ABs */
-function pHitsOver(effectiveBA: number, expectedABs: number, threshold: number): number {
-  if (effectiveBA <= 0 || expectedABs <= 0) return 0;
-  const n = Math.round(expectedABs);
-  const p = Math.min(effectiveBA, 0.999);
-  const q = 1 - p;
-
-  // Compute P(X < threshold) = sum of P(X = k) for k = 0 to threshold-1
-  let cdf = 0;
-  for (let k = 0; k < threshold; k++) {
-    // Binomial coefficient * p^k * q^(n-k)
-    let coeff = 1;
-    for (let i = 0; i < k; i++) {
-      coeff *= (n - i) / (i + 1);
-    }
-    cdf += coeff * Math.pow(p, k) * Math.pow(q, n - k);
-  }
-  return Math.max(0, Math.min(1, 1 - cdf));
-}
-
 /** Convert American odds to implied probability */
 function oddsToImplied(american: number): number {
   if (american > 0) return 100 / (american + 100);
@@ -439,10 +451,15 @@ function avgImpliedDeduped(
 ): number | null {
   if (!snapshot || targetLine == null) return null;
   let kambiIncluded = false;
+  const seen = new Set<string>();
   const impliedValues: number[] = [];
-  for (const [book, data] of Object.entries(snapshot)) {
+  for (const [bookKey, data] of Object.entries(snapshot)) {
     if (!data || data.over == null) continue;
     if (targetLine != null && data.line !== targetLine) continue;
+    const book = parseBookKey(bookKey);
+    // Deduplicate same book appearing under multiple keys (e.g. "dk" and "dk__6.5")
+    if (seen.has(book)) continue;
+    seen.add(book);
     // Deduplicate Kambi books — only count the first one
     if (KAMBI_BOOKS.has(book)) {
       if (kambiIncluded) continue;
@@ -510,14 +527,50 @@ function getGameState(status: string | null): "upcoming" | "live" | "final" {
   return "upcoming";
 }
 
+/** Extract real book ID from snapshot key (e.g. "draftkings__6.5" → "draftkings") */
+function parseBookKey(key: string): string {
+  const idx = key.indexOf("__");
+  return idx >= 0 ? key.slice(0, idx) : key;
+}
+
 function getBookLogo(bookId: string): string | null {
-  const sb = getSportsbookById(bookId);
+  const sb = getSportsbookById(parseBookKey(bookId));
   return sb?.image?.light || sb?.image?.square || null;
 }
 
 function getBookName(bookId: string): string {
-  const sb = getSportsbookById(bookId);
-  return sb?.name || bookId;
+  const sb = getSportsbookById(parseBookKey(bookId));
+  return sb?.name || parseBookKey(bookId);
+}
+
+/** Resolve the best link for a book entry: mobile link on mobile, desktop link on desktop, fallback to sportsbook landing page */
+function resolveBookLink(
+  bookKey: string,
+  data: { link?: string | null; mobile_link?: string | null } | null,
+  isMobile: boolean
+): string | null {
+  const realBook = parseBookKey(bookKey);
+  const desktopLink = data?.link;
+  const mobileLink = data?.mobile_link;
+
+  // On mobile: prefer mobile_link, fall back to desktop link
+  // On desktop: prefer desktop link, fall back to mobile_link
+  let resolved: string | null = null;
+  if (isMobile) {
+    resolved = mobileLink || desktopLink || null;
+  } else {
+    resolved = desktopLink || mobileLink || null;
+  }
+
+  // Fallback to sportsbook landing page
+  if (!resolved) {
+    const sb = getSportsbookById(realBook);
+    if (sb?.links) {
+      resolved = isMobile ? (sb.links.mobile || sb.links.desktop || null) : (sb.links.desktop || sb.links.mobile || null);
+    }
+  }
+
+  return resolved;
 }
 
 type SortField = "score" | "player" | "edge_pct" | "line" | "best_odds" | "col0" | "col1" | "col2";
@@ -555,7 +608,7 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
   return bar;
 }
 
-function OddsCell({ player, marketConfig }: { player: PropScorePlayer; marketConfig: MarketConfig }) {
+function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScorePlayer; marketConfig: MarketConfig; isMobile?: boolean }) {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
@@ -573,10 +626,15 @@ function OddsCell({ player, marketConfig }: { player: PropScorePlayer; marketCon
   const logo = player.best_odds_book ? getBookLogo(player.best_odds_book) : null;
   const snapshot = player.odds_snapshot ?? {};
   const targetLine = player.line;
-  // Only show books offering the same line as the player's consensus line
+  // Only show books offering the same line — deduplicate by real book ID (prefer best price)
   const bookEntries = Object.entries(snapshot)
     .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999));
+    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
+    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
+      const realBook = parseBookKey(entry[0]);
+      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
+      return acc;
+    }, []);
 
   return (
     <div ref={ref} className="relative inline-flex">
@@ -593,48 +651,87 @@ function OddsCell({ player, marketConfig }: { player: PropScorePlayer; marketCon
         <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform", isOpen && "rotate-180")} />
       </button>
 
-      {isOpen && bookEntries.length > 0 && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-800">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-              {marketConfig.lineLabel} {player.line}+ Over
-            </span>
-            <span className="text-[10px] text-neutral-400">{bookEntries.length} books</span>
+      {isOpen && bookEntries.length > 0 && (() => {
+        const bestPrice = bookEntries[0]?.[1]?.over ?? null;
+        const worstPrice = bookEntries[bookEntries.length - 1]?.[1]?.over ?? null;
+        const spread = bestPrice != null && worstPrice != null ? Math.abs(bestPrice - worstPrice) : 0;
+
+        return (
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 bg-white dark:bg-neutral-900 shadow-2xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-neutral-50/80 dark:bg-neutral-800/50 border-b border-neutral-100 dark:border-neutral-800/80">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                {marketConfig.lineLabel} {player.line}+ Over
+              </span>
+              <div className="flex items-center gap-2">
+                {spread >= 30 && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">
+                    {spread}pt spread
+                  </span>
+                )}
+                <span className="text-[10px] tabular-nums text-neutral-400">{bookEntries.length} books</span>
+              </div>
+            </div>
+
+            {/* Book list */}
+            <div className="max-h-72 overflow-y-auto divide-y divide-neutral-100/60 dark:divide-neutral-800/40">
+              {bookEntries.map(([book, data]) => {
+                const bLogo = getBookLogo(book);
+                const isBest = parseBookKey(book) === parseBookKey(player.best_odds_book ?? "");
+                const bookLink = resolveBookLink(book, data, isMobile);
+
+                return (
+                  <a
+                    key={book}
+                    href={bookLink ?? "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => { e.stopPropagation(); if (!bookLink) e.preventDefault(); }}
+                    className={cn(
+                      "flex items-center justify-between px-3.5 py-2 transition-colors group",
+                      bookLink ? "cursor-pointer hover:bg-brand/5 dark:hover:bg-brand/10" : "cursor-default",
+                      isBest && "bg-emerald-500/5 dark:bg-emerald-500/8"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                        {bLogo
+                          ? <img src={bLogo} alt="" className="h-5 w-5 object-contain rounded" />
+                          : <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700" />
+                        }
+                      </div>
+                      <span className={cn(
+                        "text-[11px] font-semibold truncate",
+                        isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+                      )}>
+                        {getBookName(book)}
+                      </span>
+                      {isBest && (
+                        <span className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 shrink-0">
+                          Best
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn(
+                        "text-[13px] font-bold tabular-nums",
+                        isBest ? "text-emerald-500" : "text-neutral-800 dark:text-neutral-200"
+                      )}>
+                        {data?.over != null ? formatOdds(data.over) : "—"}
+                      </span>
+                      {bookLink ? (
+                        <ExternalLink className="w-3 h-3 text-neutral-300 dark:text-neutral-600 group-hover:text-brand transition-colors" />
+                      ) : (
+                        <div className="w-3 h-3" />
+                      )}
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
           </div>
-          <div className="max-h-64 overflow-y-auto">
-            {bookEntries.map(([book, data]) => {
-              const bLogo = getBookLogo(book);
-              const isBest = book === player.best_odds_book;
-              return (
-                <a
-                  key={book}
-                  href={data?.mobile_link ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-2 transition-colors",
-                    "hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
-                    isBest && "bg-emerald-500/5"
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {bLogo && <img src={bLogo} alt={book} className="h-4 w-auto shrink-0" />}
-                    <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate">{getBookName(book)}</span>
-                    {isBest && <span className="text-[9px] font-bold text-emerald-500 uppercase shrink-0">Best</span>}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={cn("text-xs font-bold tabular-nums", isBest ? "text-emerald-400" : "text-neutral-600 dark:text-neutral-300")}>
-                      {data?.over != null ? formatOdds(data.over) : "—"}
-                    </span>
-                    {data?.mobile_link && <ExternalLink className="w-2.5 h-2.5 text-neutral-400" />}
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -780,12 +877,33 @@ const MARKET_STATS: Record<string, StatDisplayItem[]> = {
     { key: "pitcher_hand", label: "Pitcher Hand", format: "raw", group: "Environment" },
   ],
   pitcher_er: [
-    { key: "era", label: "ERA", format: "stat", group: "Runs Allowed" },
-    { key: "whip", label: "WHIP", format: "stat", group: "Runs Allowed" },
-    { key: "fip", label: "FIP", format: "stat", group: "Runs Allowed" },
+    { key: "fip", label: "FIP", format: "stat", group: "Pitcher" },
+    { key: "k_bb_pct", label: "K-BB%", format: "pct", group: "Pitcher" },
+    { key: "hr_per_9", label: "HR/9", format: "stat", group: "Pitcher" },
+    { key: "projected_ip", label: "Proj IP", format: "stat", group: "Pitcher" },
+    { key: "expected_er", label: "Expected ER", format: "stat", group: "Pitcher" },
     { key: "recent_er_avg", label: "Recent ER/Start", format: "stat", group: "Recent" },
     { key: "opp_woba", label: "Opp wOBA", format: "avg", group: "Opponent" },
     { key: "opp_iso", label: "Opp ISO", format: "avg", group: "Opponent" },
+    { key: "opp_barrel_pct", label: "Opp Barrel%", format: "pct", group: "Opponent" },
+    { key: "park_factor", label: "Park Factor", format: "stat", group: "Environment" },
+    { key: "temperature_f", label: "Temp", format: "raw", group: "Environment" },
+    { key: "wind_mph", label: "Wind", format: "raw", group: "Environment" },
+    { key: "roof_type", label: "Roof", format: "raw", group: "Environment" },
+  ],
+  h_r_rbi: [
+    { key: "xba", label: "xBA", format: "avg", group: "Batter" },
+    { key: "obp", label: "OBP", format: "avg", group: "Batter" },
+    { key: "iso", label: "ISO", format: "avg", group: "Batter" },
+    { key: "barrel_rate", label: "Barrel%", format: "pct", group: "Batter" },
+    { key: "sprint_speed", label: "Sprint Speed", format: "speed", group: "Batter" },
+    { key: "batting_order", label: "Batting Order", format: "int", group: "Batter" },
+    { key: "expected_combo", label: "Expected H+R+RBI", format: "stat", group: "Model" },
+    { key: "season_combo_per_game", label: "Season Combo/G", format: "stat", group: "Model" },
+    { key: "recent_combo_avg", label: "Recent Combo Avg", format: "stat", group: "Recent" },
+    { key: "pitcher_fip", label: "Pitcher FIP", format: "stat", group: "Opponent" },
+    { key: "base_traffic_obp", label: "Base Traffic OBP", format: "avg", group: "Opponent" },
+    { key: "park_run_factor", label: "Park Factor", format: "int", group: "Environment" },
   ],
 };
 
@@ -815,7 +933,12 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
   const targetLine = player.line;
   const bookEntries = Object.entries(snapshot)
     .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999));
+    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
+    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
+      const realBook = parseBookKey(entry[0]);
+      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
+      return acc;
+    }, []);
   const bestBook = player.best_odds_book;
 
   // Market-specific stat display
@@ -1177,7 +1300,7 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
               )}
 
               {/* All Book Odds */}
-              {bookEntries.length > 0 ? (
+              {!marketConfig.hideOdds && bookEntries.length > 0 ? (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">All Book Odds</h4>
@@ -1199,16 +1322,17 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                   <div className="space-y-0.5">
                     {bookEntries.map(([book, info], idx) => {
                       const bLogo = getBookLogo(book);
-                      const isBest = book === bestBook;
+                      const isBest = parseBookKey(book) === parseBookKey(bestBook ?? "");
+                      const bookLink = resolveBookLink(book, info, false);
                       return (
                         <a
                           key={book}
-                          href={info?.mobile_link ?? "#"}
+                          href={bookLink ?? "#"}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); if (!bookLink) e.preventDefault(); }}
                           className={cn(
-                            "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors",
+                            "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors group",
                             isBest
                               ? "bg-emerald-500/10 dark:bg-emerald-500/10"
                               : idx > 2
@@ -1221,12 +1345,15 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                             <span className="text-neutral-600 dark:text-neutral-400 truncate">{getBookName(book)}</span>
                             {isBest && <span className="text-[9px] font-bold text-emerald-500 shrink-0">BEST</span>}
                           </div>
-                          <span className={cn(
-                            "font-bold tabular-nums shrink-0",
-                            isBest ? "text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
-                          )}>
-                            {formatOdds(info?.over ?? null)}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={cn(
+                              "font-bold tabular-nums",
+                              isBest ? "text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
+                            )}>
+                              {formatOdds(info?.over ?? null)}
+                            </span>
+                            {bookLink && <ExternalLink className="w-2.5 h-2.5 text-neutral-300 dark:text-neutral-600 group-hover:text-brand transition-colors" />}
+                          </div>
                         </a>
                       );
                     })}
@@ -1294,14 +1421,16 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <div className="text-right">
-            <span className="text-[10px] text-neutral-500 block">Edge</span>
-            <span className={cn("text-xs font-bold tabular-nums",
-              (player.edge_pct ?? 0) > 0 ? "text-emerald-400" : (player.edge_pct ?? 0) < 0 ? "text-red-400" : "text-neutral-400"
-            )}>
-              {player.edge_pct != null ? `${player.edge_pct > 0 ? "+" : ""}${player.edge_pct.toFixed(1)}%` : "-"}
-            </span>
-          </div>
+          {!marketConfig.hideOdds && (
+            <div className="text-right">
+              <span className="text-[10px] text-neutral-500 block">Edge</span>
+              <span className={cn("text-xs font-bold tabular-nums",
+                (player.edge_pct ?? 0) > 0 ? "text-emerald-400" : (player.edge_pct ?? 0) < 0 ? "text-red-400" : "text-neutral-400"
+              )}>
+                {player.edge_pct != null ? `${player.edge_pct > 0 ? "+" : ""}${player.edge_pct.toFixed(1)}%` : "-"}
+              </span>
+            </div>
+          )}
           <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
             <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
           </div>
@@ -1325,8 +1454,12 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
                   </span>
                 </React.Fragment>
               ))}
-              <span className="text-neutral-500">Best Odds</span>
-              <span className="font-bold text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
+              {!marketConfig.hideOdds && (
+                <>
+                  <span className="text-neutral-500">Best Odds</span>
+                  <span className="font-bold text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1538,7 +1671,18 @@ export function MlbPropCommandCenter() {
   // Fetch prop scores — all markets including HR now use the same source
   const propResult = useMlbPropScores(selectedDate, selectedMarket);
 
-  // Process players: apply line selection, fix best_odds to target line
+  // Extract unique game IDs for live odds fetching
+  const gameIdsForOdds = useMemo(() => {
+    return Array.from(new Set(propResult.players.map((p) => p.game_id)));
+  }, [propResult.players]);
+
+  // Fetch live odds per game (same architecture as slate insights)
+  const { odds: liveOdds } = usePropLiveOdds(
+    marketConfig.hideOdds ? [] : gameIdsForOdds,
+    selectedMarket
+  );
+
+  // Process players: merge live odds, apply line selection
   const players = useMemo(() => {
     const raw = propResult.players;
     const FIXED_LINES: Record<string, number> = {}; // No forced lines — use Default/selector
@@ -1548,49 +1692,66 @@ export function MlbPropCommandCenter() {
       const fixedLine = FIXED_LINES[p.market];
       const targetLine = selectedLine != null ? selectedLine : (fixedLine ?? p.line);
 
-      let updated = { ...p, line: targetLine };
+      // Merge live odds into snapshot (same architecture as slate insights)
+      const playerNorm = p.player_name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+      const liveEntry = liveOdds[playerNorm];
+      let mergedSnapshot = { ...(p.odds_snapshot ?? {}) };
+      if (liveEntry?.all_books) {
+        // Live odds have all lines per book — build snapshot entries keyed by book__line
+        for (const ab of liveEntry.all_books) {
+          const line = ab.line ?? liveEntry.line;
+          if (line == null) continue;
+          const key = `${ab.book}__${line}`;
+          mergedSnapshot[key] = {
+            line,
+            over: ab.price,
+            under: null,
+            link: ab.link,
+            mobile_link: ab.mobile_link,
+          };
+        }
+      }
+
+      let updated = { ...p, line: targetLine, odds_snapshot: mergedSnapshot };
 
       // Filter best_odds to target line from odds_snapshot
       if (updated.odds_snapshot && targetLine != null) {
         let bestPrice: number | null = null;
         let bestBook: string | null = null;
-        for (const [book, data] of Object.entries(updated.odds_snapshot)) {
+        const seenBooks = new Set<string>();
+        for (const [bookKey, data] of Object.entries(updated.odds_snapshot)) {
           if (!data || data.line !== targetLine || data.over == null) continue;
+          const realBook = parseBookKey(bookKey);
+          if (seenBooks.has(realBook)) continue;
+          seenBooks.add(realBook);
           if (bestPrice == null || data.over > bestPrice) {
             bestPrice = data.over;
-            bestBook = book;
+            bestBook = realBook;
           }
         }
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
 
+          // Use prob_lines from backend for line-specific model probability
+          const probLines = (p.key_stats?.prob_lines ?? {}) as Record<string, number>;
+          const lineKey = targetLine != null ? String(targetLine) : null;
+          const modelProb = lineKey && probLines[lineKey] != null ? probLines[lineKey] : p.model_prob;
+
           // Compute deduped avg implied (Kambi books counted once)
           const avgImplied = avgImpliedDeduped(updated.odds_snapshot, targetLine);
+          const impliedProb = avgImplied ?? oddsToImplied(bestPrice);
 
-          // Recompute model probability + edge for hits market at different lines
-          const ks = p.key_stats ?? {};
-          const effectiveBA = ks.effective_ba as number | undefined;
-          const expABs = ks.exp_abs as number | undefined;
-          if (effectiveBA && expABs && targetLine != null && p.market === "hits") {
-            const threshold = targetLine + 0.5; // 0.5 line = 1+ hits, 1.5 = 2+, etc.
-            const modelProb = pHitsOver(effectiveBA, expABs, threshold);
-            const edgeBase = avgImplied ?? oddsToImplied(bestPrice);
-            const edge = edgeBase > 0 ? ((modelProb - edgeBase) / edgeBase) * 100 : null;
-            updated = {
-              ...updated,
-              model_prob: modelProb,
-              implied_prob: avgImplied ?? oddsToImplied(bestPrice),
-              edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
-            };
-          } else if (avgImplied != null && updated.model_prob != null) {
-            // For non-hits markets with a line change, recompute edge vs avg implied
-            const edge = avgImplied > 0 ? ((updated.model_prob - avgImplied) / avgImplied) * 100 : null;
-            updated = {
-              ...updated,
-              implied_prob: avgImplied,
-              edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
-            };
-          }
+          // Compute edge: model prob vs market implied
+          const edge = modelProb != null && impliedProb > 0
+            ? ((modelProb - impliedProb) / impliedProb) * 100
+            : null;
+
+          updated = {
+            ...updated,
+            model_prob: modelProb,
+            implied_prob: impliedProb,
+            edge_pct: edge != null ? Math.round(edge * 100) / 100 : null,
+          };
         } else {
           updated = { ...updated, best_odds: null, best_odds_book: null };
         }
@@ -1598,7 +1759,7 @@ export function MlbPropCommandCenter() {
 
       return updated;
     });
-  }, [propResult.players, selectedLine]);
+  }, [propResult.players, selectedLine, liveOdds]);
   const isLoading = propResult.isLoading;
   const availableDates = propResult.availableDates;
 
@@ -1720,10 +1881,32 @@ export function MlbPropCommandCenter() {
     <div className="space-y-0">
       {/* Unified header card: Market Tabs + Filters */}
       <div className="rounded-xl bg-neutral-50/80 dark:bg-neutral-950/40 border border-neutral-200/60 dark:border-neutral-800/60 overflow-visible">
-        {/* Market Tabs */}
+        {/* Market Tabs — grouped by player type */}
         <div className="px-4 pt-3 pb-2.5">
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-            {MARKETS.map((m) => (
+            {/* Batter props */}
+            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-500/70 mr-0.5 shrink-0 hidden sm:inline">Bat</span>
+            {MARKETS.filter((m) => m.playerType === "batter").map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setSelectedMarket(m.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all",
+                  selectedMarket === m.key
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/80 dark:hover:bg-neutral-800/60"
+                )}
+              >
+                {isMobile ? m.shortLabel : m.label}
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 shrink-0" />
+
+            {/* Pitcher props */}
+            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-500/70 mr-0.5 shrink-0 hidden sm:inline">Pitch</span>
+            {MARKETS.filter((m) => m.playerType === "pitcher").map((m) => (
               <button
                 key={m.key}
                 onClick={() => setSelectedMarket(m.key)}
@@ -1896,21 +2079,27 @@ export function MlbPropCommandCenter() {
                           </Tooltip>
                         </Th>
                       ))}
-                      <Th>
-                        <SortBtn field="best_odds" current={sortField} dir={sortDirection} onClick={handleSort}>Odds</SortBtn>
-                      </Th>
-                      <Th>
-                        <Tooltip content="Model probability — how likely this outcome is based on our scoring model" side="top">
-                          <span className="cursor-help text-[10px]">Prob</span>
-                        </Tooltip>
-                      </Th>
-                      <Th>
-                        <Tooltip content="Model edge: positive = value bet opportunity" side="top">
-                          <span className="cursor-help">
-                            <SortBtn field="edge_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Edge</SortBtn>
-                          </span>
-                        </Tooltip>
-                      </Th>
+                      {!marketConfig.hideOdds && (
+                        <Th>
+                          <SortBtn field="best_odds" current={sortField} dir={sortDirection} onClick={handleSort}>Odds</SortBtn>
+                        </Th>
+                      )}
+                      {!marketConfig.hideOdds && (
+                        <Th>
+                          <Tooltip content="Model probability — how likely this outcome is based on our scoring model" side="top">
+                            <span className="cursor-help text-[10px]">Prob</span>
+                          </Tooltip>
+                        </Th>
+                      )}
+                      {!marketConfig.hideOdds && (
+                        <Th>
+                          <Tooltip content="Model edge: positive = value bet opportunity" side="top">
+                            <span className="cursor-help">
+                              <SortBtn field="edge_pct" current={sortField} dir={sortDirection} onClick={handleSort}>Edge</SortBtn>
+                            </span>
+                          </Tooltip>
+                        </Th>
+                      )}
                       <Th className="w-8" />
                     </tr>
                   </thead>
@@ -2045,45 +2234,51 @@ export function MlbPropCommandCenter() {
                             })}
 
                             {/* Odds */}
-                            <td className="px-2 py-2 text-center">
-                              <OddsCell player={player} marketConfig={marketConfig} />
-                            </td>
+                            {!marketConfig.hideOdds && (
+                              <td className="px-2 py-2 text-center">
+                                <OddsCell player={player} marketConfig={marketConfig} isMobile={isMobile} />
+                              </td>
+                            )}
 
                             {/* Prob — model vs market */}
-                            <td className="px-2 py-2 text-center">
-                              {(() => {
-                                const marketImpl = avgImpliedDeduped(player.odds_snapshot, player.line);
-                                const modelProb = player.model_prob;
-                                if (modelProb == null && marketImpl == null) return <span className="text-xs text-neutral-500">-</span>;
-                                return (
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    {modelProb != null && (
-                                      <span className="text-[11px] font-bold tabular-nums text-neutral-900 dark:text-white">
-                                        {(modelProb * 100).toFixed(0)}%
-                                      </span>
-                                    )}
-                                    {marketImpl != null && (
-                                      <span className="text-[9px] tabular-nums text-neutral-400">
-                                        Mkt {(marketImpl * 100).toFixed(0)}%
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </td>
+                            {!marketConfig.hideOdds && (
+                              <td className="px-2 py-2 text-center">
+                                {(() => {
+                                  const marketImpl = avgImpliedDeduped(player.odds_snapshot, player.line);
+                                  const modelProb = player.model_prob;
+                                  if (modelProb == null && marketImpl == null) return <span className="text-xs text-neutral-500">-</span>;
+                                  return (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      {modelProb != null && (
+                                        <span className="text-[11px] font-bold tabular-nums text-neutral-900 dark:text-white">
+                                          {(modelProb * 100).toFixed(0)}%
+                                        </span>
+                                      )}
+                                      {marketImpl != null && (
+                                        <span className="text-[9px] tabular-nums text-neutral-400">
+                                          Mkt {(marketImpl * 100).toFixed(0)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            )}
 
                             {/* Edge */}
-                            <td className="px-2 py-2 text-center">
-                              {player.edge_pct != null ? (
-                                <span className={cn("text-xs font-bold tabular-nums",
-                                  player.edge_pct > 0 ? "text-emerald-400" : player.edge_pct < 0 ? "text-red-400" : "text-neutral-400"
-                                )}>
-                                  {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
-                                </span>
-                              ) : (
-                                <span className="text-xs text-neutral-500">-</span>
-                              )}
-                            </td>
+                            {!marketConfig.hideOdds && (
+                              <td className="px-2 py-2 text-center">
+                                {player.edge_pct != null ? (
+                                  <span className={cn("text-xs font-bold tabular-nums",
+                                    player.edge_pct > 0 ? "text-emerald-400" : player.edge_pct < 0 ? "text-red-400" : "text-neutral-400"
+                                  )}>
+                                    {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-neutral-500">-</span>
+                                )}
+                              </td>
+                            )}
 
                             {/* Expand */}
                             <td className="px-2 py-2.5 text-center">

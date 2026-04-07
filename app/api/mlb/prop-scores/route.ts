@@ -24,6 +24,8 @@ const MARKET_TO_REDIS: Record<string, string> = {
   pitcher_k: "player_strikeouts",
   pitcher_h: "player_hits_allowed",
   pitcher_er: "player_earned_runs",
+  h_r_rbi: "player_hits__runs__rbis",
+  // fantasy: no odds — intentionally omitted
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -165,13 +167,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Batch fetch from Redis (chunk to avoid oversized mget)
-    const CHUNK = 200;
+    const CHUNK = 100;
     let redisValues: (OddsValue | null)[] = [];
     if (redisKeys.length > 0) {
       for (let i = 0; i < redisKeys.length; i += CHUNK) {
         const chunk = redisKeys.slice(i, i + CHUNK);
-        const vals = await redis.mget<(OddsValue | null)[]>(...chunk);
-        redisValues.push(...vals);
+        try {
+          const vals = await redis.mget<(OddsValue | null)[]>(...chunk);
+          redisValues.push(...vals);
+        } catch (err) {
+          console.warn(`[Prop Scores] Redis mget failed for chunk ${i}:`, err);
+          redisValues.push(...chunk.map(() => null));
+        }
       }
     }
 
@@ -192,9 +199,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const nonNull = redisValues.filter(Boolean).length;
     console.log(
-      `[Prop Scores] Redis: ${uniqueEventIds.length} events × ${marketsInScores.length} markets, ${redisValues.filter(Boolean).length}/${redisKeys.length} keys`
+      `[Prop Scores] Redis: ${uniqueEventIds.length} events × ${marketsInScores.length} markets, ${nonNull}/${redisKeys.length} keys hit`
     );
+    // Debug: log first few keys and whether they hit
+    if (nonNull === 0 && redisKeys.length > 0) {
+      console.log(`[Prop Scores] DEBUG: first 3 keys tried:`, redisKeys.slice(0, 3));
+      console.log(`[Prop Scores] DEBUG: first 3 values:`, redisValues.slice(0, 3));
+    }
 
     // ── 5. Match each score to live odds ───────────────────────────────
     let oddsMatched = 0;
@@ -363,12 +376,13 @@ function getLiveOdds(
   const avgImplied =
     consensusOverPrices.reduce((s, p) => s + americanToImplied(p), 0) / consensusOverPrices.length;
 
-  // Build all-book snapshot (includes ALL lines for the "All Book Odds" panel)
+  // Build all-book snapshot — store every book+line combo so frontend can filter by any line
+  // Key format: "book" for consensus line, "book__2.5" for alternate lines
   const allBookOdds: Record<string, { line: number; over: number; under: number | null; mobile_link: string | null }> =
     {};
   for (const e of entries) {
-    // If a book has multiple lines, prefer the consensus line
-    if (!allBookOdds[e.book] || e.line === consensusLine) {
+    if (e.line === consensusLine) {
+      // Consensus line gets the clean book key (primary entry)
       allBookOdds[e.book] = {
         line: e.line,
         over: e.over_price,
@@ -376,6 +390,14 @@ function getLiveOdds(
         mobile_link: e.mobile_link,
       };
     }
+    // Always store the line-specific key for alt-line lookups
+    const lineKey = `${e.book}__${e.line}`;
+    allBookOdds[lineKey] = {
+      line: e.line,
+      over: e.over_price,
+      under: e.under_price,
+      mobile_link: e.mobile_link,
+    };
   }
 
   return {
