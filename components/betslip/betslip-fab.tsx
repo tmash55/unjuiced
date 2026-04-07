@@ -38,8 +38,8 @@ export function BetslipFab() {
           "bg-brand hover:bg-brand/90 text-white",
           "ring-1 ring-brand/20 hover:ring-brand/40",
           hasItems
-            ? isMobile ? "w-12 h-12 bottom-20 right-4" : "w-12 h-12 bottom-6 right-6"
-            : isMobile ? "w-10 h-10 bottom-20 right-4 opacity-60" : "w-10 h-10 bottom-6 right-6 opacity-60",
+            ? isMobile ? "w-12 h-12 bottom-24 right-4" : "w-12 h-12 bottom-6 right-6"
+            : isMobile ? "w-10 h-10 bottom-24 right-4 opacity-60" : "w-10 h-10 bottom-6 right-6 opacity-60",
         )}
         aria-label={`Open betslip (${count} plays)`}
       >

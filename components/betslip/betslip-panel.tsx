@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, type Favorite, type BookSnapshot } from "@/hooks/use-favorites";
@@ -149,6 +149,8 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
   const [compareOdds, setCompareOdds] = useState<Record<string, SgpBookOdds>>({});
   const [isLoadingCompare, setIsLoadingCompare] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
+  const compareCache = useRef<Map<string, Record<string, SgpBookOdds>>>(new Map());
 
   // Live odds via SSE
   const { refreshedOdds: streamRefreshedOdds, changes: streamChanges } = useFavoritesStream({
@@ -167,13 +169,19 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
     return map;
   }, [streamRefreshedOdds]);
 
-  // Auto-select all when panel opens
+  // Auto-select all when panel opens + auto-fetch compare
   useEffect(() => {
     if (open) {
       setSelectedIds(new Set(favorites.map((f) => f.id)));
-      setShowCompare(false);
       setShowBreakdown(false);
-      setCompareOdds({});
+      setExpandedLegId(null);
+      // Auto-show compare if 2+ plays
+      if (favorites.length >= 2) {
+        setShowCompare(true);
+      } else {
+        setShowCompare(false);
+        setCompareOdds({});
+      }
     }
   }, [open, favorites]);
 
@@ -216,11 +224,20 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
     return impliedToAmerican(combinedProb);
   }, [selectedFavorites, refreshedOddsMap]);
 
-  // SGP compare
-  const handleCompare = useCallback(async () => {
-    setShowCompare(true);
-    setShowBreakdown(false);
+  // Build a cache key from selected favorite IDs
+  const compareCacheKey = useMemo(() => {
+    return [...selectedIds].sort().join(",");
+  }, [selectedIds]);
+
+  // SGP compare — with caching
+  const fetchCompare = useCallback(async (force = false) => {
     if (selectedFavorites.length < 2) return;
+
+    // Check cache first
+    if (!force && compareCache.current.has(compareCacheKey)) {
+      setCompareOdds(compareCache.current.get(compareCacheKey)!);
+      return;
+    }
 
     setIsLoadingCompare(true);
     try {
@@ -232,13 +249,22 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
-      setCompareOdds(data.odds || {});
+      const odds = data.odds || {};
+      setCompareOdds(odds);
+      compareCache.current.set(compareCacheKey, odds);
     } catch {
       toast.error("Failed to fetch parlay odds");
     } finally {
       setIsLoadingCompare(false);
     }
-  }, [selectedFavorites, refreshedOddsMap]);
+  }, [selectedFavorites, refreshedOddsMap, compareCacheKey]);
+
+  // Auto-fetch compare when panel opens or selection changes
+  useEffect(() => {
+    if (open && showCompare && selectedFavorites.length >= 2) {
+      fetchCompare();
+    }
+  }, [open, showCompare, compareCacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalSelectedLegs = selectedFavorites.length;
 
@@ -430,31 +456,138 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                           </div>
                         </div>
 
-                        {/* Best odds pill */}
-                        {bestOdds && (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 shrink-0">
-                            {getBookLogo(bestOdds.bookId) && (
-                              <img src={getBookLogo(bestOdds.bookId)!} alt="" className="h-4 w-4 object-contain" />
-                            )}
-                            <span className={cn(
-                              "text-sm font-bold tabular-nums",
-                              "text-emerald-600 dark:text-emerald-400",
-                              priceChange?.priceDirection === "up" && "text-emerald-500",
-                              priceChange?.priceDirection === "down" && "text-red-500",
-                            )}>
-                              {formatOdds(bestOdds.price)}
-                            </span>
-                          </div>
-                        )}
+                        {/* Best odds — click to bet, or expand to see all books */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {bestOdds && (
+                            <a
+                              href={(() => {
+                                const snap = fav.books_snapshot?.[bestOdds.bookId];
+                                const refreshedLink = refreshedOddsMap.get(fav.id)?.allBooks?.[bestOdds.bookId]?.link;
+                                return applyState(refreshedLink || snap?.u || snap?.m || '') || '#';
+                              })()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                            >
+                              {getBookLogo(bestOdds.bookId) && (
+                                <img src={getBookLogo(bestOdds.bookId)!} alt="" className="h-4 w-4 object-contain" />
+                              )}
+                              <span className={cn(
+                                "text-sm font-bold tabular-nums",
+                                "text-emerald-600 dark:text-emerald-400",
+                                priceChange?.priceDirection === "up" && "text-emerald-500",
+                                priceChange?.priceDirection === "down" && "text-red-500",
+                              )}>
+                                {formatOdds(bestOdds.price)}
+                              </span>
+                              <ExternalLink className="w-2.5 h-2.5 text-neutral-400" />
+                            </a>
+                          )}
 
-                        {/* Remove */}
-                        <button
-                          onClick={() => handleRemove(fav.id)}
-                          className="p-1 rounded text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 transition-colors opacity-0 group-hover/play:opacity-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {/* Expand to see all books for this leg */}
+                          <button
+                            onClick={() => setExpandedLegId(expandedLegId === fav.id ? null : fav.id)}
+                            className={cn(
+                              "p-1 rounded transition-colors",
+                              expandedLegId === fav.id
+                                ? "text-brand bg-brand/10"
+                                : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            <BarChart3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Remove */}
+                          <button
+                            onClick={() => handleRemove(fav.id)}
+                            className="p-1 rounded text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 transition-colors opacity-0 group-hover/play:opacity-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Expanded: all books for this leg */}
+                      <AnimatePresence>
+                        {expandedLegId === fav.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.12 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-3 ml-7">
+                              <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-700/40 overflow-hidden">
+                                {(() => {
+                                  // Merge saved snapshot + refreshed odds
+                                  const allBooks: { bookId: string; price: number; link: string | null }[] = [];
+                                  const refreshed = refreshedOddsMap.get(fav.id);
+                                  const seen = new Set<string>();
+
+                                  // Refreshed first (live data)
+                                  if (refreshed?.allBooks) {
+                                    for (const [bookId, data] of Object.entries(refreshed.allBooks)) {
+                                      if (data.price) {
+                                        allBooks.push({ bookId, price: data.price, link: data.link });
+                                        seen.add(bookId);
+                                      }
+                                    }
+                                  }
+                                  // Then saved snapshot
+                                  if (fav.books_snapshot) {
+                                    for (const [bookId, data] of Object.entries(fav.books_snapshot)) {
+                                      if (!seen.has(bookId) && data.price) {
+                                        allBooks.push({ bookId, price: data.price, link: data.u || data.m || null });
+                                        seen.add(bookId);
+                                      }
+                                    }
+                                  }
+
+                                  allBooks.sort((a, b) => b.price - a.price);
+                                  const bestPrice = allBooks[0]?.price;
+
+                                  return (
+                                    <div className="divide-y divide-neutral-100/40 dark:divide-neutral-800/30">
+                                      {allBooks.slice(0, 8).map(({ bookId, price, link }) => {
+                                        const logo = getBookLogo(bookId);
+                                        const isBest = price === bestPrice;
+                                        const resolvedLink = link ? (applyState(link) || link) : null;
+                                        return (
+                                          <div key={bookId} className={cn(
+                                            "flex items-center justify-between px-3 py-1.5",
+                                            isBest && "bg-emerald-500/5"
+                                          )}>
+                                            <div className="flex items-center gap-2">
+                                              {logo ? <img src={logo} alt="" className="h-4 w-4 object-contain" /> : <div className="w-4 h-4 rounded bg-neutral-200 dark:bg-neutral-700" />}
+                                              <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">{getBookName(bookId)}</span>
+                                              {isBest && <span className="text-[8px] font-black uppercase text-emerald-500">Best</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                              <span className={cn("text-xs font-bold tabular-nums", isBest ? "text-emerald-500" : "text-neutral-600 dark:text-neutral-300")}>
+                                                {formatOdds(price)}
+                                              </span>
+                                              {resolvedLink && (
+                                                <a href={resolvedLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                                  <ExternalLink className="w-2.5 h-2.5 text-neutral-400 hover:text-brand transition-colors" />
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                      {allBooks.length > 8 && (
+                                        <div className="text-[10px] text-neutral-400 text-center py-1">+{allBooks.length - 8} more</div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}
@@ -483,7 +616,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
               {selectedFavorites.length >= 2 && (
                 <div className="flex items-center gap-2 mt-2.5">
                   <button
-                    onClick={handleCompare}
+                    onClick={() => { setShowCompare(!showCompare); setShowBreakdown(false); if (!showCompare) fetchCompare(); }}
                     disabled={isLoadingCompare}
                     className={cn(
                       "flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all",
@@ -493,7 +626,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                     )}
                   >
                     {isLoadingCompare ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
-                    Compare Odds
+                    {showCompare ? "Hide Odds" : "Parlay Odds"}
                   </button>
                   <button
                     onClick={() => { setShowBreakdown(!showBreakdown); setShowCompare(false); }}
