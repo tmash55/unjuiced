@@ -838,7 +838,7 @@ export function MlbExitVelocity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<"table" | "scatter">("table");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
-  const [season, setSeason] = useState<number | undefined>(undefined); // undefined = all data
+  const [season, setSeason] = useState<number | undefined>(2026); // default to current season
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
