@@ -69,7 +69,14 @@ function getBookName(bookId: string): string {
   return sb?.name || bookId;
 }
 
-function getBestOdds(snapshot: Record<string, BookSnapshot> | null): { bookId: string; price: number } | null {
+function parseSnapshot(raw: Record<string, BookSnapshot> | string | null): Record<string, BookSnapshot> | null {
+  if (!raw) return null;
+  if (typeof raw === "string") try { return JSON.parse(raw); } catch { return null; }
+  return raw;
+}
+
+function getBestOdds(rawSnapshot: Record<string, BookSnapshot> | string | null): { bookId: string; price: number } | null {
+  const snapshot = parseSnapshot(rawSnapshot);
   if (!snapshot) return null;
   let best: { bookId: string; price: number } | null = null;
   for (const [bookId, data] of Object.entries(snapshot)) {
@@ -461,7 +468,8 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                           {bestOdds && (
                             <a
                               href={(() => {
-                                const snap = fav.books_snapshot?.[bestOdds.bookId];
+                                const parsed = parseSnapshot(fav.books_snapshot);
+                              const snap = parsed?.[bestOdds.bookId];
                                 const refreshedLink = refreshedOddsMap.get(fav.id)?.allBooks?.[bestOdds.bookId]?.link;
                                 return applyState(refreshedLink || snap?.u || snap?.m || '') || '#';
                               })()}
@@ -535,9 +543,10 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                                       }
                                     }
                                   }
-                                  // Then saved snapshot
-                                  if (fav.books_snapshot) {
-                                    for (const [bookId, data] of Object.entries(fav.books_snapshot)) {
+                                  // Then saved snapshot (may be a JSON string from Supabase)
+                                  const snapshot = parseSnapshot(fav.books_snapshot);
+                                  if (snapshot) {
+                                    for (const [bookId, data] of Object.entries(snapshot)) {
                                       if (!seen.has(bookId) && data.price) {
                                         allBooks.push({ bookId, price: data.price, link: data.u || data.m || null });
                                         seen.add(bookId);
