@@ -191,16 +191,32 @@ const MARKETS: MarketConfig[] = [
     columns: [
       { key: "rbi_rate", label: "RBI Rate", shortLabel: "Rate", format: "avg", tooltip: "RBI per plate appearance" },
       { key: "slg", label: "SLG", shortLabel: "SLG", format: "avg", tooltip: "Slugging percentage" },
-      { key: "base_traffic", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — runners on base opportunity" },
+      { key: "base_traffic", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — OBP of hitters batting ahead" },
     ],
     factors: [
-      { key: "recent", label: "Recent" },
-      { key: "rbi_rate", label: "RBI Rate" },
+      // Run production
+      { key: "base_traffic", label: "Traffic", tooltip: "OBP of hitters batting ahead — runners on base (top factor)" },
+      { key: "batting_order", label: "Order", tooltip: "Batting order zone — 3-5 = RBI spots" },
+      { key: "walk_rate_ahead", label: "BB Ahead", tooltip: "Walk rate of hitters batting before — free baserunners" },
+      { key: "slg", label: "SLG", tooltip: "Slugging percentage — extra-base hit power" },
+      { key: "rbi_rate", label: "RBI Rate", tooltip: "RBI per plate appearance" },
+      { key: "recent_rbi", label: "Recent", tooltip: "Recent RBI production" },
+      // Pitcher vulnerability
+      { key: "pitcher_fip", label: "P FIP", tooltip: "Pitcher FIP — run prevention ability" },
+      { key: "platoon_slg", label: "Platoon", tooltip: "SLG vs pitcher's handedness" },
+      { key: "bvp", label: "BvP", tooltip: "Batter vs pitcher RBI history" },
+      { key: "recent_form", label: "Form", tooltip: "Recent form trend" },
+      // Environment
+      { key: "park_factor", label: "Park", tooltip: "Park run factor" },
+      { key: "weather", label: "Weather", tooltip: "Temperature + wind impact on runs" },
+      { key: "opp_era", label: "Opp ERA", tooltip: "Opposing pitcher ERA" },
+      { key: "pitcher_bb_rate", label: "P BB Rate", tooltip: "Pitcher walk rate — free baserunners" },
+      { key: "game_total", label: "Game Total", tooltip: "Vegas game total — higher O/U = more RBI opportunity" },
+      // Fallbacks for old data
       { key: "power", label: "Power" },
-      { key: "base_traffic", label: "Traffic" },
       { key: "lineup_spot", label: "Lineup" },
-      { key: "opp_era", label: "Opp ERA" },
       { key: "opp_whip", label: "Opp WHIP" },
+      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -714,7 +730,13 @@ const MARKET_STATS: Record<string, StatDisplayItem[]> = {
     { key: "slg", label: "SLG", format: "avg", group: "Production" },
     { key: "rbi_total", label: "Season RBI", format: "int", group: "Production" },
     { key: "recent_rbi_avg", label: "Recent RBI/G", format: "stat", group: "Recent" },
-    { key: "base_traffic", label: "Base Traffic", format: "avg", group: "Lineup" },
+    { key: "base_traffic_obp", label: "Traffic OBP", format: "avg", group: "Lineup" },
+    { key: "batting_order_zone", label: "Order Zone", format: "raw", group: "Lineup" },
+    { key: "pitcher_fip", label: "Pitcher FIP", format: "stat", group: "Matchup" },
+    { key: "platoon_slg", label: "Platoon SLG", format: "avg", group: "Matchup" },
+    { key: "pitcher_hand", label: "Pitcher Hand", format: "raw", group: "Matchup" },
+    { key: "park_run_factor", label: "Park Run Factor", format: "int", group: "Environment" },
+    { key: "game_total_line", label: "Game Total (O/U)", format: "stat", group: "Environment" },
   ],
   sb: [
     { key: "sprint_speed", label: "Sprint Speed (ft/s)", format: "stat", group: "Runner" },
