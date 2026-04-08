@@ -129,7 +129,6 @@ export function TeamOffense() {
                 <tr className="border-b border-neutral-200/60 dark:border-neutral-800/40 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                   <th className="w-10 px-3 py-2.5 text-center">#</th>
                   <th className="px-3 py-2.5 text-left min-w-[180px]">Team</th>
-                  <th className="px-3 py-2.5 text-center whitespace-nowrap">GP</th>
                   <th className="px-3 py-2.5 text-center whitespace-nowrap"><SortHeader field="scoring_pct">Scoring%</SortHeader></th>
                   <th className="px-3 py-2.5 text-center whitespace-nowrap">L30%</th>
                   <th className="px-3 py-2.5 text-center whitespace-nowrap">Trend</th>
@@ -167,7 +166,6 @@ export function TeamOffense() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-center tabular-nums text-neutral-500 align-middle">{t.gp}</td>
                       <td className="px-3 py-3 text-center align-middle">
                         <span className={cn("font-black tabular-nums", scorePct != null ? scoringColor(scorePct) : "text-neutral-400")}>
                           {scorePct != null ? `${scorePct.toFixed(1)}%` : "—"}

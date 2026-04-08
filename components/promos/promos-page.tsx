@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Wrench } from "lucide-react";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { PromosFilterBar } from "./promos-filter-bar";
 import { PromosTable } from "./promos-table";
@@ -55,6 +55,10 @@ export function PromosPage() {
       }
       stickyContextBar
     >
+      <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+        <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+        <p>We&apos;re working on getting the promo feed updated.</p>
+      </div>
       <PromosTable
         promos={promos}
         isLoading={isLoading}
