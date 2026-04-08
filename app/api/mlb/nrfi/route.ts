@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import { buildSeasonRange, getCurrentMlbSeason } from "@/lib/mlb/current-season";
 import {
   deriveLean,
   calculateGradeScore,
@@ -233,12 +234,20 @@ export async function GET(req: NextRequest) {
     const lastStartsParam = url.searchParams.get("last_starts");
     const targetDate = dateParam || getETDate();
 
-    // Build seasons array: "2025" → [2025], "2023-2025" → [2023,2024,2025]
-    let seasonsArray: number[] = [2025];
-    if (seasonsParam === "2023-2025") {
-      seasonsArray = [2023, 2024, 2025];
+    const currentSeason = getCurrentMlbSeason();
+
+    // Build seasons array: "2026" → [2026], "2024-2026" → [2024,2025,2026]
+    let seasonsArray: number[] = [currentSeason];
+    if (seasonsParam && /^\d{4}-\d{4}$/.test(seasonsParam)) {
+      const [startSeason, endSeason] = seasonsParam.split("-").map(Number);
+      if (Number.isFinite(startSeason) && Number.isFinite(endSeason) && endSeason >= startSeason) {
+        seasonsArray = buildSeasonRange(endSeason, endSeason - startSeason + 1);
+      }
     } else if (seasonsParam) {
-      seasonsArray = [parseInt(seasonsParam, 10)];
+      const parsedSeason = parseInt(seasonsParam, 10);
+      if (Number.isFinite(parsedSeason)) {
+        seasonsArray = [parsedSeason];
+      }
     }
     const lastStarts = lastStartsParam ? parseInt(lastStartsParam, 10) : 5;
 
@@ -437,7 +446,7 @@ export async function GET(req: NextRequest) {
 
       // ── Build team offense ──
       const buildTeamOffense = (prefix: "home" | "away"): TeamOffense => {
-        const scoringPct = r[`${prefix}_team_scoring_pct`] ?? 0;
+        const scoringPct = r[`${prefix}_team_scoring_pct`] ?? null;
         const l30ScoringPct = r[`${prefix}_team_l30_scoring_pct`] ?? null;
 
         return {

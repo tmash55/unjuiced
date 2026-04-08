@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
 
 export interface NrfiPitcherRow {
   pitcher_id: number;
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const minStarts = Number(searchParams.get("min_starts") ?? 10);
-    const seasonsParam = searchParams.get("seasons") ?? "2025,2026";
+    const seasonsParam = searchParams.get("seasons") ?? String(getCurrentMlbSeason());
     const seasons = seasonsParam.split(",").map(Number);
 
     const sb = createServerSupabaseClient();

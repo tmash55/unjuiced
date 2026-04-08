@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
 
 export interface NrfiTeamRow {
   tid: number;
   gp: number;
-  scoring_pct: string;
+  scoring_pct: string | null;
   l30_scoring_pct: string | null;
   total_1st_runs: number;
   avg_1st_runs: string;
@@ -22,7 +23,7 @@ export interface NrfiTeamRow {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const seasonsParam = searchParams.get("seasons") ?? "2025,2026";
+    const seasonsParam = searchParams.get("seasons") ?? String(getCurrentMlbSeason());
     const seasons = seasonsParam.split(",").map(Number);
 
     const sb = createServerSupabaseClient();

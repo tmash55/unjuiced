@@ -2,6 +2,9 @@
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import type { NrfiResponse } from "@/lib/nrfi-data";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
+
+const DEFAULT_SEASON = String(getCurrentMlbSeason());
 
 interface NrfiOptions {
   date?: string;
@@ -25,7 +28,7 @@ async function fetchNrfiGames(opts: NrfiOptions): Promise<NrfiResponse> {
 
 export function useNrfiGames(opts: NrfiOptions = {}) {
   const query = useQuery<NrfiResponse>({
-    queryKey: ["mlb-nrfi", opts.date ?? "today", opts.seasons ?? "2025", opts.lastStarts ?? 3],
+    queryKey: ["mlb-nrfi", opts.date ?? "today", opts.seasons ?? DEFAULT_SEASON, opts.lastStarts ?? 3],
     queryFn: () => fetchNrfiGames(opts),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,

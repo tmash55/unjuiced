@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
 import { useNrfiPitchers } from "@/hooks/use-nrfi-leaderboards";
 import type { NrfiPitcherRow } from "@/app/api/mlb/nrfi/pitchers/route";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
@@ -18,9 +19,17 @@ function pctColor(pct: number): string {
 
 type SortField = "nrfi_pct" | "total_starts" | "whip_1st" | "k_per_9_1st" | "ops_1st";
 
+function toSortableNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 export function PitcherLeaderboard() {
+  const currentSeason = useMemo(() => getCurrentMlbSeason(), []);
+  const combinedSeasons = `${currentSeason - 1},${currentSeason}`;
   const [minStarts, setMinStarts] = useState(10);
-  const [seasons, setSeasons] = useState("2025,2026");
+  const [seasons, setSeasons] = useState(String(currentSeason));
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("nrfi_pct");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -43,8 +52,14 @@ export function PitcherLeaderboard() {
     rows = [...seen.values()];
 
     rows.sort((a, b) => {
-      const aVal = Number(a[sortField] ?? 0);
-      const bVal = Number(b[sortField] ?? 0);
+      const aVal = toSortableNumber(a[sortField]);
+      const bVal = toSortableNumber(b[sortField]);
+
+      if (aVal == null && bVal == null) return a.pitcher_name.localeCompare(b.pitcher_name);
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      if (aVal === bVal) return a.pitcher_name.localeCompare(b.pitcher_name);
       return sortDir === "desc" ? bVal - aVal : aVal - bVal;
     });
     return rows;
@@ -86,8 +101,8 @@ export function PitcherLeaderboard() {
           value={seasons}
           onChange={setSeasons}
           options={[
-            { label: "2025-26", value: "2025,2026" },
-            { label: "2026", value: "2026" },
+            { label: String(currentSeason), value: String(currentSeason) },
+            { label: `${currentSeason - 1}-${currentSeason}`, value: combinedSeasons },
           ]}
         />
       </div>

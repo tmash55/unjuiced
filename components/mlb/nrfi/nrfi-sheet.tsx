@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useNrfiGames } from "@/hooks/use-nrfi-games";
+import { buildSeasonRange, getCurrentMlbSeason } from "@/lib/mlb/current-season";
 import { cn } from "@/lib/utils";
 import { GameCardV2 } from "./game-card-v2";
 import { PitcherLeaderboard } from "./pitcher-leaderboard";
@@ -13,20 +14,30 @@ import { Loader2, CheckCircle, XCircle, Calendar, Trophy, Users } from "lucide-r
 type NrfiTab = "slate" | "pitchers" | "teams";
 type SortOption = "best-grade" | "best-odds" | "game-time" | "lowest-offense";
 type FilterOption = "all" | "nrfi" | "yrfi" | "a-plus" | "streaks";
-type SeasonOption = "2025" | "2023-2025";
 
 function getTodayET(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+function parseScoringPct(value: string): number | null {
+  const numeric = Number.parseFloat(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 export function MlbNrfiSheet() {
+  const currentSeason = useMemo(() => getCurrentMlbSeason(), []);
+  const combinedSeasonValue = useMemo(() => {
+    const seasons = buildSeasonRange(currentSeason, 3);
+    return `${seasons[0]}-${seasons[seasons.length - 1]}`;
+  }, [currentSeason]);
+
   // Tab state
   const [activeTab, setActiveTab] = useState<NrfiTab>("slate");
 
   // Slate controls
   const [sort, setSort] = useState<SortOption>("best-grade");
   const [filter, setFilter] = useState<FilterOption>("all");
-  const [season, setSeason] = useState<SeasonOption>("2025");
+  const [season, setSeason] = useState(String(currentSeason));
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -70,8 +81,12 @@ export function MlbNrfiSheet() {
       });
     } else if (sort === "lowest-offense") {
       arr.sort((a, b) => {
-        const aAvg = (parseFloat(a.awayOffense.scoringPct) + parseFloat(a.homeOffense.scoringPct)) / 2;
-        const bAvg = (parseFloat(b.awayOffense.scoringPct) + parseFloat(b.homeOffense.scoringPct)) / 2;
+        const aAway = parseScoringPct(a.awayOffense.scoringPct);
+        const aHome = parseScoringPct(a.homeOffense.scoringPct);
+        const bAway = parseScoringPct(b.awayOffense.scoringPct);
+        const bHome = parseScoringPct(b.homeOffense.scoringPct);
+        const aAvg = aAway != null && aHome != null ? (aAway + aHome) / 2 : Number.POSITIVE_INFINITY;
+        const bAvg = bAway != null && bHome != null ? (bAway + bHome) / 2 : Number.POSITIVE_INFINITY;
         return aAvg - bAvg;
       });
     } else {
@@ -178,10 +193,10 @@ export function MlbNrfiSheet() {
               <div className="flex-1" />
               <SegmentedControl
                 value={season}
-                onChange={(v) => setSeason(v as SeasonOption)}
+                onChange={setSeason}
                 options={[
-                  { label: "2025", value: "2025" },
-                  { label: "Combined", value: "2023-2025" },
+                  { label: String(currentSeason), value: String(currentSeason) },
+                  { label: "Combined", value: combinedSeasonValue },
                 ]}
               />
             </div>

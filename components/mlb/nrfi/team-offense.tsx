@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
 import { useNrfiTeams } from "@/hooks/use-nrfi-leaderboards";
 import type { NrfiTeamRow } from "@/app/api/mlb/nrfi/teams/route";
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
@@ -37,9 +38,18 @@ function TrendIcon({ trend }: { trend: "up" | "down" | "flat" }) {
   return <Minus className="w-3 h-3 text-neutral-400" />;
 }
 
+function toSortableNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const normalized = typeof value === "string" ? value.replace("%", "") : value;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 export function TeamOffense() {
+  const currentSeason = useMemo(() => getCurrentMlbSeason(), []);
+  const combinedSeasons = `${currentSeason - 1},${currentSeason}`;
   const [subTab, setSubTab] = useState<SubTab>("nrfi-friendly");
-  const [seasons, setSeasons] = useState("2025,2026");
+  const [seasons, setSeasons] = useState(String(currentSeason));
   const [sortField, setSortField] = useState<SortField>("scoring_pct");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -48,17 +58,25 @@ export function TeamOffense() {
   const sorted = useMemo(() => {
     let rows = (teams ?? []) as NrfiTeamRow[];
     rows = [...rows].sort((a, b) => {
-      const aVal = Number(a[sortField] ?? 0);
-      const bVal = Number(b[sortField] ?? 0);
-      const dir = sortField === "scoring_pct" ? (subTab === "nrfi-friendly" ? "asc" : "desc") : sortDir;
-      return dir === "asc" ? aVal - bVal : bVal - aVal;
+      const aVal = toSortableNumber(a[sortField]);
+      const bVal = toSortableNumber(b[sortField]);
+
+      if (aVal == null && bVal == null) return Number(a.tid) - Number(b.tid);
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      if (aVal === bVal) return Number(a.tid) - Number(b.tid);
+      return sortDir === "asc" ? aVal - bVal : bVal - aVal;
     });
     return rows;
-  }, [teams, sortField, sortDir, subTab]);
+  }, [teams, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortField(field); setSortDir(subTab === "nrfi-friendly" ? "asc" : "desc"); }
+    else {
+      setSortField(field);
+      setSortDir(field === "scoring_pct" ? (subTab === "nrfi-friendly" ? "asc" : "desc") : "desc");
+    }
   };
 
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
@@ -92,8 +110,8 @@ export function TeamOffense() {
           value={seasons}
           onChange={setSeasons}
           options={[
-            { label: "2025-26", value: "2025,2026" },
-            { label: "2026", value: "2026" },
+            { label: String(currentSeason), value: String(currentSeason) },
+            { label: `${currentSeason - 1}-${currentSeason}`, value: combinedSeasons },
           ]}
         />
       </div>
@@ -125,7 +143,7 @@ export function TeamOffense() {
               </thead>
               <tbody>
                 {sorted.map((t, i) => {
-                  const scorePct = Number(t.scoring_pct);
+                  const scorePct = toSortableNumber(t.scoring_pct);
                   const trend = deriveTrend(t.scoring_pct, t.l30_scoring_pct);
                   const abbr = t.team_abbr ?? "";
                   const teamName = t.team_name ?? null;
@@ -151,12 +169,12 @@ export function TeamOffense() {
                       </td>
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-500 align-middle">{t.gp}</td>
                       <td className="px-3 py-3 text-center align-middle">
-                        <span className={cn("font-black tabular-nums", scoringColor(scorePct))}>
-                          {scorePct.toFixed(1)}%
+                        <span className={cn("font-black tabular-nums", scorePct != null ? scoringColor(scorePct) : "text-neutral-400")}>
+                          {scorePct != null ? `${scorePct.toFixed(1)}%` : "—"}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-600 dark:text-neutral-400 align-middle">
-                        {t.l30_scoring_pct ? `${Number(t.l30_scoring_pct).toFixed(0)}%` : "—"}
+                        {t.l30_scoring_pct != null ? `${Number(t.l30_scoring_pct).toFixed(0)}%` : "—"}
                       </td>
                       <td className="px-3 py-3 align-middle">
                         <div className="flex justify-center">
@@ -170,10 +188,10 @@ export function TeamOffense() {
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-600 dark:text-neutral-400 align-middle">{t.walks_1st ?? "—"}</td>
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-600 dark:text-neutral-400 align-middle">{t.ks_1st ?? "—"}</td>
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-600 dark:text-neutral-400 align-middle">
-                        {t.home_scoring_pct ? `${Number(t.home_scoring_pct).toFixed(0)}%` : "—"}
+                        {t.home_scoring_pct != null ? `${Number(t.home_scoring_pct).toFixed(0)}%` : "—"}
                       </td>
                       <td className="px-3 py-3 text-center tabular-nums text-neutral-600 dark:text-neutral-400 align-middle">
-                        {t.away_scoring_pct ? `${Number(t.away_scoring_pct).toFixed(0)}%` : "—"}
+                        {t.away_scoring_pct != null ? `${Number(t.away_scoring_pct).toFixed(0)}%` : "—"}
                       </td>
                     </tr>
                   );

@@ -3,10 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import type { NrfiPitcherRow } from "@/app/api/mlb/nrfi/pitchers/route";
 import type { NrfiTeamRow } from "@/app/api/mlb/nrfi/teams/route";
+import { getCurrentMlbSeason } from "@/lib/mlb/current-season";
+
+const DEFAULT_SEASON = String(getCurrentMlbSeason());
 
 export function useNrfiPitchers(params: { minStarts?: number; seasons?: string }, enabled = true) {
   return useQuery<NrfiPitcherRow[]>({
-    queryKey: ["nrfi-pitchers", params.minStarts ?? 10, params.seasons ?? "2025,2026"],
+    queryKey: ["nrfi-pitchers", params.minStarts ?? 10, params.seasons ?? DEFAULT_SEASON],
     queryFn: async () => {
       const qs = new URLSearchParams();
       if (params.minStarts) qs.set("min_starts", String(params.minStarts));
@@ -25,7 +28,7 @@ export function useNrfiPitchers(params: { minStarts?: number; seasons?: string }
 
 export function useNrfiTeams(params: { seasons?: string }, enabled = true) {
   return useQuery<NrfiTeamRow[]>({
-    queryKey: ["nrfi-teams", params.seasons ?? "2025,2026"],
+    queryKey: ["nrfi-teams", params.seasons ?? DEFAULT_SEASON],
     queryFn: async () => {
       const qs = new URLSearchParams();
       if (params.seasons) qs.set("seasons", params.seasons);
