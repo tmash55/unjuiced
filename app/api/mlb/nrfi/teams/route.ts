@@ -15,6 +15,8 @@ export interface NrfiTeamRow {
   ks_1st: number;
   home_scoring_pct: string | null;
   away_scoring_pct: string | null;
+  team_name?: string | null;
+  team_abbr?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -33,28 +35,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Enrich with team abbreviations from mlb_teams or mlb_games
+    // Enrich with team metadata for display in the leaderboard
     const rows = data ?? [];
     const teamIds = rows.map((r: any) => r.tid).filter(Boolean);
-    let teamMap = new Map<number, string>();
+    const teamMap = new Map<number, { name: string | null; abbr: string | null }>();
 
     if (teamIds.length > 0) {
-      // Try to get team abbrs from recent games
-      const { data: games } = await sb
-        .from("mlb_games")
-        .select("home_id, home_team_tricode, away_id, away_team_tricode")
-        .or(`home_id.in.(${teamIds.join(",")}),away_id.in.(${teamIds.join(",")})`)
-        .limit(100);
+      const { data: teams } = await sb
+        .from("mlb_teams")
+        .select("team_id, name, abbreviation")
+        .in("team_id", teamIds);
 
-      for (const g of games ?? []) {
-        if (g.home_id && g.home_team_tricode) teamMap.set(g.home_id, g.home_team_tricode);
-        if (g.away_id && g.away_team_tricode) teamMap.set(g.away_id, g.away_team_tricode);
+      for (const team of teams ?? []) {
+        if (!team.team_id) continue;
+        teamMap.set(team.team_id, {
+          name: team.name ?? null,
+          abbr: team.abbreviation ?? null,
+        });
       }
     }
 
     const enriched = rows.map((r: any) => ({
       ...r,
-      team_abbr: teamMap.get(r.tid) ?? null,
+      team_name: r.team_name ?? teamMap.get(r.tid)?.name ?? null,
+      team_abbr: r.team_abbr ?? teamMap.get(r.tid)?.abbr ?? null,
     }));
 
     return NextResponse.json({ teams: enriched });
