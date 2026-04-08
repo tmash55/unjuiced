@@ -63,25 +63,41 @@ const STATE_PATTERNS: StatePattern[] = [
  * @param userState - The user's state code (e.g., "ia", "mi", "nj")
  * @returns The URL with the state code replaced, or the original if not applicable.
  */
+/**
+ * Affiliate partner ID overrides.
+ * Applied to all matching URLs regardless of state.
+ */
+function applyAffiliateParams(url: string): string {
+  // ProphetX: replace partner_id with our affiliate code
+  if (url.includes("prophetx.co") || url.includes("prophetx://")) {
+    return url.replace(/partner_id=[^&]*/i, "partner_id=unjuiced");
+  }
+  return url;
+}
+
 export function replaceStateInLink(
   url: string | null | undefined,
   userState: string | null | undefined
 ): string | null {
-  if (!url || !userState) return url ?? null;
+  if (!url) return url ?? null;
+
+  // Always apply affiliate params (state-independent)
+  let result = applyAffiliateParams(url);
+
+  if (!userState) return result;
+
   const state = userState.toLowerCase();
   const stateUpper = userState.toUpperCase();
 
   for (const pattern of STATE_PATTERNS) {
-    if (pattern.detect.test(url)) {
-      // Check if this sportsbook is legal in the user's state
+    if (pattern.detect.test(result)) {
       const book = getSportsbookById(pattern.bookId);
       if (book && book.legalStates && !book.legalStates.includes(stateUpper)) {
-        // Book not legal in user's state — keep the original URL
-        return url;
+        return result;
       }
-      return pattern.replace(url, state);
+      return pattern.replace(result, state);
     }
   }
 
-  return url;
+  return result;
 }
