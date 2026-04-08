@@ -6,6 +6,7 @@ import type { ArbRow } from "@/lib/arb-schema";
 import { ArrowUpDown, Zap, ExternalLink } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -13,6 +14,7 @@ const norm = (s?: string) => (s || "").toLowerCase();
 type SortBy = "roi" | "time" | "game";
 
 export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: ArbRow[]; ids: string[]; changes: Map<string, { roi?: "up"|"down"; o?: "up"|"down"; u?: "up"|"down" }>; added?: Set<string>; totalBetAmount?: number }) {
+  const applyState = useStateLink();
   const [sortBy, setSortBy] = useState<SortBy>("roi");
   const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
@@ -142,7 +144,7 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
     const target = href || getBookFallbackUrl(bookId);
     if (!target) return;
     try {
-      window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
+      window.open(applyState(target) || target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
     } catch {void 0;}
   };
 
@@ -150,8 +152,8 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
     try {
       const overUrl = r.o?.u || getBookFallbackUrl(r.o?.bk);
       const underUrl = r.u?.u || getBookFallbackUrl(r.u?.bk);
-      if (overUrl) window.open(overUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
-      if (underUrl) setTimeout(() => { window.open(underUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes'); }, 100);
+      if (overUrl) window.open(applyState(overUrl) || overUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
+      if (underUrl) setTimeout(() => { window.open(applyState(underUrl) || underUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes'); }, 100);
     } catch {void 0;}
   };
   const formatGameTitle = (r: ArbRow) => {

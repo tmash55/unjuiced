@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const TABLE_SCROLL_KEY = 'edgeFinder_tableScrollTop';
 
@@ -138,6 +139,7 @@ export function BestOddsTable({
   
   // Favorites hook for betslip functionality
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  const applyState = useStateLink();
   
   // Helper to convert deal to favorite params
   // Only includes fields that exist in the user_favorites database table
@@ -457,8 +459,9 @@ export function BestOddsTable({
 
   const openLink = (bookId?: string, desktopHref?: string | null, mobileHref?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = chooseBookLink(desktopHref, mobileHref, fallback);
-    if (!target) return;
+    const raw = chooseBookLink(desktopHref, mobileHref, fallback);
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     
     // Save scroll position before opening link (for mobile UX)
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());

@@ -10,6 +10,7 @@ import { ExternalLink, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react"
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -98,6 +99,7 @@ interface BestOddsCardsProps {
 }
 
 export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, onUnhideEdge, isHidden }: BestOddsCardsProps) {
+  const applyState = useStateLink();
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
 
@@ -176,7 +178,7 @@ export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, o
     // Save scroll position before opening link (for mobile UX)
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
     
-    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+    window.open(applyState(finalUrl) || finalUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Helper to format time

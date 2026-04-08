@@ -23,6 +23,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import Link from "next/link";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Tab type for modal navigation
 type ModalTab = "gamelog" | "matchup" | "playstyle" | "correlation";
@@ -130,7 +131,8 @@ export function PlayerQuickViewModal({
   event_id,
 }: PlayerQuickViewModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+  const applyState = useStateLink();
+
   // Check if user has Hit Rate access for advanced tabs (hit_rate or pro plan)
   const { user } = useAuth();
   const { hasAccess: hasAdvancedAccess } = useHasHitRateAccess();
@@ -780,7 +782,7 @@ export function PlayerQuickViewModal({
                       {activeOdds?.over ? (
                         <button
                           type="button"
-                          onClick={() => activeOdds.over?.mobileLink && window.open(activeOdds.over.mobileLink, "_blank", "noopener,noreferrer")}
+                          onClick={() => activeOdds.over?.mobileLink && window.open(applyState(activeOdds.over.mobileLink) || activeOdds.over.mobileLink, "_blank", "noopener,noreferrer")}
                           className={cn(
                             "flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all text-xs",
                             activeOdds.over?.mobileLink && "hover:border-emerald-400/50 cursor-pointer"
@@ -809,7 +811,7 @@ export function PlayerQuickViewModal({
                       {activeOdds?.under ? (
                         <button
                           type="button"
-                          onClick={() => activeOdds.under?.mobileLink && window.open(activeOdds.under.mobileLink, "_blank", "noopener,noreferrer")}
+                          onClick={() => activeOdds.under?.mobileLink && window.open(applyState(activeOdds.under.mobileLink) || activeOdds.under.mobileLink, "_blank", "noopener,noreferrer")}
                           className={cn(
                             "flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all text-xs",
                             activeOdds.under?.mobileLink && "hover:border-red-400/50 cursor-pointer"

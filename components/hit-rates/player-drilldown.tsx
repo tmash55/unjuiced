@@ -27,6 +27,7 @@ import {
   type HeaderOddsCardConfig,
 } from "@/components/hit-rates/header-right-panel";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
+import { useStateLink } from "@/hooks/use-state-link";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { useTeamRoster } from "@/hooks/use-team-roster";
@@ -565,6 +566,7 @@ function ActiveFiltersBar({
 }
 
 export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [], onBack, onMarketChange }: PlayerDrilldownProps) {
+  const applyState = useStateLink();
   const [selectedMarket, setSelectedMarketInternal] = useState<string>(initialProfile.market);
   
   // Ref for the scroll container - used to scroll to top when switching players
@@ -1548,7 +1550,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             ? "text-emerald-600 dark:text-emerald-400"
             : "text-neutral-700 dark:text-neutral-300",
       onClick: overUrl
-        ? () => window.open(overUrl, "_blank", "noopener,noreferrer")
+        ? () => window.open(applyState(overUrl) || overUrl, "_blank", "noopener,noreferrer")
         : undefined,
       favorite:
         isLoggedIn && profile.gameId
@@ -1581,7 +1583,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             ? "text-red-600 dark:text-red-400"
             : "text-neutral-700 dark:text-neutral-300",
       onClick: underUrl
-        ? () => window.open(underUrl, "_blank", "noopener,noreferrer")
+        ? () => window.open(applyState(underUrl) || underUrl, "_blank", "noopener,noreferrer")
         : undefined,
       favorite:
         isLoggedIn && profile.gameId

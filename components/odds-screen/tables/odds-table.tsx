@@ -988,7 +988,7 @@ const renderAlternateRow = (
               e.stopPropagation()
               const preferredLink = getPreferredLink(priceOdds.link, priceOdds.mobileLink)
               if (preferredLink) {
-                window.open(preferredLink, '_blank', 'noopener,noreferrer')
+                window.open(applyState(preferredLink) || preferredLink, '_blank', 'noopener,noreferrer')
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
