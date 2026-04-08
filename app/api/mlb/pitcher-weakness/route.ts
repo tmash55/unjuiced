@@ -42,6 +42,20 @@ function normalizePlayer(name: string): string {
   return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeThrowHand(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const hand = value.trim().toUpperCase().slice(0, 1);
+  return hand === "L" || hand === "R" ? hand : null;
+}
+
+function parseBaseballInnings(value: unknown): number {
+  const ip = String(value ?? "0");
+  const [full, partial] = ip.split(".");
+  const fullInnings = parseInt(full, 10) || 0;
+  const partialInnings = partial ? (parseInt(partial, 10) || 0) / 3 : 0;
+  return fullInnings + partialInnings;
+}
+
 function buildBattingOrderSplits(rows: any[]): BattingOrderSplit[] {
   const splits: BattingOrderSplit[] = [];
   for (let i = 1; i <= 9; i++) {
@@ -161,24 +175,46 @@ export async function GET(req: NextRequest) {
     const homePitcherId = game.home_probable_pitcher_id;
     const awayPitcherId = game.away_probable_pitcher_id;
 
-    // ── 2. Fetch pitcher handedness ───────────────────────────────────────
     const pitcherIds = [homePitcherId, awayPitcherId].filter(Boolean) as number[];
+    const [
+      pitcherHandsResult,
+      playerHandsResult,
+      playerHrHandsResult,
+      pitcherSeasonStatsResult,
+      splitsResult,
+      lineupResult,
+      batterSplitsResult,
+    ] = await Promise.all([
+      pitcherIds.length > 0
+        ? supabase
+            .from("mlb_batted_balls")
+            .select("pitcher_id, pitcher_hand")
+            .in("pitcher_id", pitcherIds)
+            .not("pitcher_hand", "is", null)
+        : Promise.resolve({ data: [], error: null }),
 
-    // Look up pitcher hand from player data
-    const pitcherHandMap = new Map<number, string>();
-    if (pitcherIds.length > 0) {
-      const { data: playerRows } = await supabase
-        .from("mlb_players_hr")
-        .select("mlb_player_id, throws")
-        .in("mlb_player_id", pitcherIds);
-      for (const row of playerRows ?? []) {
-        if (row.throws) pitcherHandMap.set(row.mlb_player_id, row.throws);
-      }
-    }
+      pitcherIds.length > 0
+        ? supabase
+            .from("mlb_players")
+            .select("mlb_player_id, throw_hand")
+            .in("mlb_player_id", pitcherIds)
+        : Promise.resolve({ data: [], error: null }),
 
-    // ── 3. Parallel queries ──────────────────────────────────────────────
+      pitcherIds.length > 0
+        ? supabase
+            .from("mlb_players_hr")
+            .select("mlb_player_id, throws")
+            .in("mlb_player_id", pitcherIds)
+        : Promise.resolve({ data: [], error: null }),
 
-    const [splitsResult, lineupResult, batterSplitsResult] = await Promise.all([
+      pitcherIds.length > 0
+        ? supabase
+            .from("mlb_pitching_season_stats")
+            .select("person_id, inningsPitched, earnedRuns, hits, baseOnBalls, strikeOuts, homeRuns, gamesStarted, gamesPlayed, wins, losses")
+            .in("person_id", pitcherIds)
+            .eq("season", season)
+        : Promise.resolve({ data: [], error: null }),
+
       // Pitcher splits (batting_order + inning) for both pitchers
       pitcherIds.length > 0
         ? supabase
@@ -203,10 +239,64 @@ export async function GET(req: NextRequest) {
       supabase
         .from("mlb_pitcher_splits")
         .select("player_id, split_code, avg, obp, slg, ops, home_runs, doubles, triples, rbi, strike_outs, base_on_balls, plate_appearances")
-        .eq("split_group", "hitting")
-        .eq("split_type", "batting_order")
-        .eq("season", season),
+            .eq("split_group", "hitting")
+            .eq("split_type", "batting_order")
+            .eq("season", season),
     ]);
+
+    const pitcherHandMap = new Map<number, string>();
+    const handCounts = new Map<number, Record<string, number>>();
+    for (const row of (pitcherHandsResult.data ?? []) as Array<{ pitcher_id: number; pitcher_hand: string | null }>) {
+      const hand = normalizeThrowHand(row.pitcher_hand);
+      if (!row.pitcher_id || !hand) continue;
+      const counts = handCounts.get(row.pitcher_id) ?? {};
+      counts[hand] = (counts[hand] || 0) + 1;
+      handCounts.set(row.pitcher_id, counts);
+    }
+    for (const [pitcherId, counts] of handCounts.entries()) {
+      const topHand = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (topHand) pitcherHandMap.set(pitcherId, topHand);
+    }
+    for (const row of (playerHandsResult.data ?? []) as Array<{ mlb_player_id: number; throw_hand: string | null }>) {
+      const hand = normalizeThrowHand(row.throw_hand);
+      if (row.mlb_player_id && hand && !pitcherHandMap.has(row.mlb_player_id)) {
+        pitcherHandMap.set(row.mlb_player_id, hand);
+      }
+    }
+    for (const row of (playerHrHandsResult.data ?? []) as Array<{ mlb_player_id: number; throws: string | null }>) {
+      const hand = normalizeThrowHand(row.throws);
+      if (row.mlb_player_id && hand && !pitcherHandMap.has(row.mlb_player_id)) {
+        pitcherHandMap.set(row.mlb_player_id, hand);
+      }
+    }
+
+    const pitcherHeadlineMap = new Map<number, PitcherData["headline"]>();
+    for (const row of (pitcherSeasonStatsResult.data ?? []) as Array<Record<string, unknown>>) {
+      const pitcherId = Number(row.person_id ?? 0);
+      if (!pitcherId) continue;
+
+      const ip = parseBaseballInnings(row.inningsPitched);
+      const er = Number(row.earnedRuns ?? 0);
+      const hits = Number(row.hits ?? 0);
+      const walks = Number(row.baseOnBalls ?? 0);
+      const strikeouts = Number(row.strikeOuts ?? 0);
+      const homeRuns = Number(row.homeRuns ?? 0);
+      const gamesStarted = Number(row.gamesStarted ?? row.gamesPlayed ?? 0);
+      const wins = row.wins != null ? Number(row.wins) : null;
+      const losses = row.losses != null ? Number(row.losses) : null;
+
+      pitcherHeadlineMap.set(pitcherId, {
+        era: ip > 0 ? Math.round(((er / ip) * 9) * 100) / 100 : null,
+        whip: ip > 0 ? Math.round(((hits + walks) / ip) * 100) / 100 : null,
+        k_per_9: ip > 0 ? Math.round(((strikeouts / ip) * 9) * 10) / 10 : null,
+        bb_per_9: ip > 0 ? Math.round(((walks / ip) * 9) * 10) / 10 : null,
+        hr_per_9: ip > 0 ? Math.round(((homeRuns / ip) * 9) * 100) / 100 : null,
+        ip: Math.round(ip * 10) / 10,
+        wins,
+        losses,
+        games_started: gamesStarted || null,
+      });
+    }
 
     const allPitcherSplits = (splitsResult.data ?? []) as any[];
     const allLineups = (lineupResult.data ?? []) as any[];
@@ -228,7 +318,7 @@ export async function GET(req: NextRequest) {
       const inningRows = pitcherRows.filter((r: any) => r.split_type === "inning");
 
       // Aggregate headline stats from batting order splits
-      let totalIP = 0, totalER = 0, totalH = 0, totalBB = 0, totalK = 0, totalHR = 0, totalGS = 0;
+      let totalIP = 0, totalH = 0, totalBB = 0, totalK = 0, totalHR = 0, totalGS = 0;
       for (const r of boRows) {
         totalIP += Number(r.innings_pitched ?? 0);
         totalH += Number(r.hits ?? 0);
@@ -239,25 +329,25 @@ export async function GET(req: NextRequest) {
       // Estimate GS from inning splits (count of innings with data)
       totalGS = inningRows.filter((r: any) => r.split_code === "i01" && Number(r.plate_appearances ?? 0) > 0).length || 0;
 
-      // Look up pitcher hand from player data
-      const hand = pitcherHandMap.get(pitcherId) ?? "R";
+      const hand = pitcherHandMap.get(pitcherId) ?? null;
+      const headline = pitcherHeadlineMap.get(pitcherId) ?? {
+        era: totalIP > 0 ? Math.round(((totalHR * 2.5) / totalIP) * 9 * 100) / 100 : null,
+        whip: totalIP > 0 ? Math.round(((totalH + totalBB) / totalIP) * 100) / 100 : null,
+        k_per_9: totalIP > 0 ? Math.round((totalK / totalIP) * 9 * 10) / 10 : null,
+        bb_per_9: totalIP > 0 ? Math.round((totalBB / totalIP) * 9 * 10) / 10 : null,
+        hr_per_9: totalIP > 0 ? Math.round((totalHR / totalIP) * 9 * 100) / 100 : null,
+        ip: Math.round(totalIP * 10) / 10,
+        wins: null,
+        losses: null,
+        games_started: totalGS || null,
+      };
 
       return {
         player_id: pitcherId,
         name: name || "TBD",
         hand,
         team_abbr: teamAbbr,
-        headline: {
-          era: totalIP > 0 ? Math.round(((totalHR * 2.5) / totalIP) * 9 * 100) / 100 : null, // approximate
-          whip: totalIP > 0 ? Math.round(((totalH + totalBB) / totalIP) * 100) / 100 : null,
-          k_per_9: totalIP > 0 ? Math.round((totalK / totalIP) * 9 * 10) / 10 : null,
-          bb_per_9: totalIP > 0 ? Math.round((totalBB / totalIP) * 9 * 10) / 10 : null,
-          hr_per_9: totalIP > 0 ? Math.round((totalHR / totalIP) * 9 * 100) / 100 : null,
-          ip: Math.round(totalIP * 10) / 10,
-          wins: 0, // not in splits data
-          losses: 0,
-          games_started: totalGS,
-        },
+        headline,
         batting_order_splits: buildBattingOrderSplits(boRows),
         inning_splits: buildInningSplits(inningRows),
         hand_splits: {

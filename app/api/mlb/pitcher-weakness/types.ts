@@ -58,16 +58,16 @@ export interface PitcherHeadline {
   bb_per_9: number | null;
   hr_per_9: number | null;
   ip: number | null;
-  wins: number;
-  losses: number;
-  games_started: number;
+  wins: number | null;
+  losses: number | null;
+  games_started: number | null;
 }
 
 // Full pitcher data
 export interface PitcherData {
   player_id: number;
   name: string;
-  hand: string; // "L" or "R"
+  hand: string | null; // "L" or "R"
   team_abbr: string;
   headline: PitcherHeadline;
   batting_order_splits: BattingOrderSplit[];

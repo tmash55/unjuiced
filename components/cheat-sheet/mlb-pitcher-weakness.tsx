@@ -486,6 +486,10 @@ function GameHeaderBar({ game, gameTime }: { game: GameInfo; gameTime: string })
 
 function PitcherHeader({ pitcher }: { pitcher: PitcherData }) {
   const h = pitcher.headline;
+  const handLabel = pitcher.hand ? `${pitcher.hand}HP` : "SP";
+  const recordLabel = h.wins != null && h.losses != null
+    ? `${h.wins}-${h.losses}`
+    : (h.games_started != null ? `${h.games_started} GS` : "-");
   return (
     <div className="flex items-center gap-2.5 p-3">
       <img
@@ -500,15 +504,17 @@ function PitcherHeader({ pitcher }: { pitcher: PitcherData }) {
             "text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none",
             pitcher.hand === "L"
               ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-              : "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+              : pitcher.hand === "R"
+                ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
           )}>
-            {pitcher.hand}HP
+            {handLabel}
           </span>
         </div>
         <div className="flex items-center gap-3 mt-0.5">
           <span className="text-[10px] text-neutral-500">{pitcher.team_abbr}</span>
           <span className="text-[10px] text-neutral-500 tabular-nums">
-            {h.wins}-{h.losses} &middot; {fmtStat(h.era)} ERA &middot; {fmtStat(h.ip, 1)} IP
+            {recordLabel} &middot; {fmtStat(h.era)} ERA &middot; {fmtStat(h.ip, 1)} IP
           </span>
         </div>
       </div>
