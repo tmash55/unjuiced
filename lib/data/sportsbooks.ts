@@ -9,6 +9,7 @@ export interface SportsbookLink {
 
 export interface SportsbookMeta {
   id: SportsbookId;
+  oddsVendorId?: string;
   name: string;
   sgp: boolean;
   legalStates: string[];
@@ -512,6 +513,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   },
   "polymarket": {
     id: "polymarket",
+    oddsVendorId: "polymarket-us",
     name: "Polymarket",
     sgp: false,
     legalStates: ["US"],
@@ -605,6 +607,8 @@ export function normalizeSportsbookId(id: string): string {
     // BetMGM Michigan is our preferred BetMGM source (US odds)
     'betmgm-michigan': 'betmgm',
     'betmgm_michigan': 'betmgm',
+    'polymarket-us': 'polymarket',
+    'polymarket_us': 'polymarket',
   };
   
   // Return mapped ID if exists, otherwise return original (lowercase)
@@ -620,6 +624,11 @@ export const EXCLUDED_SPORTSBOOK_KEYS = new Set<string>([
 export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {
   const normalizedId = normalizeSportsbookId(id);
   return SPORTSBOOKS_META[normalizedId];
+}
+
+export function getOddsVendorId(id: SportsbookId): string | undefined {
+  const sportsbook = getSportsbookById(id);
+  return sportsbook?.oddsVendorId || sportsbook?.id;
 }
 
 export function getAllActiveSportsbooks(): SportsbookMeta[] {
