@@ -198,22 +198,42 @@ export function GameCardV2({
           <PitcherMini pitcher={game.homePitcher} side="home" />
         </div>
 
-        {/* Team offense + score breakdown */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-100/50 dark:border-neutral-800/20">
-          <div className="flex items-center gap-4 text-[10px] text-neutral-500">
-            <span className="flex items-center gap-1">
-              <TeamLogo abbr={game.awayTricode} size={12} />
-              {game.awayOffense.scoringPct} scoring
-              <TrendIcon trend={game.awayOffense.l30Trend} />
-            </span>
-            <span className="flex items-center gap-1">
-              <TeamLogo abbr={game.homeTricode} size={12} />
-              {game.homeOffense.scoringPct} scoring
-              <TrendIcon trend={game.homeOffense.l30Trend} />
-            </span>
-          </div>
+        {/* Offense Threat Section */}
+        <div className="mt-3 pt-2 border-t border-neutral-100/50 dark:border-neutral-800/20 space-y-1.5">
+          {[
+            { offense: game.homeOffense, pitcher: game.awayPitcher, team: game.homeTricode, label: `vs ${game.awayPitcher.name.split(" ").pop()}` },
+            { offense: game.awayOffense, pitcher: game.homePitcher, team: game.awayTricode, label: `vs ${game.homePitcher.name.split(" ").pop()}` },
+          ].map(({ offense, team, label }) => {
+            const pct = parseFloat(offense.scoringPct);
+            const l30 = parseFloat(offense.l30ScoringPct);
+            const diff = l30 - pct;
+            const trendArrow = diff > 5 ? "↑" : diff < -5 ? "↓" : "→";
+            const trendColor = diff > 5 ? "text-red-500" : diff < -5 ? "text-emerald-500" : "text-neutral-400";
+            const badge = pct <= 22 ? { label: "NRFI FRIENDLY", cls: "bg-emerald-500/10 text-emerald-500" }
+              : pct <= 30 ? { label: "ACTIVE", cls: "bg-amber-500/10 text-amber-500" }
+              : pct <= 35 ? { label: "AGGRESSIVE", cls: "bg-orange-500/10 text-orange-500" }
+              : { label: "YRFI THREAT", cls: "bg-red-500/10 text-red-500" };
+
+            return (
+              <div key={team} className="flex items-center gap-2 text-[10px]">
+                <TeamLogo abbr={team} size={14} />
+                <span className="text-neutral-500">{label}:</span>
+                <span className="font-bold text-neutral-300 tabular-nums">{offense.scoringPct} scoring</span>
+                <span className={cn("font-bold tabular-nums", trendColor)}>
+                  {trendArrow} {offense.l30ScoringPct}
+                </span>
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", badge.cls)}>
+                  {badge.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Grade breakdown */}
+        <div className="mt-2 pt-2 border-t border-neutral-100/30 dark:border-neutral-800/15">
           <span className="text-[9px] text-neutral-400 tabular-nums">
-            SP {game.componentScores.pitching.toFixed(0)} · Off {game.componentScores.offense.toFixed(0)} · Env {game.componentScores.environment.toFixed(0)}
+            SP {game.componentScores.pitching?.toFixed(0) ?? "—"} + SP {game.componentScores.pitching?.toFixed(0) ?? "—"} − Off {game.componentScores.offense?.toFixed(0) ?? "—"} + Env {game.componentScores.environment?.toFixed(0) ?? "—"} = {game.gradeScore.toFixed(1)}
           </span>
         </div>
       </button>
@@ -250,6 +270,31 @@ export function GameCardV2({
                     <span>Away: <span className="font-bold text-neutral-300">{pitcher.awayNrfiPct}%</span></span>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+
+          {/* Team 1st Inning Stats */}
+          <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800/40 grid grid-cols-2 gap-4">
+            {[
+              { offense: game.homeOffense, team: game.homeTricode },
+              { offense: game.awayOffense, team: game.awayTricode },
+            ].map(({ offense, team }) => (
+              <div key={team}>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <TeamLogo abbr={team} size={14} />
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">{team} 1st Inning</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                  <span className="text-neutral-500">Scoring</span>
+                  <span className="font-bold text-neutral-300 tabular-nums text-right">{offense.scoringPct}</span>
+                  <span className="text-neutral-500">OPS</span>
+                  <span className="font-bold text-neutral-300 tabular-nums text-right">{offense.ops}</span>
+                  <span className="text-neutral-500">Home / Away</span>
+                  <span className="font-bold text-neutral-300 tabular-nums text-right">{offense.homePct} / {offense.awayPct}</span>
+                  <span className="text-neutral-500">L30</span>
+                  <span className="font-bold text-neutral-300 tabular-nums text-right">{offense.l30ScoringPct}</span>
+                </div>
               </div>
             ))}
           </div>

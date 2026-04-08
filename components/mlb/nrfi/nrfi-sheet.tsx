@@ -11,8 +11,8 @@ import { SegmentedControl, DateNav } from "@/components/cheat-sheet/sheet-filter
 import { Loader2, CheckCircle, XCircle, Calendar, Trophy, Users } from "lucide-react";
 
 type NrfiTab = "slate" | "pitchers" | "teams";
-type SortOption = "best-grade" | "best-odds" | "game-time";
-type FilterOption = "all" | "nrfi" | "yrfi";
+type SortOption = "best-grade" | "best-odds" | "game-time" | "lowest-offense";
+type FilterOption = "all" | "nrfi" | "yrfi" | "a-plus" | "streaks";
 type SeasonOption = "2025" | "2023-2025";
 
 function getTodayET(): string {
@@ -50,6 +50,12 @@ export function MlbNrfiSheet() {
   const filtered = useMemo(() => {
     if (filter === "nrfi") return games.filter((g) => ["strong_nrfi", "nrfi", "lean_nrfi"].includes(g.lean));
     if (filter === "yrfi") return games.filter((g) => ["strong_yrfi", "yrfi", "lean_yrfi"].includes(g.lean));
+    if (filter === "a-plus") return games.filter((g) => g.grade === "A+" || g.grade === "A");
+    if (filter === "streaks") return games.filter((g) => {
+      const aStreak = g.awayPitcher.recentStarts.filter((s, i) => i === 0 || g.awayPitcher.recentStarts.slice(0, i).every(x => x.scoreless)).length;
+      const hStreak = g.homePitcher.recentStarts.filter((s, i) => i === 0 || g.homePitcher.recentStarts.slice(0, i).every(x => x.scoreless)).length;
+      return aStreak + hStreak >= 8;
+    });
     return games;
   }, [games, filter]);
 
@@ -61,6 +67,12 @@ export function MlbNrfiSheet() {
         const aOdds = parseFloat(a.bestNrfiOdds) || -999;
         const bOdds = parseFloat(b.bestNrfiOdds) || -999;
         return bOdds - aOdds;
+      });
+    } else if (sort === "lowest-offense") {
+      arr.sort((a, b) => {
+        const aAvg = (parseFloat(a.awayOffense.scoringPct) + parseFloat(a.homeOffense.scoringPct)) / 2;
+        const bAvg = (parseFloat(b.awayOffense.scoringPct) + parseFloat(b.homeOffense.scoringPct)) / 2;
+        return aAvg - bAvg;
       });
     } else {
       arr.sort((a, b) => a.gameTime.localeCompare(b.gameTime));
@@ -130,23 +142,37 @@ export function MlbNrfiSheet() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
-              <SegmentedControl
-                value={filter}
-                onChange={(v) => setFilter(v as FilterOption)}
-                options={[
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {[
                   { label: "All", value: "all" },
                   { label: "NRFI", value: "nrfi" },
                   { label: "YRFI", value: "yrfi" },
-                ]}
-              />
+                  { label: "A+ Only", value: "a-plus" },
+                  { label: "Hot Streaks", value: "streaks" },
+                ].map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setFilter(f.value as FilterOption)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors",
+                      filter === f.value
+                        ? "bg-brand text-white"
+                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
               <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700" />
               <SegmentedControl
                 value={sort}
                 onChange={(v) => setSort(v as SortOption)}
                 options={[
-                  { label: "Best Grade", value: "best-grade" },
-                  { label: "Best Odds", value: "best-odds" },
-                  { label: "Game Time", value: "game-time" },
+                  { label: "Grade", value: "best-grade" },
+                  { label: "Odds", value: "best-odds" },
+                  { label: "Low Off", value: "lowest-offense" },
+                  { label: "Time", value: "game-time" },
                 ]}
               />
               <div className="flex-1" />
