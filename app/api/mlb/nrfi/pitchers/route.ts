@@ -2,21 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export interface NrfiPitcherRow {
-  player_id: number;
-  player_name: string;
+  pitcher_id: number;
+  pitcher_name: string;
   team_abbr: string;
-  throws: string;
   total_starts: number;
   nrfi_count: number;
   yrfi_count: number;
-  nrfi_pct: number;
-  home_nrfi_pct: number | null;
-  away_nrfi_pct: number | null;
-  current_streak: number;
-  streak_type: string; // "nrfi" or "yrfi"
-  first_inn_whip: number | null;
-  first_inn_k9: number | null;
-  first_inn_ops: number | null;
+  nrfi_pct: string;
+  nrfi_record: string;
+  home_nrfi_pct: string | null;
+  away_nrfi_pct: string | null;
+  whip_1st: string | null;
+  k_per_9_1st: string | null;
+  bb_per_9_1st: string | null;
+  ops_1st: string | null;
+  avg_1st: string | null;
 }
 
 export async function GET(req: NextRequest) {
