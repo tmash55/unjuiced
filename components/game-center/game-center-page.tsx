@@ -500,11 +500,8 @@ export function GameCenterPage() {
         <CorrelationsView
           gameId={gc.gameId}
           gameTeams={[selectedGame.away_team_tricode, selectedGame.home_team_tricode]}
-          pitcherHand={
-            gc.pitcher === "away"
-              ? selectedGame.away_probable_pitcher?.includes("(L)") ? "L" : "R"
-              : selectedGame.home_probable_pitcher?.includes("(L)") ? "L" : "R"
-          }
+          awayPitcherName={selectedGame.away_probable_pitcher}
+          homePitcherName={selectedGame.home_probable_pitcher}
         />
       )}
       {gc.view === "weather" && gc.gameId && (
