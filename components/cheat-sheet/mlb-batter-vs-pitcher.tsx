@@ -18,6 +18,7 @@ import { useHasSharpAccess } from "@/hooks/use-entitlements";
 import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
 import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -1574,6 +1575,7 @@ function BatterRow({
   oddsLoading,
   gameId,
   propScores,
+  scoreMarket,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1588,6 +1590,7 @@ function BatterRow({
   oddsLoading?: boolean;
   gameId?: number | null;
   propScores?: Record<string, PropScorePlayer>;
+  scoreMarket?: string;
 }) {
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -1596,10 +1599,9 @@ function BatterRow({
     bbs: batter.total_batted_balls,
     k_pct: batter.k_pct, bb_pct: batter.bb_pct,
   };
-  // Use prop score HR score if available, otherwise fall back to matchup HR score
-  const hrPropScore = propScores?.hr?.composite_score;
-  const hrScoreDisplay = hrPropScore ?? batter.hr_probability_score;
-  const badge = gradeBadge(batter.matchup_grade, hrScoreDisplay);
+  const activePropMarket = scoreMarket ?? "hr";
+  const activePropScore = propScores?.[activePropMarket]?.composite_score;
+  const badge = gradeBadge(batter.matchup_grade, activePropScore ?? batter.hr_probability_score);
   const hasPlatoon = pitcher
     ? (batter.batting_hand === "L" && pitcher.hand === "R") ||
       (batter.batting_hand === "R" && pitcher.hand === "L")
@@ -1664,7 +1666,7 @@ function BatterRow({
           </div>
         </button>
 
-        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} />}
+        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />}
       </div>
     );
   }
@@ -1796,7 +1798,7 @@ function BatterRow({
       {expanded && (
         <tr>
           <td colSpan={13} className="px-3 pb-4 bg-neutral-50/80 dark:bg-neutral-800/15 border-b border-neutral-200/40 dark:border-neutral-700/20">
-            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} />
+            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />
           </td>
         </tr>
       )}
@@ -1865,6 +1867,7 @@ function BatterExpansion({
   oddsEntry,
   hasSharpAccess,
   gameId,
+  propScores,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1873,6 +1876,7 @@ function BatterExpansion({
   oddsEntry?: BatterOddsEntry | null;
   hasSharpAccess?: boolean;
   gameId?: number | null;
+  propScores?: Record<string, PropScorePlayer>;
 }) {
   const h2hMeetings = batter.h2h?.last_meetings ?? [];
   const hrFactors = batter.hr_factors ?? [];
@@ -1972,25 +1976,77 @@ function BatterExpansion({
           )}
         </div>
 
-        {/* HR Score + Factors — 2 cols wide */}
+        {/* Prop Score — dynamic based on selected market */}
         <div className={cn("rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3", isMobile ? "" : "col-span-2")}>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">HR Score</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite home run probability score (0-100) based on ISO, barrel rate, pitch matchups, H2H history, platoon advantage, and pitcher HR tendency.</TooltipContent></Tooltip></TooltipProvider>
-          </div>
-          <HRScoreBar score={batter.hr_probability_score} />
-          {hrFactors.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              {hrFactors.map((f, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px]">
-                  <span className={cn("mt-0.5 shrink-0", f.positive ? "text-emerald-500" : "text-red-400")}>
-                    {f.positive ? "+" : "-"}
-                  </span>
-                  <span className="text-neutral-600 dark:text-neutral-400 leading-tight">{f.label}</span>
+          {(() => {
+            const propMarket = getMlbPropMarketFromOddsMarket(localOddsMarket);
+            const propData = propScores?.[propMarket];
+            const score = propData?.composite_score ?? batter.hr_probability_score;
+            const grade = propData?.grade;
+            const marketName = getMlbPropMarketLabel(propMarket);
+            const factorScores = propData?.factor_scores as Record<string, number> | undefined;
+
+            return (
+              <>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">{marketName} Score</h5>
+                    <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite {marketName.toLowerCase()} score (0-100) from the Prop Center scoring engine. Changes when you switch markets above.</TooltipContent></Tooltip></TooltipProvider>
+                  </div>
+                  {grade && (
+                    <span className={cn(
+                      "text-[10px] font-black px-1.5 py-0.5 rounded",
+                      grade === "S" ? "bg-purple-500/15 text-purple-400" :
+                      grade === "A" ? "bg-emerald-500/15 text-emerald-400" :
+                      grade === "B" ? "bg-blue-500/15 text-blue-400" :
+                      grade === "C" ? "bg-amber-500/15 text-amber-400" :
+                      "bg-neutral-500/10 text-neutral-400"
+                    )}>
+                      {grade}
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+                <HRScoreBar score={score} />
+                {/* Top factor scores from the prop center */}
+                {factorScores && Object.keys(factorScores).length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {Object.entries(factorScores)
+                      .sort(([, a], [, b]) => (b as number) - (a as number))
+                      .slice(0, 6)
+                      .map(([key, val]) => {
+                        const v = val as number;
+                        return (
+                          <span
+                            key={key}
+                            className={cn(
+                              "text-[9px] font-semibold px-1.5 py-0.5 rounded tabular-nums",
+                              v >= 70 ? "bg-emerald-500/10 text-emerald-500" :
+                              v >= 50 ? "bg-neutral-500/10 text-neutral-400" :
+                              "bg-red-500/10 text-red-400"
+                            )}
+                          >
+                            {key.replace(/_/g, " ")}: {v}
+                          </span>
+                        );
+                      })}
+                  </div>
+                )}
+                {/* Fallback to old HR factors if no prop score data */}
+                {!propData && hrFactors.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {hrFactors.map((f, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px]">
+                        <span className={cn("mt-0.5 shrink-0", f.positive ? "text-emerald-500" : "text-red-400")}>
+                          {f.positive ? "+" : "-"}
+                        </span>
+                        <span className="text-neutral-600 dark:text-neutral-400 leading-tight">{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Odds section in expanded view — controls always visible once loaded */}
           {hasEverHadOdds ? (
@@ -2310,16 +2366,22 @@ function BatterExpansion({
 // ── Comparison View ─────────────────────────────────────────────────────────
 
 type CompSortKey =
-  | "lineup" | "grade" | "hr_score" | "overlap"
+  | "lineup" | "grade" | "prop_score" | "overlap"
   | "slg" | "woba" | "iso" | "ev" | "brl" | "k_pct" | "bb_pct"
   | "recent_ev" | "recent_brl" | "h2h"
   | "primary_slg" | "secondary_slg";
 
-function compSortVal(b: BatterMatchup, key: CompSortKey, primary?: PitchArsenalRow | null, secondary?: PitchArsenalRow | null): number {
+function compSortVal(
+  b: BatterMatchup,
+  key: CompSortKey,
+  primary?: PitchArsenalRow | null,
+  secondary?: PitchArsenalRow | null,
+  propScore?: number | null
+): number {
   switch (key) {
     case "lineup": return b.lineup_position ?? 99;
     case "grade": return b.matchup_grade === "strong" ? 3 : b.matchup_grade === "neutral" ? 2 : 1;
-    case "hr_score": return b.hr_probability_score ?? 0;
+    case "prop_score": return propScore ?? b.hr_probability_score ?? 0;
     case "overlap": return b.overlap_score ?? 0;
     case "slg": return b.slg ?? -1;
     case "woba": return b.woba ?? -1;
@@ -2367,6 +2429,8 @@ function ComparisonView({
   batterOdds,
   hasSharpAccess,
   gameId,
+  propScoreMap,
+  scoreMarket,
 }: {
   batters: BatterMatchup[];
   pitcher: PitcherProfile;
@@ -2377,9 +2441,13 @@ function ComparisonView({
   batterOdds?: Record<string, BatterOddsEntry>;
   hasSharpAccess?: boolean;
   gameId?: number | null;
+  propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
+  scoreMarket?: string;
 }) {
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
+  const activePropMarket = scoreMarket ?? "hr";
+  const scoreLabel = getMlbPropMarketLabel(activePropMarket);
 
   const [sortKey, setSortKey] = useState<CompSortKey>("lineup");
   const [sortAsc, setSortAsc] = useState(true);
@@ -2397,12 +2465,14 @@ function ComparisonView({
   const sorted = useMemo(() => {
     const arr = [...batters];
     arr.sort((a, b) => {
-      const va = compSortVal(a, sortKey, primary, secondary);
-      const vb = compSortVal(b, sortKey, primary, secondary);
+      const aScore = propScoreMap?.get(a.player_id)?.[activePropMarket]?.composite_score;
+      const bScore = propScoreMap?.get(b.player_id)?.[activePropMarket]?.composite_score;
+      const va = compSortVal(a, sortKey, primary, secondary, aScore);
+      const vb = compSortVal(b, sortKey, primary, secondary, bScore);
       return sortAsc ? va - vb : vb - va;
     });
     return arr;
-  }, [batters, sortKey, sortAsc, primary, secondary]);
+  }, [activePropMarket, batters, primary, propScoreMap, secondary, sortAsc, sortKey]);
 
   const thCls = "px-1.5 py-2 text-[10px] uppercase tracking-wide font-semibold text-neutral-500 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
   const sortIcon = (key: CompSortKey) => sortKey === key ? (sortAsc ? " ↑" : " ↓") : "";
@@ -2415,7 +2485,7 @@ function ComparisonView({
         <div className="flex items-center gap-1 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60">
           {([
             { key: "lineup" as CompSortKey, label: "Order" },
-            { key: "hr_score" as CompSortKey, label: "HR Score" },
+            { key: "prop_score" as CompSortKey, label: `${scoreLabel} Score` },
             { key: "grade" as CompSortKey, label: "Grade" },
             { key: "overlap" as CompSortKey, label: "Overlap" },
           ]).map((opt) => (
@@ -2438,7 +2508,8 @@ function ComparisonView({
       {/* Matchup cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
         {sorted.map((b) => {
-          const hrScore = b.hr_probability_score ?? 0;
+          const playerPropScores = propScoreMap?.get(b.player_id);
+          const displayScore = playerPropScores?.[activePropMarket]?.composite_score ?? b.hr_probability_score ?? 0;
           const overlap = b.overlap_score ?? 0;
           const hasPlatoon =
             (b.batting_hand === "L" && pitcher.hand === "R") ||
@@ -2491,17 +2562,17 @@ function ComparisonView({
                 </span>
               </div>
 
-              {/* HR Score bar */}
+              {/* Prop score bar */}
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[9px] text-neutral-400 uppercase tracking-wider w-12 shrink-0">HR Score</span>
+                <span className="text-[9px] text-neutral-400 uppercase tracking-wider w-16 shrink-0">{scoreLabel} Score</span>
                 <div className="flex-1 h-2 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
                   <div
-                    className={cn("h-full rounded-full transition-all", hrScore >= 60 ? "bg-emerald-500" : hrScore >= 40 ? "bg-amber-500" : "bg-red-400")}
-                    style={{ width: `${hrScore}%` }}
+                    className={cn("h-full rounded-full transition-all", displayScore >= 60 ? "bg-emerald-500" : displayScore >= 40 ? "bg-amber-500" : "bg-red-400")}
+                    style={{ width: `${displayScore}%` }}
                   />
                 </div>
-                <span className={cn("text-xs font-black tabular-nums w-6 text-right", hrScore >= 60 ? "text-emerald-500" : hrScore >= 40 ? "text-amber-500" : "text-red-400")}>
-                  {hrScore}
+                <span className={cn("text-xs font-black tabular-nums w-6 text-right", displayScore >= 60 ? "text-emerald-500" : displayScore >= 40 ? "text-amber-500" : "text-red-400")}>
+                  {displayScore}
                 </span>
               </div>
 
@@ -2542,7 +2613,7 @@ function ComparisonView({
             {/* Expanded drilldown */}
             {isExpanded && (
               <div className="border-t border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/20 px-3 pb-3">
-                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={batterOdds ? findPlayerOdds(batterOdds, b.player_name) : null} hasSharpAccess={hasSharpAccess} gameId={gameId} />
+                <BatterExpansion batter={b} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={batterOdds ? findPlayerOdds(batterOdds, b.player_name) : null} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScoreMap?.get(b.player_id)} />
               </div>
             )}
             </div>
@@ -2670,9 +2741,14 @@ export function MlbBatterVsPitcher({
     sample,
     statSeason,
   });
+  const selectedGame = useMemo(
+    () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
+    [games, selectedGameId]
+  );
+  const activePropMarket = getMlbPropMarketFromOddsMarket(oddsMarket);
 
   // Prop scores for the selected game — overlay onto batter rows
-  const { players: allPropScores } = useMlbPropScores(undefined, undefined, !!selectedGameId);
+  const { players: allPropScores } = useMlbPropScores(selectedGame?.game_date, undefined, !!selectedGameId);
   const propScoreMap = useMemo(() => {
     const map = new Map<number, Record<string, PropScorePlayer>>();
     if (!selectedGameId) return map;
@@ -2693,7 +2769,7 @@ export function MlbBatterVsPitcher({
   );
 
   // Game-level odds from the games list (moneyline, total, spread)
-  const currentGame = games.find((g) => Number(g.game_id) === selectedGameId);
+  const currentGame = selectedGame;
   const gameOdds = currentGame?.odds ?? null;
 
   // Auto-default hand filter to pitcher's handedness
@@ -2704,12 +2780,6 @@ export function MlbBatterVsPitcher({
       setHandAutoSet(true);
     }
   }, [pitcher?.hand]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Find the selected game from the games list for display
-  const selectedGame = useMemo(
-    () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
-    [games, selectedGameId]
-  );
 
   // Pitcher pitch types for filter pills
   const pitcherPitchTypes = meta?.pitcher_pitch_types ?? [];
@@ -3348,6 +3418,8 @@ export function MlbBatterVsPitcher({
                         batterOdds={batterOdds}
                         hasSharpAccess={hasSharpAccess}
                         gameId={selectedGameId}
+                        propScoreMap={propScoreMap}
+                        scoreMarket={activePropMarket}
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
@@ -3367,6 +3439,7 @@ export function MlbBatterVsPitcher({
                             oddsLoading={oddsFetching}
                             gameId={selectedGameId}
                             propScores={propScoreMap.get(b.player_id)}
+                            scoreMarket={activePropMarket}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
@@ -3392,6 +3465,8 @@ export function MlbBatterVsPitcher({
                                 displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                                 pitchFilter={pitchFilters[0] ?? null}
                                 gameId={selectedGameId}
+                                propScores={propScoreMap.get(b.player_id)}
+                                scoreMarket={activePropMarket}
                               />
                             ))}
                           </>
@@ -3525,6 +3600,8 @@ export function MlbBatterVsPitcher({
                                 hasSharpAccess={hasSharpAccess}
                                 oddsLoading={oddsFetching}
                                 gameId={selectedGameId}
+                                propScores={propScoreMap.get(b.player_id)}
+                                scoreMarket={activePropMarket}
                               />
                             ))}
                             {/* Bench expand row */}
@@ -3558,6 +3635,8 @@ export function MlbBatterVsPitcher({
                                     hasSharpAccess={hasSharpAccess}
                                     oddsLoading={oddsFetching}
                                     gameId={selectedGameId}
+                                    propScores={propScoreMap.get(b.player_id)}
+                                    scoreMarket={activePropMarket}
                                   />
                                 ))}
                               </>

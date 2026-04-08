@@ -15,7 +15,10 @@ import {
 } from "@/hooks/use-mlb-pitcher-weakness";
 import { useMlbGameMatchup, type BatterMatchup, type BatterPitchSplit } from "@/hooks/use-mlb-game-matchup";
 import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-odds";
+import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
+import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { Loader2, ChevronRight, AlertTriangle, Users, ChevronDown, Zap, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -703,6 +706,7 @@ function BatterLineupTable({
   gameId,
   statSeason,
   battingSide,
+  propScoreMap,
 }: {
   lineup: LineupBatter[];
   isMobile: boolean;
@@ -711,6 +715,7 @@ function BatterLineupTable({
   gameId: number | null;
   statSeason: number;
   battingSide: "home" | "away";
+  propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
 }) {
   const applyState = useStateLink();
 
@@ -963,6 +968,7 @@ function BatterLineupTable({
                         matchupBatter={matchupBatters.find((mb) => mb.player_id === b.player_id) ?? null}
                         isLoading={matchupLoading && matchupBatters.length === 0}
                         gameId={gameId}
+                        propScores={b ? propScoreMap?.get(b.player_id) : undefined}
                       />
                     </td>
                   </tr>
@@ -997,16 +1003,23 @@ function RichBatterDetail({
   matchupBatter,
   isLoading,
   gameId,
+  propScores,
 }: {
   batter: LineupBatter;
   matchupBatter: BatterMatchup | null;
   isLoading: boolean;
   gameId: number | null;
+  propScores?: Record<string, PropScorePlayer>;
 }) {
   const applyState = useStateLink();
   const [oddsMarket, setOddsMarket] = useState(PROP_MARKETS[0].key);
   const [oddsLine, setOddsLine] = useState(0.5);
   const marketDef = PROP_MARKETS.find((m) => m.key === oddsMarket) ?? PROP_MARKETS[0];
+  const propMarket = getMlbPropMarketFromOddsMarket(oddsMarket);
+  const propData = propScores?.[propMarket];
+  const propScore = propData?.composite_score ?? matchupBatter?.hr_probability_score ?? null;
+  const propScoreLabel = getMlbPropMarketLabel(propMarket);
+  const factorScores = propData?.factor_scores as Record<string, number> | undefined;
 
   // Fetch odds for selected market/line
   const { odds: allOdds, isFetching: oddsFetching } = useMlbBatterOdds(gameId, oddsMarket, oddsLine, "over");
@@ -1145,9 +1158,9 @@ function RichBatterDetail({
           </div>
         </div>
 
-        {/* Right column (2/5): HR Score + Matchup + Odds */}
+        {/* Right column (2/5): Prop Score + Matchup + Odds */}
         <div className="md:col-span-2 space-y-3">
-          {/* Matchup Grade + HR Score */}
+          {/* Matchup Grade + Prop Score */}
           {mb && (
             <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
               <div className="flex items-center justify-between mb-2.5">
@@ -1162,29 +1175,54 @@ function RichBatterDetail({
                 </span>
               </div>
 
-              {/* HR Score bar */}
-              {mb.hr_probability_score != null && (
+              {/* Prop score bar */}
+              {propScore != null && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[9px] text-neutral-400">HR Score</span>
+                    <span className="text-[9px] text-neutral-400">{propScoreLabel} Score</span>
                     <span className={cn("text-sm font-black tabular-nums",
-                      mb.hr_probability_score >= 80 ? "text-emerald-400" :
-                      mb.hr_probability_score >= 60 ? "text-blue-400" :
-                      mb.hr_probability_score >= 40 ? "text-amber-400" : "text-neutral-400"
-                    )}>{mb.hr_probability_score}</span>
+                      propScore >= 80 ? "text-emerald-400" :
+                      propScore >= 60 ? "text-blue-400" :
+                      propScore >= 40 ? "text-amber-400" : "text-neutral-400"
+                    )}>{propScore}</span>
                   </div>
                   <div className="h-2 bg-neutral-200 dark:bg-neutral-700/30 rounded-full overflow-hidden">
                     <div className={cn("h-full rounded-full",
-                      mb.hr_probability_score >= 80 ? "bg-emerald-500" :
-                      mb.hr_probability_score >= 60 ? "bg-blue-500" :
-                      mb.hr_probability_score >= 40 ? "bg-amber-500" : "bg-neutral-500"
-                    )} style={{ width: `${mb.hr_probability_score}%` }} />
+                      propScore >= 80 ? "bg-emerald-500" :
+                      propScore >= 60 ? "bg-blue-500" :
+                      propScore >= 40 ? "bg-amber-500" : "bg-neutral-500"
+                    )} style={{ width: `${propScore}%` }} />
                   </div>
                 </div>
               )}
 
-              {/* HR Factors */}
-              {mb.hr_factors.length > 0 && (
+              {/* Prop Center factor breakdown */}
+              {factorScores && Object.keys(factorScores).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {Object.entries(factorScores)
+                    .sort(([, a], [, b]) => (b as number) - (a as number))
+                    .slice(0, 6)
+                    .map(([key, val]) => {
+                      const score = val as number;
+                      return (
+                        <span
+                          key={key}
+                          className={cn(
+                            "text-[9px] font-semibold px-1.5 py-0.5 rounded tabular-nums",
+                            score >= 70 ? "bg-emerald-500/10 text-emerald-500" :
+                            score >= 50 ? "bg-neutral-500/10 text-neutral-400" :
+                            "bg-red-500/10 text-red-400"
+                          )}
+                        >
+                          {key.replace(/_/g, " ")}: {score}
+                        </span>
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* Fallback to legacy HR factors only when viewing HR without prop data */}
+              {!propData && propMarket === "hr" && mb.hr_factors.length > 0 && (
                 <div className="space-y-1">
                   {mb.hr_factors.map((f, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-[10px]">
@@ -1573,6 +1611,7 @@ function MatchupCard({
   gameId,
   statSeason,
   battingSide,
+  propScoreMap,
 }: {
   pitcher: PitcherData;
   lineup: LineupBatter[];
@@ -1586,6 +1625,7 @@ function MatchupCard({
   gameId: number | null;
   statSeason: number;
   battingSide: "home" | "away";
+  propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
 }) {
   // Pre-compute edge spots: pitcher weak (SLG >= .400) AND batter strong (SLG >= .450)
   const edgeSpots = useMemo(() => {
@@ -1642,6 +1682,7 @@ function MatchupCard({
             gameId={gameId}
             statSeason={statSeason}
             battingSide={battingSide}
+            propScoreMap={propScoreMap}
           />
         </div>
 
@@ -1704,6 +1745,7 @@ function MatchupCard({
               gameId={gameId}
               statSeason={statSeason}
               battingSide={battingSide}
+              propScoreMap={propScoreMap}
             />
           </div>
         </div>
@@ -1770,6 +1812,17 @@ export function MlbPitcherWeakness({
     () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
     [games, selectedGameId]
   );
+  const { players: allPropScores } = useMlbPropScores(currentGame?.game_date, undefined, !!selectedGameId);
+  const propScoreMap = useMemo(() => {
+    const map = new Map<number, Record<string, PropScorePlayer>>();
+    if (!selectedGameId) return map;
+    for (const player of allPropScores) {
+      if (player.game_id !== selectedGameId) continue;
+      if (!map.has(player.player_id)) map.set(player.player_id, {});
+      map.get(player.player_id)![player.market] = player;
+    }
+    return map;
+  }, [allPropScores, selectedGameId]);
 
   const gameTime = useMemo(
     () => currentGame ? getETTime(currentGame.game_status) : "TBD",
@@ -1892,6 +1945,7 @@ export function MlbPitcherWeakness({
               gameId={selectedGameId}
               statSeason={statSeason}
               battingSide="home"
+              propScoreMap={propScoreMap}
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">
@@ -1914,6 +1968,7 @@ export function MlbPitcherWeakness({
               gameId={selectedGameId}
               statSeason={statSeason}
               battingSide="away"
+              propScoreMap={propScoreMap}
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">
