@@ -125,8 +125,9 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   // Get book URL - prioritizes direct/mobile link, falls back to book homepage
   const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
-    if (mobileUrl) return mobileUrl;
+    if (isMobile() && mobileUrl) return mobileUrl;
     if (directUrl) return applyState(directUrl) || directUrl;
+    if (mobileUrl) return mobileUrl;
     return getBookFallbackUrl(bk);
   };
 

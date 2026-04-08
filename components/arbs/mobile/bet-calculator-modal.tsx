@@ -14,16 +14,43 @@ const norm = (s?: string) => (s || "").toLowerCase();
 const logo = (id?: string) => SB_MAP.get(norm(id))?.logo;
 const bookName = (id?: string) => SB_MAP.get(norm(id))?.name || (id || "");
 
-const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
-  if (mobileUrl) return mobileUrl;
-  if (directUrl) return directUrl;
+const isMobileDevice = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768;
+};
+
+const getBookFallbackUrl = (bk?: string, applyState?: (url: string | null | undefined) => string | null): string | undefined => {
   if (!bk) return undefined;
-  const sb = SB_MAP.get(norm(bk));
-  if (!sb) return undefined;
-  const base = (sb.affiliate && sb.affiliateLink) ? sb.affiliateLink : (sb.url || undefined);
+
+  const sportsbook = getSportsbookById(bk);
+  if (sportsbook?.links) {
+    const desktopUrl = sportsbook.links.desktop;
+    const mobileUrl = sportsbook.links.mobile;
+
+    if (isMobileDevice() && mobileUrl) return mobileUrl;
+    if (desktopUrl) return applyState?.(desktopUrl) || desktopUrl;
+    if (mobileUrl) return mobileUrl;
+  }
+
+  const legacyBook = SB_MAP.get(norm(bk));
+  if (!legacyBook) return undefined;
+
+  const base = (legacyBook.affiliate && legacyBook.affiliateLink) ? legacyBook.affiliateLink : (legacyBook.url || undefined);
   if (!base) return undefined;
-  if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
-  return base;
+  return applyState?.(base) || base;
+};
+
+const getBookUrl = (
+  bk?: string,
+  directUrl?: string | null,
+  mobileUrl?: string | null,
+  applyState?: (url: string | null | undefined) => string | null
+): string | undefined => {
+  if (isMobileDevice() && mobileUrl) return mobileUrl;
+  if (directUrl) return applyState?.(directUrl) || directUrl;
+  if (mobileUrl) return mobileUrl;
+  return getBookFallbackUrl(bk, applyState);
 };
 
 const formatOdds = (od: number) => (od > 0 ? `+${od}` : String(od));
@@ -140,7 +167,7 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
       setLoadingOver(false);
       setLoadingUnder(false);
     }
-  }, [isOpen, row, defaultTotal]);
+  }, [isOpen, row, defaultTotal, roundTo]);
 
   // Calculate values
   const overStake = parseFloat(overAmount) || 0;
@@ -204,8 +231,7 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
     
     // Brief loading state for feedback
     setTimeout(() => {
-      const link = getBookUrl(bk, url, mobileUrl);
-      const finalLink = link ? (applyState(link) || link) : link;
+      const finalLink = getBookUrl(bk, url, mobileUrl, applyState);
       if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
       // Reset loading after a moment
       setTimeout(() => setLoading(false), 1000);
