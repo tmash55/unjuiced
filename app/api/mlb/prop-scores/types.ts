@@ -25,8 +25,13 @@ export interface PropScorePlayer {
     line: number;
     over: number | null;
     under: number | null;
+    link?: string | null;
     mobile_link: string | null;
   }> | null;
+  // Results (populated after game resolves)
+  actual_stat?: number | null;
+  hit_over?: boolean | null;
+  resolved_at?: string | null;
   // Added by new API
   game_time?: string | null;
   venue_name?: string | null;

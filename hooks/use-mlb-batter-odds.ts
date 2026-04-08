@@ -12,7 +12,7 @@ interface BatterOddsEntry {
   ev_pct: number | null;
   fair_american: string | null;
   sharp_book: string | null;
-  all_books: { book: string; price: number; link: string | null; mobile_link: string | null }[];
+  all_books: { book: string; price: number; link: string | null; mobile_link: string | null; line?: number }[];
 }
 
 interface BatterOddsResponse {

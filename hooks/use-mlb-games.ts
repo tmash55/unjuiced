@@ -38,6 +38,8 @@ export interface MlbGame {
   away_team_tricode: string;
   home_team_score: number | null;
   away_team_score: number | null;
+  home_team_record: string | null;
+  away_team_record: string | null;
   game_status: string;
   venue_id: number | null;
   odds_game_id: string | null;

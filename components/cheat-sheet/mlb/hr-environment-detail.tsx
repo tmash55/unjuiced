@@ -82,8 +82,29 @@ interface HREnvironmentDetailProps {
   date: string;
 }
 
+function getWeatherIcon(cloudCover: number | null | undefined, precipProb: number | null | undefined): string {
+  const precip = precipProb ?? 0;
+  const clouds = cloudCover ?? 0;
+  if (precip >= 50) return "🌧️";
+  if (precip >= 25) return "🌦️";
+  if (clouds >= 80) return "☁️";
+  if (clouds >= 40) return "⛅";
+  return "☀️";
+}
+
+function getWeatherLabel(cloudCover: number | null | undefined, precipProb: number | null | undefined): string {
+  const precip = precipProb ?? 0;
+  const clouds = cloudCover ?? 0;
+  if (precip >= 50) return "Rain";
+  if (precip >= 25) return "Showers";
+  if (clouds >= 80) return "Cloudy";
+  if (clouds >= 40) return "Partly";
+  return "Clear";
+}
+
 export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
   const [showBatters, setShowBatters] = useState(false);
+  const [selectedHour, setSelectedHour] = useState(0);
   const envScore = useMemo(() => computeEnvScore(row), [row]);
   const factors = useMemo(() => getFactorScores(row), [row]);
   const tier = getScoreTier(envScore);
@@ -196,11 +217,22 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
 
   const hrFactor = row.ballparkFactors?.hr?.overall;
 
+  // Active hourly data for interactive timeline
+  const activeHourData = useMemo(() => {
+    if (!row.hourlyForecast || row.hourlyForecast.length === 0) return null;
+    return row.hourlyForecast[selectedHour] ?? row.hourlyForecast[0];
+  }, [row.hourlyForecast, selectedHour]);
+
+  // Wind data — use selected hour if available, otherwise game-level
+  const activeWindSpeed = activeHourData?.wind_speed_mph ?? row.windSpeedMph ?? 0;
+  const activeWindLabel = activeHourData?.wind_label ?? row.windLabel ?? "";
+  const activeWindDeg = activeHourData?.wind_relative_deg ?? row.windRelativeDeg ?? 0;
+
   return (
     <div className="space-y-3 p-3 lg:p-4">
       {/* Section 1: Game Header + Gauge */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-4">
-        <div className="flex items-start gap-4">
+      <div className="rounded-xl bg-neutral-50/80 dark:bg-neutral-950/40 border border-neutral-200/50 dark:border-neutral-800/40 p-4 lg:p-5">
+        <div className="flex items-start gap-5">
           {/* Gauge */}
           <div className="shrink-0">
             <EnvGauge score={envScore} size={140} />
@@ -209,230 +241,206 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
           {/* Game info + edge signal */}
           <div className="flex-1 min-w-0">
             {/* Matchup */}
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2.5 mb-1.5">
               {row.awayTeamAbbr && (
-                <div
-                  className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${awayColor}22`, border: `1px solid ${awayColor}44` }}
-                >
-                  <img
-                    src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
-                    alt={awayAbbr}
-                    className="h-4 w-4 object-contain"
-                  />
-                </div>
+                <img
+                  src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
+                  alt={awayAbbr}
+                  className="h-6 w-6 object-contain shrink-0"
+                />
               )}
               <span className="font-bold text-neutral-900 dark:text-white text-sm">{awayAbbr}</span>
-              <span className="text-neutral-400 dark:text-neutral-500 text-xs">@</span>
-              {row.homeTeamAbbr && (
-                <div
-                  className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${homeColor}22`, border: `1px solid ${homeColor}44` }}
-                >
-                  <img
-                    src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
-                    alt={homeAbbr}
-                    className="h-4 w-4 object-contain"
-                  />
-                </div>
-              )}
+              <span className="text-neutral-400 dark:text-neutral-600 text-xs font-medium">@</span>
               <span className="font-bold text-neutral-900 dark:text-white text-sm">{homeAbbr}</span>
+              {row.homeTeamAbbr && (
+                <img
+                  src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
+                  alt={homeAbbr}
+                  className="h-6 w-6 object-contain shrink-0"
+                />
+              )}
             </div>
 
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
-              {row.venueName ?? "Unknown Venue"} — {gameTime} — {formatLongDate(date)}
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              {row.venueName ?? "Unknown Venue"} · {gameTime}
             </p>
 
-            {/* Edge + HR Delta inline */}
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className={cn("rounded-md border px-2 py-0.5 text-xs font-semibold", impactPillClass(row.totalImpact))}>
+            {/* Edge signals */}
+            <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+              <span className={cn("rounded-lg border px-2.5 py-1 text-xs font-bold", impactPillClass(row.totalImpact))}>
                 {formatImpactLabel(row.totalImpact)}
               </span>
-              <span className={cn("text-sm font-bold tabular-nums", scoreColor(row.hrImpactScore))}>
+              <span className={cn("text-sm font-black tabular-nums", scoreColor(row.hrImpactScore))}>
                 HR {formatSigned(row.hrImpactScore, 1)}
               </span>
             </div>
-
-            {/* One-line summary */}
-            <p className="mt-2 text-[12px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              {envScore >= 70
-                ? "High-impact HR environment. Weather and park factors significantly favor the long ball."
-                : envScore >= 50
-                  ? "Moderate HR environment. Conditions are near-neutral with some favorable factors."
-                  : "Below-average HR environment. Multiple factors suppress home run potential."}
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Section 2: Factor Breakdown + Wind Compass side by side */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-4">
-        <div className="flex gap-4 lg:gap-6">
-          {/* Factor bars */}
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-3">
-              Factor Breakdown
-            </p>
-            <div className="space-y-2.5">
-              {factors.map((f) => (
-                <div key={f.key} className="flex items-center gap-2">
-                  <span className="text-[11px] text-neutral-600 dark:text-neutral-400 w-20 shrink-0 truncate font-medium">
-                    {f.label}
-                  </span>
-                  <div className="flex-1 h-2 bg-neutral-200 dark:bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all", getFactorBarColor(f.score))}
-                      style={{ width: `${f.score}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 w-8 text-right tabular-nums">
-                    {f.score}
-                  </span>
-                </div>
-              ))}
+      {/* Section 2: Stadium + Timeline (interactive) */}
+      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-800/40 overflow-hidden">
+        {/* Conditions strip */}
+        <div className="flex items-center gap-4 px-4 py-2.5 bg-neutral-50/80 dark:bg-neutral-950/30 border-b border-neutral-200/40 dark:border-neutral-800/30 flex-wrap">
+          {row.temperatureF != null && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-base">{getWeatherIcon(row.cloudCoverPct, row.precipProbability)}</span>
+              <span className="font-bold text-neutral-900 dark:text-white tabular-nums">{Math.round(row.temperatureF)}°F</span>
             </div>
-          </div>
+          )}
+          {row.humidityPct != null && (
+            <div className="text-xs text-neutral-500"><span className="font-semibold text-neutral-700 dark:text-neutral-300">{Math.round(row.humidityPct)}%</span> humidity</div>
+          )}
+          {row.windSpeedMph != null && (
+            <div className="text-xs text-neutral-500">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">{Math.round(row.windSpeedMph)} mph</span> wind
+            </div>
+          )}
+          {row.elevationFt != null && (
+            <div className="text-xs text-neutral-500"><span className="font-semibold text-neutral-700 dark:text-neutral-300">{Math.round(row.elevationFt).toLocaleString()}</span> ft</div>
+          )}
+          {row.roofType && row.roofType !== "Open" && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500">{row.roofType}</span>
+          )}
+          {row.precipProbability != null && row.precipProbability > 0 && (
+            <div className={cn("text-xs", row.precipProbability >= 30 ? "text-blue-500 font-semibold" : "text-neutral-500")}>
+              {Math.round(row.precipProbability)}% precip
+            </div>
+          )}
+        </div>
 
-          {/* Wind compass */}
-          <div className="shrink-0 flex flex-col items-center justify-center">
-            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">
-              Wind
-            </p>
-            <WindCompass
-              windRelativeDeg={row.windRelativeDeg ?? 0}
-              windSpeedMph={row.windSpeedMph ?? 0}
-              windLabel={row.windLabel ?? ""}
+        <div className="flex flex-col lg:flex-row">
+          {/* Left: Stadium diagram */}
+          <div className="flex-1 p-4 min-w-0">
+            <LivingStadiumCard
+              row={row}
+              windOverride={activeHourData ? {
+                windSpeedMph: activeHourData.wind_speed_mph ?? row.windSpeedMph ?? 0,
+                windRelativeDeg: activeHourData.wind_relative_deg ?? row.windRelativeDeg ?? 0,
+                windLabel: activeHourData.wind_label ?? row.windLabel ?? "",
+                cloudCoverPct: activeHourData.cloud_cover_pct ?? row.cloudCoverPct,
+                precipProbability: activeHourData.precip_probability ?? row.precipProbability,
+              } : null}
             />
           </div>
-        </div>
-      </div>
 
-      {/* Section 3: Raw Conditions Line */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 px-4 py-3">
-        <p className="text-[11px] text-neutral-500 leading-relaxed">
-          {row.temperatureF != null ? `${Math.round(row.temperatureF)}°F` : "--"}
-          {row.feelsLikeF != null && row.feelsLikeF !== row.temperatureF ? ` (feels ${Math.round(row.feelsLikeF)}°F)` : ""}
-          {" · "}
-          {row.humidityPct != null ? `${Math.round(row.humidityPct)}% humidity` : "--"}
-          {" · "}
-          {row.windSpeedMph != null ? `Wind ${Math.round(row.windSpeedMph)} mph` : "No wind data"}
-          {row.windGustMph != null && row.windGustMph > (row.windSpeedMph ?? 0) + 3 ? ` (gusts ${Math.round(row.windGustMph)})` : ""}
-          {" · "}
-          {row.elevationFt != null ? `${Math.round(row.elevationFt).toLocaleString()} ft elev` : "--"}
-          {row.roofType ? ` · ${row.roofType}` : ""}
-          {row.precipProbability != null && row.precipProbability > 0 ? ` · ${Math.round(row.precipProbability)}% precip` : ""}
-        </p>
-      </div>
-
-      {/* Section 3b: Hourly Forecast Timeline */}
-      {row.hourlyForecast && row.hourlyForecast.length > 0 && (
-        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2.5">
-            Game Weather Timeline
-          </p>
-          <div className="flex gap-0 overflow-x-auto pb-1">
-            {row.hourlyForecast.map((entry, i) => {
-              const isFirst = i === 0;
-              const windShort = (entry.wind_label ?? "")
-                .replace(/^blowing\s+/i, "")
-                .replace(/\s+at\s+/i, " ")
-                .trim();
-              const precipHigh = (entry.precip_probability ?? 0) >= 30;
-              const windChange =
-                i > 0 &&
-                entry.wind_speed_mph != null &&
-                row.hourlyForecast![i - 1].wind_speed_mph != null &&
-                Math.abs((entry.wind_speed_mph ?? 0) - (row.hourlyForecast![i - 1].wind_speed_mph ?? 0)) >= 5;
-              const tempChange =
-                i > 0 &&
-                entry.temp_f != null &&
-                row.hourlyForecast![i - 1].temp_f != null &&
-                Math.abs((entry.temp_f ?? 0) - (row.hourlyForecast![i - 1].temp_f ?? 0)) >= 5;
-
-              return (
-                <div
-                  key={entry.hour}
-                  className={cn(
-                    "flex-shrink-0 px-3 py-2 text-center border-r border-neutral-200/60 dark:border-neutral-700/40 last:border-r-0",
-                    isFirst && "bg-brand/5 dark:bg-brand/10 rounded-l-lg",
-                    "min-w-[90px]"
-                  )}
-                >
-                  {/* Label */}
-                  <p className={cn(
-                    "text-[10px] font-semibold mb-0.5",
-                    isFirst ? "text-brand" : "text-neutral-500"
-                  )}>
-                    {isFirst ? "First Pitch" : `+${i} hr${i > 1 ? "s" : ""}`}
-                  </p>
-                  <p className="text-[9px] text-neutral-400 mb-1.5">
-                    {isFirst ? "1st Inning" : `~${i * 2 + 1}th Inning`}
-                  </p>
-
-                  {/* Temp */}
-                  <p className={cn(
-                    "text-sm font-bold tabular-nums",
-                    tempChange ? "text-amber-600 dark:text-amber-400" : "text-neutral-800 dark:text-neutral-200"
-                  )}>
-                    {entry.temp_f != null ? `${Math.round(entry.temp_f)}°` : "--"}
-                  </p>
-
-                  {/* Wind */}
-                  <p className={cn(
-                    "text-[10px] mt-1 leading-tight",
-                    windChange ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-neutral-500 dark:text-neutral-400"
-                  )}>
-                    {entry.wind_speed_mph != null ? `${Math.round(entry.wind_speed_mph)} mph` : "--"}
-                  </p>
-                  {windShort && (
-                    <p className="text-[9px] text-neutral-400 truncate max-w-[80px] mx-auto">
-                      {windShort}
+          {/* Right: Wind + Conditions + Timeline */}
+          <div className="lg:w-[320px] border-t lg:border-t-0 lg:border-l border-neutral-200/40 dark:border-neutral-800/30 flex flex-col">
+            {/* Wind compass + weather condition */}
+            <div className="flex items-center gap-4 p-4 border-b border-neutral-200/40 dark:border-neutral-800/30">
+              <WindCompass
+                windRelativeDeg={activeWindDeg}
+                windSpeedMph={activeWindSpeed}
+                windLabel={activeWindLabel}
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{getWeatherIcon(activeHourData?.cloud_cover_pct ?? row.cloudCoverPct, activeHourData?.precip_probability ?? row.precipProbability)}</span>
+                  <div>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                      {getWeatherLabel(activeHourData?.cloud_cover_pct ?? row.cloudCoverPct, activeHourData?.precip_probability ?? row.precipProbability)}
                     </p>
-                  )}
-
-                  {/* Precip */}
-                  {(entry.precip_probability ?? 0) > 0 && (
-                    <p className={cn(
-                      "text-[10px] mt-1 tabular-nums",
-                      precipHigh ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-neutral-400"
-                    )}>
-                      {Math.round(entry.precip_probability ?? 0)}% rain
+                    <p className="text-[10px] text-neutral-500">
+                      {activeHourData?.temp_f != null ? `${Math.round(activeHourData.temp_f)}°F` : row.temperatureF != null ? `${Math.round(row.temperatureF)}°F` : "--"}
                     </p>
-                  )}
-
-                  {/* HR impact if available */}
-                  {entry.hr_impact_score != null && (
-                    <p className={cn(
-                      "text-[10px] mt-1 font-semibold tabular-nums",
-                      entry.hr_impact_score >= 1 ? "text-emerald-600 dark:text-emerald-400"
-                        : entry.hr_impact_score <= -1 ? "text-red-500 dark:text-red-400"
-                        : "text-neutral-400"
-                    )}>
-                      HR {entry.hr_impact_score > 0 ? "+" : ""}{entry.hr_impact_score.toFixed(1)}
-                    </p>
-                  )}
+                  </div>
                 </div>
-              );
-            })}
+                {/* Factor bars — compact */}
+                <div className="space-y-1.5">
+                  {factors.slice(0, 4).map((f) => (
+                    <div key={f.key} className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-neutral-500 w-14 shrink-0 truncate">{f.label}</span>
+                      <div className="flex-1 h-1 bg-neutral-200 dark:bg-neutral-700/30 rounded-full overflow-hidden">
+                        <div className={cn("h-full rounded-full", getFactorBarColor(f.score))} style={{ width: `${f.score}%` }} />
+                      </div>
+                      <span className={cn("text-[9px] font-bold w-4 text-right tabular-nums",
+                        f.score >= 70 ? "text-emerald-500" : f.score <= 30 ? "text-red-400" : "text-neutral-500"
+                      )}>{f.score}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline — clickable hours */}
+            {row.hourlyForecast && row.hourlyForecast.length > 0 && (
+              <div className="flex-1">
+                <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 px-3 pt-3 pb-1.5">
+                  Timeline
+                </p>
+                <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible">
+                {row.hourlyForecast.map((entry, i) => {
+                  const isActive = i === selectedHour;
+                  const isFirst = i === 0;
+                  return (
+                    <button
+                      key={entry.hour}
+                      onClick={() => setSelectedHour(i)}
+                      className={cn(
+                        "flex-shrink-0 px-3 py-2.5 text-left transition-all border-b border-neutral-100/50 dark:border-neutral-800/20 last:border-0",
+                        "lg:w-full min-w-[100px]",
+                        isActive
+                          ? "bg-brand/5 dark:bg-brand/10"
+                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className={cn("text-[10px] font-semibold", isActive ? "text-brand" : "text-neutral-500")}>
+                            {isFirst ? "First Pitch" : `+${i}h · ~Inn ${i * 2 + 1}`}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-sm">{getWeatherIcon(entry.cloud_cover_pct, entry.precip_probability)}</span>
+                            <span className="text-xs font-bold text-neutral-900 dark:text-white tabular-nums">
+                              {entry.temp_f != null ? `${Math.round(entry.temp_f)}°` : "--"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-neutral-500 tabular-nums">
+                            {entry.wind_speed_mph != null ? `${Math.round(entry.wind_speed_mph)} mph` : "--"}
+                          </p>
+                          {(entry.precip_probability ?? 0) > 0 && (
+                            <p className={cn("text-[9px] tabular-nums",
+                              (entry.precip_probability ?? 0) >= 30 ? "text-blue-500 font-semibold" : "text-neutral-400"
+                            )}>
+                              {Math.round(entry.precip_probability ?? 0)}% rain
+                            </p>
+                          )}
+                          {entry.hr_impact_score != null && (
+                            <p className={cn("text-[9px] font-semibold tabular-nums",
+                              entry.hr_impact_score >= 1 ? "text-emerald-500" : entry.hr_impact_score <= -1 ? "text-red-400" : "text-neutral-400"
+                            )}>
+                              HR {entry.hr_impact_score > 0 ? "+" : ""}{entry.hr_impact_score.toFixed(0)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Section 4: "Why It Leans" Tags */}
       {leanTags.length > 0 && (
-        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 px-4 py-3">
+        <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-800/40 px-4 py-3">
           <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-2">
-            Why It Leans
+            Key Factors
           </p>
           <div className="flex flex-wrap gap-1.5">
             {leanTags.map((tag, i) => (
               <span
                 key={i}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[11px] font-medium border",
+                  "rounded-lg px-2.5 py-1 text-[11px] font-semibold",
                   tag.positive
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-300"
-                    : "border-red-300 bg-red-50 text-red-700 dark:border-red-700/40 dark:bg-red-950/30 dark:text-red-300"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
+                    : "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400"
                 )}
               >
                 {tag.positive ? "+" : "-"} {tag.label}
@@ -442,19 +450,8 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
         </div>
       )}
 
-      {/* Section 5: Field Profile (LivingStadiumCard) */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-4">
-        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-3">
-          Field Profile
-        </p>
-        <LivingStadiumCard row={row} />
-      </div>
-
-      {/* Section 6: Park Factors Detail */}
-      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-4">
-        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 mb-3">
-          Park Detail
-        </p>
+      {/* Section 5: Park Detail */}
+      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-800/40 p-4">
 
         {/* Wall heights and distances table */}
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden mb-3">

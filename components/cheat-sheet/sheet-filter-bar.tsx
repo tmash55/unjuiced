@@ -221,9 +221,9 @@ export function SheetFilterBar({
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   return (
-    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-visible">
       {/* ── Desktop: single horizontal row ── */}
-      <div className={cn("px-4 py-2.5 items-center gap-3 overflow-x-auto scrollbar-hide", isMobile ? "hidden" : "flex")}>
+      <div className={cn("px-4 py-2.5 items-center gap-3 flex-wrap", isMobile ? "hidden" : "flex")}>
         <DateNav
           selectedDate={selectedDate}
           onDateChange={onDateChange}
