@@ -51,6 +51,7 @@ import { usePlayerInjuries, hasInjuryStatus, getInjuryIconColorClass, isGLeagueA
 import { usePrefetchPlayerByOddsId } from '@/hooks/use-prefetch-player'
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from '@/hooks/use-favorites'
 import { useStateLink } from '@/hooks/use-state-link'
+import { replaceStateInLink } from '@/lib/utils/state-link'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -988,7 +989,7 @@ const renderAlternateRow = (
               e.stopPropagation()
               const preferredLink = getPreferredLink(priceOdds.link, priceOdds.mobileLink)
               if (preferredLink) {
-                window.open(applyState(preferredLink) || preferredLink, '_blank', 'noopener,noreferrer')
+                window.open(replaceStateInLink(preferredLink, null) || preferredLink, '_blank', 'noopener,noreferrer')
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
