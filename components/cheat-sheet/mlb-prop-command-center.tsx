@@ -10,6 +10,7 @@ import { usePropLiveOdds } from "@/hooks/use-prop-live-odds";
 import { useMlbGames, type MlbGame } from "@/hooks/use-mlb-games";
 import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
+import { useStateLink } from "@/hooks/use-state-link";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
@@ -550,7 +551,8 @@ function getBookName(bookId: string): string {
 function resolveBookLink(
   bookKey: string,
   data: { link?: string | null; mobile_link?: string | null } | null,
-  isMobile: boolean
+  isMobile: boolean,
+  applyState?: (url: string | null | undefined) => string | null
 ): string | null {
   const realBook = parseBookKey(bookKey);
   const desktopLink = data?.link;
@@ -573,7 +575,7 @@ function resolveBookLink(
     }
   }
 
-  return resolved;
+  return applyState?.(resolved) || resolved;
 }
 
 type SortField = "score" | "player" | "edge_pct" | "line" | "best_odds" | "col0" | "col1" | "col2";
@@ -614,6 +616,7 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
 function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScorePlayer; marketConfig: MarketConfig; isMobile?: boolean }) {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
+  const applyState = useStateLink();
 
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -681,7 +684,7 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
               {bookEntries.map(([book, data]) => {
                 const bLogo = getBookLogo(book);
                 const isBest = parseBookKey(book) === parseBookKey(player.best_odds_book ?? "");
-                const bookLink = resolveBookLink(book, data, isMobile);
+                const bookLink = resolveBookLink(book, data, isMobile, applyState);
 
                 return (
                   <a
@@ -928,6 +931,7 @@ function formatDisplayStat(val: any, format: StatDisplayItem["format"]): string 
 // ── Expanded Row ────────────────────────────────────────────────────────────
 
 function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; marketConfig: MarketConfig }) {
+  const applyState = useStateLink();
   const factors = player.factor_scores ?? {};
   const keyStats = player.key_stats ?? {};
   const expandedStats = player.expanded_stats ?? {};
@@ -1326,7 +1330,7 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                     {bookEntries.map(([book, info], idx) => {
                       const bLogo = getBookLogo(book);
                       const isBest = parseBookKey(book) === parseBookKey(bestBook ?? "");
-                      const bookLink = resolveBookLink(book, info, false);
+                      const bookLink = resolveBookLink(book, info, false, applyState);
                       return (
                         <a
                           key={book}

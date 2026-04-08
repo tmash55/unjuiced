@@ -35,6 +35,7 @@ export interface PropScorePlayer {
   // Added by new API
   game_time?: string | null;
   venue_name?: string | null;
+  best_odds_link?: string | null;
   best_odds_mobile_link?: string | null;
 }
 

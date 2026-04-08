@@ -54,6 +54,66 @@ function americanToImplied(american: number): number {
   return dec <= 1 ? 1 : 1 / dec;
 }
 
+function getSelectionLinks(selection: {
+  link?: string | null;
+  mobile_link?: string | null;
+  links?: {
+    desktop?: string | null;
+    mobile?: string | null;
+  } | null;
+} | null | undefined): { desktop: string | null; mobile: string | null } {
+  return {
+    desktop: selection?.link ?? selection?.links?.desktop ?? null,
+    mobile: selection?.mobile_link ?? selection?.links?.mobile ?? null,
+  };
+}
+
+function extractOddsPlayerIds(value: unknown): string[] {
+  if (!value) return [];
+
+  const normalizeIds = (ids: unknown[]): string[] =>
+    Array.from(
+      new Set(
+        ids
+          .map((id) => String(id).trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+  if (Array.isArray(value)) {
+    return normalizeIds(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return normalizeIds(parsed);
+    } catch {
+      // Fall through to handle plain or Postgres-array strings.
+    }
+
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      return normalizeIds(
+        trimmed
+          .slice(1, -1)
+          .split(",")
+          .map((part) => part.replace(/^"(.*)"$/, "$1"))
+      );
+    }
+
+    if (trimmed.includes(",")) {
+      return normalizeIds(trimmed.split(","));
+    }
+
+    return normalizeIds([trimmed]);
+  }
+
+  return [];
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface OddsValue {
@@ -62,6 +122,10 @@ interface OddsValue {
     price_decimal: number;
     link?: string;
     mobile_link?: string;
+    links?: {
+      desktop?: string;
+      mobile?: string;
+    };
     player?: string;
     player_id?: string;
   };
@@ -73,8 +137,9 @@ interface LiveOdds {
   best_odds_decimal: number;
   best_odds_book: string;
   best_odds_mobile_link: string | null;
+  best_odds_link: string | null;
   implied_prob: number; // avg implied across consensus-line books
-  all_book_odds: Record<string, { line: number; over: number; under: number | null; mobile_link: string | null }>;
+  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }>;
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -215,6 +280,10 @@ export async function GET(req: NextRequest) {
     const enrichedScores = scores.map((score: any) => {
       const eventId = gameToEvent.get(score.game_id);
       const playerNorm = normalizePlayerName(score.player_name || "");
+      const oddsPlayerIds = [
+        ...extractOddsPlayerIds(score.odds_player_ids),
+        ...extractOddsPlayerIds(score.odds_player_id),
+      ];
       const market = score.market as string;
 
       // For pitchers, the Redis selection key format differs:
@@ -222,7 +291,7 @@ export async function GET(req: NextRequest) {
       // Pitcher props: "player_name|over|4.5" (line varies)
       // We need to scan all selections matching the player
 
-      const liveOdds = getLiveOdds(eventId, market, playerNorm, oddsIndex);
+      const liveOdds = getLiveOdds(eventId, market, playerNorm, oddsPlayerIds, oddsIndex);
       if (liveOdds) oddsMatched++;
 
       const gameInfo = gameMap.get(score.game_id);
@@ -234,6 +303,7 @@ export async function GET(req: NextRequest) {
         best_odds: liveOdds?.best_odds ?? score.best_odds,
         best_odds_book: liveOdds?.best_odds_book ?? score.best_odds_book,
         best_odds_decimal: liveOdds?.best_odds_decimal ?? score.best_odds_decimal,
+        best_odds_link: liveOdds?.best_odds_link ?? score.best_odds_link ?? null,
         best_odds_mobile_link: liveOdds?.best_odds_mobile_link ?? null,
         implied_prob: liveOdds?.implied_prob ?? score.implied_prob,
         odds_snapshot: liveOdds?.all_book_odds ?? score.odds_snapshot ?? {},
@@ -280,6 +350,7 @@ function getLiveOdds(
   eventId: string | undefined,
   market: string,
   playerNorm: string,
+  oddsPlayerIds: string[],
   oddsIndex: Map<string, Map<string, Map<string, Record<string, any>>>>
 ): LiveOdds | null {
   if (!eventId) return null;
@@ -294,6 +365,7 @@ function getLiveOdds(
     line: number;
     over_price: number;
     under_price: number | null;
+    link: string | null;
     mobile_link: string | null;
   }
 
@@ -310,23 +382,33 @@ function getLiveOdds(
       const selPlayer = parts[0];
       const direction = parts[1]; // "over" or "under"
       const line = parseFloat(parts[2]);
+      const selectionPlayerId = typeof (sel as any).player_id === "string"
+        ? (sel as any).player_id.trim().toLowerCase()
+        : null;
+      const matchesPlayerId =
+        oddsPlayerIds.length > 0 &&
+        selectionPlayerId != null &&
+        oddsPlayerIds.includes(selectionPlayerId);
+      const matchesPlayerName = selPlayer === playerNorm;
 
-      if (selPlayer !== playerNorm || direction !== "over") continue;
+      if ((!matchesPlayerId && !matchesPlayerName) || direction !== "over") continue;
 
       const price = parseInt((sel as any).price, 10);
       if (isNaN(price)) continue;
 
       // Find matching under price
-      const underKey = `${playerNorm}|under|${parts[2]}`;
+      const underKey = `${selPlayer}|under|${parts[2]}`;
       const underSel = bookData[underKey];
       const underPrice = underSel ? parseInt((underSel as any).price, 10) : null;
+      const selectionLinks = getSelectionLinks(sel as any);
 
       entries.push({
         book,
         line,
         over_price: price,
         under_price: isNaN(underPrice as number) ? null : underPrice,
-        mobile_link: (sel as any).mobile_link || null,
+        link: selectionLinks.desktop,
+        mobile_link: selectionLinks.mobile,
       });
     }
   }
@@ -378,7 +460,7 @@ function getLiveOdds(
 
   // Build all-book snapshot — store every book+line combo so frontend can filter by any line
   // Key format: "book" for consensus line, "book__2.5" for alternate lines
-  const allBookOdds: Record<string, { line: number; over: number; under: number | null; mobile_link: string | null }> =
+  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }> =
     {};
   for (const e of entries) {
     if (e.line === consensusLine) {
@@ -387,6 +469,7 @@ function getLiveOdds(
         line: e.line,
         over: e.over_price,
         under: e.under_price,
+        link: e.link,
         mobile_link: e.mobile_link,
       };
     }
@@ -396,6 +479,7 @@ function getLiveOdds(
       line: e.line,
       over: e.over_price,
       under: e.under_price,
+      link: e.link,
       mobile_link: e.mobile_link,
     };
   }
@@ -405,6 +489,7 @@ function getLiveOdds(
     best_odds: bestEntry.over_price,
     best_odds_decimal: bestDecimal,
     best_odds_book: bestEntry.book,
+    best_odds_link: bestEntry.link,
     best_odds_mobile_link: bestEntry.mobile_link,
     implied_prob: avgImplied,
     all_book_odds: allBookOdds,
