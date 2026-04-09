@@ -3975,6 +3975,7 @@ export function MobilePlayerDrilldown({
     market: profile.market,
     playerId: profile.selKey, // Player UUID from selKey
     line: currentLine,
+    includeSgp: true,
     enabled: !!profile.eventId && !!profile.market && !!profile.selKey && currentLine !== null,
   });
   
@@ -4179,7 +4180,8 @@ export function MobilePlayerDrilldown({
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
-    if (!profile.gameId) return null;
+    const favoriteEventId = profile.eventId ?? profile.gameId;
+    if (!favoriteEventId) return null;
     
     const activeLine = customLine ?? profile.line;
     const bestOdds = side === "over" ? odds?.bestOver : odds?.bestUnder;
@@ -4238,7 +4240,7 @@ export function MobilePlayerDrilldown({
     return {
       type: "player",
       sport: "nba",
-      event_id: profile.gameId,
+      event_id: favoriteEventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
       away_team: profile.awayTeamName?.split(" ").pop() || null,
@@ -4290,8 +4292,18 @@ export function MobilePlayerDrilldown({
   const handleToggleFavorite = useCallback(async (side: "over" | "under") => {
     const params = buildFavoriteParams(side);
     if (!params) return;
+    console.info("[hit-rates mobile favorite] toggle", {
+      player: params.player_name,
+      market: params.market,
+      side,
+      eventId: params.event_id,
+      profileEventId: profile.eventId,
+      profileGameId: profile.gameId,
+      books: Object.keys(params.books_snapshot ?? {}).length,
+      sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+    });
     await toggleFavorite(params);
-  }, [buildFavoriteParams, toggleFavorite]);
+  }, [buildFavoriteParams, profile.eventId, profile.gameId, toggleFavorite]);
   
   // Process game logs for chart
   const chartGames = useMemo(() => {
@@ -5722,7 +5734,7 @@ export function MobilePlayerDrilldown({
                         {odds?.bestOver ? `${odds.bestOver.price > 0 ? "+" : ""}${odds.bestOver.price}` : "—"}
                       </span>
                     </button>
-                    {isLoggedIn && profile.gameId && (
+                    {isLoggedIn && (profile.eventId ?? profile.gameId) && (
                       <button
                         type="button"
                         onClick={() => handleToggleFavorite("over")}
@@ -5768,7 +5780,7 @@ export function MobilePlayerDrilldown({
                         {odds?.bestUnder ? `${odds.bestUnder.price > 0 ? "+" : ""}${odds.bestUnder.price}` : "—"}
                       </span>
                     </button>
-                    {isLoggedIn && profile.gameId && (
+                    {isLoggedIn && (profile.eventId ?? profile.gameId) && (
                       <button
                         type="button"
                         onClick={() => handleToggleFavorite("under")}

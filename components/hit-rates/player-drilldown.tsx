@@ -829,6 +829,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     market: profile.market,
     playerId: profile.selKey, // Player UUID from selKey
     line: activeLine,
+    includeSgp: true,
     enabled: !!profile.eventId && !!profile.market && !!profile.selKey && activeLine !== null,
   });
 
@@ -877,7 +878,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
-    if (!profile.gameId) return null;
+    const favoriteEventId = profile.eventId ?? profile.gameId;
+    if (!favoriteEventId) return null;
     
     const currentLine = customLine ?? profile.line;
     const bestOdds = side === "over" ? oddsForChart?.bestOver : oddsForChart?.bestUnder;
@@ -915,7 +917,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return {
       type: "player",
       sport: "nba",
-      event_id: profile.gameId,
+      event_id: favoriteEventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null, // Extract team abbr from name
       away_team: profile.awayTeamName?.split(" ").pop() || null,
@@ -967,8 +969,18 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const handleToggleFavorite = useCallback(async (side: "over" | "under") => {
     const params = buildFavoriteParams(side);
     if (!params) return;
+    console.info("[hit-rates favorite] toggle", {
+      player: params.player_name,
+      market: params.market,
+      side,
+      eventId: params.event_id,
+      profileEventId: profile.eventId,
+      profileGameId: profile.gameId,
+      books: Object.keys(params.books_snapshot ?? {}).length,
+      sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+    });
     await toggleFavorite(params);
-  }, [buildFavoriteParams, toggleFavorite]);
+  }, [buildFavoriteParams, profile.eventId, profile.gameId, toggleFavorite]);
 
   // Get total available games
   const totalGamesAvailable = boxScoreGames.length;
@@ -1553,7 +1565,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         ? () => window.open(applyState(overUrl) || overUrl, "_blank", "noopener,noreferrer")
         : undefined,
       favorite:
-        isLoggedIn && profile.gameId
+        isLoggedIn && (profile.eventId ?? profile.gameId)
           ? {
               active: isOverFavorited,
               tooltip: isOverFavorited ? "Remove from My Plays" : "Add Over to My Plays",
@@ -1586,7 +1598,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         ? () => window.open(applyState(underUrl) || underUrl, "_blank", "noopener,noreferrer")
         : undefined,
       favorite:
-        isLoggedIn && profile.gameId
+        isLoggedIn && (profile.eventId ?? profile.gameId)
           ? {
               active: isUnderFavorited,
               tooltip: isUnderFavorited ? "Remove from My Plays" : "Add Under to My Plays",
