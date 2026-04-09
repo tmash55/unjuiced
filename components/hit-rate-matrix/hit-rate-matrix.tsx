@@ -910,6 +910,8 @@ interface BookOddsDetail {
   under: number | null;
   link_over?: string | null;
   link_under?: string | null;
+  sgp_over?: string | null;
+  sgp_under?: string | null;
 }
 
 interface OddsLineResponse {
@@ -989,12 +991,20 @@ function ThresholdCell({
               price: book.over,
               u: book.link_over || null,
               m: null,
-              sgp: null,
+              sgp: book.sgp_over || null,
             };
           }
         });
       }
       
+      console.info("[hit-rate-matrix favorite] toggle", {
+        player: playerName,
+        market,
+        eventId,
+        books: Object.keys(booksSnapshot).length,
+        sgpBooks: Object.values(booksSnapshot).filter((book) => !!book?.sgp).length,
+      });
+
       await toggleFavorite({
         type: "player",
         sport: "nba",
@@ -1072,6 +1082,7 @@ function ThresholdCell({
         player_id: playerUuid,
         line: String(lineToFetch),
       });
+      params.set("include_sgp", "true");
       const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch odds");
       const data: OddsLineResponse = await response.json();

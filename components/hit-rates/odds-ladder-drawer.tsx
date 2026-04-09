@@ -291,6 +291,7 @@ export function OddsLadderDrawer({ open, onOpenChange, row }: OddsLadderDrawerPr
     market: row?.market ?? null,
     playerId: row?.selKey ?? null,
     line: selectedLine,
+    includeSgp: true,
     enabled: open && !!row && selectedLine !== null && showAllBooks,
   });
   
@@ -311,43 +312,6 @@ export function OddsLadderDrawer({ open, onOpenChange, row }: OddsLadderDrawerPr
   }, [row, selectedLine]);
   
   const isFavorited = favoriteKey ? favoriteKeys.has(favoriteKey) : false;
-  
-  // Handle add to favorites
-  const handleAddToFavorites = useCallback(async () => {
-    if (!row || selectedLine === null) return;
-    
-    try {
-      const result = await toggleFavorite({
-        type: "player",
-        sport: "nba",
-        event_id: row.eventId || row.gameId || "",
-        game_date: row.gameDate,
-        home_team: row.homeTeamName,
-        away_team: row.awayTeamName,
-        player_id: String(row.playerId),
-        player_name: row.playerName,
-        player_team: row.teamAbbr || row.teamName,
-        player_position: row.position,
-        market: row.market,
-        line: selectedLine,
-        side: "over",
-        odds_selection_id: row.oddsSelectionId,
-        source: "odds-ladder",
-      });
-      
-      if (result.action === "added") {
-        toast.success("Added to My Plays");
-      } else if (result.action === "removed") {
-        toast.success("Removed from My Plays");
-      }
-    } catch (err: any) {
-      if (err.message?.includes("logged in")) {
-        toast.error("Sign in to save plays");
-      } else {
-        toast.error("Failed to update");
-      }
-    }
-  }, [row, selectedLine, toggleFavorite]);
   
   // Get current line data from ladder or detailed fetch
   const currentLineData = useMemo(() => {
@@ -378,6 +342,71 @@ export function OddsLadderDrawer({ open, onOpenChange, row }: OddsLadderDrawerPr
       book_count: ladderLine.book_count,
     };
   }, [selectedLine, ladderData, lineData, showAllBooks]);
+
+  // Handle add to favorites
+  const handleAddToFavorites = useCallback(async () => {
+    if (!row || selectedLine === null) return;
+
+    try {
+      const booksSnapshot = currentLineData?.books?.length
+        ? Object.fromEntries(
+            currentLineData.books
+              .filter((book) => book.over !== null)
+              .map((book) => [
+                book.book,
+                {
+                  price: book.over as number,
+                  u: book.link_over || null,
+                  m: book.link_over || null,
+                  sgp: book.sgp_over || null,
+                },
+              ])
+          )
+        : null;
+
+      console.info("[hit-rates ladder favorite] toggle", {
+        player: row.playerName,
+        market: row.market,
+        eventId: row.eventId || row.gameId || "",
+        books: Object.keys(booksSnapshot ?? {}).length,
+        sgpBooks: Object.values(booksSnapshot ?? {}).filter((book) => !!book?.sgp).length,
+      });
+
+      const result = await toggleFavorite({
+        type: "player",
+        sport: "nba",
+        event_id: row.eventId || row.gameId || "",
+        game_date: row.gameDate,
+        home_team: row.homeTeamName,
+        away_team: row.awayTeamName,
+        player_id: String(row.playerId),
+        player_name: row.playerName,
+        player_team: row.teamAbbr || row.teamName,
+        player_position: row.position,
+        market: row.market,
+        line: selectedLine,
+        side: "over",
+        odds_key: row.eventId ? `odds:nba:${row.eventId}:${row.market}` : null,
+        odds_selection_id: row.oddsSelectionId,
+        books_snapshot: booksSnapshot,
+        best_price_at_save: currentLineData?.best?.over ?? null,
+        best_book_at_save: currentLineData?.best?.book ?? null,
+        source: "odds-ladder",
+      });
+
+      if (result.action === "added") {
+        toast.success("Added to My Plays");
+      } else if (result.action === "removed") {
+        toast.success("Removed from My Plays");
+      }
+    } catch (err: any) {
+      if (err.message?.includes("logged in")) {
+        toast.error("Sign in to save plays");
+      } else {
+        toast.error("Failed to update");
+      }
+    }
+  }, [currentLineData, row, selectedLine, toggleFavorite]);
   
   // Reset state when drawer closes
   React.useEffect(() => {
