@@ -551,9 +551,11 @@ const SCATTER_LEAGUE_AVG_EV = 88.5;
 function EvScatterPlot({
   leaders,
   isMobile,
+  searchQuery,
 }: {
   leaders: ExitVeloLeader[];
   isMobile: boolean;
+  searchQuery: string;
 }) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -620,10 +622,36 @@ function EvScatterPlot({
     bottomRight: `High EV / Low ${yOpt.shortLabel}`,
   };
 
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const searchActive = trimmedSearch.length > 0;
+  const matchedLeaders = useMemo(() => {
+    if (!searchActive) return leaders;
+    return leaders.filter(
+      (leader) =>
+        leader.player_name.toLowerCase().includes(trimmedSearch) ||
+        leader.team_abbr.toLowerCase().includes(trimmedSearch) ||
+        leader.team_name.toLowerCase().includes(trimmedSearch)
+    );
+  }, [leaders, searchActive, trimmedSearch]);
+  const matchedIds = useMemo(
+    () => new Set(matchedLeaders.map((leader) => leader.player_id)),
+    [matchedLeaders]
+  );
+
   const activeId = hoveredId ?? selectedId;
   const activeLeader = activeId != null ? leaders.find((l) => l.player_id === activeId) : null;
+  const focusLeader = activeLeader ?? (searchActive ? matchedLeaders[0] ?? null : null);
   const selectedLeader = selectedId != null ? leaders.find((l) => l.player_id === selectedId) : null;
-
+  const getDotPresentation = useCallback((leader: ExitVeloLeader) => {
+    const isMatch = !searchActive || matchedIds.has(leader.player_id);
+    return {
+      isMatch,
+      fill: isMatch ? getDotColor(leader) : "#d4d4d8",
+      fillOpacity: isMatch ? 0.78 : 0.28,
+      stroke: isMatch && searchActive ? "rgba(255,255,255,0.9)" : "transparent",
+      strokeWidth: isMatch && searchActive ? 1.25 : 0,
+    };
+  }, [matchedIds, searchActive]);
 
   return (
     <div className="relative">
@@ -719,7 +747,7 @@ function EvScatterPlot({
           const cy = scaleY(getYVal(l));
           const r = getDotRadius(l.home_runs);
           const isActive = activeId === l.player_id;
-          const isSelected = selectedId === l.player_id;
+          const dot = getDotPresentation(l);
           if (isActive) return null; // Render active dot last (on top)
 
           return (
@@ -728,10 +756,10 @@ function EvScatterPlot({
               cx={cx}
               cy={cy}
               r={r}
-              fill={getDotColor(l)}
-              fillOpacity={0.7}
-              stroke="transparent"
-              strokeWidth={0}
+              fill={dot.fill}
+              fillOpacity={dot.fillOpacity}
+              stroke={dot.stroke}
+              strokeWidth={dot.strokeWidth}
               className="cursor-pointer"
               onMouseEnter={() => setHoveredId(l.player_id)}
               onClick={(e) => { e.stopPropagation(); setSelectedId(selectedId === l.player_id ? null : l.player_id); }}
@@ -740,14 +768,15 @@ function EvScatterPlot({
           );
         })}
         {/* Active dot rendered last = on top */}
-        {activeLeader && (() => {
-          const l = activeLeader;
+        {focusLeader && (() => {
+          const l = focusLeader;
           const cx = scaleX(l.avg_exit_velo);
           const cy = scaleY(getYVal(l));
           const r = getDotRadius(l.home_runs);
+          const dot = getDotPresentation(l);
           return (
             <g>
-              <circle cx={cx} cy={cy} r={r + 3} fill={getDotColor(l)} fillOpacity={0.95} stroke="white" strokeWidth={2.5} className="cursor-pointer"
+              <circle cx={cx} cy={cy} r={r + 3} fill={dot.fill} fillOpacity={searchActive && !dot.isMatch ? 0.4 : 0.95} stroke="white" strokeWidth={2.5} className="cursor-pointer"
                 onMouseEnter={() => setHoveredId(l.player_id)}
                 onClick={(e) => { e.stopPropagation(); setSelectedId(selectedId === l.player_id ? null : l.player_id); }}
               />
@@ -760,9 +789,9 @@ function EvScatterPlot({
       </svg>
 
       {/* Tooltip — positioned near the dot, not fixed corner */}
-      {activeLeader && (() => {
-        const dotX = scaleX(activeLeader.avg_exit_velo);
-        const dotY = scaleY(getYVal(activeLeader));
+      {focusLeader && (() => {
+        const dotX = scaleX(focusLeader.avg_exit_velo);
+        const dotY = scaleY(getYVal(focusLeader));
         // Position tooltip: prefer right of dot, flip left if too close to right edge
         const tooltipW = 220;
         const flipX = dotX + tooltipW + 20 > W;
@@ -776,21 +805,26 @@ function EvScatterPlot({
           >
             <div className="bg-white/95 dark:bg-neutral-800/95 backdrop-blur-sm border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl p-3">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: activeLeader.primary_color || "#6b7280" }}>
-                  <img src={getMlbHeadshotUrl(activeLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: focusLeader.primary_color || "#6b7280" }}>
+                  <img src={getMlbHeadshotUrl(focusLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-neutral-900 dark:text-white">{activeLeader.player_name}</p>
-                  <p className="text-[10px] text-neutral-500">{activeLeader.team_abbr} &bull; {activeLeader.position}</p>
+                  <p className="font-bold text-sm text-neutral-900 dark:text-white">{focusLeader.player_name}</p>
+                  <p className="text-[10px] text-neutral-500">{focusLeader.team_abbr} &bull; {focusLeader.position}</p>
                 </div>
               </div>
+              {searchActive && !activeLeader && (
+                <p className="mb-2 text-[10px] font-medium text-brand">
+                  Search focus
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
-                <div className="flex justify-between"><span className="text-neutral-500">EV</span><span className={cn("font-bold tabular-nums", getEvColor(activeLeader.avg_exit_velo))}>{activeLeader.avg_exit_velo.toFixed(1)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-500">BRL%</span><span className={cn("font-bold tabular-nums", getBarrelColor(activeLeader.barrel_pct))}>{activeLeader.barrel_pct.toFixed(1)}%</span></div>
-                <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(activeLeader.hard_hit_pct))}>{activeLeader.hard_hit_pct.toFixed(1)}%</span></div>
-                <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.xslg))}>{activeLeader.xslg.toFixed(3)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.actual_slg))}>{activeLeader.actual_slg.toFixed(3)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", activeLeader.home_runs > 0 ? "text-[#22C55E]" : "")}>{activeLeader.home_runs}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">EV</span><span className={cn("font-bold tabular-nums", getEvColor(focusLeader.avg_exit_velo))}>{focusLeader.avg_exit_velo.toFixed(1)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">BRL%</span><span className={cn("font-bold tabular-nums", getBarrelColor(focusLeader.barrel_pct))}>{focusLeader.barrel_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(focusLeader.hard_hit_pct))}>{focusLeader.hard_hit_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(focusLeader.xslg))}>{focusLeader.xslg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(focusLeader.actual_slg))}>{focusLeader.actual_slg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", focusLeader.home_runs > 0 ? "text-[#22C55E]" : "")}>{focusLeader.home_runs}</span></div>
               </div>
               {!selectedId && (
                 <p className="text-[9px] text-neutral-400 mt-1.5 text-center">Click dot for detail</p>
@@ -999,6 +1033,14 @@ export function MlbExitVelocity() {
               <span className="text-neutral-300 dark:text-neutral-600">|</span>
               <span>+Diff = unlucky</span>
               <span>-Diff = lucky</span>
+              {isFallbackDate && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-600">|</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                    Showing {formatLongDate(resolvedDate)}
+                  </span>
+                </>
+              )}
             </>
           }
           mobileControls={
@@ -1126,43 +1168,6 @@ export function MlbExitVelocity() {
           </DropdownMenu>
         </SheetFilterBar>
 
-        {/* Active filter pills + fallback date */}
-        {(hasActiveFilters || isFallbackDate) && !isLoading && (
-          <div className="px-4 py-2 flex flex-wrap items-center gap-2 border-t border-neutral-200/40 dark:border-neutral-700/20 bg-neutral-50/50 dark:bg-neutral-800/20">
-            {matchupSplit && (
-              <button
-                onClick={() => setMatchupSplit(false)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                vs Matchup Splits
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {pitcherHand && (
-              <button
-                onClick={() => setPitcherHand("")}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                {pitcherHand === "L" ? "vs LHP" : "vs RHP"}
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {pitchType && (
-              <button
-                onClick={() => setPitchType("")}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                {PITCH_TYPE_LABELS[pitchType] ?? pitchType}
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {isFallbackDate && (
-              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                No data for {formatLongDate(selectedDate)} — showing <strong>{formatLongDate(resolvedDate)}</strong>
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ── Table / Cards / Scatter ────────────────────────────────────── */}
@@ -1170,7 +1175,7 @@ export function MlbExitVelocity() {
         {viewMode === "scatter" && !isLoading && sortedLeaders.length > 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden p-4">
             <div className="max-w-5xl mx-auto">
-              <EvScatterPlot leaders={leaders} isMobile={!!isMobile} />
+              <EvScatterPlot leaders={leaders} isMobile={!!isMobile} searchQuery={searchQuery} />
             </div>
           </div>
         ) : isMobile && !isLoading && sortedLeaders.length > 0 ? (
