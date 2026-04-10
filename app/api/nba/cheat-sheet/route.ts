@@ -46,6 +46,7 @@ export interface CheatSheetRow {
   homeTeamName: string;
   awayTeamName: string;
   gameStatus: string;
+  startTime: string | null;
   
   // Betting Line Info
   market: string;
@@ -226,6 +227,7 @@ export async function POST(req: NextRequest) {
         homeTeamName: row.home_team_name,
         awayTeamName: row.away_team_name,
         gameStatus: row.game_status,
+        startTime: row.start_time ?? row.commence_time ?? null,
         market: row.market,
         line: row.line,
         overOdds: row.over_odds,
@@ -343,6 +345,7 @@ export async function GET(req: NextRequest) {
       homeTeamName: row.home_team_name,
       awayTeamName: row.away_team_name,
       gameStatus: row.game_status,
+      startTime: row.start_time ?? row.commence_time ?? null,
       market: row.market,
       line: row.line,
       overOdds: row.over_odds,
@@ -389,4 +392,3 @@ export async function GET(req: NextRequest) {
     }
   );
 }
-
