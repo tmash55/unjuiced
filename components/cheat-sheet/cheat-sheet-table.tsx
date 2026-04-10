@@ -26,6 +26,11 @@ import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import {
+  createBooksSnapshotFromOddsLine,
+  fetchOddsLine,
+  getBestSideFromOddsLine,
+} from "@/hooks/use-odds-line";
 
 interface CheatSheetTableProps {
   rows: CheatSheetRow[];
@@ -284,14 +289,21 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
   const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
   
   // Build favorite params from a cheat sheet row
-  const buildFavoriteParams = useCallback((row: CheatSheetRow): AddFavoriteParams => {
+  const buildFavoriteParams = useCallback((
+    row: CheatSheetRow,
+    options?: {
+      booksSnapshot?: AddFavoriteParams["books_snapshot"];
+      bestPrice?: number | null;
+      bestBook?: string | null;
+    }
+  ): AddFavoriteParams => {
     // Use bestOdds from the row (fetched from Redis in the API)
-    const bestPrice = row.bestOdds?.price ?? null;
-    const bestBook = row.bestOdds?.book ?? null;
+    const bestPrice = options?.bestPrice ?? row.bestOdds?.price ?? null;
+    const bestBook = options?.bestBook ?? row.bestOdds?.book ?? null;
     
     // Build minimal books snapshot from bestOdds
-    let booksSnapshot: Record<string, any> | null = null;
-    if (bestBook && bestPrice !== null) {
+    let booksSnapshot = options?.booksSnapshot ?? null;
+    if (!booksSnapshot && bestBook && bestPrice !== null) {
       booksSnapshot = {
         [bestBook]: {
           price: bestPrice,
@@ -313,7 +325,7 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
       game_date: row.gameDate,
       home_team: row.homeTeamAbbr,
       away_team: row.awayTeamAbbr,
-      start_time: null,
+      start_time: row.startTime ?? null,
       player_id: String(row.playerId),
       player_name: row.playerName,
       player_team: row.teamAbbr,
@@ -332,7 +344,25 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
   
   // Handle favorite toggle
   const handleToggleFavorite = useCallback(async (row: CheatSheetRow) => {
-    const params = buildFavoriteParams(row);
+    const eventId = row.eventId ?? null;
+    const playerKey = row.selKey || row.oddsSelectionId || null;
+    let booksSnapshot: AddFavoriteParams["books_snapshot"] = null;
+    let bestPrice = row.bestOdds?.price ?? null;
+    let bestBook = row.bestOdds?.book ?? null;
+
+    if (eventId && playerKey && row.line != null) {
+      try {
+        const oddsLine = await fetchOddsLine(eventId, row.market, playerKey, row.line, true);
+        booksSnapshot = createBooksSnapshotFromOddsLine(oddsLine, "over");
+        const bestOver = getBestSideFromOddsLine(oddsLine, "over");
+        bestPrice = bestOver?.price ?? bestPrice;
+        bestBook = bestOver?.book ?? bestBook;
+      } catch (error) {
+        console.error("[cheat-sheet favorite] Failed to fetch full odds snapshot:", error);
+      }
+    }
+
+    const params = buildFavoriteParams(row, { booksSnapshot, bestPrice, bestBook });
     const key = createFavoriteKey({
       event_id: params.event_id,
       type: params.type,
@@ -344,6 +374,13 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
     
     setTogglingRowKey(key);
     try {
+      console.info("[cheat-sheet favorite] toggle", {
+        player: params.player_name,
+        market: params.market,
+        eventId: params.event_id,
+        books: Object.keys(params.books_snapshot ?? {}).length,
+        sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+      });
       await toggleFavorite(params);
     } finally {
       setTogglingRowKey(null);

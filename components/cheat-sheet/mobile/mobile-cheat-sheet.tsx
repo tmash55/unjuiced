@@ -30,6 +30,11 @@ import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import {
+  createBooksSnapshotFromOddsLine,
+  fetchOddsLine,
+  getBestSideFromOddsLine,
+} from "@/hooks/use-odds-line";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 
@@ -206,14 +211,21 @@ export function MobileCheatSheet({
   const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
   
   // Build favorite params from a row
-  const buildFavoriteParams = (row: CheatSheetRow): AddFavoriteParams => {
+  const buildFavoriteParams = (
+    row: CheatSheetRow,
+    options?: {
+      booksSnapshot?: AddFavoriteParams["books_snapshot"];
+      bestPrice?: number | null;
+      bestBook?: string | null;
+    }
+  ): AddFavoriteParams => {
     // Use bestOdds from the row (fetched from Redis in the API)
-    const bestPrice = row.bestOdds?.price ?? null;
-    const bestBook = row.bestOdds?.book ?? null;
+    const bestPrice = options?.bestPrice ?? row.bestOdds?.price ?? null;
+    const bestBook = options?.bestBook ?? row.bestOdds?.book ?? null;
     
     // Build minimal books snapshot from bestOdds
-    let booksSnapshot: Record<string, any> | null = null;
-    if (bestBook && bestPrice !== null) {
+    let booksSnapshot = options?.booksSnapshot ?? null;
+    if (!booksSnapshot && bestBook && bestPrice !== null) {
       booksSnapshot = {
         [bestBook]: {
           price: bestPrice,
@@ -235,7 +247,7 @@ export function MobileCheatSheet({
       game_date: row.gameDate,
       home_team: row.homeTeamAbbr,
       away_team: row.awayTeamAbbr,
-      start_time: null,
+      start_time: row.startTime ?? null,
       player_id: String(row.playerId),
       player_name: row.playerName,
       player_team: row.teamAbbr,
@@ -280,7 +292,25 @@ export function MobileCheatSheet({
     e.stopPropagation(); // Prevent row click
     if (!isLoggedIn) return;
     
-    const params = buildFavoriteParams(row);
+    const eventId = row.eventId ?? null;
+    const playerKey = row.selKey || row.oddsSelectionId || null;
+    let booksSnapshot: AddFavoriteParams["books_snapshot"] = null;
+    let bestPrice = row.bestOdds?.price ?? null;
+    let bestBook = row.bestOdds?.book ?? null;
+
+    if (eventId && playerKey && row.line != null) {
+      try {
+        const oddsLine = await fetchOddsLine(eventId, row.market, playerKey, row.line, true);
+        booksSnapshot = createBooksSnapshotFromOddsLine(oddsLine, "over");
+        const bestOver = getBestSideFromOddsLine(oddsLine, "over");
+        bestPrice = bestOver?.price ?? bestPrice;
+        bestBook = bestOver?.book ?? bestBook;
+      } catch (error) {
+        console.error("[cheat-sheet mobile favorite] Failed to fetch full odds snapshot:", error);
+      }
+    }
+
+    const params = buildFavoriteParams(row, { booksSnapshot, bestPrice, bestBook });
     const key = createFavoriteKey({
       event_id: params.event_id,
       type: params.type,
@@ -292,6 +322,13 @@ export function MobileCheatSheet({
     
     setTogglingRowKey(key);
     try {
+      console.info("[cheat-sheet mobile favorite] toggle", {
+        player: params.player_name,
+        market: params.market,
+        eventId: params.event_id,
+        books: Object.keys(params.books_snapshot ?? {}).length,
+        sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+      });
       await toggleFavorite(params);
     } finally {
       setTogglingRowKey(null);

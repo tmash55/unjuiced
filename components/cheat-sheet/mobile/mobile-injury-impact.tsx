@@ -24,6 +24,11 @@ import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import {
+  createBooksSnapshotFromOddsLine,
+  fetchOddsLine,
+  getBestSideFromOddsLine,
+} from "@/hooks/use-odds-line";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
@@ -192,14 +197,21 @@ export function MobileInjuryImpact({
   const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
   
   // Build favorite params from a row
-  const buildFavoriteParams = (row: InjuryImpactRow): AddFavoriteParams => {
+  const buildFavoriteParams = (
+    row: InjuryImpactRow,
+    options?: {
+      booksSnapshot?: AddFavoriteParams["books_snapshot"];
+      bestPrice?: number | null;
+      bestBook?: string | null;
+    }
+  ): AddFavoriteParams => {
     // Use bestOdds from the row (fetched from Redis in the API)
-    const bestPrice = row.bestOdds?.price ?? null;
-    const bestBook = row.bestOdds?.book ?? null;
+    const bestPrice = options?.bestPrice ?? row.bestOdds?.price ?? null;
+    const bestBook = options?.bestBook ?? row.bestOdds?.book ?? null;
     
     // Build minimal books snapshot from bestOdds
-    let booksSnapshot: Record<string, any> | null = null;
-    if (bestBook && bestPrice !== null) {
+    let booksSnapshot = options?.booksSnapshot ?? null;
+    if (!booksSnapshot && bestBook && bestPrice !== null) {
       booksSnapshot = {
         [bestBook]: {
           price: bestPrice,
@@ -269,7 +281,25 @@ export function MobileInjuryImpact({
     e.stopPropagation();
     if (!isLoggedIn) return;
     
-    const params = buildFavoriteParams(row);
+    const eventId = row.eventId ?? null;
+    const playerKey = row.selKey || row.oddsSelectionId || null;
+    let booksSnapshot: AddFavoriteParams["books_snapshot"] = null;
+    let bestPrice = row.bestOdds?.price ?? null;
+    let bestBook = row.bestOdds?.book ?? null;
+
+    if (eventId && playerKey && row.line != null) {
+      try {
+        const oddsLine = await fetchOddsLine(eventId, row.market, playerKey, row.line, true);
+        booksSnapshot = createBooksSnapshotFromOddsLine(oddsLine, "over");
+        const bestOver = getBestSideFromOddsLine(oddsLine, "over");
+        bestPrice = bestOver?.price ?? bestPrice;
+        bestBook = bestOver?.book ?? bestBook;
+      } catch (error) {
+        console.error("[injury-impact mobile favorite] Failed to fetch full odds snapshot:", error);
+      }
+    }
+
+    const params = buildFavoriteParams(row, { booksSnapshot, bestPrice, bestBook });
     const key = createFavoriteKey({
       event_id: params.event_id,
       type: params.type,
@@ -281,6 +311,13 @@ export function MobileInjuryImpact({
     
     setTogglingRowKey(key);
     try {
+      console.info("[injury-impact mobile favorite] toggle", {
+        player: params.player_name,
+        market: params.market,
+        eventId: params.event_id,
+        books: Object.keys(params.books_snapshot ?? {}).length,
+        sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+      });
       await toggleFavorite(params);
     } finally {
       setTogglingRowKey(null);
