@@ -7,6 +7,7 @@ import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { StatsDashboard } from "@/components/sharp-intel/stats-dashboard";
+import { PicksScoreboard } from "@/components/sharp-intel/picks-scoreboard";
 import { Filters } from "@/components/sharp-intel/filters";
 import { PickCard } from "@/components/sharp-intel/pick-card";
 import { PickDetailPanel } from "@/components/sharp-intel/pick-detail-panel";
@@ -39,7 +40,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
 
-type Tab = "picks" | "markets" | "leaderboard";
+type Tab = "picks" | "scored" | "markets" | "leaderboard";
 
 type SortOption = { label: string; icon: string }
 
@@ -216,7 +217,7 @@ export default function SharpSignalsPage() {
   const { prefs, loaded: prefsLoaded, updatePrefs, toggleFollowWallet, followedWallets } = useSignalPreferences();
   const { hideEdge, unhideEdge, isHidden, hiddenCount, clearAllHidden } = useHiddenEdges("sharp-intel");
   const showHidden = prefs.signal_show_hidden !== false; // default true
-  const [tab, setTab] = useState<Tab>("picks");
+  const [tab, setTab] = useState<Tab>("scored");
   const [selectedSport, setSelectedSport] = useState("");
   const [selectedTier, setSelectedTier] = useState("");
   const minScore = prefs.sharp_signals_min_score || 0;
@@ -550,7 +551,8 @@ export default function SharpSignalsPage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "picks", label: "Picks" },
+    { key: "scored", label: "Picks" },
+    { key: "picks", label: "Feed" },
     { key: "markets", label: "Markets" },
     { key: "leaderboard", label: "Leaderboard" },
   ];
@@ -716,7 +718,7 @@ export default function SharpSignalsPage() {
     // Default (liquidity): sort by total volume
     return b.totalVolume - a.totalVolume
   })
-  const showFilters = tab === "picks" || tab === "markets"
+  const showFilters = tab === "picks" || tab === "markets" // scored tab has its own filters
 
   return (
     <AppPageLayout
@@ -748,7 +750,11 @@ export default function SharpSignalsPage() {
                   onClick={() => {
                     setTab(t.key);
                     leftPanelRef.current?.scrollTo({ top: 0 });
-                    if (t.key === "picks") {
+                    if (t.key === "scored") {
+                      setSelectedPick(null);
+                      setSelectedMarket(null);
+                      setSelectedWallet(null);
+                    } else if (t.key === "picks") {
                       setSelectedMarket(null);
                       setSelectedWallet(null);
                       if (picks.length > 0) setSelectedPick(picks[0]);
@@ -1009,6 +1015,11 @@ export default function SharpSignalsPage() {
                 />
               ))}
             </div>
+          )}
+
+          {/* Scored Picks Tab (v2) */}
+          {tab === "scored" && (
+            <PicksScoreboard />
           )}
 
           {/* Leaderboard Tab */}
