@@ -33,6 +33,14 @@ export interface ActivePlay {
   game_start_time: string | null;
   game_date: string | null;
   signal_ids: string[];
+  conflicting_signal: boolean | null;
+  opposing_side_summary: {
+    conflict_status?: "clear" | "split";
+    opposing_score?: number;
+    score_gap?: number;
+    opposing_outcome?: string;
+    opposing_side?: string;
+  } | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -56,6 +64,9 @@ export async function GET(req: NextRequest) {
 
     if (sport) query = query.eq("sport", sport);
     if (label) query = query.eq("play_label", label);
+
+    // Hide suppressed sides of conflicting markets (10+ point gap)
+    query = query.or("conflicting_signal.is.null,conflicting_signal.eq.false");
 
     // Filter by game start time:
     // -1 = show all (no filtering)

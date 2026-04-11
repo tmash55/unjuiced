@@ -100,10 +100,13 @@ export function PickCardV2({
   const edge = parseFloat(play.estimated_edge ?? "0");
   const price = parseFloat(play.current_poly_price ?? "0");
   const kelly = bankroll ? calculateKelly(play, bankroll, riskTolerance) : null;
+  const opp = play.opposing_side_summary;
+  const isSplit = opp?.conflict_status === "split";
 
   return (
     <div className={cn(
       "rounded-xl border bg-white dark:bg-neutral-900 overflow-hidden transition-all",
+      isSplit ? "border-amber-500/30 bg-neutral-50/50 dark:bg-neutral-900/80" :
       isSelected ? "border-brand ring-1 ring-brand/20" : play.play_score >= 90 ? "border-red-500/30" : play.play_score >= 75 ? "border-orange-500/20" : "border-neutral-200/60 dark:border-neutral-800/60"
     )}>
       <button onClick={() => { onSelect?.(); setExpanded(!expanded); }} className="w-full text-left p-4 group">
@@ -118,6 +121,11 @@ export function PickCardV2({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className={cn("text-[10px] font-black uppercase tracking-wider", ss.labelColor)}>{ss.label}</span>
+              {isSplit && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 ring-1 ring-amber-500/20">
+                  SPLIT
+                </span>
+              )}
               <span className="text-[10px] text-neutral-400">{SPORT_EMOJI[play.sport] ?? "🎯"} {play.sport.toUpperCase()}</span>
               {play.game_date && (
                 <span className="text-[10px] text-neutral-400">· {play.game_date}</span>
@@ -134,6 +142,11 @@ export function PickCardV2({
                 {play.side} {play.outcome}
               </span>
               <span className="text-[10px] text-neutral-400">@ {formatPrice(play.current_poly_price)}</span>
+              {isSplit && opp && (
+                <span className="text-[10px] text-amber-500 font-medium">
+                  · Split {play.play_score} / {opp.opposing_score} vs {opp.opposing_outcome}
+                </span>
+              )}
             </div>
           </div>
 
