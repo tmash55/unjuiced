@@ -184,7 +184,7 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
                   <div className="flex items-center gap-2 text-[10px] text-neutral-500 mt-0.5">
                     <span>@ {formatPrice(s.bet_price)}</span>
                     <span>{s.position_action?.replace(/_/g, " ")}</span>
-                    <span>{formatDistanceToNow(new Date(s.bet_time), { addSuffix: true })}</span>
+                    <span>{s.bet_time ? formatDistanceToNow(new Date(s.bet_time), { addSuffix: true }) : ""}</span>
                   </div>
                 </div>
               </div>
@@ -195,8 +195,8 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
 
       {/* Timestamps */}
       <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-2 border-t border-neutral-100 dark:border-neutral-800/40">
-        <span>First: {formatDistanceToNow(new Date(play.first_signal_at), { addSuffix: true })}</span>
-        <span>Last: {formatDistanceToNow(new Date(play.latest_signal_at), { addSuffix: true })}</span>
+        <span>First: {play.first_signal_at ? formatDistanceToNow(new Date(play.first_signal_at), { addSuffix: true }) : "—"}</span>
+        <span>Last: {play.latest_signal_at ? formatDistanceToNow(new Date(play.latest_signal_at), { addSuffix: true }) : "—"}</span>
       </div>
 
       {/* Polymarket link */}
