@@ -440,6 +440,22 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
                 />
               </div>
 
+              <div>
+                <SectionLabel>Hide Started Games</SectionLabel>
+                <p className="text-[11px] text-neutral-500 mb-2">Control when plays disappear after the game starts.</p>
+                <Seg
+                  options={[
+                    { value: "0", label: "At Start" },
+                    { value: "1", label: "1h After" },
+                    { value: "2", label: "2h After" },
+                    { value: "3", label: "3h After" },
+                    { value: "-1", label: "Never" },
+                  ]}
+                  value={String(prefs.signal_hide_delay ?? 0)}
+                  onChange={(v) => onUpdate({ signal_hide_delay: Number(v) })}
+                />
+              </div>
+
               <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 p-3">
                 <p className="text-[10px] font-semibold text-neutral-500 mb-1">About Kelly Criterion</p>
                 <p className="text-[10px] text-neutral-400 leading-relaxed">

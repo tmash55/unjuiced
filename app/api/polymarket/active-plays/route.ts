@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     const sport = searchParams.get("sport");
     const label = searchParams.get("label");
     const limit = Number(searchParams.get("limit") ?? 100);
+    const hideAfterHours = Number(searchParams.get("hide_after") ?? 0);
 
     const sb = createServerSupabaseClient();
 
@@ -55,6 +56,15 @@ export async function GET(req: NextRequest) {
 
     if (sport) query = query.eq("sport", sport);
     if (label) query = query.eq("play_label", label);
+
+    // Filter by game start time:
+    // -1 = show all (no filtering)
+    // 0 = hide games that already started (default)
+    // 1,2,3 = show games up to X hours after start
+    if (hideAfterHours >= 0) {
+      const cutoff = new Date(Date.now() - hideAfterHours * 60 * 60 * 1000).toISOString();
+      query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
+    }
 
     const { data, error } = await query;
 

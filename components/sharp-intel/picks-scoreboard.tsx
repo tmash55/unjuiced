@@ -43,10 +43,13 @@ export function PicksScoreboard({
   const bankroll = prefs.bankroll ?? null;
   const riskTolerance = (prefs.risk_tolerance as "conservative" | "moderate" | "aggressive") ?? "moderate";
 
+  const hideAfter = prefs.signal_hide_delay ?? 0; // 0 = hide started, -1 = show all
+
   const { data, isLoading, isFetching } = useActivePlays({
     minScore: Number(minScore),
     sport: sport || null,
     label: label || null,
+    hideAfterHours: hideAfter,
   });
 
   const plays = data?.plays ?? [];
