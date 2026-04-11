@@ -663,7 +663,7 @@ function PropFavoriteButton({ player }: { player: PropScorePlayer }) {
           price: data.over,
           u: data.link || null,
           m: data.mobile_link || null,
-          sgp: null,
+          sgp: (data as any).sgp || null,
         };
       }
     }
@@ -694,6 +694,36 @@ function PropFavoriteButton({ player }: { player: PropScorePlayer }) {
     toggleFavorite(params).then((result) => {
       if (result?.action === "added") {
         toast.success("Saved to betslip", { description: player.player_name, duration: 2000 });
+        // Enrich missing SGP tokens from Redis
+        const enrichBooks = Object.keys(booksSnapshot).filter((b) => !booksSnapshot[b].sgp);
+        if (enrichBooks.length > 0) {
+          fetch("/api/v2/favorites/enrich-sgp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sport: "mlb",
+              event_id: String(player.game_id),
+              market: oddsMarket,
+              player_name: player.player_name,
+              line,
+              side: "over",
+              books: enrichBooks,
+            }),
+          })
+            .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+            .then((data) => {
+              if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0 && result.favorite?.id) {
+                const enriched = { ...booksSnapshot };
+                for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                  if (enriched[bookId]) enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                }
+                import("@/libs/supabase/client").then(({ createClient }) => {
+                  createClient().from("user_favorites").update({ books_snapshot: enriched }).eq("id", result.favorite!.id).then(() => {});
+                });
+              }
+            })
+            .catch(() => {});
+        }
       } else if (result?.action === "removed") {
         toast("Removed from betslip", { duration: 1500 });
       }
