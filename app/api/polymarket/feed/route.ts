@@ -180,6 +180,21 @@ export async function GET(req: NextRequest) {
     const maxOdds = parseFloat(sp.get("maxOdds") || "") || undefined;
     const marketTypesFilter = sp.get("marketTypes")?.split(",").filter(Boolean) || undefined;
     const hideDelay = parseInt(sp.get("hideDelay") || "0", 10) || 0;
+    const idsParam = sp.get("ids")?.split(",").filter(Boolean).map(Number) || undefined;
+
+    // If specific IDs requested, fetch just those
+    if (idsParam && idsParam.length > 0) {
+      const { data, error } = await supabase
+        .from("polymarket_signals")
+        .select("*")
+        .in("id", idsParam)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ signals: data ?? [], total: data?.length ?? 0 });
+    }
 
     // Build signals query
     let query = supabase

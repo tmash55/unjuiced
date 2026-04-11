@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 import { TierBadge } from "./tier-badge";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { ExternalLink, Users, DollarSign, TrendingUp, Clock, Zap, BarChart3, ArrowRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import useSWR from "swr";
@@ -51,15 +52,15 @@ function calculateKelly(play: ActivePlay, bankroll: number, risk: string, maxPct
 interface SignalRow {
   id: number;
   wallet_address: string;
-  wallet_tier: string;
-  pseudonym: string | null;
-  bet_amount: string;
-  bet_price: string;
+  tier: string;
+  wallet_username: string | null;
+  bet_size: string;
+  entry_price: string;
   side: string;
-  position_action: string;
-  bet_time: string;
-  play_score: number;
-  convergence_count: number;
+  outcome: string;
+  market_title: string;
+  created_at: string;
+  quality_score: number | null;
 }
 
 export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
@@ -166,6 +167,44 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
         </div>
       )}
 
+      {/* Sportsbook Odds */}
+      {play.sportsbook_odds && Array.isArray(play.sportsbook_odds) && play.sportsbook_odds.length > 0 && (
+        <div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-2">Sportsbook Odds</span>
+          <div className="space-y-1">
+            {(play.sportsbook_odds as any[])
+              .filter((o: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.book === o.book) === i)
+              .slice(0, 8)
+              .map((odds: any, i: number) => {
+                const logo = getSportsbookById(odds.book)?.image?.light || getSportsbookById(odds.book)?.image?.square;
+                const name = odds.displayBook || getSportsbookById(odds.book)?.name || odds.book;
+                return (
+                  <div key={`${odds.book}-${i}`} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/30">
+                    <div className="flex items-center gap-2">
+                      {logo && <img src={logo} alt="" className="h-4 w-4 object-contain" />}
+                      <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">{name}</span>
+                    </div>
+                    <span className="text-xs font-bold tabular-nums text-neutral-900 dark:text-white">{odds.price}</span>
+                  </div>
+                );
+              })}
+          </div>
+          {play.sportsbook_implied && (
+            <div className="text-[10px] text-neutral-400 mt-1.5">
+              Book implied: {(parseFloat(play.sportsbook_implied) * 100).toFixed(1)}%
+              {trueProb > 0 && (
+                <span className="ml-2">
+                  vs Model: {(trueProb * 100).toFixed(1)}%
+                  <span className={cn("font-bold ml-1", trueProb > parseFloat(play.sportsbook_implied) ? "text-emerald-500" : "text-red-500")}>
+                    ({trueProb > parseFloat(play.sportsbook_implied) ? "+" : ""}{((trueProb - parseFloat(play.sportsbook_implied)) * 100).toFixed(1)}%)
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Signal timeline */}
       {signals.length > 0 && (
         <div>
@@ -176,15 +215,14 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
                 <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", s.side === "BUY" ? "bg-emerald-500" : "bg-red-500")} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 text-[11px]">
-                    <span className="font-semibold text-neutral-900 dark:text-white truncate">{s.pseudonym || `${s.wallet_address.slice(0, 6)}...`}</span>
-                    <TierBadge tier={s.wallet_tier} />
+                    <span className="font-semibold text-neutral-900 dark:text-white truncate">{s.wallet_username || `${s.wallet_address.slice(0, 6)}...${s.wallet_address.slice(-4)}`}</span>
+                    <TierBadge tier={s.tier} />
                     <span className={cn("font-bold", s.side === "BUY" ? "text-emerald-500" : "text-red-500")}>{s.side}</span>
-                    <span className="text-neutral-400">{formatVolume(parseFloat(s.bet_amount ?? "0"))}</span>
+                    <span className="font-bold text-neutral-300 tabular-nums">{formatVolume(parseFloat(s.bet_size ?? "0"))}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-neutral-500 mt-0.5">
-                    <span>@ {formatPrice(s.bet_price)}</span>
-                    <span>{s.position_action?.replace(/_/g, " ")}</span>
-                    <span>{s.bet_time ? formatDistanceToNow(new Date(s.bet_time), { addSuffix: true }) : ""}</span>
+                    <span>@ {formatPrice(s.entry_price)}</span>
+                    <span>{s.created_at ? formatDistanceToNow(new Date(s.created_at), { addSuffix: true }) : ""}</span>
                   </div>
                 </div>
               </div>
