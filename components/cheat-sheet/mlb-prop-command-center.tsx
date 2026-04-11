@@ -1740,15 +1740,39 @@ export function MlbPropCommandCenter() {
         }
         if (bestPrice != null) {
           updated = { ...updated, best_odds: bestPrice, best_odds_book: bestBook };
+        } else if (Object.keys(mergedSnapshot).length > 0) {
+          // No books at this exact line — fall back to best odds at ANY line
+          let fallbackPrice: number | null = null;
+          let fallbackBook: string | null = null;
+          let fallbackLine: number | null = null;
+          const fallbackSeen = new Set<string>();
+          for (const [bookKey, data] of Object.entries(mergedSnapshot)) {
+            if (!data || data.over == null) continue;
+            const realBook = parseBookKey(bookKey);
+            if (fallbackSeen.has(realBook)) continue;
+            fallbackSeen.add(realBook);
+            if (fallbackPrice == null || data.over > fallbackPrice) {
+              fallbackPrice = data.over;
+              fallbackBook = realBook;
+              fallbackLine = data.line;
+            }
+          }
+          if (fallbackPrice != null) {
+            updated = { ...updated, best_odds: fallbackPrice, best_odds_book: fallbackBook, line: fallbackLine ?? targetLine };
+          }
+        }
+
+        if (updated.best_odds != null) {
+          const effectiveLine = updated.line;
 
           // Use prob_lines from backend for line-specific model probability
           const probLines = (p.key_stats?.prob_lines ?? {}) as Record<string, number>;
-          const lineKey = targetLine != null ? String(targetLine) : null;
+          const lineKey = effectiveLine != null ? String(effectiveLine) : null;
           const modelProb = lineKey && probLines[lineKey] != null ? probLines[lineKey] : p.model_prob;
 
           // Compute deduped avg implied (Kambi books counted once)
-          const avgImplied = avgImpliedDeduped(updated.odds_snapshot, targetLine);
-          const impliedProb = avgImplied ?? oddsToImplied(bestPrice);
+          const avgImplied = avgImpliedDeduped(updated.odds_snapshot, effectiveLine);
+          const impliedProb = avgImplied ?? oddsToImplied(updated.best_odds);
 
           // Compute edge: model prob vs market implied
           const edge = modelProb != null && impliedProb > 0
