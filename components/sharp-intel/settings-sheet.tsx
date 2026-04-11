@@ -38,10 +38,11 @@ const SORT_OPTIONS = [
   { value: "conviction", label: "Conviction" },
 ]
 
-type SettingsTab = "filters" | "feed" | "alerts"
+type SettingsTab = "filters" | "sizing" | "feed" | "alerts"
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "filters", label: "Filters" },
+  { id: "sizing", label: "Sizing" },
   { id: "feed", label: "Feed" },
   { id: "alerts", label: "Alerts" },
 ]
@@ -393,6 +394,58 @@ export function SettingsSheet({ prefs, onUpdate }: SettingsSheetProps) {
                   Reset all filters
                 </button>
               )}
+            </div>
+          )}
+
+          {/* ═══ SIZING TAB ═══ */}
+          {tab === "sizing" && (
+            <div className="space-y-5">
+              <div>
+                <SectionLabel>Bankroll</SectionLabel>
+                <p className="text-[11px] text-neutral-500 mb-2">Your total betting bankroll. Used to calculate Kelly Criterion bet sizes on scored plays.</p>
+                <InputField
+                  value={prefs.bankroll ?? ""}
+                  onChange={(v) => onUpdate({ bankroll: v ? Number(v) : undefined })}
+                  placeholder="e.g. 5000"
+                  prefix="$"
+                />
+              </div>
+
+              <div>
+                <SectionLabel>Risk Tolerance</SectionLabel>
+                <p className="text-[11px] text-neutral-500 mb-2">Controls Kelly fraction. Conservative = quarter Kelly, Moderate = half, Aggressive = full.</p>
+                <Seg
+                  options={[
+                    { value: "conservative", label: "Conservative" },
+                    { value: "moderate", label: "Moderate" },
+                    { value: "aggressive", label: "Aggressive" },
+                  ]}
+                  value={prefs.risk_tolerance || "moderate"}
+                  onChange={(v) => onUpdate({ risk_tolerance: v })}
+                />
+              </div>
+
+              <div>
+                <SectionLabel>Max Bet %</SectionLabel>
+                <p className="text-[11px] text-neutral-500 mb-2">Maximum percentage of bankroll on any single play. Caps the Kelly recommendation.</p>
+                <Seg
+                  options={[
+                    { value: "3", label: "3%" },
+                    { value: "5", label: "5%" },
+                    { value: "10", label: "10%" },
+                    { value: "15", label: "15%" },
+                  ]}
+                  value={String(prefs.max_bet_pct ?? 5)}
+                  onChange={(v) => onUpdate({ max_bet_pct: Number(v) })}
+                />
+              </div>
+
+              <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 p-3">
+                <p className="text-[10px] font-semibold text-neutral-500 mb-1">About Kelly Criterion</p>
+                <p className="text-[10px] text-neutral-400 leading-relaxed">
+                  Kelly sizing optimizes long-term growth by betting proportionally to your edge. Half-Kelly (moderate) is recommended for most users — it captures 75% of the growth with 50% of the volatility.
+                </p>
+              </div>
             </div>
           )}
 

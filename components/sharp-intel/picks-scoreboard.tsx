@@ -40,8 +40,8 @@ export function PicksScoreboard({
   const [label, setLabel] = useState("");
 
   const { prefs } = useSignalPreferences();
-  const bankroll = (prefs as any)?.bankroll ?? null;
-  const riskTolerance = ((prefs as any)?.risk_tolerance as "conservative" | "moderate" | "aggressive") ?? "moderate";
+  const bankroll = prefs.bankroll ?? null;
+  const riskTolerance = (prefs.risk_tolerance as "conservative" | "moderate" | "aggressive") ?? "moderate";
 
   const { data, isLoading, isFetching } = useActivePlays({
     minScore: Number(minScore),

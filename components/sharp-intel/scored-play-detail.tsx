@@ -70,8 +70,8 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
   const price = parseFloat(play.current_poly_price ?? "0");
   const trueProb = parseFloat(play.estimated_true_prob ?? "0");
   const { prefs } = useSignalPreferences();
-  const bankroll = (prefs as any)?.bankroll ?? null;
-  const risk = (prefs as any)?.risk_tolerance ?? "moderate";
+  const bankroll = prefs.bankroll ?? null;
+  const risk = prefs.risk_tolerance ?? "moderate";
 
   // Fetch signals for this play
   const signalIds = play.signal_ids ?? [];
