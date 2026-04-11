@@ -28,7 +28,10 @@ import {
   ChevronRight,
   Lock,
   ExternalLink,
+  Heart,
 } from "lucide-react";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { toast } from "sonner";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -609,6 +612,107 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
     return <Tooltip content={tooltip} side="left"><div>{bar}</div></Tooltip>;
   }
   return bar;
+}
+
+// ── Prop Favorite Button ─────────────────────────────────────────────────────
+
+const PROP_MARKET_TO_ODDS: Record<string, string> = {
+  hr: "player_home_runs", hits: "player_hits", tb: "player_total_bases",
+  rbi: "player_rbis", sb: "player_stolen_bases", pitcher_k: "player_strikeouts",
+  pitcher_h: "player_hits_allowed", pitcher_er: "player_earned_runs", h_r_rbi: "player_hits__runs__rbis",
+};
+
+function PropFavoriteButton({ player }: { player: PropScorePlayer }) {
+  const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+
+  const oddsMarket = PROP_MARKET_TO_ODDS[player.market] ?? player.market;
+  const line = player.line;
+
+  const isFav = isFavorited({
+    event_id: String(player.game_id),
+    type: "player",
+    player_id: String(player.player_id),
+    market: oddsMarket,
+    line,
+    side: "over",
+  });
+
+  const filled = optimistic ?? isFav;
+
+  React.useEffect(() => {
+    if (optimistic !== null && optimistic === isFav) setOptimistic(null);
+  }, [isFav, optimistic]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLoggedIn) return;
+
+    setOptimistic(!filled);
+
+    // Build books snapshot from odds_snapshot
+    const snapshot = player.odds_snapshot;
+    const booksSnapshot: Record<string, BookSnapshot> = {};
+    if (snapshot) {
+      for (const [bookKey, data] of Object.entries(snapshot)) {
+        if (!data || data.over == null) continue;
+        if (line != null && data.line !== line) continue;
+        const realBook = parseBookKey(bookKey);
+        if (booksSnapshot[realBook]) continue;
+        booksSnapshot[realBook] = {
+          price: data.over,
+          u: data.link || null,
+          m: data.mobile_link || null,
+          sgp: null,
+        };
+      }
+    }
+
+    const params: AddFavoriteParams = {
+      type: "player",
+      sport: "mlb",
+      event_id: String(player.game_id),
+      game_date: player.game_date,
+      home_team: null,
+      away_team: null,
+      start_time: player.game_time ?? null,
+      player_id: String(player.player_id),
+      player_name: player.player_name,
+      player_team: player.team_abbr,
+      player_position: null,
+      market: oddsMarket,
+      line,
+      side: "over",
+      odds_key: `odds:mlb:${player.game_id}:${oddsMarket}`,
+      odds_selection_id: `${player.game_id}:${player.player_id}:${oddsMarket}:${line}:over`,
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: player.best_odds,
+      best_book_at_save: player.best_odds_book,
+      source: "prop_center",
+    };
+
+    toggleFavorite(params).then((result) => {
+      if (result?.action === "added") {
+        toast.success("Saved to betslip", { description: player.player_name, duration: 2000 });
+      } else if (result?.action === "removed") {
+        toast("Removed from betslip", { duration: 1500 });
+      }
+    }).catch(() => setOptimistic(null));
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className={cn(
+        "p-1 rounded transition-colors",
+        filled
+          ? "text-red-500"
+          : "text-neutral-400 hover:text-red-400 dark:text-neutral-600 dark:hover:text-red-400"
+      )}
+    >
+      <Heart className={cn("w-3.5 h-3.5", filled && "fill-current")} />
+    </button>
+  );
 }
 
 function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScorePlayer; marketConfig: MarketConfig; isMobile?: boolean }) {
@@ -2147,6 +2251,7 @@ export function MlbPropCommandCenter() {
                           </Tooltip>
                         </Th>
                       )}
+                      <Th className="w-8"><Heart className="w-3 h-3 text-neutral-400 mx-auto" /></Th>
                       <Th className="w-8" />
                     </tr>
                   </thead>
@@ -2326,6 +2431,11 @@ export function MlbPropCommandCenter() {
                                 )}
                               </td>
                             )}
+
+                            {/* Favorite */}
+                            <td className="px-1 py-2.5 text-center">
+                              <PropFavoriteButton player={player} />
+                            </td>
 
                             {/* Expand */}
                             <td className="px-2 py-2.5 text-center">
