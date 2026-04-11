@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useActivePlays } from "@/hooks/use-active-plays";
+import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
 import { PickCardV2 } from "./pick-card-v2";
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
@@ -27,7 +28,13 @@ const MIN_SCORE_OPTIONS = [
   { label: "90+", value: "90" },
 ];
 
-export function PicksScoreboard() {
+export function PicksScoreboard({
+  onSelectPlay,
+  selectedPlayId,
+}: {
+  onSelectPlay?: (play: ActivePlay) => void;
+  selectedPlayId?: number | null;
+} = {}) {
   const [sport, setSport] = useState("");
   const [minScore, setMinScore] = useState("60");
   const [label, setLabel] = useState("");
@@ -156,6 +163,8 @@ export function PicksScoreboard() {
               play={play}
               bankroll={bankroll}
               riskTolerance={riskTolerance}
+              isSelected={selectedPlayId === play.id}
+              onSelect={onSelectPlay ? () => onSelectPlay(play) : undefined}
             />
           ))}
         </div>

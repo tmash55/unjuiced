@@ -8,6 +8,8 @@ import { useSignalPreferences } from "@/hooks/use-signal-preferences";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { StatsDashboard } from "@/components/sharp-intel/stats-dashboard";
 import { PicksScoreboard } from "@/components/sharp-intel/picks-scoreboard";
+import { ScoredPlayDetail } from "@/components/sharp-intel/scored-play-detail";
+import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 import { Filters } from "@/components/sharp-intel/filters";
 import { PickCard } from "@/components/sharp-intel/pick-card";
 import { PickDetailPanel } from "@/components/sharp-intel/pick-detail-panel";
@@ -222,6 +224,7 @@ export default function SharpSignalsPage() {
   const [selectedTier, setSelectedTier] = useState("");
   const minScore = prefs.sharp_signals_min_score || 0;
   const [selectedPick, setSelectedPick] = useState<WhaleSignal | null>(null);
+  const [selectedScoredPlay, setSelectedScoredPlay] = useState<ActivePlay | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<GameData | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<WalletScore | null>(null);
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>("american");
@@ -1019,7 +1022,13 @@ export default function SharpSignalsPage() {
 
           {/* Scored Picks Tab (v2) */}
           {tab === "scored" && (
-            <PicksScoreboard />
+            <PicksScoreboard
+              onSelectPlay={(play) => {
+                setSelectedScoredPlay(play);
+                if (window.innerWidth < 768) setMobileDetailOpen(true);
+              }}
+              selectedPlayId={selectedScoredPlay?.id ?? null}
+            />
           )}
 
           {/* Leaderboard Tab */}
@@ -1051,6 +1060,10 @@ export default function SharpSignalsPage() {
             />
           )}
 
+          {tab === "scored" && selectedScoredPlay && (
+            <ScoredPlayDetail play={selectedScoredPlay} />
+          )}
+
           {tab === "markets" && selectedMarket && (
             <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
@@ -1065,12 +1078,13 @@ export default function SharpSignalsPage() {
           )}
 
           {/* Empty state */}
-          {((tab === "picks" && !selectedPick) ||
+          {((tab === "scored" && !selectedScoredPlay) ||
+            (tab === "picks" && !selectedPick) ||
             (tab === "markets" && !selectedMarket) ||
             (tab === "leaderboard" && !selectedWallet)) && (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <p className="text-sm text-neutral-600">
-                Select a {tab === "picks" ? "pick" : tab === "markets" ? "market" : "wallet"} to view details
+                Select a {tab === "scored" ? "play" : tab === "picks" ? "pick" : tab === "markets" ? "market" : "wallet"} to view details
               </p>
             </div>
           )}
@@ -1083,7 +1097,9 @@ export default function SharpSignalsPage() {
           open={mobileDetailOpen}
           onClose={() => setMobileDetailOpen(false)}
           title={
-            tab === "picks" && selectedPick
+            tab === "scored" && selectedScoredPlay
+              ? selectedScoredPlay.market_title
+              : tab === "picks" && selectedPick
               ? selectedPick.event_title || selectedPick.market_title
               : tab === "markets" && selectedMarket
                 ? selectedMarket.market_title
@@ -1092,6 +1108,9 @@ export default function SharpSignalsPage() {
                   : undefined
           }
         >
+          {tab === "scored" && selectedScoredPlay && (
+            <ScoredPlayDetail play={selectedScoredPlay} />
+          )}
           {tab === "picks" && selectedPick && (
             <PickDetailPanel
               pick={selectedPick}

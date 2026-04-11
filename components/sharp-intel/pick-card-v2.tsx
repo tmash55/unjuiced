@@ -85,10 +85,14 @@ export function PickCardV2({
   play,
   bankroll,
   riskTolerance = "moderate",
+  isSelected,
+  onSelect,
 }: {
   play: ActivePlay;
   bankroll?: number | null;
   riskTolerance?: "conservative" | "moderate" | "aggressive";
+  isSelected?: boolean;
+  onSelect?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const ss = getScoreStyle(play.play_score);
@@ -100,9 +104,9 @@ export function PickCardV2({
   return (
     <div className={cn(
       "rounded-xl border bg-white dark:bg-neutral-900 overflow-hidden transition-all",
-      play.play_score >= 90 ? "border-red-500/30" : play.play_score >= 75 ? "border-orange-500/20" : "border-neutral-200/60 dark:border-neutral-800/60"
+      isSelected ? "border-brand ring-1 ring-brand/20" : play.play_score >= 90 ? "border-red-500/30" : play.play_score >= 75 ? "border-orange-500/20" : "border-neutral-200/60 dark:border-neutral-800/60"
     )}>
-      <button onClick={() => setExpanded(!expanded)} className="w-full text-left p-4 group">
+      <button onClick={() => { onSelect?.(); setExpanded(!expanded); }} className="w-full text-left p-4 group">
         {/* Row 1: Score + Market + Sport */}
         <div className="flex items-start gap-3">
           {/* Score badge */}
