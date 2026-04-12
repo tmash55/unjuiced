@@ -387,6 +387,7 @@ export async function GET(req: NextRequest) {
           signal_score: scoreResult.total,
           signal_label: scoreResult.label,
           score_breakdown: scoreResult.breakdown,
+          estimated_edge: bookImplied != null ? Math.round((s.entry_price - bookImplied) * 1000) / 1000 : null,
         };
       })
       .filter((s) => {
@@ -468,6 +469,7 @@ export async function GET(req: NextRequest) {
         base.signal_score = scoreResult.total;
         base.signal_label = scoreResult.label;
         base.score_breakdown = scoreResult.breakdown;
+        base.estimated_edge = bookImplied != null ? Math.round((weightedPrice - bookImplied) * 1000) / 1000 : null;
 
         // Recalculate stake_vs_avg with total size
         if (ws?.avg_stake && totalSize) {

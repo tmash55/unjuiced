@@ -85,6 +85,12 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
 
   const hasBanner = (pick.has_opposing_position && pick.opposing_position) || (isSplitMarket && !pick.has_opposing_position)
 
+  // Edge badge
+  const edge = pick.estimated_edge
+  const edgePct = edge != null ? edge * 100 : null
+  const hasEdge = edgePct != null && edgePct > 0
+  const isHighEdge = edgePct != null && edgePct >= 10
+
   return (
     <div
       onClick={() => onSelect(pick)}
@@ -202,13 +208,32 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
           </div>
 
           {/* Selection + odds — centered */}
-          <div className="flex-1 flex flex-col items-center justify-center px-3 py-2">
+          <div className="flex-1 flex flex-col items-center justify-center px-3 py-2 gap-1.5">
             <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 text-center leading-tight truncate w-full">
               {selectionLabel}
             </span>
-            <span className="font-mono text-2xl font-extrabold text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
+            <span className="font-mono text-2xl font-extrabold text-sky-600 dark:text-sky-400 tabular-nums leading-none">
               {formatOdds(price, oddsFormat)}
             </span>
+            {/* Edge badge */}
+            {edgePct != null ? (
+              hasEdge ? (
+                <div className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold tabular-nums",
+                  isHighEdge
+                    ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40 shadow-[0_0_8px_rgba(52,211,153,0.25)]"
+                    : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+                )}>
+                  +{edgePct.toFixed(1)}% EDGE
+                </div>
+              ) : (
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums">
+                  {edgePct.toFixed(1)}% edge
+                </span>
+              )
+            ) : (
+              <span className="text-[10px] text-neutral-300 dark:text-neutral-700">Edge: N/A</span>
+            )}
           </div>
 
           {/* Actions — bottom */}
@@ -255,6 +280,17 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat, isSplitMarket
               {formatOdds(price, oddsFormat)}
             </span>
           </div>
+          {/* Edge — mobile */}
+          {edgePct != null && hasEdge && (
+            <div className={cn(
+              "flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] font-bold tabular-nums",
+              isHighEdge
+                ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40 shadow-[0_0_6px_rgba(52,211,153,0.2)]"
+                : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+            )}>
+              +{edgePct.toFixed(1)}%
+            </div>
+          )}
         </div>
 
       </div>

@@ -214,6 +214,10 @@ export interface WhaleSignal {
   // Live sportsbook odds (legacy — use odds_key for new implementation)
   live_odds?: LiveOdds | null;
 
+  // Estimated edge: Polymarket implied probability minus sportsbook implied probability
+  // Positive = sharp is buying higher than sportsbook fair value = edge exists
+  estimated_edge?: number | null;
+
   // Redis lookup key for frontend to fetch odds separately
   odds_key?: {
     sport: string;

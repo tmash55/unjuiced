@@ -6,11 +6,13 @@ import { ExternalLink } from "lucide-react"
 import { PriceChart } from "./price-chart"
 import { OrderBook } from "./order-book"
 import { TierBadge } from "./tier-badge"
+import { KellySizer } from "./kelly-sizer"
 import { Tooltip } from "@/components/tooltip"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { WhaleSignal } from "@/lib/polymarket/types"
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks"
 import { useSignalOdds } from "@/hooks/use-signal-odds"
+import { useSignalPreferences } from "@/hooks/use-signal-preferences"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { formatDistanceToNow } from "date-fns"
 import useSWR from "swr"
@@ -45,6 +47,19 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
   const walletDisplay = pick.wallet_address
     ? `#${pick.wallet_address.slice(0, 4).toUpperCase()}`
     : "Anon"
+
+  const { prefs } = useSignalPreferences()
+  const bankroll = prefs?.bankroll ?? null
+  const riskTolerance = prefs?.risk_tolerance ?? "moderate"
+
+  // Edge calculation
+  const edgeRaw = pick.estimated_edge
+  const edgePct = edgeRaw != null ? edgeRaw * 100 : null
+  const hasEdge = edgePct != null && edgePct > 0
+  const isHighEdge = edgePct != null && edgePct >= 10
+
+  // Book implied for Kelly sizer
+  const bookImpliedForKelly = pick.best_book_decimal ? 1 / pick.best_book_decimal : null
 
   // Chart interval state — maps UI labels to API params
   const INTERVAL_MAP: Record<string, string> = { "1D": "1d", "1W": "1w", "1M": "1m", "MAX": "all" }
@@ -189,6 +204,32 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
             </Tooltip>
           </div>
 
+          {/* Edge hero */}
+          <div className="flex items-center justify-between py-2">
+            <Tooltip content="Estimated edge: Polymarket implied probability minus sportsbook implied probability. Positive edge means sharps are buying a probability the sportsbook is pricing lower — the gap is your potential value.">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400 cursor-help">Est. edge</span>
+            </Tooltip>
+            {edgePct != null ? (
+              hasEdge ? (
+                <div className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold tabular-nums",
+                  isHighEdge
+                    ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 shadow-[0_0_12px_rgba(52,211,153,0.3)] text-sm"
+                    : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 text-xs"
+                )}>
+                  +{edgePct.toFixed(1)}% EDGE
+                  {isHighEdge && <span className="text-[9px] opacity-70">HOT</span>}
+                </div>
+              ) : (
+                <span className="font-mono text-xs text-neutral-500 dark:text-neutral-500 tabular-nums">
+                  {edgePct.toFixed(1)}%
+                </span>
+              )
+            ) : (
+              <span className="text-xs text-neutral-400 dark:text-neutral-600">N/A</span>
+            )}
+          </div>
+
           {/* Entry → Now + Slippage */}
           <div className="flex items-center justify-between py-2 text-xs tabular-nums">
             <div className="flex items-center gap-2.5">
@@ -245,6 +286,20 @@ export function PickDetailPanel({ pick, oddsFormat, isSplitMarket, onViewMarket,
           </div>
         </div>
       </div>
+
+      {/* Kelly Sizer — only when bankroll is set and sportsbook odds exist */}
+      {bankroll && bookImpliedForKelly && hasEdge && (
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Kelly sizing</p>
+          <KellySizer
+            polyImplied={pick.entry_price}
+            bookImplied={bookImpliedForKelly}
+          />
+          <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-1.5">
+            Based on ${bankroll.toLocaleString()} bankroll · {riskTolerance}
+          </p>
+        </div>
+      )}
 
       {/* Insider */}
       <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
