@@ -15,6 +15,7 @@ import { PickCard } from "@/components/sharp-intel/pick-card";
 import { PickDetailPanel } from "@/components/sharp-intel/pick-detail-panel";
 import { MarketDetailPanel } from "@/components/sharp-intel/market-detail-panel";
 import { MarketHeatmap } from "@/components/sharp-intel/market-heatmap";
+import { FeedTab } from "@/components/sharp-intel/feed-tab";
 import { Leaderboard } from "@/components/sharp-intel/leaderboard";
 import { WalletDetailPanel } from "@/components/sharp-intel/wallet-detail-panel";
 import { SettingsSheet } from "@/components/sharp-intel/settings-sheet";
@@ -721,7 +722,7 @@ export default function SharpSignalsPage() {
     // Default (liquidity): sort by total volume
     return b.totalVolume - a.totalVolume
   })
-  const showFilters = tab === "picks" || tab === "markets" // scored tab has its own filters
+  const showFilters = tab === "markets" // feed tab has its own filters; scored tab has its own filters
 
   return (
     <AppPageLayout
@@ -808,7 +809,7 @@ export default function SharpSignalsPage() {
                   Implied %
                 </button>
               </div>
-              {tab === "picks" || tab === "scored" ? (
+              {tab === "scored" ? (
                 <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} options={PICKS_SORTS} />
               ) : null}
               <TourTrigger />
@@ -845,7 +846,7 @@ export default function SharpSignalsPage() {
                   onTierChange={setSelectedTier}
                   availableSports={availableSports}
                   showMySharps={showMySharps}
-                  onToggleMySharps={tab === "picks" && followedWallets.length > 0 ? () => setShowMySharps(!showMySharps) : undefined}
+                  onToggleMySharps={undefined}
                   followedCount={followedWallets.length}
                   followedWallets={followedWallets}
                   onUnfollow={handleToggleFollow}
@@ -861,32 +862,6 @@ export default function SharpSignalsPage() {
             </div>
           )}
 
-          {/* Hidden picks bar */}
-          {tab === "picks" && hiddenCount > 0 && (
-            <div className="flex items-center justify-between px-4 py-1.5 border-t border-neutral-200/60 dark:border-neutral-700/30 text-[11px]">
-              <div className="flex items-center gap-2">
-                <EyeOff className="w-3 h-3 text-neutral-400" />
-                <span className="text-neutral-500">{hiddenCount} hidden pick{hiddenCount !== 1 ? "s" : ""}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => updatePrefs({ signal_show_hidden: !showHidden })}
-                  className={cn(
-                    "font-medium transition-colors",
-                    showHidden ? "text-sky-600 dark:text-sky-400" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  )}
-                >
-                  {showHidden ? "Hide" : "Show"}
-                </button>
-                <button
-                  onClick={() => clearAllHidden()}
-                  className="text-neutral-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                >
-                  Clear all
-                </button>
-              </div>
-            </div>
-          )}
 
         </div>
       }
@@ -894,83 +869,13 @@ export default function SharpSignalsPage() {
       <div className="flex gap-2 sm:gap-4 h-[calc(100vh-4rem)] -mb-5">
         {/* Left Panel — independent scroll */}
         <div ref={leftPanelRef} className="flex-1 min-w-0 overflow-y-auto sm:rounded-xl bg-white dark:bg-neutral-900 sm:border border-neutral-200/60 dark:border-neutral-800/60 p-2 sm:p-3 space-y-3 sm:space-y-2">
-          {/* Picks Tab */}
+          {/* Feed Tab — real-time sharp wallet activity stream */}
           {tab === "picks" && (
-            <>
-              {picksLoading && (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 p-4 animate-pulse">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="h-3 w-8 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
-                        <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
-                      </div>
-                      <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded mb-2" />
-                      <div className="h-3 w-1/2 bg-neutral-100 dark:bg-neutral-800/30 rounded" />
-                    </div>
-                  ))}
-                </div>
-              )}
-              {picksError && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm text-red-400">Failed to load picks. Please try again.</p>
-                </div>
-              )}
-              {picks.length === 0 && !picksLoading && !picksError && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm text-neutral-400">No picks found</p>
-                  <p className="text-xs text-neutral-600 mt-1">Try adjusting your filters</p>
-                </div>
-              )}
-              {picks.map((pick: WhaleSignal, idx: number) => (
-                <PickCard
-                  key={pick.id}
-                  pick={pick}
-                  isSelected={selectedPick?.id === pick.id}
-                  onSelect={(p) => { setSelectedPick(p); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
-                  oddsFormat={oddsFormat}
-                  isSplitMarket={pick.is_split_market === true}
-                  isTourTarget={idx === 0}
-                  isHidden={isHidden(getSignalKey(pick))}
-                  onHide={() => {
-                    const key = getSignalKey(pick);
-                    if (isHidden(key)) {
-                      unhideEdge(key);
-                    } else {
-                      hideEdge({
-                        edgeKey: key,
-                        eventId: String(pick.id),
-                        sport: pick.sport || undefined,
-                        playerName: pick.outcome,
-                        market: pick.market_type || undefined,
-                        autoUnhideHours: 24,
-                      });
-                    }
-                  }}
-                  onViewMarket={pick.is_split_market === true ? () => {
-                    setModalMarketId((pick as any).condition_id || pick.market_title);
-                  } : undefined}
-                  onViewInsider={(addr) => {
-                    setModalWalletAddress(addr);
-                  }}
-                  isFollowed={followedWallets.includes(pick.wallet_address)}
-                />
-              ))}
-              {/* Infinite scroll sentinel */}
-              <div ref={sentinelRef} className="py-4 flex justify-center">
-                {picksHasMore && (picksLoadingMore || picksValidating) && picks.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs text-neutral-500">
-                    <div className="h-3.5 w-3.5 border-2 border-neutral-600 border-t-transparent rounded-full animate-spin" />
-                    Loading more...
-                  </div>
-                )}
-                {!picksHasMore && picks.length > 0 && (
-                  <span className="text-xs text-neutral-600">
-                    All {picks.length} picks loaded
-                  </span>
-                )}
-              </div>
-            </>
+            <FeedTab
+              followedWallets={followedWallets}
+              onToggleFollow={handleToggleFollow}
+              onSelectWallet={(addr) => setModalWalletAddress(addr)}
+            />
           )}
 
           {/* Markets Tab — Sharp money heat map, grouped by game */}
