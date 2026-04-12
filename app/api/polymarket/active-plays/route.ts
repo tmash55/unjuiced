@@ -75,8 +75,8 @@ export async function GET(req: NextRequest) {
       .eq("is_active", true)
       .limit(limit);
 
-    // Score filter — try combined_score first, fall back to play_score
-    query = query.gte("combined_score", minScore);
+    // Score filter using actual DB column name
+    query = query.gte("play_score", minScore);
 
     if (sport) query = query.eq("sport", sport);
     if (label) query = query.eq("play_label", label);
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
       query = query.order("estimated_edge", { ascending: false, nullsFirst: false });
     } else {
       // default: score desc
-      query = query.order("combined_score", { ascending: false });
+      query = query.order("play_score", { ascending: false });
     }
 
     const { data, error } = await query;
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
     const plays = (data ?? []).map((row: Record<string, unknown>) => ({
       ...row,
       // Canonical name aliases
-      combined_score: (row.combined_score ?? row.play_score ?? 0) as number,
+      combined_score: (row.play_score ?? 0) as number,
       market_question: (row.market_question ?? row.market_title ?? "") as string,
       recommended_side: (row.recommended_side ?? row.outcome ?? "") as string,
       wallet_count: (row.wallet_count ?? row.sharp_count ?? 0) as number,
