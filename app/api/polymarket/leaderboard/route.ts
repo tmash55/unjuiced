@@ -105,6 +105,9 @@ export async function GET(req: NextRequest) {
       win_rate: "win_rate",
       total_wagered: "total_wagered",
       composite_score: "composite_score",
+      poly_week_pnl: "poly_week_pnl",
+      poly_month_pnl: "poly_month_pnl",
+      poly_pnl: "poly_pnl",
     };
     const sortColumn = sortMap[sortBy] || "rank";
     const ascending = sortBy === "rank"; // rank is ascending (1 = best), everything else desc
