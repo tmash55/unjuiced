@@ -570,6 +570,24 @@ export function Leaderboard({
                     </>
                   )}
 
+                  {/* Poly trades + volume — desktop only */}
+                  {wallet.poly_total_trades != null && wallet.poly_total_trades > 0 && (
+                    <>
+                      <span className="hidden sm:block text-neutral-300 dark:text-neutral-700">&middot;</span>
+                      <span className="hidden sm:block text-neutral-400 dark:text-neutral-600 font-normal tabular-nums">
+                        {wallet.poly_total_trades.toLocaleString()} trades
+                      </span>
+                    </>
+                  )}
+                  {wallet.poly_volume != null && wallet.poly_volume > 0 && (
+                    <>
+                      <span className="hidden sm:block text-neutral-300 dark:text-neutral-700">&middot;</span>
+                      <span className="hidden sm:block text-neutral-400 dark:text-neutral-600 font-normal tabular-nums">
+                        {formatMoney(wallet.poly_volume)} vol
+                      </span>
+                    </>
+                  )}
+
                   {/* Last active — desktop only */}
                   {wallet.last_bet_at && (
                     <span className="hidden sm:block ml-auto text-neutral-400 dark:text-neutral-600 font-normal">

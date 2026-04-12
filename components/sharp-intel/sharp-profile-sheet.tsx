@@ -559,6 +559,75 @@ export function SharpProfileSheet({
                 </div>
               )}
 
+              {/* ── Premium Wallet Stats ────────────────────────────────────── */}
+              {(wallet.poly_total_trades != null || wallet.poly_volume != null || wallet.active_positions != null) && (
+                <div className="px-5 py-3.5 border-b border-neutral-200/50 dark:border-neutral-800/40">
+                  <p className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-2.5">
+                    Lifetime Stats
+                  </p>
+                  <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    {wallet.poly_total_trades != null && (
+                      <div className="text-center">
+                        <div className="font-mono text-[14px] font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none mb-0.5">
+                          {wallet.poly_total_trades.toLocaleString()}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Total Trades</p>
+                      </div>
+                    )}
+                    {wallet.total_markets != null && wallet.total_markets > 0 && (
+                      <div className="text-center">
+                        <div className="font-mono text-[14px] font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none mb-0.5">
+                          {wallet.total_markets.toLocaleString()}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Markets</p>
+                      </div>
+                    )}
+                    {wallet.poly_volume != null && (
+                      <div className="text-center">
+                        <div className="font-mono text-[14px] font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none mb-0.5">
+                          {formatMoney(wallet.poly_volume)}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Volume</p>
+                      </div>
+                    )}
+                    {wallet.poly_avg_stake != null && (
+                      <div className="text-center">
+                        <div className="font-mono text-[14px] font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-none mb-0.5">
+                          {formatMoney(wallet.poly_avg_stake)}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Avg Trade</p>
+                      </div>
+                    )}
+                    {wallet.active_positions != null && (
+                      <div className="text-center">
+                        <div className={cn(
+                          "font-mono text-[14px] font-bold tabular-nums leading-none mb-0.5",
+                          wallet.active_positions > 0
+                            ? "text-sky-600 dark:text-sky-400"
+                            : "text-neutral-900 dark:text-neutral-100"
+                        )}>
+                          {wallet.active_positions}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Open Pos.</p>
+                      </div>
+                    )}
+                    {wallet.biggest_loss != null && wallet.biggest_loss > 0 && (
+                      <div className="text-center">
+                        <div className="font-mono text-[14px] font-bold text-red-500 dark:text-red-400 tabular-nums leading-none mb-0.5">
+                          −{formatMoney(wallet.biggest_loss)}
+                        </div>
+                        <p className="text-[9px] text-neutral-400 dark:text-neutral-500 leading-none">Biggest L</p>
+                      </div>
+                    )}
+                  </div>
+                  {wallet.poly_first_trade_at && (
+                    <p className="text-[9px] text-neutral-400 dark:text-neutral-600 mt-2.5 text-center tabular-nums">
+                      Member since {new Date(wallet.poly_first_trade_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* ── Recent Calls ────────────────────────────────────────────── */}
               <div className="px-5 py-4 pb-8">
                 <p className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-3">
