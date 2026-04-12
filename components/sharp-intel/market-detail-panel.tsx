@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { OddsFormat, formatOdds } from "@/lib/odds"
-import { MarketPriceChart } from "./market-price-chart"
+import { SharpPriceChart } from "./sharp-price-chart"
 import { TierBadge } from "./tier-badge"
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks"
 import { useSignalOdds, type OddsEntry } from "@/hooks/use-signal-odds"
@@ -228,22 +228,9 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
   const mainOutcome = game.outcomes[0] || null
   const secondOutcome = game.outcomes[1] || null
 
-  const INTERVAL_MAP: Record<string, string> = { "1D": "1d", "1W": "1w", "1M": "1m", "MAX": "all" }
-  const [chartInterval, setChartInterval] = useState("1W")
   const [internalFlowMode, setInternalFlowMode] = useState<FlowMode>("liquidity")
   const flowMode = externalFlowMode ?? internalFlowMode
   const setFlowMode = onFlowModeChange ?? setInternalFlowMode
-
-  const { data: sideAHistory } = useSWR(
-    mainOutcome?.token_id ? `/api/polymarket/price-chart?token_id=${mainOutcome.token_id}&interval=${INTERVAL_MAP[chartInterval]}` : null,
-    fetcher,
-    { keepPreviousData: true }
-  )
-  const { data: sideBHistory } = useSWR(
-    secondOutcome?.token_id ? `/api/polymarket/price-chart?token_id=${secondOutcome.token_id}&interval=${INTERVAL_MAP[chartInterval]}` : null,
-    fetcher,
-    { keepPreviousData: true }
-  )
 
   const timeDisplay = (() => {
     if (!game.game_start_time) return "TBD"
@@ -512,43 +499,16 @@ export function MarketDetailPanel({ game, oddsFormat, onViewInsider, flowMode: e
       </div>
 
       {/* Price chart */}
-      {mainOutcome && secondOutcome && (
-        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] text-neutral-500">Price movement</p>
-            <div className="flex gap-0.5 bg-white dark:bg-neutral-900/60 rounded-md p-0.5 border border-neutral-200 dark:border-neutral-800/30">
-              {["1D", "1W", "1M", "MAX"].map((interval) => (
-                <button
-                  key={interval}
-                  onClick={() => setChartInterval(interval)}
-                  className={cn(
-                    "px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-150",
-                    chartInterval === interval
-                      ? "bg-neutral-100 shadow-sm text-neutral-900 dark:bg-neutral-800/80 dark:text-neutral-200"
-                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  )}
-                >
-                  {interval}
-                </button>
-              ))}
-            </div>
-          </div>
-          <MarketPriceChart
-            sideAPrice={mainOutcome.avg_entry_price * 100}
-            sideBPrice={secondOutcome.avg_entry_price * 100}
-            sideAName={mainOutcome.outcome}
-            sideBName={secondOutcome.outcome}
-            oddsFormat={oddsFormat}
-            sideAHistory={sideAHistory?.history}
-            sideBHistory={sideBHistory?.history}
-            fills={allBets.map(b => ({
-              time: new Date(b.created_at).getTime(),
-              price: Math.round(b.entry_price * 100),
-              outcome: b.outcome,
-            }))}
-          />
-        </div>
-      )}
+      <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-3">
+          Price movement
+        </p>
+        <SharpPriceChart
+          conditionId={game.condition_id}
+          oddsFormat={oddsFormat}
+          entryPrice={mainOutcome ? Math.round(mainOutcome.avg_entry_price * 100) : undefined}
+        />
+      </div>
 
       {/* Where to bet — side-by-side comparison */}
       <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">

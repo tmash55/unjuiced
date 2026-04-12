@@ -8,6 +8,7 @@ import { ExternalLink, Users, DollarSign, TrendingUp, Clock, Zap, BarChart3, Arr
 import { formatDistanceToNow } from "date-fns";
 import useSWR from "swr";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
+import { SharpPriceChart } from "./sharp-price-chart";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -144,6 +145,23 @@ export function ScoredPlayDetail({ play }: { play: ActivePlay }) {
           <span className="text-[10px] text-neutral-400 block mt-1">model vs market</span>
         </div>
       </div>
+
+      {/* Price chart */}
+      {play.condition_id && (
+        <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 p-3">
+          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-3">
+            Price movement
+          </p>
+          <SharpPriceChart
+            conditionId={play.condition_id}
+            entryPrice={
+              play.avg_entry_price
+                ? Math.round(parseFloat(play.avg_entry_price) * 100)
+                : undefined
+            }
+          />
+        </div>
+      )}
 
       {/* Kelly sizing */}
       {bankroll && (
