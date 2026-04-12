@@ -66,6 +66,15 @@ export interface WalletScore {
   hot_cold: "hot" | "cold" | null;
   poly_total_trades: number | null;
   poly_sport_breakdown: Record<string, { trades: number; volume: number }> | null;
+  poly_avg_stake: number | null;
+  poly_first_trade_at: string | null;
+  poly_last_trade_at: string | null;
+
+  // Premium wallet stats (populated by wallet-stats-enricher)
+  total_markets: number | null;
+  biggest_loss: number | null;
+  active_positions: number | null;
+  stats_updated_at: string | null;
 
   // Notable plays
   biggest_win_pnl: number | null;
