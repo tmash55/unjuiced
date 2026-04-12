@@ -14,6 +14,7 @@ import {
   Clock,
   Users,
   ChevronDown,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,9 +25,12 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const REFRESH_INTERVAL = 15_000; // 15s
-const CLUSTER_WINDOW_MS = 20 * 60 * 1000; // 20 min
-const CLUSTER_THRESHOLD = 2; // 2+ signals on same market = cluster
+const REFRESH_INTERVAL = 15_000;
+const CLUSTER_WINDOW_MS = 20 * 60 * 1000;
+const CLUSTER_THRESHOLD = 2;
+const SURGE_WINDOW_MS = 5 * 60 * 1000;
+const SURGE_THRESHOLD = 3;
+const FEED_LAST_VIEWED_KEY = "sharp-intel-feed-last-viewed";
 
 const SPORT_OPTIONS = [
   { label: "All", value: "" },
@@ -140,7 +144,6 @@ function formatWalletId(addr: string): string {
 function buildClusterMap(signals: WhaleSignal[]): Map<string, number> {
   const counts = new Map<string, number>();
   const cutoff = Date.now() - CLUSTER_WINDOW_MS;
-
   for (const s of signals) {
     const key = s.condition_id ?? s.market_title;
     if (!key) continue;
@@ -149,6 +152,189 @@ function buildClusterMap(signals: WhaleSignal[]): Map<string, number> {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+// ── Surge detection ───────────────────────────────────────────────────────────
+
+interface SurgeGroup {
+  key: string;
+  signals: WhaleSignal[];
+  market: string;
+  tiers: string[];
+}
+
+function buildSurgeGroups(signals: WhaleSignal[]): SurgeGroup[] {
+  const groups = new Map<string, WhaleSignal[]>();
+  const cutoff = Date.now() - SURGE_WINDOW_MS;
+
+  for (const s of signals) {
+    const key = s.condition_id ?? s.market_title;
+    if (!key) continue;
+    if (new Date(s.created_at).getTime() < cutoff) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(s);
+  }
+
+  const result: SurgeGroup[] = [];
+  for (const [key, sigs] of groups.entries()) {
+    if (sigs.length < SURGE_THRESHOLD) continue;
+    const market = sigs[0].event_title ?? sigs[0].market_title ?? key;
+    const tiers = [...new Set(
+      sigs.map(s => s.wallet_tier ?? s.tier?.toUpperCase()).filter(Boolean) as string[]
+    )].sort();
+    result.push({ key, signals: sigs, market, tiers });
+  }
+
+  return result.sort((a, b) => b.signals.length - a.signals.length);
+}
+
+// ── Surge Alert Banner ────────────────────────────────────────────────────────
+
+function SurgeAlertBanner({ surges }: { surges: SurgeGroup[] }) {
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+
+  const visible = surges.filter(s => !dismissedKeys.has(s.key));
+  const top = visible[0];
+
+  useEffect(() => {
+    if (!top) return;
+    const key = top.key;
+    const timer = setTimeout(() => {
+      setDismissedKeys(d => new Set([...d, key]));
+    }, 30_000);
+    return () => clearTimeout(timer);
+  }, [top?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!top) return null;
+
+  const tierColors: Record<string, string> = {
+    S: "text-amber-500",
+    A: "text-violet-400",
+    B: "text-sky-400",
+    C: "text-neutral-400",
+  };
+
+  return (
+    <div
+      className={cn(
+        "relative rounded-xl overflow-hidden cursor-pointer select-none",
+        "border border-amber-500/35 dark:border-amber-500/25",
+        "bg-amber-500/[0.05] dark:bg-amber-500/[0.04]",
+        "shadow-[inset_0_1px_0_rgba(251,191,36,0.1)]",
+      )}
+      onClick={() => setDismissedKeys(d => new Set([...d, top.key]))}
+    >
+      {/* Pulsing inner border overlay */}
+      <div className="absolute inset-0 rounded-xl border border-amber-400/20 animate-[surgePulse_2s_ease-in-out_infinite] pointer-events-none" />
+
+      <div className="relative flex items-start gap-3 px-3.5 py-3">
+        <div className="shrink-0 w-7 h-7 rounded-lg bg-amber-500/12 border border-amber-500/20 flex items-center justify-center mt-px">
+          <Zap className="w-3.5 h-3.5 text-amber-500" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+              Surge
+            </span>
+            <span className="h-3 w-px bg-amber-500/25 shrink-0" />
+            <span className="text-[10px] text-amber-600/70 dark:text-amber-400/60 tabular-nums">
+              {top.signals.length} sharps · 5 min
+            </span>
+            <div className="flex items-center gap-1">
+              {top.tiers.slice(0, 4).map(tier => (
+                <span
+                  key={tier}
+                  className={cn(
+                    "text-[9px] font-black px-1 py-px rounded bg-amber-500/10",
+                    tierColors[tier] ?? "text-neutral-400",
+                  )}
+                >
+                  {tier}
+                </span>
+              ))}
+            </div>
+          </div>
+          <p className="text-[12px] font-bold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight line-clamp-1">
+            {top.market}
+          </p>
+        </div>
+
+        <button
+          className="shrink-0 -mr-0.5 p-1 rounded text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          onClick={e => {
+            e.stopPropagation();
+            setDismissedKeys(d => new Set([...d, top.key]));
+          }}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+
+      {visible.length > 1 && (
+        <div className="border-t border-amber-500/10 px-3.5 py-1.5 text-[10px] text-amber-600/60 dark:text-amber-400/50">
+          +{visible.length - 1} more {visible.length - 1 === 1 ? "surge" : "surges"} active
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── P&L Ticker ────────────────────────────────────────────────────────────────
+
+function PnLTicker({ signals }: { signals: WhaleSignal[] }) {
+  const resolved = useMemo(
+    () => signals.filter(s => s.pnl !== null && s.result !== null),
+    [signals],
+  );
+
+  if (resolved.length === 0) return null;
+
+  const totalPnl = resolved.reduce((sum, s) => sum + (s.pnl ?? 0), 0);
+  const isPositive = totalPnl >= 0;
+  const winCount = resolved.filter(s => s.result === "win").length;
+  const lossCount = resolved.filter(s => s.result === "loss").length;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] border",
+        "animate-[pnlReveal_0.4s_cubic-bezier(0.16,1,0.3,1)_both]",
+        isPositive
+          ? "bg-emerald-500/[0.05] border-emerald-500/20 shadow-[inset_0_1px_0_rgba(16,185,129,0.08)]"
+          : "bg-red-500/[0.05] border-red-500/20 shadow-[inset_0_1px_0_rgba(239,68,68,0.08)]",
+      )}
+    >
+      <TrendingUp
+        className={cn("w-3 h-3 shrink-0", isPositive ? "text-emerald-500" : "text-red-500")}
+      />
+      <span className="text-neutral-600 dark:text-neutral-400">Sharp wallets</span>
+      <span
+        className={cn(
+          "font-black font-mono tabular-nums",
+          isPositive
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-red-600 dark:text-red-400",
+        )}
+      >
+        {isPositive ? "+" : ""}{formatAmount(totalPnl)}
+      </span>
+      <span className="text-neutral-400 dark:text-neutral-500">
+        on {resolved.length} resolved
+      </span>
+      {(winCount > 0 || lossCount > 0) && (
+        <>
+          <span className="h-3 w-px bg-neutral-200 dark:bg-neutral-800 shrink-0 ml-auto" />
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">
+            {winCount}W
+          </span>
+          <span className="text-red-500 dark:text-red-400 font-semibold tabular-nums">
+            {lossCount}L
+          </span>
+        </>
+      )}
+    </div>
+  );
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -218,27 +404,66 @@ function SignalCard({
   const tc = getTierConfig(walletTier);
   const isBuy = signal.side?.toUpperCase() === "BUY";
   const isSTier = walletTier === "S";
+  const isCTier = walletTier === "C";
   const isClustered = clusterCount >= CLUSTER_THRESHOLD;
   const displayId = formatWalletId(signal.wallet_address);
   const market = signal.event_title ?? signal.market_title;
   const outcome = signal.outcome;
 
   function handleCardClick(e: React.MouseEvent) {
-    // Don't open wallet panel if clicking the follow button
     const target = e.target as HTMLElement;
     if (target.closest("button[data-follow]")) return;
     onSelectWallet?.(signal.wallet_address);
   }
 
+  // ── C-tier: single-line compact row ──────────────────────────────────────
+  if (isCTier) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors duration-150 cursor-pointer",
+          "border-neutral-100 dark:border-neutral-800/40",
+          "hover:bg-neutral-50 dark:hover:bg-neutral-800/30",
+          isNew && "animate-[feedSlideIn_0.35s_cubic-bezier(0.16,1,0.3,1)_both]",
+        )}
+        onClick={handleCardClick}
+      >
+        <div className="w-0.5 h-4 rounded-full bg-neutral-300 dark:bg-neutral-700 shrink-0" />
+        <span className={cn("font-mono text-[10px] font-bold tabular-nums shrink-0", tc.badgeText)}>
+          {displayId}
+        </span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 text-[9px] font-black uppercase shrink-0",
+            isBuy ? "text-emerald-500" : "text-red-400",
+          )}
+        >
+          {isBuy ? <TrendingUp className="w-2 h-2" /> : <TrendingDown className="w-2 h-2" />}
+          {signal.side}
+        </span>
+        <span className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate min-w-0">
+          {market}
+        </span>
+        <span className="font-mono text-[10px] font-semibold tabular-nums text-neutral-500 dark:text-neutral-500 shrink-0 ml-auto">
+          {formatAmount(signal.bet_size)}
+        </span>
+        <span className="text-[10px] text-neutral-300 dark:text-neutral-700 shrink-0">
+          {formatTimeAgo(signal.created_at)}
+        </span>
+      </div>
+    );
+  }
+
+  // ── S/A/B-tier: full card ────────────────────────────────────────────────
   return (
     <div
       className={cn(
         "flex overflow-hidden rounded-xl border transition-all duration-200",
-        "cursor-pointer",
-        "active:scale-[0.998]",
+        "cursor-pointer active:scale-[0.998]",
         isSTier ? [tc.border, tc.cardBg] : tc.border,
         "bg-white dark:bg-neutral-900",
         "hover:border-neutral-300/80 dark:hover:border-neutral-700/60",
+        isSTier && "shadow-[inset_0_1px_0_rgba(251,191,36,0.08)]",
         isNew && "animate-[feedSlideIn_0.35s_cubic-bezier(0.16,1,0.3,1)_both]",
       )}
       onClick={handleCardClick}
@@ -247,10 +472,9 @@ function SignalCard({
       <div className={cn("w-1 shrink-0 rounded-l-xl", tc.stripe)} />
 
       {/* Content */}
-      <div className="flex-1 min-w-0 px-3 py-2.5">
+      <div className={cn("flex-1 min-w-0 px-3", isSTier ? "py-3" : "py-2.5")}>
         {/* Row 1: tier badge + action + meta + time */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          {/* Wallet tier */}
           <span
             className={cn(
               "inline-flex items-center px-1.5 py-px rounded text-[9px] font-black",
@@ -260,12 +484,10 @@ function SignalCard({
             {walletTier ?? "?"}
           </span>
 
-          {/* Wallet ID */}
           <span className={cn("font-mono text-[11px] font-bold tabular-nums", tc.badgeText)}>
             {displayId}
           </span>
 
-          {/* Action */}
           <span
             className={cn(
               "inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-black uppercase",
@@ -274,56 +496,51 @@ function SignalCard({
                 : "bg-red-500/12 text-red-600 dark:text-red-400",
             )}
           >
-            {isBuy ? (
-              <TrendingUp className="w-2.5 h-2.5" />
-            ) : (
-              <TrendingDown className="w-2.5 h-2.5" />
-            )}
+            {isBuy ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
             {signal.side ?? "—"}
           </span>
 
-          {/* Sport */}
           {signal.sport && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
               {signal.sport}
             </span>
           )}
 
-          {/* Cluster badge */}
           {isClustered && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-black bg-amber-500/12 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
               <Zap className="w-2 h-2" />
-              {clusterCount} signals
+              {clusterCount}
             </span>
           )}
 
-          {/* Timestamp */}
           <span className="ml-auto flex items-center gap-1 text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
             <Clock className="w-2.5 h-2.5" />
             {formatTimeAgo(signal.created_at)}
           </span>
         </div>
 
-        {/* Row 2: Market / question */}
-        <p className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight line-clamp-2 mb-1">
+        {/* Row 2: Market question — S-tier gets larger text */}
+        <p
+          className={cn(
+            "font-semibold text-neutral-900 dark:text-neutral-100 leading-snug tracking-tight line-clamp-2 mb-1",
+            isSTier ? "text-[13px]" : "text-[12px]",
+          )}
+        >
           {market}
         </p>
 
         {/* Row 3: outcome + amount + price + follow */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Outcome */}
           <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 truncate max-w-[140px]">
             {outcome}
           </span>
 
           <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
 
-          {/* Amount */}
           <span className="font-mono text-[11px] font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
             {formatAmount(signal.bet_size)}
           </span>
 
-          {/* Price */}
           <span
             className={cn(
               "font-mono text-[10px] font-semibold tabular-nums",
@@ -335,7 +552,6 @@ function SignalCard({
             @ {formatPrice(signal.entry_price)}
           </span>
 
-          {/* S-tier wallet ROI — surface extra context */}
           {isSTier && signal.wallet_roi != null && (
             <>
               <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
@@ -353,7 +569,6 @@ function SignalCard({
             </>
           )}
 
-          {/* Follow button */}
           <div className="ml-auto shrink-0" data-follow>
             <FollowButton
               isFollowing={isFollowing}
@@ -369,16 +584,20 @@ function SignalCard({
 
 // ── Live pulse indicator ──────────────────────────────────────────────────────
 
-function LivePulse({ isRefreshing }: { isRefreshing: boolean }) {
+function LivePulse({
+  isRefreshing,
+  recentCount,
+}: {
+  isRefreshing: boolean;
+  recentCount?: number;
+}) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="relative flex h-2 w-2">
         <span
           className={cn(
             "absolute inline-flex h-full w-full rounded-full opacity-75",
-            isRefreshing
-              ? "animate-ping bg-sky-400"
-              : "animate-ping bg-emerald-400",
+            isRefreshing ? "animate-ping bg-sky-400" : "animate-ping bg-emerald-400",
           )}
         />
         <span
@@ -396,7 +615,11 @@ function LivePulse({ isRefreshing }: { isRefreshing: boolean }) {
             : "text-emerald-500 dark:text-emerald-400",
         )}
       >
-        {isRefreshing ? "Updating…" : "Live"}
+        {isRefreshing
+          ? "Updating…"
+          : recentCount != null
+          ? `Live · ${recentCount} last hour`
+          : "Live"}
       </span>
     </div>
   );
@@ -404,10 +627,18 @@ function LivePulse({ isRefreshing }: { isRefreshing: boolean }) {
 
 // ── Summary bar ───────────────────────────────────────────────────────────────
 
-function SummaryBar({ signals }: { signals: WhaleSignal[] }) {
+function SummaryBar({
+  signals,
+  unreadCount,
+}: {
+  signals: WhaleSignal[];
+  unreadCount: number;
+}) {
   const buyCount = signals.filter((s) => s.side?.toUpperCase() === "BUY").length;
   const sellCount = signals.filter((s) => s.side?.toUpperCase() === "SELL").length;
-  const sTierCount = signals.filter((s) => (s.wallet_tier ?? s.tier?.toUpperCase()) === "S").length;
+  const sTierCount = signals.filter(
+    (s) => (s.wallet_tier ?? s.tier?.toUpperCase()) === "S",
+  ).length;
   const totalVolume = signals.reduce((sum, s) => sum + (s.bet_size ?? 0), 0);
 
   if (signals.length === 0) return null;
@@ -418,6 +649,12 @@ function SummaryBar({ signals }: { signals: WhaleSignal[] }) {
         {signals.length}
       </span>
       <span>signals</span>
+
+      {unreadCount > 0 && (
+        <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[9px] font-black animate-[newBadgePop_0.3s_cubic-bezier(0.16,1,0.3,1)_both]">
+          {unreadCount} new
+        </span>
+      )}
 
       {buyCount > 0 && (
         <>
@@ -468,6 +705,8 @@ export interface FeedTabProps {
   followedWallets?: string[];
   onToggleFollow?: (walletAddress: string) => void;
   onSelectWallet?: (walletAddress: string) => void;
+  /** Fires when unread signal count changes — use to show tab badge */
+  onUnreadCountChange?: (count: number) => void;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -476,21 +715,28 @@ export function FeedTab({
   followedWallets = [],
   onToggleFollow,
   onSelectWallet,
+  onUnreadCountChange,
 }: FeedTabProps) {
   const [tier, setTier] = useState("");
   const [sport, setSport] = useState("");
   const [action, setAction] = useState("");
   const [minAmount, setMinAmount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Track previously seen signal IDs for new-signal animation
   const seenIdsRef = useRef<Set<number>>(new Set());
+  const lastViewedRef = useRef<number>(0);
 
-  // Build API URL
-  const params = new URLSearchParams({
-    limit: "60",
-    sort: "recent",
-    resolved: "false",
-  });
+  // Load last-viewed timestamp on mount; save current time on unmount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(FEED_LAST_VIEWED_KEY);
+    if (stored) lastViewedRef.current = parseInt(stored, 10) || 0;
+    return () => {
+      localStorage.setItem(FEED_LAST_VIEWED_KEY, String(Date.now()));
+    };
+  }, []);
+
+  const params = new URLSearchParams({ limit: "60", sort: "recent", resolved: "false" });
   if (tier) params.set("tier", tier);
   if (sport) params.set("sport", sport);
   if (minAmount > 0) params.set("minStake", String(minAmount));
@@ -505,44 +751,82 @@ export function FeedTab({
 
   const allSignals: WhaleSignal[] = data?.signals ?? [];
 
-  // Client-side action filter (API doesn't have side param)
   const signals = useMemo(() => {
     if (!action) return allSignals;
-    return allSignals.filter(
-      (s) => s.side?.toUpperCase() === action.toUpperCase(),
-    );
+    return allSignals.filter((s) => s.side?.toUpperCase() === action.toUpperCase());
   }, [allSignals, action]);
 
-  // Cluster detection
   const clusterMap = useMemo(() => buildClusterMap(signals), [signals]);
+  const surgeGroups = useMemo(() => buildSurgeGroups(signals), [signals]);
 
-  // Track which signals are "new" (appeared since last render)
   const newIds = useMemo(() => {
     const fresh = new Set<number>();
     for (const s of signals) {
-      if (!seenIdsRef.current.has(s.id)) {
-        fresh.add(s.id);
-      }
+      if (!seenIdsRef.current.has(s.id)) fresh.add(s.id);
     }
-    // Update seen set
-    for (const s of signals) {
-      seenIdsRef.current.add(s.id);
-    }
+    for (const s of signals) seenIdsRef.current.add(s.id);
     return fresh;
   }, [signals]);
 
+  // Unread count: signals newer than last-viewed timestamp
+  useEffect(() => {
+    if (lastViewedRef.current === 0) return;
+    const count = signals.filter(
+      s => new Date(s.created_at).getTime() > lastViewedRef.current,
+    ).length;
+    setUnreadCount(count);
+    onUnreadCountChange?.(count);
+  }, [signals, onUnreadCountChange]);
+
   const handleToggleFollow = useCallback(
-    (addr: string) => {
-      onToggleFollow?.(addr);
-    },
+    (addr: string) => { onToggleFollow?.(addr); },
     [onToggleFollow],
   );
 
   const currentMinAmountLabel =
     MIN_AMOUNT_OPTIONS.find((o) => o.value === minAmount)?.label ?? "Any size";
 
+  const recentSignalCount = useMemo(() => {
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    return signals.filter(s => new Date(s.created_at).getTime() > cutoff).length;
+  }, [signals]);
+
+  // Partition signals by tier
+  const sTierSignals = signals.filter(
+    s => (s.wallet_tier ?? s.tier?.toUpperCase()) === "S",
+  );
+  const abTierSignals = signals.filter(s => {
+    const t = s.wallet_tier ?? s.tier?.toUpperCase();
+    return t === "A" || t === "B";
+  });
+  const cTierSignals = signals.filter(
+    s => (s.wallet_tier ?? s.tier?.toUpperCase()) === "C",
+  );
+
+  function renderCard(signal: WhaleSignal) {
+    const clusterKey = signal.condition_id ?? signal.market_title;
+    const clusterCount = clusterKey ? (clusterMap.get(clusterKey) ?? 1) : 1;
+    return (
+      <SignalCard
+        key={signal.id}
+        signal={signal}
+        isNew={newIds.has(signal.id)}
+        clusterCount={clusterCount}
+        isFollowing={followedWallets.includes(signal.wallet_address)}
+        onToggleFollow={handleToggleFollow}
+        onSelectWallet={onSelectWallet}
+      />
+    );
+  }
+
   return (
     <div className="space-y-2.5">
+      {/* Surge Alert Banner */}
+      {surgeGroups.length > 0 && <SurgeAlertBanner surges={surgeGroups} />}
+
+      {/* P&L Ticker */}
+      {!isLoading && signals.length > 0 && <PnLTicker signals={signals} />}
+
       {/* Filter row 1: sport pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
         {SPORT_OPTIONS.map((s) => (
@@ -563,7 +847,6 @@ export function FeedTab({
 
       {/* Filter row 2: tier + action + min amount + live indicator */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Tier segmented */}
         <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-900/60 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800/30">
           {TIER_OPTIONS.map((t) => (
             <button
@@ -586,7 +869,6 @@ export function FeedTab({
 
         <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/50 hidden sm:block" />
 
-        {/* Action pills */}
         <div className="flex items-center gap-1">
           {ACTION_OPTIONS.map((a) => (
             <button
@@ -610,7 +892,6 @@ export function FeedTab({
 
         <div className="flex-1" />
 
-        {/* Min amount dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-1.5 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/30 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 outline-none hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors">
             <Users className="w-3 h-3 text-neutral-400" />
@@ -630,18 +911,8 @@ export function FeedTab({
               >
                 {opt.label}
                 {minAmount === opt.value && (
-                  <svg
-                    className="h-3 w-3 ml-auto text-sky-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m4.5 12.75 6 6 9-13.5"
-                    />
+                  <svg className="h-3 w-3 ml-auto text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                 )}
               </DropdownMenuItem>
@@ -649,12 +920,16 @@ export function FeedTab({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Live indicator */}
-        <LivePulse isRefreshing={isValidating && !isLoading} />
+        <LivePulse
+          isRefreshing={isValidating && !isLoading}
+          recentCount={!isLoading ? recentSignalCount : undefined}
+        />
       </div>
 
       {/* Summary bar */}
-      {!isLoading && signals.length > 0 && <SummaryBar signals={signals} />}
+      {!isLoading && signals.length > 0 && (
+        <SummaryBar signals={signals} unreadCount={unreadCount} />
+      )}
 
       {/* Loading state */}
       {isLoading && <SignalSkeleton n={5} />}
@@ -670,25 +945,34 @@ export function FeedTab({
       {/* Empty state */}
       {!isLoading && !error && signals.length === 0 && <EmptyFeed />}
 
-      {/* Signal cards */}
+      {/* Signal cards — tiered hierarchy: S first, then A/B, then C compact */}
       {!isLoading && !error && signals.length > 0 && (
-        <div className="space-y-1.5">
-          {signals.map((signal) => {
-            const clusterKey = signal.condition_id ?? signal.market_title;
-            const clusterCount = clusterKey ? (clusterMap.get(clusterKey) ?? 1) : 1;
+        <div className="space-y-2">
+          {/* S-tier: premium treatment with extra breathing room */}
+          {sTierSignals.length > 0 && (
+            <div className="space-y-1.5">
+              {sTierSignals.map(renderCard)}
+            </div>
+          )}
 
-            return (
-              <SignalCard
-                key={signal.id}
-                signal={signal}
-                isNew={newIds.has(signal.id)}
-                clusterCount={clusterCount}
-                isFollowing={followedWallets.includes(signal.wallet_address)}
-                onToggleFollow={handleToggleFollow}
-                onSelectWallet={onSelectWallet}
-              />
-            );
-          })}
+          {/* A + B-tier: standard cards */}
+          {abTierSignals.length > 0 && (
+            <div className={cn("space-y-1.5", sTierSignals.length > 0 && "pt-0.5")}>
+              {abTierSignals.map(renderCard)}
+            </div>
+          )}
+
+          {/* C-tier: compact single-line entries under a divider */}
+          {cTierSignals.length > 0 && (
+            <div className="pt-1.5 border-t border-neutral-100 dark:border-neutral-800/40">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 dark:text-neutral-600 mb-1 px-0.5">
+                Lower tier
+              </p>
+              <div className="space-y-0.5">
+                {cTierSignals.map(renderCard)}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

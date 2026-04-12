@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 import { ChevronDown, Users, TrendingUp, Clock, Zap } from "lucide-react";
@@ -72,6 +72,72 @@ function SentimentBar({ sentiment }: { sentiment: ActivePlay["net_sentiment"] })
         />
       </div>
       <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{config.label}</span>
+    </div>
+  );
+}
+
+// ── Confidence meter ─────────────────────────────────────────────────────────
+
+function ConfidenceMeter({
+  walletCount,
+  sTierCount,
+  pulseOnMount,
+}: {
+  walletCount: number;
+  sTierCount?: number | null;
+  /** Briefly pulses the bar — call when a new sharp is added */
+  pulseOnMount?: boolean;
+}) {
+  const [isPulsing, setIsPulsing] = useState(false);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    if (!pulseOnMount) return;
+    setIsPulsing(true);
+    const t = setTimeout(() => setIsPulsing(false), 800);
+    return () => clearTimeout(t);
+  }, [pulseOnMount, walletCount]);
+
+  // 7 sharps = full bar (arbitrary reasonable max)
+  const fillPct = Math.min(Math.round((walletCount / 7) * 100), 100);
+
+  const fillColor =
+    walletCount >= 5
+      ? "bg-red-500"
+      : walletCount >= 3
+      ? "bg-amber-500"
+      : "bg-sky-500";
+
+  const labelColor =
+    walletCount >= 5
+      ? "text-red-500 dark:text-red-400"
+      : walletCount >= 3
+      ? "text-amber-500 dark:text-amber-400"
+      : "text-sky-500 dark:text-sky-400";
+
+  const label =
+    (sTierCount ?? 0) > 0
+      ? `${sTierCount}/${walletCount} S-tier`
+      : `${walletCount} ${walletCount === 1 ? "sharp" : "sharps"}`;
+
+  return (
+    <div className={cn("flex items-center gap-2", isPulsing && "animate-[confPulse_0.4s_ease-in-out]")}>
+      <div className="flex-1 h-1 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            fillColor,
+          )}
+          style={{ width: `${fillPct}%` }}
+        />
+      </div>
+      <span className={cn("text-[10px] font-semibold tabular-nums shrink-0 font-mono", labelColor)}>
+        {label}
+      </span>
     </div>
   );
 }
@@ -194,6 +260,10 @@ export interface PlayCardProps {
   /** Whether the card can be expanded inline (default: true) */
   expandable?: boolean;
   animationDelay?: number;
+  /** Show a "NEW" badge — set when play appeared since user's last visit */
+  isNew?: boolean;
+  /** Previous score for delta display — shows a +N/-N badge that fades out */
+  previousScore?: number | null;
 }
 
 export function PlayCard({
@@ -202,10 +272,23 @@ export function PlayCard({
   onSelect,
   expandable = true,
   animationDelay = 0,
+  isNew = false,
+  previousScore = null,
 }: PlayCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showDelta, setShowDelta] = useState(false);
 
   const score = play.combined_score ?? play.play_score ?? 0;
+  const scoreDelta = previousScore != null ? score - previousScore : null;
+
+  // Show score delta badge briefly when score changes
+  useEffect(() => {
+    if (scoreDelta == null || scoreDelta === 0) return;
+    setShowDelta(true);
+    const t = setTimeout(() => setShowDelta(false), 5000);
+    return () => clearTimeout(t);
+  }, [scoreDelta]);
+
   const ss = getScoreStyle(score);
   const opp = play.opposing_side_summary;
   const isSplit = opp?.conflict_status === "split";
@@ -248,16 +331,32 @@ export function PlayCard({
       >
         {/* Row 1: Score badge + market info + chevron */}
         <div className="flex items-start gap-3">
-          {/* Score badge */}
-          <div
-            className={cn(
-              "w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0",
-              ss.badge
+          {/* Score badge + delta */}
+          <div className="relative shrink-0">
+            <div
+              className={cn(
+                "w-11 h-11 rounded-xl flex flex-col items-center justify-center",
+                ss.badge
+              )}
+            >
+              <span className="text-base font-black leading-none tabular-nums font-mono">
+                {score}
+              </span>
+            </div>
+            {/* Score delta badge — fades up and out */}
+            {showDelta && scoreDelta != null && scoreDelta !== 0 && (
+              <span
+                className={cn(
+                  "absolute -top-1.5 -right-1.5 font-mono text-[9px] font-black tabular-nums px-1 py-px rounded",
+                  "animate-[scoreDeltaFade_5s_ease-in-out_forwards]",
+                  scoreDelta > 0
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-red-500/15 text-red-500 dark:text-red-400",
+                )}
+              >
+                {scoreDelta > 0 ? "+" : ""}{scoreDelta}
+              </span>
             )}
-          >
-            <span className="text-base font-black leading-none tabular-nums font-mono">
-              {score}
-            </span>
           </div>
 
           {/* Market info */}
@@ -272,6 +371,11 @@ export function PlayCard({
               >
                 {play.play_label ?? ss.label}
               </span>
+              {isNew && (
+                <span className="animate-[newBadgePop_0.3s_cubic-bezier(0.16,1,0.3,1)_both] px-1.5 py-px rounded text-[9px] font-black bg-sky-500/15 text-sky-500 ring-1 ring-sky-500/20">
+                  NEW
+                </span>
+              )}
               {isSplit && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/12 text-amber-500 ring-1 ring-amber-500/20">
                   SPLIT
@@ -366,6 +470,17 @@ export function PlayCard({
         {play.net_sentiment && (
           <div className="mt-2">
             <SentimentBar sentiment={play.net_sentiment} />
+          </div>
+        )}
+
+        {/* Confidence meter */}
+        {(play.wallet_count ?? 0) > 0 && (
+          <div className="mt-2">
+            <ConfidenceMeter
+              walletCount={play.wallet_count ?? play.sharp_count ?? 0}
+              sTierCount={play.s_tier_count}
+              pulseOnMount={isNew}
+            />
           </div>
         )}
       </button>
