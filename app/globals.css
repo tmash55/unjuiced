@@ -401,6 +401,33 @@
     from { opacity: 0; transform: translateY(-6px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  @keyframes surgePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  @keyframes scoreDeltaFade {
+    0% { opacity: 1; transform: translateY(0); }
+    75% { opacity: 1; transform: translateY(-3px); }
+    100% { opacity: 0; transform: translateY(-8px); }
+  }
+
+  @keyframes newBadgePop {
+    0% { opacity: 0; transform: scale(0.75); }
+    65% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes pnlReveal {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes confPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
 }
 /* 2) Light theme (source of truth) */
 :root {

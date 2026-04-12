@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useActivePlays } from "@/hooks/use-active-plays";
 import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
@@ -13,6 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const PICKS_LAST_VISIT_KEY = "sharp-intel-picks-last-visit";
 
 // ── Sport filter pills ───────────────────────────────────────────────────────
 
@@ -49,6 +53,47 @@ const SORT_OPTIONS: { label: string; value: "score" | "newest" | "edge" }[] = [
   { label: "Newest", value: "newest" },
   { label: "Edge", value: "edge" },
 ];
+
+// ── Live Activity Pulse ──────────────────────────────────────────────────────
+
+function LiveActivityPulse({
+  signalCount,
+  isRefreshing,
+}: {
+  signalCount: number;
+  isRefreshing: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="relative flex h-2 w-2">
+        <span
+          className={cn(
+            "absolute inline-flex h-full w-full rounded-full opacity-75",
+            isRefreshing ? "animate-ping bg-sky-400" : "animate-ping bg-emerald-400",
+          )}
+        />
+        <span
+          className={cn(
+            "relative inline-flex rounded-full h-2 w-2",
+            isRefreshing ? "bg-sky-500" : "bg-emerald-500",
+          )}
+        />
+      </span>
+      <span
+        className={cn(
+          "text-[10px] font-medium",
+          isRefreshing
+            ? "text-sky-500 dark:text-sky-400"
+            : "text-emerald-500 dark:text-emerald-400",
+        )}
+      >
+        {isRefreshing
+          ? "Updating…"
+          : `Live · ${signalCount} active last hour`}
+      </span>
+    </div>
+  );
+}
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
 
@@ -149,6 +194,21 @@ export function PlaysTab({
   const [minScore, setMinScore] = useState(60);
   const [sort, setSort] = useState<"score" | "newest" | "edge">("score");
 
+  // Last-visit tracking for "NEW" badges
+  const lastVisitRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(PICKS_LAST_VISIT_KEY);
+    if (stored) lastVisitRef.current = parseInt(stored, 10) || 0;
+    return () => {
+      localStorage.setItem(PICKS_LAST_VISIT_KEY, String(Date.now()));
+    };
+  }, []);
+
+  // Previous scores for delta computation
+  const prevScoresRef = useRef<Map<number, number>>(new Map());
+
   const { prefs } = useSignalPreferences();
   const hideAfter = prefs.signal_hide_delay ?? -1;
 
@@ -162,7 +222,7 @@ export function PlaysTab({
 
   const plays = useMemo(() => data?.plays ?? [], [data]);
 
-  // Filter: suppress "clear" conflict weaker side (double-check client-side)
+  // Filter: suppress "clear" conflict weaker side
   const filteredPlays = useMemo(
     () =>
       plays.filter((p) => {
@@ -175,7 +235,22 @@ export function PlaysTab({
     [plays]
   );
 
-  const nuclearCount = filteredPlays.filter((p) => (p.combined_score ?? p.play_score ?? 0) >= 90).length;
+  // Save current scores for next render, then expose previous scores to cards
+  const prevScoresSnapshot = useMemo(() => {
+    const snapshot = new Map(prevScoresRef.current);
+    // Schedule update for after render
+    return snapshot;
+  }, [filteredPlays]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    prevScoresRef.current = new Map(
+      filteredPlays.map(p => [p.id, p.combined_score ?? p.play_score ?? 0])
+    );
+  }, [filteredPlays]);
+
+  const nuclearCount = filteredPlays.filter(
+    (p) => (p.combined_score ?? p.play_score ?? 0) >= 90
+  ).length;
   const strongCount = filteredPlays.filter((p) => {
     const s = p.combined_score ?? p.play_score ?? 0;
     return s >= 75 && s < 90;
@@ -183,6 +258,16 @@ export function PlaysTab({
   const splitCount = filteredPlays.filter(
     (p) => p.opposing_side_summary?.conflict_status === "split"
   ).length;
+
+  // Count plays with a signal in the last hour
+  const activeLastHour = useMemo(() => {
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    return filteredPlays.filter(p => {
+      const lastSig = p.last_signal_at ?? p.latest_signal_at;
+      if (!lastSig) return false;
+      return new Date(lastSig).getTime() > cutoff;
+    }).length;
+  }, [filteredPlays]);
 
   const currentSort = SORT_OPTIONS.find((s) => s.value === sort) ?? SORT_OPTIONS[0];
 
@@ -195,21 +280,12 @@ export function PlaysTab({
             <Shield className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-px" />
             <span>
               Plays scored{" "}
-              <span className="font-bold text-neutral-700 dark:text-neutral-200">
-                85+
-              </span>{" "}
+              <span className="font-bold text-neutral-700 dark:text-neutral-200">85+</span>{" "}
               have historically hit{" "}
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                67.4%
-              </span>{" "}
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">67.4%</span>{" "}
               across 20,000+ signals.{" "}
-              <span className="text-neutral-400 dark:text-neutral-500">
-                90+ hits at{" "}
-              </span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                72.2%
-              </span>
-              .
+              <span className="text-neutral-400 dark:text-neutral-500">90+ hits at </span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">72.2%</span>.
             </span>
           </div>
         </div>
@@ -233,14 +309,12 @@ export function PlaysTab({
         ))}
       </div>
 
-      {/* Filter row 2: min score + label + sort */}
+      {/* Filter row 2: min score + label + sort + live pulse */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Min score segmented */}
         <ScoreSegmented value={minScore} onChange={setMinScore} />
 
         <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700/50 hidden sm:block" />
 
-        {/* Label pills */}
         <div className="flex items-center gap-1">
           {LABEL_OPTIONS.map((l) => (
             <button
@@ -268,7 +342,6 @@ export function PlaysTab({
 
         <div className="flex-1" />
 
-        {/* Sort dropdown + live indicator */}
         <div className="flex items-center gap-2">
           {isFetching && !isLoading && (
             <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
@@ -296,11 +369,7 @@ export function PlaysTab({
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m19.5 8.25-7.5 7.5-7.5-7.5"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[140px] p-1">
@@ -323,11 +392,7 @@ export function PlaysTab({
                       stroke="currentColor"
                       strokeWidth={2}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m4.5 12.75 6 6 9-13.5"
-                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                     </svg>
                   )}
                 </DropdownMenuItem>
@@ -337,9 +402,9 @@ export function PlaysTab({
         </div>
       </div>
 
-      {/* Summary chips */}
+      {/* Summary chips + live activity pulse */}
       {!isLoading && filteredPlays.length > 0 && (
-        <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+        <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-400 flex-wrap">
           <span className="tabular-nums">{filteredPlays.length} active</span>
           <SummaryChip
             count={nuclearCount}
@@ -354,10 +419,14 @@ export function PlaysTab({
             icon={<TrendingUp className="w-3 h-3" />}
           />
           {splitCount > 0 && (
-            <span className="text-amber-500 font-semibold">
-              {splitCount} split
-            </span>
+            <span className="text-amber-500 font-semibold">{splitCount} split</span>
           )}
+          <div className="ml-auto">
+            <LiveActivityPulse
+              signalCount={activeLastHour}
+              isRefreshing={isFetching && !isLoading}
+            />
+          </div>
         </div>
       )}
 
@@ -366,12 +435,8 @@ export function PlaysTab({
 
       {error && !isLoading && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-sm text-red-400 font-medium">
-            Failed to load plays
-          </p>
-          <p className="text-xs text-neutral-500 mt-1">
-            Check your connection and try again
-          </p>
+          <p className="text-sm text-red-400 font-medium">Failed to load plays</p>
+          <p className="text-xs text-neutral-500 mt-1">Check your connection and try again</p>
         </div>
       )}
 
@@ -404,15 +469,25 @@ export function PlaysTab({
       {/* Cards */}
       {!isLoading && !error && filteredPlays.length > 0 && (
         <div className="space-y-2">
-          {filteredPlays.map((play, idx) => (
-            <PlayCard
-              key={play.id}
-              play={play}
-              isSelected={selectedPlayId === play.id}
-              onSelect={onSelectPlay}
-              animationDelay={Math.min(idx * 40, 200)}
-            />
-          ))}
+          {filteredPlays.map((play, idx) => {
+            const prevScore = prevScoresSnapshot.get(play.id) ?? null;
+            const isNew =
+              lastVisitRef.current > 0 &&
+              !!play.first_signal_at &&
+              new Date(play.first_signal_at).getTime() > lastVisitRef.current;
+
+            return (
+              <PlayCard
+                key={play.id}
+                play={play}
+                isSelected={selectedPlayId === play.id}
+                onSelect={onSelectPlay}
+                animationDelay={Math.min(idx * 40, 200)}
+                isNew={isNew}
+                previousScore={prevScore}
+              />
+            );
+          })}
         </div>
       )}
     </div>
