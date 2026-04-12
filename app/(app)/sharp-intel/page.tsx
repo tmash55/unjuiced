@@ -13,8 +13,8 @@ import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 import { Filters } from "@/components/sharp-intel/filters";
 import { PickCard } from "@/components/sharp-intel/pick-card";
 import { PickDetailPanel } from "@/components/sharp-intel/pick-detail-panel";
-import { MarketCard } from "@/components/sharp-intel/market-card";
 import { MarketDetailPanel } from "@/components/sharp-intel/market-detail-panel";
+import { MarketHeatmap } from "@/components/sharp-intel/market-heatmap";
 import { Leaderboard } from "@/components/sharp-intel/leaderboard";
 import { WalletDetailPanel } from "@/components/sharp-intel/wallet-detail-panel";
 import { SettingsSheet } from "@/components/sharp-intel/settings-sheet";
@@ -808,9 +808,7 @@ export default function SharpSignalsPage() {
                   Implied %
                 </button>
               </div>
-              {tab === "markets" ? (
-                <SortDropdown value={marketSort} onChange={setMarketSort} options={MARKETS_SORTS} />
-              ) : tab === "picks" ? (
+              {tab === "picks" || tab === "scored" ? (
                 <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} options={PICKS_SORTS} />
               ) : null}
               <TourTrigger />
@@ -855,9 +853,7 @@ export default function SharpSignalsPage() {
               </div>
               {/* Sort + settings — mobile */}
               <div className="flex sm:hidden items-center gap-1.5 pr-3 shrink-0">
-                {tab === "markets" ? (
-                  <SortDropdown value={marketSort} onChange={setMarketSort} options={MARKETS_SORTS} />
-                ) : (
+                {tab !== "markets" && (
                   <SortDropdown value={prefs.signal_sort_by || "score"} onChange={(v) => updatePrefs({ signal_sort_by: v })} options={PICKS_SORTS} />
                 )}
                 <SettingsSheet prefs={prefs} onUpdate={updatePrefs} />
@@ -977,47 +973,12 @@ export default function SharpSignalsPage() {
             </>
           )}
 
-          {/* Markets Tab */}
+          {/* Markets Tab — Sharp money heat map, grouped by game */}
           {tab === "markets" && (
-            <div data-tour="markets-list">
-              {marketsLoading && (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/30 bg-neutral-50/50 dark:bg-neutral-800/40 p-4 animate-pulse">
-                      <div className="space-y-3">
-                        <div className="h-3 w-32 bg-neutral-200 dark:bg-neutral-800/50 rounded" />
-                        <div className="h-3.5 w-3/4 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
-                        <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800/30 rounded-full" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {marketsError && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm text-red-400">Failed to load markets. Please try again.</p>
-                </div>
-              )}
-              {marketCards.length === 0 && !marketsLoading && !marketsError && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm text-neutral-400">No markets found</p>
-                  <p className="text-xs text-neutral-600 mt-1">Try adjusting your filters</p>
-                </div>
-              )}
-              {marketCards.map((market: any) => (
-                <MarketCard
-                  key={market.id}
-                  market={market}
-                  isSelected={selectedMarket?.condition_id === market.id}
-                  flowMode={flowMode}
-                  onSelect={(market: any) => {
-                    const gameData = markets.find((g: GameData) => g.condition_id === market.id)
-                    if (gameData) { setSelectedMarket(gameData); if (window.innerWidth < 768) setMobileDetailOpen(true); }
-                  }}
-                  oddsFormat={oddsFormat}
-                />
-              ))}
-            </div>
+            <MarketHeatmap
+              selectedSport={selectedSport}
+              excludedSports={excludedSports}
+            />
           )}
 
           {/* Scored Picks Tab (v2) */}
@@ -1064,8 +1025,50 @@ export default function SharpSignalsPage() {
             <ScoredPlayDetail play={selectedScoredPlay} />
           )}
 
-          {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
+          {tab === "markets" && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Heat Map Guide</h3>
+                <p className="text-[12px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Games are ranked by sharp activity. Click any game to expand and see individual plays scored by our model.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { label: "HOT", color: "bg-red-500", desc: "Max score 85+ — strong consensus" },
+                  { label: "ACTIVE", color: "bg-orange-500", desc: "Score 70–84 — multiple signals" },
+                  { label: "WARM", color: "bg-amber-500", desc: "Score 55–69 — early positioning" },
+                  { label: "WATCH", color: "bg-neutral-400 dark:bg-neutral-600", desc: "Score below 55 — monitoring" },
+                ].map(({ label, color, desc }) => (
+                  <div key={label} className="flex items-start gap-2.5">
+                    <div className={cn("w-1 h-10 rounded-full shrink-0 mt-0.5", color)} />
+                    <div>
+                      <span className="text-[11px] font-black text-neutral-900 dark:text-neutral-200 block">{label}</span>
+                      <span className="text-[10px] text-neutral-500">{desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800/40">
+                <p className="text-[10px] text-neutral-400 uppercase tracking-wider mb-2">Score labels</p>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "NUCLEAR", range: "90+", color: "bg-red-500" },
+                    { label: "STRONG", range: "75–89", color: "bg-orange-500" },
+                    { label: "LEAN", range: "60–74", color: "bg-amber-500" },
+                    { label: "WATCH", range: "45–59", color: "bg-neutral-500" },
+                  ].map(({ label, range, color }) => (
+                    <div key={label} className="flex items-center gap-2 text-[11px]">
+                      <div className={cn("w-5 h-5 rounded flex items-center justify-center text-[9px] font-black text-white shrink-0", color)}>
+                        {range.split("–")[0]}
+                      </div>
+                      <span className="font-bold text-neutral-700 dark:text-neutral-300">{label}</span>
+                      <span className="text-neutral-400 ml-auto font-mono">{range}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {tab === "leaderboard" && selectedWallet && (
@@ -1080,11 +1083,10 @@ export default function SharpSignalsPage() {
           {/* Empty state */}
           {((tab === "scored" && !selectedScoredPlay) ||
             (tab === "picks" && !selectedPick) ||
-            (tab === "markets" && !selectedMarket) ||
             (tab === "leaderboard" && !selectedWallet)) && (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <p className="text-sm text-neutral-600">
-                Select a {tab === "scored" ? "play" : tab === "picks" ? "pick" : tab === "markets" ? "market" : "wallet"} to view details
+                Select a {tab === "scored" ? "play" : tab === "picks" ? "pick" : "wallet"} to view details
               </p>
             </div>
           )}
@@ -1101,11 +1103,9 @@ export default function SharpSignalsPage() {
               ? selectedScoredPlay.market_title
               : tab === "picks" && selectedPick
               ? selectedPick.event_title || selectedPick.market_title
-              : tab === "markets" && selectedMarket
-                ? selectedMarket.market_title
-                : tab === "leaderboard" && selectedWallet
-                  ? `#${selectedWallet.wallet_address.slice(0, 4).toUpperCase()}`
-                  : undefined
+              : tab === "leaderboard" && selectedWallet
+                ? `#${selectedWallet.wallet_address.slice(0, 4).toUpperCase()}`
+                : undefined
           }
         >
           {tab === "scored" && selectedScoredPlay && (
@@ -1123,9 +1123,6 @@ export default function SharpSignalsPage() {
                 setModalWalletAddress(addr);
               }}
             />
-          )}
-          {tab === "markets" && selectedMarket && (
-            <MarketDetailPanel game={selectedMarket} oddsFormat={oddsFormat} onViewInsider={(addr) => setModalWalletAddress(addr)} />
           )}
           {tab === "leaderboard" && selectedWallet && (
             <WalletDetailPanel
