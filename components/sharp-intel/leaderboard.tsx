@@ -155,6 +155,7 @@ interface LeaderboardProps {
   onSelectWallet: (wallet: WalletScore) => void
   followedWallets: string[]
   onToggleFollow: (walletAddress: string) => void
+  onOpenProfile?: (walletAddress: string) => void
 }
 
 export function Leaderboard({
@@ -162,6 +163,7 @@ export function Leaderboard({
   onSelectWallet,
   followedWallets,
   onToggleFollow,
+  onOpenProfile,
 }: LeaderboardProps) {
   const [period, setPeriod] = useState<Period>("30d")
   const [tierFilter, setTierFilter] = useState("")
@@ -461,8 +463,19 @@ export function Leaderboard({
                 {/* Row 1: Rank · Tier · ID · hot/cold · PnL · Follow */}
                 <div className="flex items-center gap-2 mb-1">
                   <RankDisplay rank={rank} />
-                  <WalletTierBadge tier={wallet.tier} />
-                  <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
+                  <span
+                    onClick={onOpenProfile ? (e) => { e.stopPropagation(); onOpenProfile(wallet.wallet_address); } : undefined}
+                    className={onOpenProfile ? "cursor-pointer" : undefined}
+                  >
+                    <WalletTierBadge tier={wallet.tier} />
+                  </span>
+                  <span
+                    className={cn(
+                      "font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums",
+                      onOpenProfile && "cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-100"
+                    )}
+                    onClick={onOpenProfile ? (e) => { e.stopPropagation(); onOpenProfile(wallet.wallet_address); } : undefined}
+                  >
                     {anonId}
                   </span>
 

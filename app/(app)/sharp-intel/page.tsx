@@ -18,6 +18,7 @@ import { MarketHeatmap } from "@/components/sharp-intel/market-heatmap";
 import { FeedTab } from "@/components/sharp-intel/feed-tab";
 import { Leaderboard } from "@/components/sharp-intel/leaderboard";
 import { WalletDetailPanel } from "@/components/sharp-intel/wallet-detail-panel";
+import { SharpProfileSheet } from "@/components/sharp-intel/sharp-profile-sheet";
 import { SettingsSheet } from "@/components/sharp-intel/settings-sheet";
 import { DetailSheet } from "@/components/sharp-intel/detail-sheet";
 import { OnboardingTour, TourTrigger, hasOddsForSport } from "@/components/sharp-intel/onboarding-tour";
@@ -175,45 +176,6 @@ function MarketModalContent({ marketId, oddsFormat, onViewInsider }: { marketId:
   return <MarketDetailPanel game={game} oddsFormat={oddsFormat} onViewInsider={onViewInsider} />
 }
 
-/** Fetches real wallet data from leaderboard API for the modal */
-function WalletModalContent({ walletAddress, oddsFormat, isFollowing, onToggleFollow }: {
-  walletAddress: string
-  oddsFormat: OddsFormat
-  isFollowing: boolean
-  onToggleFollow: (addr: string) => void
-}) {
-  const { data, isLoading } = useSWR(
-    `/api/polymarket/leaderboard?limit=1&wallet=${walletAddress}`,
-    fetcher
-  )
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3 animate-pulse py-4">
-        <div className="flex items-center gap-2">
-          <div className="h-5 w-16 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
-          <div className="h-5 w-12 bg-neutral-200 dark:bg-neutral-800/40 rounded" />
-        </div>
-        <div className="h-4 w-32 bg-neutral-200 dark:bg-neutral-800/30 rounded" />
-        <div className="grid grid-cols-3 gap-3">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-neutral-200 dark:bg-neutral-800/20 rounded" />)}
-        </div>
-      </div>
-    )
-  }
-
-  const wallet = data?.wallets?.[0]
-  if (!wallet) return <p className="text-xs text-neutral-500 py-4 text-center">Wallet not found</p>
-
-  return (
-    <WalletDetailPanel
-      wallet={wallet}
-      oddsFormat={oddsFormat}
-      isFollowing={isFollowing}
-      onToggleFollow={onToggleFollow}
-    />
-  )
-}
 
 export default function SharpSignalsPage() {
   const { hasAccess, isLoading } = useHasEliteAccess();
@@ -905,6 +867,7 @@ export default function SharpSignalsPage() {
                 onSelectWallet={(w) => { setSelectedWallet(w); if (window.innerWidth < 768) setMobileDetailOpen(true); }}
                 followedWallets={followedWallets}
                 onToggleFollow={handleToggleFollow}
+                onOpenProfile={(addr) => setModalWalletAddress(addr)}
               />
             </div>
           )}
@@ -1039,24 +1002,13 @@ export default function SharpSignalsPage() {
           )}
         </DetailSheet>
       </div>
-      {/* Wallet Quick-View Modal */}
-      <Dialog open={!!modalWalletAddress} onOpenChange={(open) => !open && setModalWalletAddress(null)}>
-        <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
-              Insider profile
-            </DialogTitle>
-          </DialogHeader>
-          {modalWalletAddress && (
-            <WalletModalContent
-              walletAddress={modalWalletAddress}
-              oddsFormat={oddsFormat}
-              isFollowing={followedWallets.includes(modalWalletAddress)}
-              onToggleFollow={handleToggleFollow}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Sharp Profile Sheet — slide-over from right */}
+      <SharpProfileSheet
+        walletAddress={modalWalletAddress}
+        onClose={() => setModalWalletAddress(null)}
+        followedWallets={followedWallets}
+        onToggleFollow={handleToggleFollow}
+      />
 
       {/* Market Quick-View Modal */}
       <Dialog open={!!modalMarketId} onOpenChange={(open) => !open && setModalMarketId(null)}>
