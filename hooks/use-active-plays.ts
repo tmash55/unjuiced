@@ -3,22 +3,28 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ActivePlay } from "@/app/api/polymarket/active-plays/route";
 
-interface ActivePlaysOptions {
+export interface ActivePlaysOptions {
   minScore?: number;
   sport?: string | null;
   label?: string | null;
-  hideAfterHours?: number; // -1 = show all, 0 = hide started (default), 1/2/3 = hours after start
+  sort?: "score" | "newest" | "edge";
+  /** -1 = show all, 0 = hide started (default), N = show up to N hours after start */
+  hideAfterHours?: number;
 }
 
 export function useActivePlays(opts: ActivePlaysOptions = {}) {
-  return useQuery<{ plays: ActivePlay[]; meta: { total: number } }>({
-    queryKey: ["active-plays", opts.minScore ?? 0, opts.sport ?? "all", opts.label ?? "all", opts.hideAfterHours ?? 0],
+  const { minScore = 0, sport, label, sort = "score", hideAfterHours = 0 } = opts;
+
+  return useQuery<{ plays: ActivePlay[]; meta: { total: number; minScore: number; sort: string } }>({
+    queryKey: ["active-plays", minScore, sport ?? "all", label ?? "all", sort, hideAfterHours],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (opts.minScore) params.set("min_score", String(opts.minScore));
-      if (opts.sport) params.set("sport", opts.sport);
-      if (opts.label) params.set("label", opts.label);
-      if (opts.hideAfterHours != null) params.set("hide_after", String(opts.hideAfterHours));
+      if (minScore > 0) params.set("min_score", String(minScore));
+      if (sport) params.set("sport", sport);
+      if (label) params.set("label", label);
+      if (sort !== "score") params.set("sort", sort);
+      if (hideAfterHours != null) params.set("hide_after", String(hideAfterHours));
+
       const res = await fetch(`/api/polymarket/active-plays?${params}`);
       if (!res.ok) throw new Error("Failed to fetch active plays");
       return res.json();

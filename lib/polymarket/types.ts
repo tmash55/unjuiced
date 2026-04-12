@@ -263,10 +263,9 @@ export interface SignalPreferences {
   signal_market_types?: string[];     // Market type filter (moneyline, spread, total, futures)
   signal_hide_delay?: number;         // Hours after game start to keep showing picks (0 = hide immediately, default)
   signal_show_hidden?: boolean;       // Show hidden picks (default true)
-  // Kelly Criterion sizing
-  bankroll?: number;                  // Total betting bankroll in USD
-  risk_tolerance?: string;            // "conservative" | "moderate" | "aggressive"
-  max_bet_pct?: number;               // Max % of bankroll on any single bet (default 5)
+  // Kelly sizing
+  bankroll?: number | null;           // User bankroll for Kelly bet sizing
+  risk_tolerance?: "conservative" | "moderate" | "aggressive"; // Kelly fraction
 }
 
 export interface WalletDetailResponse {
