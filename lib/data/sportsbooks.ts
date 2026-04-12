@@ -512,7 +512,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     requiresState: false
   },
   "polymarket": {
-    id: "polymarket-us",
+    id: "polymarket",
     oddsVendorId: "polymarket-us",
     name: "Polymarket",
     sgp: false,
