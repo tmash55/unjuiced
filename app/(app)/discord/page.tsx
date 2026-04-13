@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { ExternalLink, MessageCircle, Users, Zap, ArrowRight } from "lucide-react";
 
-const DISCORD_INVITE = "https://discord.gg/mbQgUcfC";
+const DISCORD_INVITE = "https://discord.gg/wCNjxDwV";
 
 export default function DiscordPage() {
   // Auto-redirect after a short delay so users see the page briefly
