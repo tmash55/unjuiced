@@ -27,6 +27,7 @@ import {
   IconHistory,
   IconBuildingBank,
   IconTags,
+  IconBrandDiscord,
 } from "@tabler/icons-react"
 import { SportIcon } from "@/components/icons/sport-icons"
 
@@ -164,6 +165,7 @@ const resourcesLinks: NavItem[] = [
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
   { label: "My Slips", href: "/my-slips", icon: IconHeart },
+  { label: "Discord", href: "/discord", icon: IconBrandDiscord },
 ]
 
 const accountLinks: NavItem[] = [
