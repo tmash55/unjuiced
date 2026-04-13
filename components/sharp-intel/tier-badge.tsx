@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils";
  * Mapping (based on signal.tier, NOT wallet_tier S/A/B/C):
  *   "sharp"  → Sharp       (green)
  *   "whale"  → Insider     (purple)
+ *   "fade"   → Fade        (red)
  *   "burner" → New Account (gray)
  */
 
-export type SignalTier = "sharp" | "whale" | "burner";
+export type SignalTier = "sharp" | "whale" | "fade" | "burner";
 
 const tierConfig: Record<
   SignalTier,
@@ -28,6 +29,12 @@ const tierConfig: Record<
     dot: "bg-purple-500 dark:bg-purple-400",
     text: "text-purple-600 dark:text-purple-400",
     bg: "bg-purple-50 border-purple-200 dark:bg-purple-500/10 dark:border-purple-500/25",
+  },
+  fade: {
+    label: "Fade",
+    dot: "bg-red-500 dark:bg-red-400",
+    text: "text-red-600 dark:text-red-400",
+    bg: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/25",
   },
   burner: {
     label: "New Account",

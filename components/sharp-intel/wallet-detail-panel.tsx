@@ -30,7 +30,10 @@ function formatMoney(n: number): string {
 
 function walletTierToSignalTier(tier: string): string {
   const t = tier?.toUpperCase()
-  if (t === "FADE" || t === "NEW") return "burner"
+  if (t === "FADE") return "fade"
+  if (t === "NEW" || t === "BURNER" || t === "UNKNOWN" || !t) return "burner"
+  if (t === "WHALE") return "whale"
+  // S, A, B, C and anything else recognized as sharp
   return "sharp"
 }
 
