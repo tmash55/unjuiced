@@ -993,8 +993,8 @@ function redevigWithCustomSharp(
   // Need at least one sharp book on each side to devig
   if (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) {
     // Log for debugging missing custom model rows
-    if (row.mkt === "player_home_runs" || row.mkt === "batter_home_runs") {
-      console.log(`[custom-model] Skipped HR row: ${row.sel || row.desc || "unknown"} — thisSide=${thisSideSharpEntries.length} oppSide=${oppSideSharpEntries.length} books=${config.books.join(",")} allBooks=${allBooks.map(b => b.canonicalId).join(",")} oppBooks=${oppBooks.map(b => b.canonicalId).join(",")}`);
+    if (row.mkt === "player_home_runs" || row.mkt === "batter_home_runs" || row.mkt?.includes("home_run")) {
+      console.log(`[custom-model] Skipped HR: "${row.sel || row.desc}" side=${side} thisSide=${thisSideSharpEntries.length}(need${side==="over"?"over":"under"}) oppSide=${oppSideSharpEntries.length}(need${side==="over"?"under":"over"}) wantBooks=[${config.books}] allBooksHave=[${allBooks.map(b => b.canonicalId)}] oppBooksHave=[${oppBooks.map(b => b.canonicalId)}]`);
     }
     return null;
   }
