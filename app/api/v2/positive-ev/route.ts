@@ -389,6 +389,12 @@ export async function GET(req: NextRequest) {
             if (!redevigged) continue; // Skip if custom sharp books not found in this row
             processedRow = redevigged;
           }
+          // Debug: log first few HR rows that pass all filters
+          if (processedRow.mkt === "player_home_runs" || processedRow.mkt === "batter_home_runs") {
+            if (allRows.filter(r => r.mkt === "player_home_runs" || r.mkt === "batter_home_runs").length < 3) {
+              console.log(`[positive-ev] HR row passed: ${processedRow.sel || processedRow.desc} ev_data_books=${processedRow.ev_data?.all_books?.length ?? 0} custom=${!!customSharpConfig}`);
+            }
+          }
 
           // Apply client-side filters using only the active devig methods.
           const selectedRange = getSelectedRowEvRange(processedRow, devigMethods);
@@ -431,6 +437,12 @@ export async function GET(req: NextRequest) {
         }
       }
     );
+
+    // Debug summary
+    if (customSharpConfig) {
+      const hrRows = allRows.filter(r => r.mkt === "player_home_runs" || r.mkt === "batter_home_runs");
+      console.log(`[positive-ev] Custom model summary: total=${allRows.length} HR=${hrRows.length} books=${customSharpConfig.books.join(",")} sports=${sports.join(",")}`);
+    }
 
     // ── Step 3: Worker not populated yet → return 503 with retry hint ────────
     if (!workerDataFound && allRows.length === 0) {
@@ -979,7 +991,13 @@ function redevigWithCustomSharp(
   const oppSideSharpEntries = oppBooks.filter((b) => customBooksSet.has(b.canonicalId));
 
   // Need at least one sharp book on each side to devig
-  if (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) return null;
+  if (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) {
+    // Log for debugging missing custom model rows
+    if (row.mkt === "player_home_runs" || row.mkt === "batter_home_runs") {
+      console.log(`[custom-model] Skipped HR row: ${row.sel || row.desc || "unknown"} — thisSide=${thisSideSharpEntries.length} oppSide=${oppSideSharpEntries.length} books=${config.books.join(",")} allBooks=${allBooks.map(b => b.canonicalId).join(",")} oppBooks=${oppBooks.map(b => b.canonicalId).join(",")}`);
+    }
+    return null;
+  }
 
   // Build blended sharp odds
   let sharpOverAm: number;
