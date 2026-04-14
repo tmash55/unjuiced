@@ -358,8 +358,16 @@ export async function GET(req: NextRequest) {
     let workerDataFound = false;
     let alternateReferenceDataFound = false;
 
-    // For custom presets, read pinnacle data as the base
-    const readPreset = customSharpConfig ? "pinnacle" : sharpPreset;
+    // For custom presets, try reading from a preset hash that matches one of the
+    // custom sharp books (their hash will contain their own odds in all_books/opp_books).
+    // Fall back to pinnacle if none of the custom books have a valid preset hash.
+    let readPreset = sharpPreset;
+    if (customSharpConfig) {
+      const VALID_CUSTOM_PRESETS = new Set(VALID_PRESETS);
+      const matchingPreset = customSharpConfig.books.find((b) => VALID_CUSTOM_PRESETS.has(b));
+      readPreset = (matchingPreset ?? "pinnacle") as SharpPreset;
+      console.log(`[positive-ev] Custom model: reading from '${readPreset}' preset (books: ${customSharpConfig.books.join(",")})`);
+    }
 
     await forEachWithConcurrency(
       sports,
@@ -990,13 +998,57 @@ function redevigWithCustomSharp(
   const thisSideSharpEntries = allBooks.filter((b) => customBooksSet.has(b.canonicalId));
   const oppSideSharpEntries = oppBooks.filter((b) => customBooksSet.has(b.canonicalId));
 
-  // Need at least one sharp book on each side to devig
-  if (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) {
-    // Log for debugging missing custom model rows
-    if (row.mkt === "player_home_runs" || row.mkt === "batter_home_runs" || row.mkt?.includes("home_run")) {
-      console.log(`[custom-model] Skipped HR: "${row.sel || row.desc}" side=${side} thisSide=${thisSideSharpEntries.length}(need${side==="over"?"over":"under"}) oppSide=${oppSideSharpEntries.length}(need${side==="over"?"under":"over"}) wantBooks=[${config.books}] allBooksHave=[${allBooks.map(b => b.canonicalId)}] oppBooksHave=[${oppBooks.map(b => b.canonicalId)}]`);
-    }
+  // Need at least one sharp book on each side to devig — UNLESS one of the
+  // custom books is "novig" which is already vig-free (no devig needed).
+  const hasNoVig = customBooksSet.has("novig");
+
+  if (thisSideSharpEntries.length === 0 && oppSideSharpEntries.length === 0) {
+    return null; // No custom book odds at all
+  }
+
+  if ((thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) && !hasNoVig) {
+    // Standard devig requires both sides — skip if missing
     return null;
+  }
+
+  // If we have a NoVig entry on this side but missing the opposite side,
+  // use NoVig odds directly as fair probability (it's already vig-free)
+  const useNoVigDirect = hasNoVig && (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0);
+  if (useNoVigDirect) {
+    const noVigEntry = thisSideSharpEntries.find((b) => b.canonicalId === "novig")
+      ?? oppSideSharpEntries.find((b) => b.canonicalId === "novig");
+    if (!noVigEntry) return null;
+
+    // NoVig odds ARE the fair odds — convert directly to probability
+    const fairProb = americanToImpliedProb(noVigEntry.am);
+
+    // Find best bettable book on this side
+    const bettableBooks = allBooks
+      .filter((b) => !customBooksSet.has(b.canonicalId))
+      .sort((a, b) => {
+        const aProb = americanToImpliedProb(a.am);
+        const bProb = americanToImpliedProb(b.am);
+        return aProb - bProb; // Lower implied = better odds for the bettor
+      });
+    const bestBettable = bettableBooks[0];
+    if (!bestBettable) return null;
+
+    const bettableProb = americanToImpliedProb(bestBettable.am);
+    const ev = ((fairProb / bettableProb) - 1) * 100;
+
+    // Build result row with NoVig direct pricing
+    return {
+      ...row,
+      book: { id: bestBettable.canonicalId, odds: { am: bestBettable.am, dec: bestBettable.dec ?? 0 } },
+      ev_data: {
+        ...(row.ev_data ?? {}),
+        power: { ev, fairProb, fairAm: noVigEntry.am },
+        multiplicative: { ev, fairProb, fairAm: noVigEntry.am },
+        additive: { ev, fairProb, fairAm: noVigEntry.am },
+        probit: { ev, fairProb, fairAm: noVigEntry.am },
+        sharp: { id: "novig", odds: { am: noVigEntry.am, dec: noVigEntry.dec ?? 0 } },
+      },
+    } as WorkerEVRow;
   }
 
   // Build blended sharp odds
