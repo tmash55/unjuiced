@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -869,6 +869,102 @@ function EvScatterPlot({
   );
 }
 
+// ── Game Filter Dropdown (matches prop center style) ─────────────────────────
+
+function EvGameDropdown({
+  games,
+  selectedGame,
+  onSelect,
+}: {
+  games: { gameId: string; away: string; home: string }[];
+  selectedGame: string;
+  onSelect: (gameId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selected = selectedGame === "all" ? null : games.find((g) => g.gameId === selectedGame);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap",
+          "bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200 dark:hover:bg-neutral-700/60",
+          open && "ring-1 ring-brand/30"
+        )}
+      >
+        {selected ? (
+          <>
+            <img src={`/team-logos/mlb/${selected.away.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
+            <span className="text-neutral-700 dark:text-neutral-300">{selected.away} @ {selected.home}</span>
+            <img src={`/team-logos/mlb/${selected.home.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
+          </>
+        ) : (
+          <span className="text-neutral-500">All Games</span>
+        )}
+        <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+          <button
+            onClick={() => { onSelect("all"); setOpen(false); }}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold transition-colors border-b border-neutral-100 dark:border-neutral-800/50",
+              selectedGame === "all"
+                ? "bg-brand/5 dark:bg-brand/10 text-brand"
+                : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+            )}
+          >
+            All Games
+            {selectedGame === "all" && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-brand" />}
+          </button>
+          <div className="max-h-[320px] overflow-y-auto">
+            {games.map((g) => {
+              const isSelected = g.gameId === selectedGame;
+              return (
+                <button
+                  key={g.gameId}
+                  onClick={() => { onSelect(g.gameId); setOpen(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2.5 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
+                    isSelected
+                      ? "bg-brand/5 dark:bg-brand/10"
+                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <img src={`/team-logos/mlb/${g.away.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white">{g.away}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <img src={`/team-logos/mlb/${g.home.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
+                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white">{g.home}</span>
+                    </div>
+                  </div>
+                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbExitVelocity() {
@@ -1000,22 +1096,6 @@ export function MlbExitVelocity() {
           onDateChange={setSelectedDate}
           right={
             <>
-              {/* Game filter */}
-              {gameOptions.length > 1 && (
-                <div className="relative">
-                  <select
-                    value={selectedGame}
-                    onChange={(e) => setSelectedGame(e.target.value)}
-                    className="appearance-none bg-neutral-100 dark:bg-neutral-800/60 border-none rounded-lg px-3 py-1.5 pr-7 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand/30"
-                  >
-                    <option value="all">All Games</option>
-                    {gameOptions.map((g) => (
-                      <option key={g.gameId} value={g.gameId}>{g.away} @ {g.home}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
-                </div>
-              )}
               {/* View toggle */}
               <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
                 <button
@@ -1084,6 +1164,13 @@ export function MlbExitVelocity() {
           }
           mobileControls={
             <>
+              {gameOptions.length > 1 && (
+                <EvGameDropdown
+                  games={gameOptions}
+                  selectedGame={selectedGame}
+                  onSelect={setSelectedGame}
+                />
+              )}
               <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
               <div className="flex items-center gap-2 w-full">
                 <SegmentedControl
@@ -1140,6 +1227,17 @@ export function MlbExitVelocity() {
             </>
           }
         >
+          {/* Game filter */}
+          {gameOptions.length > 1 && (
+            <>
+              <EvGameDropdown
+                games={gameOptions}
+                selectedGame={selectedGame}
+                onSelect={setSelectedGame}
+              />
+              <FilterDivider />
+            </>
+          )}
           <SegmentedControl
             value={season ? String(season) : "all"}
             onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
