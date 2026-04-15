@@ -661,7 +661,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Fetch box scores for this player (used for chart and table)
   const { games: boxScoreGames, seasonSummary, isLoading: boxScoresLoading } = usePlayerBoxScores({
     playerId: profile.playerId,
-    limit: 50, // Get plenty of games for season view
+    limit: 100, // Full NBA season is ~82 games
   });
   
   // Fetch games with injury context (for accurate teammates_out data across ALL games)
