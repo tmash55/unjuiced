@@ -891,7 +891,8 @@ export function MlbExitVelocity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<"table" | "scatter">("table");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
-  const [season, setSeason] = useState<number | undefined>(2026); // default to current season
+  const [season, setSeason] = useState<number | undefined>(2026);
+  const [selectedGame, setSelectedGame] = useState<string>("all");
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -913,16 +914,38 @@ export function MlbExitVelocity() {
   const hasActiveFilters = pitcherHand !== "" || pitchType !== "" || matchupSplit;
 
   // Filter by search
+  // Build game options from leaders
+  const gameOptions = useMemo(() => {
+    const games = new Map<string, { away: string; home: string }>();
+    for (const l of leaders) {
+      if (!l.game_id) continue;
+      if (!games.has(l.game_id)) {
+        games.set(l.game_id, { away: l.team_abbr, home: l.opponent_team_abbr });
+      }
+    }
+    return Array.from(games.entries())
+      .map(([gameId, { away, home }]) => ({ gameId, away, home }))
+      .sort((a, b) => `${a.away}${a.home}`.localeCompare(`${b.away}${b.home}`));
+  }, [leaders]);
+
+  React.useEffect(() => { setSelectedGame("all"); }, [selectedDate]);
+
   const filteredLeaders = useMemo(() => {
-    if (!searchQuery.trim()) return leaders;
-    const q = searchQuery.toLowerCase();
-    return leaders.filter(
-      (l) =>
-        l.player_name.toLowerCase().includes(q) ||
-        l.team_abbr.toLowerCase().includes(q) ||
-        l.team_name.toLowerCase().includes(q)
-    );
-  }, [leaders, searchQuery]);
+    let result = leaders;
+    if (selectedGame !== "all") {
+      result = result.filter((l) => l.game_id === selectedGame);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (l) =>
+          l.player_name.toLowerCase().includes(q) ||
+          l.team_abbr.toLowerCase().includes(q) ||
+          l.team_name.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [leaders, searchQuery, selectedGame]);
 
   // Sort
   const sortedLeaders = useMemo(() => {
@@ -977,6 +1000,22 @@ export function MlbExitVelocity() {
           onDateChange={setSelectedDate}
           right={
             <>
+              {/* Game filter */}
+              {gameOptions.length > 1 && (
+                <div className="relative">
+                  <select
+                    value={selectedGame}
+                    onChange={(e) => setSelectedGame(e.target.value)}
+                    className="appearance-none bg-neutral-100 dark:bg-neutral-800/60 border-none rounded-lg px-3 py-1.5 pr-7 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  >
+                    <option value="all">All Games</option>
+                    {gameOptions.map((g) => (
+                      <option key={g.gameId} value={g.gameId}>{g.away} @ {g.home}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
+                </div>
+              )}
               {/* View toggle */}
               <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
                 <button
@@ -1014,7 +1053,7 @@ export function MlbExitVelocity() {
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-              <FilterCount count={leaders.length} label="players" />
+              <FilterCount count={filteredLeaders.length} label="players" />
             </>
           }
           legend={
