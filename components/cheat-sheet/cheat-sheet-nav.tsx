@@ -127,9 +127,27 @@ const MLB_TABS: CheatSheetTab[] = [
   },
 ];
 
+const WNBA_TABS: CheatSheetTab[] = [
+  {
+    slug: "hit-rates",
+    label: "Hit Rates",
+    shortLabel: "Hit Rates",
+    icon: Chart,
+    href: "/hit-rates/wnba",
+  },
+  {
+    slug: "hit-rates-sheet",
+    label: "Top Props",
+    shortLabel: "Top Props",
+    icon: BarChart3,
+    href: "/cheatsheets/wnba/hit-rates",
+  },
+];
+
 const SPORT_TABS: Record<string, CheatSheetTab[]> = {
   nba: NBA_TABS,
   mlb: MLB_TABS,
+  wnba: WNBA_TABS,
 };
 
 interface CheatSheetNavProps {

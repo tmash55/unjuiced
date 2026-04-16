@@ -61,7 +61,7 @@ const POSITION_OPTIONS = [
 const MAX_MATCHUP_RANK_LIMIT = 30;
 
 interface HitRateTableProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   rows: HitRateProfile[];
   loading?: boolean;
   error?: string | null;

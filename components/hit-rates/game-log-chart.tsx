@@ -245,7 +245,7 @@ interface GameLogChartProps {
   games: BoxScoreGame[];
   line: number | null;
   market: string;
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   className?: string;
   // Optional: game logs from hit rate profile for teammates_out data
   profileGameLogs?: ProfileGameLog[] | null;

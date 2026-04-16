@@ -19,7 +19,7 @@ const getBookLogo = (bookId?: string): string | null => {
 };
 
 interface PlayerCardProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   profile: HitRateProfile;
   odds?: {
     bestOver?: { price: number; book: string; url?: string | null; mobileUrl?: string | null } | null;

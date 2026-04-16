@@ -103,7 +103,7 @@ const getDayLabel = (gameDate: string): string => {
 };
 
 interface GamesFilterDropdownProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   games: HitRateGame[];
   className?: string;
   // Multi-select mode (default)

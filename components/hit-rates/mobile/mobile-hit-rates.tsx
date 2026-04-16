@@ -42,7 +42,7 @@ const SORT_OPTIONS: Array<{ value: string; label: string; field: string; dir: "a
 ];
 
 interface MobileHitRatesProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   rows: HitRateProfile[];
   games: Array<{
     game_id: string;

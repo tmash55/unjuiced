@@ -2,7 +2,7 @@ const NBA_CDN_BASE = "https://cdn.nba.com/headshots/nba/latest";
 const MLB_CDN_BASE = "https://img.mlbstatic.com/mlb-photos/image/upload";
 
 export type PlayerHeadshotSize = "tiny" | "small" | "large";
-export type PlayerHeadshotSport = "nba" | "mlb";
+export type PlayerHeadshotSport = "nba" | "mlb" | "wnba";
 
 const SIZE_CONFIG: Record<PlayerHeadshotSize, { path: string; width: number; height: number }> = {
   tiny: { path: "260x190", width: 28, height: 28 }, // Uses small CDN image, renders at 28x28

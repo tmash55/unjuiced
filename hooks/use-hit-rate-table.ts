@@ -8,7 +8,7 @@ import type { HitRateProfile, HitRateResponse, RawHitRateProfile } from "@/lib/h
 export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
 
 export interface UseHitRateTableOptions {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   date?: string;
   market?: string;
   minHitRate?: number;

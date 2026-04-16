@@ -51,7 +51,7 @@ const STARTUP_DELAY_MS = 150; // Let profiles render before fetching odds
 
 async function fetchHitRateOdds(
   selections: OddsRequest[],
-  sport: "nba" | "mlb"
+  sport: "nba" | "mlb" | "wnba"
 ): Promise<OddsResponse> {
   if (!selections.length) {
     return { odds: {} };
@@ -79,7 +79,7 @@ interface UseHitRateOddsOptions {
   /** Array of rows with oddsSelectionId (stable key) and line */
   rows: RowData[];
   /** Sport for the hit-rates odds endpoint */
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   /** Whether to enable the query */
   enabled?: boolean;
 }

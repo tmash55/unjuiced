@@ -173,7 +173,7 @@ function MobileUpgradeBanner() {
   );
 }
 
-const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
+const SUPPORTED_SPORTS = ["nba", "mlb", "wnba"] as const;
 const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet", "slate-insights", "weather-report", "exit-velocity", "nrfi", "hr-command-center", "batter-vs-pitcher", "pitcher-weakness", "game-center", "prop-command-center"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
@@ -1157,7 +1157,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     oddsCeiling: filters.oddsCeiling,
     markets: effectiveMarkets.length > 0 ? effectiveMarkets : undefined,
     dates: getDateFilterDates(filters.dateFilter),
-  });
+  }, sport);
 
   // Apply client-side filters (for gated users, we'll filter after odds are loaded)
   const filteredRows = useMemo(() => {

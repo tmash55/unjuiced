@@ -10,11 +10,12 @@ import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { useNbaGames } from "@/hooks/use-nba-games";
 import { useMlbGames } from "@/hooks/use-mlb-games";
+import { useWnbaGames } from "@/hooks/use-wnba-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 
-const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
+const SUPPORTED_SPORTS = ["nba", "mlb", "wnba"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
 
 const SPORT_CONFIG: Record<
@@ -56,6 +57,25 @@ const SPORT_CONFIG: Record<
       { value: "player_rbi", label: "RBIs" },
       { value: "player_total_bases", label: "Total Bases" },
       { value: "pitcher_strikeouts", label: "Pitcher Strikeouts" },
+    ],
+  },
+  wnba: {
+    title: "WNBA Hit Rates",
+    subtitle: "Analyze WNBA player prop performance with historical hit rates, streaks, and matchup data.",
+    defaultMarket: "player_points",
+    markets: [
+      { value: "player_points", label: "Points" },
+      { value: "player_rebounds", label: "Rebounds" },
+      { value: "player_assists", label: "Assists" },
+      { value: "player_points_rebounds_assists", label: "Points + Rebounds + Assists" },
+      { value: "player_points_rebounds", label: "Points + Rebounds" },
+      { value: "player_points_assists", label: "Points + Assists" },
+      { value: "player_rebounds_assists", label: "Rebounds + Assists" },
+      { value: "player_threes_made", label: "Three Pointers" },
+      { value: "player_steals", label: "Steals" },
+      { value: "player_blocks", label: "Blocks" },
+      { value: "player_blocks_steals", label: "Blocks + Steals" },
+      { value: "player_turnovers", label: "Turnovers" },
     ],
   },
 };
@@ -161,8 +181,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Get game data
   const nbaGamesQuery = useNbaGames(sport === "nba");
   const mlbGamesQuery = useMlbGames(sport === "mlb");
-  const allGames = sport === "mlb" ? mlbGamesQuery.games : nbaGamesQuery.games;
-  const apiPrimaryDate = sport === "mlb" ? mlbGamesQuery.primaryDate : nbaGamesQuery.primaryDate;
+  const wnbaGamesQuery = useWnbaGames(sport === "wnba");
+  const allGames = sport === "mlb" ? mlbGamesQuery.games : sport === "wnba" ? wnbaGamesQuery.games : nbaGamesQuery.games;
+  const apiPrimaryDate = sport === "mlb" ? mlbGamesQuery.primaryDate : sport === "wnba" ? wnbaGamesQuery.primaryDate : nbaGamesQuery.primaryDate;
 
   // Ensure selected markets are valid for the active sport
   useEffect(() => {

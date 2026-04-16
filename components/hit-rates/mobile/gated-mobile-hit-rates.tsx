@@ -18,7 +18,7 @@ const TOTAL_PREVIEW_ROWS = 15;
 const UPGRADE_URL = "/pricing";
 
 interface GatedMobileHitRatesProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   rows: HitRateProfile[];
   games: Array<{
     game_id: string;

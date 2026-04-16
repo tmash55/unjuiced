@@ -8,7 +8,7 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 interface BoxScoreTableProps {
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "mlb" | "wnba";
   playerId: number | null;
   market?: string | null;
   currentLine?: number | null;
