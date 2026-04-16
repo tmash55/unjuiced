@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import useSWRInfinite from "swr/infinite";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
@@ -235,6 +236,8 @@ export default function SharpSignalsPage() {
     setSelectedPick(null);
     setSelectedMarket(null);
   }, [selectedSport, selectedTier, showMySharps, minScore]);
+
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Modal state for wallet quick-view and market quick-view
   const [modalWalletAddress, setModalWalletAddress] = useState<string | null>(null);
@@ -1070,7 +1073,7 @@ export default function SharpSignalsPage() {
       <div className="md:hidden">
         <DetailSheet
           open={mobileDetailOpen}
-          onClose={() => setMobileDetailOpen(false)}
+          onClose={() => { if (!modalWalletAddress && !modalMarketId) setMobileDetailOpen(false); }}
           title={
             tab === "picks" && selectedPick
               ? selectedPick.event_title || selectedPick.market_title
@@ -1107,14 +1110,13 @@ export default function SharpSignalsPage() {
           )}
         </DetailSheet>
       </div>
-      {/* Wallet Quick-View Modal */}
-      <Dialog open={!!modalWalletAddress} onOpenChange={(open) => !open && setModalWalletAddress(null)}>
-        <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
-              Insider profile
-            </DialogTitle>
-          </DialogHeader>
+      {/* Wallet Quick-View — DetailSheet on mobile, Dialog on desktop */}
+      {isMobile ? (
+        <DetailSheet
+          open={!!modalWalletAddress}
+          onClose={() => setModalWalletAddress(null)}
+          title="Insider profile"
+        >
           {modalWalletAddress && (
             <WalletModalContent
               walletAddress={modalWalletAddress}
@@ -1123,22 +1125,52 @@ export default function SharpSignalsPage() {
               onToggleFollow={handleToggleFollow}
             />
           )}
-        </DialogContent>
-      </Dialog>
+        </DetailSheet>
+      ) : (
+        <Dialog open={!!modalWalletAddress} onOpenChange={(open) => !open && setModalWalletAddress(null)}>
+          <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
+                Insider profile
+              </DialogTitle>
+            </DialogHeader>
+            {modalWalletAddress && (
+              <WalletModalContent
+                walletAddress={modalWalletAddress}
+                oddsFormat={oddsFormat}
+                isFollowing={followedWallets.includes(modalWalletAddress)}
+                onToggleFollow={handleToggleFollow}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* Market Quick-View Modal */}
-      <Dialog open={!!modalMarketId} onOpenChange={(open) => !open && setModalMarketId(null)}>
-        <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
-              Market breakdown
-            </DialogTitle>
-          </DialogHeader>
+      {/* Market Quick-View — DetailSheet on mobile, Dialog on desktop */}
+      {isMobile ? (
+        <DetailSheet
+          open={!!modalMarketId}
+          onClose={() => setModalMarketId(null)}
+          title="Market breakdown"
+        >
           {modalMarketId && (
             <MarketModalContent marketId={modalMarketId} oddsFormat={oddsFormat} onViewInsider={(addr) => { setModalMarketId(null); setModalWalletAddress(addr); }} />
           )}
-        </DialogContent>
-      </Dialog>
+        </DetailSheet>
+      ) : (
+        <Dialog open={!!modalMarketId} onOpenChange={(open) => !open && setModalMarketId(null)}>
+          <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 border-neutral-200/60 dark:border-neutral-800/60 p-6">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
+                Market breakdown
+              </DialogTitle>
+            </DialogHeader>
+            {modalMarketId && (
+              <MarketModalContent marketId={modalMarketId} oddsFormat={oddsFormat} onViewInsider={(addr) => { setModalMarketId(null); setModalWalletAddress(addr); }} />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Onboarding tour — auto-shows on first visit */}
       <OnboardingTour />
