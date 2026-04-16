@@ -1576,6 +1576,7 @@ function BatterRow({
   gameId,
   propScores,
   scoreMarket,
+  zebra = false,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1591,6 +1592,7 @@ function BatterRow({
   gameId?: number | null;
   propScores?: Record<string, PropScorePlayer>;
   scoreMarket?: string;
+  zebra?: boolean;
 }) {
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -1612,7 +1614,7 @@ function BatterRow({
 
   if (isMobile) {
     return (
-      <div className="border-b border-neutral-100 dark:border-neutral-800/50">
+      <div className={cn("border-b border-neutral-100 dark:border-neutral-800/50", zebra && "bg-neutral-50/60 dark:bg-neutral-800/20")}>
         <button onClick={onToggle} className="w-full text-left px-3 py-2.5">
           <div className="flex items-center gap-2">
             <img
@@ -1681,7 +1683,10 @@ function BatterRow({
           "border-b border-neutral-200/40 dark:border-neutral-800/20",
           expanded
             ? "bg-sky-50/50 dark:bg-sky-500/[0.05]"
-            : "bg-white dark:bg-neutral-900/40 hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
+            : cn(
+                zebra && "bg-neutral-50/60 dark:bg-neutral-800/20",
+                "hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40"
+              )
         )}
       >
         <td className="pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center">
@@ -2840,43 +2845,6 @@ export function MlbBatterVsPitcher({
     return base;
   }, [pitchFilters, handFilter]);
 
-  // Lineup totals (respects pitch filter) — computed per group: all, lefties, righties
-  const lineupTotals = useMemo(() => {
-    if (batters.length === 0) return null;
-
-    function computeGroup(group: BatterMatchup[]) {
-      const stats = group.map((b) => getBatterStats(b));
-      const withData = stats.filter((s) => s.bbs > 0);
-      if (withData.length === 0) return null;
-      const avg = (arr: { avg: number | null }[]) => { const v = arr.filter((s) => s.avg != null); return v.length > 0 ? v.reduce((sum, s) => sum + s.avg!, 0) / v.length : null; };
-      const mean = (arr: (number | null)[]) => { const v = arr.filter((x): x is number => x != null); return v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-      return {
-        avg: avg(withData),
-        slg: mean(withData.map((s) => s.slg)),
-        woba: mean(withData.map((s) => s.woba)),
-        iso: mean(withData.map((s) => s.iso)),
-        hr: stats.reduce((sum, s) => sum + s.hr, 0),
-        ev: mean(withData.map((s) => s.ev)),
-        brl: mean(withData.map((s) => s.brl)),
-        k_pct: mean(group.map((b) => b.k_pct)),
-        bb_pct: mean(group.map((b) => b.bb_pct)),
-        count: group.length,
-      };
-    }
-
-    const lefties = batters.filter((b) => b.batting_hand === "L" || b.batting_hand === "S");
-    const righties = batters.filter((b) => b.batting_hand === "R");
-
-    return {
-      all: computeGroup(batters),
-      lefties: lefties.length > 0 ? computeGroup(lefties) : null,
-      righties: righties.length > 0 ? computeGroup(righties) : null,
-      lhb: lefties.length,
-      rhb: righties.length,
-      count: batters.length,
-    };
-  }, [batters, getBatterStats]);
-
   const handleStdSort = useCallback((key: StdSortKey) => {
     if (stdSortKey === key) {
       setStdSortAsc(!stdSortAsc);
@@ -2909,6 +2877,44 @@ export function MlbBatterVsPitcher({
   const hasLineup = starters.length >= 5;
   const isLineupConfirmed = !!(meta as any)?.lineup_confirmed;
   const displayBatters = hasLineup ? starters : sortedBatters;
+
+  // Lineup totals — only starters (exclude bench)
+  const lineupTotals = useMemo(() => {
+    const startersOnly = hasLineup ? starters : batters;
+    if (startersOnly.length === 0) return null;
+
+    function computeGroup(group: BatterMatchup[]) {
+      const stats = group.map((b) => getBatterStats(b));
+      const withData = stats.filter((s) => s.bbs > 0);
+      if (withData.length === 0) return null;
+      const avg = (arr: { avg: number | null }[]) => { const v = arr.filter((s) => s.avg != null); return v.length > 0 ? v.reduce((sum, s) => sum + s.avg!, 0) / v.length : null; };
+      const mean = (arr: (number | null)[]) => { const v = arr.filter((x): x is number => x != null); return v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+      return {
+        avg: avg(withData),
+        slg: mean(withData.map((s) => s.slg)),
+        woba: mean(withData.map((s) => s.woba)),
+        iso: mean(withData.map((s) => s.iso)),
+        hr: stats.reduce((sum, s) => sum + s.hr, 0),
+        ev: mean(withData.map((s) => s.ev)),
+        brl: mean(withData.map((s) => s.brl)),
+        k_pct: mean(group.map((b) => b.k_pct)),
+        bb_pct: mean(group.map((b) => b.bb_pct)),
+        count: group.length,
+      };
+    }
+
+    const lefties = startersOnly.filter((b) => b.batting_hand === "L" || b.batting_hand === "S");
+    const righties = startersOnly.filter((b) => b.batting_hand === "R");
+
+    return {
+      all: computeGroup(startersOnly),
+      lefties: lefties.length > 0 ? computeGroup(lefties) : null,
+      righties: righties.length > 0 ? computeGroup(righties) : null,
+      lhb: lefties.length,
+      rhb: righties.length,
+      count: startersOnly.length,
+    };
+  }, [batters, starters, hasLineup, getBatterStats]);
 
   const stdSortIcon = (key: StdSortKey) => stdSortKey === key ? (stdSortAsc ? " ↑" : " ↓") : "";
 
@@ -3423,7 +3429,7 @@ export function MlbBatterVsPitcher({
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
-                        {displayBatters.map((b) => (
+                        {displayBatters.map((b, idx) => (
                           <BatterRow
                             key={b.player_id}
                             batter={b}
@@ -3440,20 +3446,23 @@ export function MlbBatterVsPitcher({
                             gameId={selectedGameId}
                             propScores={propScoreMap.get(b.player_id)}
                             scoreMarket={activePropMarket}
+                            zebra={idx % 2 === 1}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
                           <>
                             <button
                               onClick={() => setShowBench(!showBench)}
-                              className="w-full flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 py-3 mt-1 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
                             >
-                              {showBench ? "Hide Bench" : `Show Bench (${benchPlayers.length})`}
+                              <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
+                                {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                              </span>
                               <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                 <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
                             </button>
-                            {showBench && benchPlayers.map((b) => (
+                            {showBench && benchPlayers.map((b, idx) => (
                               <BatterRow
                                 key={b.player_id}
                                 batter={b}
@@ -3465,6 +3474,7 @@ export function MlbBatterVsPitcher({
                                 displayStats={(pitchFilters.length > 0 || handFilter !== "all") ? getBatterStats(b) : undefined}
                                 pitchFilter={pitchFilters[0] ?? null}
                                 gameId={selectedGameId}
+                                zebra={idx % 2 === 1}
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
                               />
@@ -3585,7 +3595,7 @@ export function MlbBatterVsPitcher({
                             })()}
                           </thead>
                           <tbody>
-                            {displayBatters.map((b) => (
+                            {displayBatters.map((b, idx) => (
                               <BatterRow
                                 key={b.player_id}
                                 batter={b}
@@ -3602,25 +3612,73 @@ export function MlbBatterVsPitcher({
                                 gameId={selectedGameId}
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
+                                zebra={idx % 2 === 1}
                               />
+                            ))}
+                            {/* Lineup summary — starters only */}
+                            {lineupTotals && ([
+                              { label: "All", data: lineupTotals.all, extra: `${lineupTotals.lhb}L / ${lineupTotals.rhb}R`, isFirst: true },
+                              { label: `Lefties (${lineupTotals.lhb})`, data: lineupTotals.lefties, extra: null, isFirst: false },
+                              { label: `Righties (${lineupTotals.rhb})`, data: lineupTotals.righties, extra: null, isFirst: false },
+                            ] as const).map((row) => row.data && (
+                              <tr key={row.label} className={cn(
+                                "bg-neutral-100/60 dark:bg-neutral-800/40",
+                                row.isFirst ? "border-t-2 border-neutral-300 dark:border-neutral-600" : "border-t border-neutral-200 dark:border-neutral-700"
+                              )}>
+                                <td className="pl-3 pr-1 py-1.5" />
+                                <td className={cn("px-2 py-1.5 text-xs text-neutral-900 dark:text-white", row.isFirst ? "font-bold" : "font-medium text-neutral-600 dark:text-neutral-400")}>
+                                  {row.label}
+                                  {row.extra && <span className="text-[10px] font-normal text-neutral-400 ml-1">{row.extra}</span>}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", baaColor(row.data.avg))}>
+                                  {row.data.avg != null ? fmtAvg(row.data.avg) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold text-neutral-900 dark:text-white" : "font-medium text-neutral-600 dark:text-neutral-400")}>
+                                  {row.data.hr}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", slgColor(row.data.slg))}>
+                                  {row.data.slg != null ? fmtAvg(row.data.slg) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", isoColor(row.data.iso))}>
+                                  {row.data.iso != null ? fmtAvg(row.data.iso) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", evColor(row.data.ev))}>
+                                  {row.data.ev != null ? row.data.ev.toFixed(1) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.brl))}>
+                                  {row.data.brl != null ? `${row.data.brl.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", wobaColor(row.data.woba))}>
+                                  {row.data.woba != null ? fmtAvg(row.data.woba) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", kPctColor(row.data.k_pct ?? null))}>
+                                  {row.data.k_pct != null ? `${row.data.k_pct.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", bbPctColor(row.data.bb_pct ?? null))}>
+                                  {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
+                                </td>
+                                <td />
+                              </tr>
                             ))}
                             {/* Bench expand row */}
                             {hasLineup && benchPlayers.length > 0 && (
                               <>
                                 <tr>
-                                  <td colSpan={13} className="px-3 py-0">
+                                  <td colSpan={13} className="px-0 py-0">
                                     <button
                                       onClick={() => setShowBench(!showBench)}
-                                      className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                                      className="w-full flex items-center justify-center gap-2 py-2.5 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
                                     >
-                                      {showBench ? "Hide Bench" : `Show Bench (${benchPlayers.length})`}
+                                      <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
+                                        {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                                      </span>
                                       <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                         <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                       </svg>
                                     </button>
                                   </td>
                                 </tr>
-                                {showBench && benchPlayers.map((b) => (
+                                {showBench && benchPlayers.map((b, idx) => (
                                   <BatterRow
                                     key={b.player_id}
                                     batter={b}
@@ -3637,59 +3695,12 @@ export function MlbBatterVsPitcher({
                                     gameId={selectedGameId}
                                     propScores={propScoreMap.get(b.player_id)}
                                     scoreMarket={activePropMarket}
+                                    zebra={idx % 2 === 1}
                                   />
                                 ))}
                               </>
                             )}
                           </tbody>
-                          {lineupTotals && (
-                            <tfoot>
-                              {([
-                                { label: "All", data: lineupTotals.all, extra: `${lineupTotals.lhb}L / ${lineupTotals.rhb}R`, isFirst: true },
-                                { label: `Lefties (${lineupTotals.lhb})`, data: lineupTotals.lefties, extra: null, isFirst: false },
-                                { label: `Righties (${lineupTotals.rhb})`, data: lineupTotals.righties, extra: null, isFirst: false },
-                              ] as const).map((row) => row.data && (
-                                <tr key={row.label} className={cn(
-                                  "bg-neutral-100/60 dark:bg-neutral-800/40",
-                                  row.isFirst ? "border-t-2 border-neutral-300 dark:border-neutral-600" : "border-t border-neutral-200 dark:border-neutral-700"
-                                )}>
-                                  <td className="pl-3 pr-1 py-1.5" />
-                                  <td className={cn("px-2 py-1.5 text-xs text-neutral-900 dark:text-white", row.isFirst ? "font-bold" : "font-medium text-neutral-600 dark:text-neutral-400")}>
-                                    {row.label}
-                                    {row.extra && <span className="text-[10px] font-normal text-neutral-400 ml-1">{row.extra}</span>}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", baaColor(row.data.avg))}>
-                                    {row.data.avg != null ? fmtAvg(row.data.avg) : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold text-neutral-900 dark:text-white" : "font-medium text-neutral-600 dark:text-neutral-400")}>
-                                    {row.data.hr}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", slgColor(row.data.slg))}>
-                                    {row.data.slg != null ? fmtAvg(row.data.slg) : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", isoColor(row.data.iso))}>
-                                    {row.data.iso != null ? fmtAvg(row.data.iso) : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", evColor(row.data.ev))}>
-                                    {row.data.ev != null ? row.data.ev.toFixed(1) : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.brl))}>
-                                    {row.data.brl != null ? `${row.data.brl.toFixed(1)}%` : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", wobaColor(row.data.woba))}>
-                                    {row.data.woba != null ? fmtAvg(row.data.woba) : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", kPctColor(row.data.k_pct ?? null))}>
-                                    {row.data.k_pct != null ? `${row.data.k_pct.toFixed(1)}%` : "-"}
-                                  </td>
-                                  <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", bbPctColor(row.data.bb_pct ?? null))}>
-                                    {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
-                                  </td>
-                                  <td />
-                                </tr>
-                              ))}
-                            </tfoot>
-                          )}
                         </table>
                       </div>
                     )

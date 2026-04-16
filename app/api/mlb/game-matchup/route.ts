@@ -710,12 +710,8 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Filter to only starters (batting_order 1-9)
-      // Keep all if no one matched (fallback)
-      const starters = lineup.filter((p: any) => p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9);
-      if (starters.length >= 5) {
-        lineup = starters;
-      }
+      // No longer filter — send all players with full stats.
+      // Frontend splits starters (lineup 1-9) from bench.
     }
 
     const batterIds = lineup.map((p: any) => p.player_id);

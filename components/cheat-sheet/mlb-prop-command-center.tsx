@@ -2023,7 +2023,7 @@ export function MlbPropCommandCenter() {
                               "cursor-pointer border-b border-neutral-100 dark:border-neutral-800/50 transition-colors",
                               isExpanded
                                 ? "bg-neutral-50 dark:bg-neutral-800/40"
-                                : "hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20",
+                                : cn(idx % 2 === 1 && "bg-neutral-50/60 dark:bg-neutral-800/20", "hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40"),
                               gameState === "final" && "opacity-50",
                               gameState === "live" && "bg-neutral-900/5 dark:bg-neutral-950/30"
                             )}
