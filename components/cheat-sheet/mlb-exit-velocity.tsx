@@ -33,7 +33,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Chart from "@/icons/chart";
-import { SheetFilterBar, SegmentedControl, FilterDivider, FilterSearch, FilterCount } from "@/components/cheat-sheet/sheet-filter-bar";
+import { SegmentedControl, FilterDivider, FilterSearch, FilterCount, DateNav } from "@/components/cheat-sheet/sheet-filter-bar";
+import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
+import { useMlbGames } from "@/hooks/use-mlb-games";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -871,100 +873,6 @@ function EvScatterPlot({
 
 // ── Game Filter Dropdown (matches prop center style) ─────────────────────────
 
-function EvGameDropdown({
-  games,
-  selectedGame,
-  onSelect,
-}: {
-  games: { gameId: string; away: string; home: string }[];
-  selectedGame: string;
-  onSelect: (gameId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const selected = selectedGame === "all" ? null : games.find((g) => g.gameId === selectedGame);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap",
-          "bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200 dark:hover:bg-neutral-700/60",
-          open && "ring-1 ring-brand/30"
-        )}
-      >
-        {selected ? (
-          <>
-            <img src={`/team-logos/mlb/${selected.away.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
-            <span className="text-neutral-700 dark:text-neutral-300">{selected.away} @ {selected.home}</span>
-            <img src={`/team-logos/mlb/${selected.home.toUpperCase()}.svg`} className="w-4 h-4 object-contain" alt="" />
-          </>
-        ) : (
-          <span className="text-neutral-500">All Games</span>
-        )}
-        <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
-          <button
-            onClick={() => { onSelect("all"); setOpen(false); }}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold transition-colors border-b border-neutral-100 dark:border-neutral-800/50",
-              selectedGame === "all"
-                ? "bg-brand/5 dark:bg-brand/10 text-brand"
-                : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-            )}
-          >
-            All Games
-            {selectedGame === "all" && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-brand" />}
-          </button>
-          <div className="max-h-[320px] overflow-y-auto">
-            {games.map((g) => {
-              const isSelected = g.gameId === selectedGame;
-              return (
-                <button
-                  key={g.gameId}
-                  onClick={() => { onSelect(g.gameId); setOpen(false); }}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2.5 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
-                    isSelected
-                      ? "bg-brand/5 dark:bg-brand/10"
-                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                  )}
-                >
-                  <div className="flex-1 min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <img src={`/team-logos/mlb/${g.away.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
-                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white">{g.away}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <img src={`/team-logos/mlb/${g.home.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
-                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white">{g.home}</span>
-                    </div>
-                  </div>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbExitVelocity() {
@@ -1009,20 +917,11 @@ export function MlbExitVelocity() {
 
   const hasActiveFilters = pitcherHand !== "" || pitchType !== "" || matchupSplit;
 
-  // Filter by search
-  // Build game options from leaders
-  const gameOptions = useMemo(() => {
-    const games = new Map<string, { away: string; home: string }>();
-    for (const l of leaders) {
-      if (!l.game_id) continue;
-      if (!games.has(l.game_id)) {
-        games.set(l.game_id, { away: l.team_abbr, home: l.opponent_team_abbr });
-      }
-    }
-    return Array.from(games.entries())
-      .map(([gameId, { away, home }]) => ({ gameId, away, home }))
-      .sort((a, b) => `${a.away}${a.home}`.localeCompare(`${b.away}${b.home}`));
-  }, [leaders]);
+  // Fetch games for the game filter dropdown (same source as prop center)
+  const { games: allGamesRaw } = useMlbGames();
+  const allGames = useMemo(() => {
+    return allGamesRaw.filter((g) => g.game_date === selectedDate);
+  }, [allGamesRaw, selectedDate]);
 
   React.useEffect(() => { setSelectedGame("all"); }, [selectedDate]);
 
@@ -1090,83 +989,184 @@ export function MlbExitVelocity() {
   return (
     <div className="space-y-3">
       {/* ── Filter Bar ─────────────────────────────────────────────────── */}
-      <div data-tour="ev-filter-bar" className="overflow-hidden">
-        <SheetFilterBar
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-          right={
-            <>
-              {/* View toggle */}
-              <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+      <div data-tour="ev-filter-bar" className="relative z-20">
+        <div className="rounded-xl bg-neutral-50/80 dark:bg-neutral-950/40 border border-neutral-200/60 dark:border-neutral-800/60 overflow-visible">
+
+          {/* ── Row 1: Desktop — all filter controls ── */}
+          {!isMobile && (
+            <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+              <SegmentedControl
+                value={season ? String(season) : "all"}
+                onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
+                options={[
+                  { label: "All", value: "all" },
+                  { label: "2025", value: "2025" },
+                  { label: "2026", value: "2026" },
+                ]}
+              />
+              <FilterDivider />
+              <SegmentedControl
+                value={String(sampleSize)}
+                onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
+                options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+              />
+              <FilterDivider />
+              <SegmentedControl
+                value={pitcherHand}
+                onChange={setPitcherHand}
+                options={[
+                  { label: "All", value: "" },
+                  { label: "vs LHP", value: "L" },
+                  { label: "vs RHP", value: "R" },
+                ]}
+              />
+              <Tooltip content="Show each batter's splits vs the hand of their opposing pitcher today" side="bottom">
                 <button
-                  onClick={() => setViewMode("table")}
+                  onClick={() => {
+                    setMatchupSplit(!matchupSplit);
+                    if (!matchupSplit) setPitcherHand("");
+                  }}
                   className={cn(
-                    "p-1.5 rounded-md transition-all",
-                    viewMode === "table"
-                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-help",
+                    matchupSplit
+                      ? "bg-brand/10 text-brand border border-brand/30"
+                      : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
-                  title="Table view"
                 >
-                  <Table className="w-3.5 h-3.5" />
+                  vs Matchup
                 </button>
-                <button
-                  onClick={() => setViewMode("scatter")}
-                  className={cn(
-                    "p-1.5 rounded-md transition-all",
-                    viewMode === "scatter"
-                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  )}
-                  title="Scatter plot: EV vs Barrel Rate"
-                >
-                  <ScatterChartIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-              {hasActiveFilters && (
-                <button
-                  onClick={() => { setPitcherHand(""); setPitchType(""); setMatchupSplit(false); }}
-                  className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                  title="Reset filters"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <FilterCount count={filteredLeaders.length} label="players" />
-            </>
-          }
-          legend={
-            <>
-              <span className="font-medium text-neutral-500">EV:</span>
-              <span><strong className="text-emerald-600 dark:text-emerald-400">93+</strong> Elite</span>
-              <span><strong className="text-green-600 dark:text-green-400">90+</strong> Strong</span>
-              <span><strong className="text-amber-500">88+</strong> Above Avg</span>
-              <span className="text-neutral-300 dark:text-neutral-600">|</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" />LD</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500/70" />FB</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" />GB</span>
-              <span className="text-neutral-300 dark:text-neutral-600">|</span>
-              <span>HH% = 95+ mph</span>
-              <span>SS% = 8-32&deg; LA</span>
-              <span className="text-neutral-300 dark:text-neutral-600">|</span>
-              <span>+Diff = unlucky</span>
-              <span>-Diff = lucky</span>
-              {isFallbackDate && (
+              </Tooltip>
+              <FilterDivider />
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-lg px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors outline-none">
+                  {pitchType ? (PITCH_TYPE_LABELS[pitchType] ?? pitchType) : "All Pitches"}
+                  <ChevronDown className="h-3 w-3 text-neutral-400" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[140px] p-1">
+                  <DropdownMenuItem
+                    onClick={() => setPitchType("")}
+                    className={cn("text-xs", !pitchType && "font-semibold text-brand")}
+                  >
+                    All Pitches
+                  </DropdownMenuItem>
+                  {(meta?.available_pitch_types ?? []).map((pt) => (
+                    <DropdownMenuItem
+                      key={pt}
+                      onClick={() => setPitchType(pt)}
+                      className={cn("text-xs", pitchType === pt && "font-semibold text-brand")}
+                    >
+                      {PITCH_TYPE_LABELS[pt] ?? pt}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+
+          {/* ── Divider between rows — desktop ── */}
+          {!isMobile && <div className="border-t border-neutral-200/40 dark:border-neutral-800/30" />}
+
+          {/* ── Row 2: Desktop — DateNav + game dropdown + spacer + search/count ── */}
+          {!isMobile && (
+            <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+              <DateNav
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+              />
+              {allGames.length > 1 && (
                 <>
-                  <span className="text-neutral-300 dark:text-neutral-600">|</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">
-                    Showing {formatLongDate(resolvedDate)}
-                  </span>
+                  <FilterDivider />
+                  <GameFilterDropdown
+                    games={allGames}
+                    selectedGame={selectedGame}
+                    onSelect={setSelectedGame}
+                  />
                 </>
               )}
-            </>
-          }
-          mobileControls={
-            <>
-              {gameOptions.length > 1 && (
-                <EvGameDropdown
-                  games={gameOptions}
+              <div className="flex-1 min-w-0" />
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={cn(
+                      "p-1.5 rounded-md transition-all",
+                      viewMode === "table"
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                    title="Table view"
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("scatter")}
+                    className={cn(
+                      "p-1.5 rounded-md transition-all",
+                      viewMode === "scatter"
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                    title="Scatter plot: EV vs Barrel Rate"
+                  >
+                    <ScatterChartIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => { setPitcherHand(""); setPitchType(""); setMatchupSplit(false); }}
+                    className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    title="Reset filters"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
+                <FilterCount count={filteredLeaders.length} label="players" />
+              </div>
+            </div>
+          )}
+
+          {/* ── Mobile layout ── */}
+          {isMobile && (
+            <div className="px-3 py-2.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <DateNav
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === "table"
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Table view"
+                    >
+                      <Table className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("scatter")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === "scatter"
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Scatter plot"
+                    >
+                      <ScatterChartIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <FilterCount count={filteredLeaders.length} label="players" />
+                </div>
+              </div>
+              {allGames.length > 1 && (
+                <GameFilterDropdown
+                  games={allGames}
                   selectedGame={selectedGame}
                   onSelect={setSelectedGame}
                 />
@@ -1224,87 +1224,36 @@ export function MlbExitVelocity() {
                   </button>
                 )}
               </div>
-            </>
-          }
-        >
-          {/* Game filter */}
-          {gameOptions.length > 1 && (
-            <>
-              <EvGameDropdown
-                games={gameOptions}
-                selectedGame={selectedGame}
-                onSelect={setSelectedGame}
-              />
-              <FilterDivider />
-            </>
+            </div>
           )}
-          <SegmentedControl
-            value={season ? String(season) : "all"}
-            onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
-            options={[
-              { label: "All", value: "all" },
-              { label: "2025", value: "2025" },
-              { label: "2026", value: "2026" },
-            ]}
-          />
-          <FilterDivider />
-          <SegmentedControl
-            value={String(sampleSize)}
-            onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
-            options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
-          />
-          <FilterDivider />
-          <SegmentedControl
-            value={pitcherHand}
-            onChange={setPitcherHand}
-            options={[
-              { label: "All", value: "" },
-              { label: "vs LHP", value: "L" },
-              { label: "vs RHP", value: "R" },
-            ]}
-          />
-          <Tooltip content="Show each batter's splits vs the hand of their opposing pitcher today" side="bottom">
-            <button
-              onClick={() => {
-                setMatchupSplit(!matchupSplit);
-                if (!matchupSplit) setPitcherHand("");
-              }}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-help",
-                matchupSplit
-                  ? "bg-brand/10 text-brand border border-brand/30"
-                  : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-              )}
-            >
-              vs Matchup
-            </button>
-          </Tooltip>
-          <FilterDivider />
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-lg px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors outline-none">
-              {pitchType ? (PITCH_TYPE_LABELS[pitchType] ?? pitchType) : "All Pitches"}
-              <ChevronDown className="h-3 w-3 text-neutral-400" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[140px] p-1">
-              <DropdownMenuItem
-                onClick={() => setPitchType("")}
-                className={cn("text-xs", !pitchType && "font-semibold text-brand")}
-              >
-                All Pitches
-              </DropdownMenuItem>
-              {(meta?.available_pitch_types ?? []).map((pt) => (
-                <DropdownMenuItem
-                  key={pt}
-                  onClick={() => setPitchType(pt)}
-                  className={cn("text-xs", pitchType === pt && "font-semibold text-brand")}
-                >
-                  {PITCH_TYPE_LABELS[pt] ?? pt}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SheetFilterBar>
 
+          {/* ── Legend row — desktop only ── */}
+          <div className="hidden md:flex px-4 py-1.5 items-center gap-4 border-t border-neutral-200/40 dark:border-neutral-800/30 bg-neutral-50/40 dark:bg-neutral-800/10 text-[10px] text-neutral-400">
+            <span className="font-medium text-neutral-500">EV:</span>
+            <span><strong className="text-emerald-600 dark:text-emerald-400">93+</strong> Elite</span>
+            <span><strong className="text-green-600 dark:text-green-400">90+</strong> Strong</span>
+            <span><strong className="text-amber-500">88+</strong> Above Avg</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" />LD</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500/70" />FB</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" />GB</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span>HH% = 95+ mph</span>
+            <span>SS% = 8-32&deg; LA</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span>+Diff = unlucky</span>
+            <span>-Diff = lucky</span>
+            {isFallbackDate && (
+              <>
+                <span className="text-neutral-300 dark:text-neutral-600">|</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Showing {formatLongDate(resolvedDate)}
+                </span>
+              </>
+            )}
+          </div>
+
+        </div>
       </div>
 
       {/* ── Table / Cards / Scatter ────────────────────────────────────── */}
