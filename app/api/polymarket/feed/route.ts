@@ -650,6 +650,11 @@ export async function GET(req: NextRequest) {
       if (market === "total_points" || market === "game_total_goals" || market === "game_total") {
         const lineMatch = (s.market_title || "").match(/O\/U\s+([\d.]+)/i);
         if (lineMatch) line = lineMatch[1];
+        // Fallback: extract line from outcome field (e.g., "Over 8.5 Runs" → 8.5)
+        if (!line && s.outcome) {
+          const outcomeLineMatch = s.outcome.match(/([\d.]+)/);
+          if (outcomeLineMatch) line = outcomeLineMatch[1];
+        }
       } else if (market === "game_spread" || market === "game_puck_line" || market === "game_run_line") {
         // Extract spread line from title: "Spread: Bucks (-5.5)" → "-5.5"
         const lineMatch = (s.market_title || "").match(/\(([+-]?\d+\.?\d*)\)/);
