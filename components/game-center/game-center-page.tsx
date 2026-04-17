@@ -200,19 +200,18 @@ export function GameCenterPage() {
   const [overrideAwayPitcherId, setOverrideAwayPitcherId] = useState<number | null>(null);
   const [overrideHomePitcherId, setOverrideHomePitcherId] = useState<number | null>(null);
 
-  // Auto pitcher change: when enabled, watches live current_pitcher_id and swaps automatically
-  const [autoPitcher, setAutoPitcher] = useState(false);
+  // Auto pitcher change: watches live current_pitcher_id and swaps automatically
+  const [autoPitcher, setAutoPitcher] = useState(true);
 
   const selectedGame = useMemo(
     () => games.find((g) => Number(g.game_id) === gc.gameId) ?? null,
     [games, gc.gameId]
   );
 
-  // Reset pitcher overrides (and auto mode) when game changes
+  // Reset pitcher overrides when game changes (keep auto mode on)
   React.useEffect(() => {
     setOverrideAwayPitcherId(null);
     setOverrideHomePitcherId(null);
-    setAutoPitcher(false);
   }, [gc.gameId]);
 
   // Auto-detect live pitcher changes and apply override when autoPitcher is on
