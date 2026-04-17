@@ -1,81 +1,145 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/libs/supabase/server'
+import { NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { redis } from "@/lib/redis";
+import { supabaseBreaker, redisBreaker } from "@/lib/circuit-breaker";
 
-/**
- * Health check endpoint for monitoring
- * Use with UptimeRobot (free) or similar service
- * 
- * Returns:
- * - 200 OK: All systems operational
- * - 503 Service Unavailable: Critical service down
- */
+type CheckStatus = "ok" | "degraded" | "error";
+
+type CheckResult = {
+  status: CheckStatus;
+  latency_ms?: number;
+  message?: string;
+  [key: string]: unknown;
+};
 
 export async function GET() {
-  const checks: Record<string, { status: 'ok' | 'error'; message?: string; latency?: number }> = {}
-  let overallStatus = 200
+  const checks: Record<string, CheckResult> = {};
+  let critical = false;
 
-  // 1. Check Supabase connection
+  const etFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const today = etFormatter.format(new Date());
+
+  // 1. Redis connectivity
+  const redisStart = Date.now();
   try {
-    const start = performance.now()
-    const supabase = await createClient()
-    const { error } = await supabase.from('user_preferences').select('id').limit(1)
-    const latency = performance.now() - start
-    
-    if (error) {
-      checks.database = { status: 'error', message: error.message }
-      overallStatus = 503
+    await redisBreaker.call(() => redis.set("health:ping", "1", { ex: 10 }));
+    checks.redis = {
+      status: "ok",
+      latency_ms: Date.now() - redisStart,
+      circuit: redisBreaker.status(),
+    };
+  } catch (err) {
+    checks.redis = {
+      status: "error",
+      message: String(err),
+      circuit: redisBreaker.status(),
+    };
+    critical = true;
+  }
+
+  // 2. Supabase connectivity
+  const sbStart = Date.now();
+  try {
+    const supabase = createServerSupabaseClient();
+    const result = await supabaseBreaker.call(async () =>
+      supabase.from("mlb_games").select("game_id").limit(1),
+    );
+    if (result.error) throw new Error(result.error.message);
+    checks.supabase = {
+      status: "ok",
+      latency_ms: Date.now() - sbStart,
+      circuit: supabaseBreaker.status(),
+    };
+  } catch (err) {
+    checks.supabase = {
+      status: "error",
+      message: String(err),
+      circuit: supabaseBreaker.status(),
+    };
+    critical = true;
+  }
+
+  // 3. Poller heartbeat — check how recently the MLB live poller wrote to Supabase
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data } = await supabase
+      .from("mlb_games")
+      .select("live_feed_updated_at")
+      .not("live_feed_updated_at", "is", null)
+      .order("live_feed_updated_at", { ascending: false })
+      .limit(1);
+
+    if (data?.[0]?.live_feed_updated_at) {
+      const lastUpdate = new Date(data[0].live_feed_updated_at);
+      const ageMs = Date.now() - lastUpdate.getTime();
+      // Flag as degraded if poller hasn't written in > 2 minutes
+      checks.poller = {
+        status: ageMs > 120_000 ? "degraded" : "ok",
+        last_update: data[0].live_feed_updated_at,
+        age_seconds: Math.round(ageMs / 1000),
+      };
     } else {
-      checks.database = { status: 'ok', latency: Math.round(latency) }
+      checks.poller = { status: "degraded", message: "No live feed updates found" };
     }
-  } catch (error) {
-    checks.database = { status: 'error', message: String(error) }
-    overallStatus = 503
+  } catch (err) {
+    checks.poller = { status: "error", message: String(err) };
   }
 
-  // 2. Check Redis connection (if you're using it)
+  // 4. Cache age — inspect the split static + live caches
   try {
-    const start = performance.now()
-    // Replace with your actual Redis client
-    // const redis = getRedisClient()
-    // await redis.ping()
-    const latency = performance.now() - start
-    
-    checks.redis = { status: 'ok', latency: Math.round(latency) }
-  } catch (error) {
-    checks.redis = { status: 'error', message: String(error) }
-    // Redis is non-critical, don't fail health check
+    const liveKey = `mlb:games:live:${today}`;
+    const staticKey = `mlb:games:static:${today}`;
+
+    const [liveCache, staticCache] = await Promise.all([
+      redis.get<{ ts: number; anyLive?: boolean }>(liveKey).catch(() => null),
+      redis.get<{ ts: number }>(staticKey).catch(() => null),
+    ]);
+
+    let cacheStatus: CheckStatus = "error";
+    if (liveCache) cacheStatus = "ok";
+    else if (staticCache) cacheStatus = "degraded";
+
+    checks.cache = {
+      status: cacheStatus,
+      live_cache_age_seconds: liveCache?.ts
+        ? Math.round((Date.now() - liveCache.ts) / 1000)
+        : null,
+      static_cache_age_seconds: staticCache?.ts
+        ? Math.round((Date.now() - staticCache.ts) / 1000)
+        : null,
+      any_live: liveCache?.anyLive ?? null,
+    };
+  } catch (err) {
+    checks.cache = { status: "error", message: String(err) };
   }
 
-  // 3. Check memory usage
-  if (typeof process !== 'undefined' && process.memoryUsage) {
-    const memory = process.memoryUsage()
-    const heapUsedMB = Math.round(memory.heapUsed / 1024 / 1024)
-    const heapTotalMB = Math.round(memory.heapTotal / 1024 / 1024)
-    const usagePercent = Math.round((heapUsedMB / heapTotalMB) * 100)
-    
+  // 5. Memory usage
+  if (typeof process !== "undefined" && process.memoryUsage) {
+    const mem = process.memoryUsage();
+    const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+    const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+    const usagePct = Math.round((heapUsedMB / heapTotalMB) * 100);
     checks.memory = {
-      status: usagePercent > 90 ? 'error' : 'ok',
-      message: `${heapUsedMB}MB / ${heapTotalMB}MB (${usagePercent}%)`,
-    }
-    
-    if (usagePercent > 90) {
-      overallStatus = 503
-    }
+      status: usagePct > 90 ? "error" : "ok",
+      heap_used_mb: heapUsedMB,
+      heap_total_mb: heapTotalMB,
+      usage_pct: usagePct,
+    };
+    if (usagePct > 90) critical = true;
   }
 
-  // 4. Check environment
-  checks.environment = {
-    status: 'ok',
-    message: process.env.NODE_ENV || 'unknown',
-  }
-
-  const response = {
-    status: overallStatus === 200 ? 'healthy' : 'unhealthy',
-    timestamp: new Date().toISOString(),
-    checks,
-    uptime: typeof process !== 'undefined' ? Math.round(process.uptime()) : undefined,
-  }
-
-  return NextResponse.json(response, { status: overallStatus })
+  return NextResponse.json(
+    {
+      status: critical ? "unhealthy" : "healthy",
+      timestamp: new Date().toISOString(),
+      uptime_seconds: typeof process !== "undefined" ? Math.round(process.uptime()) : null,
+      checks,
+    },
+    { status: critical ? 503 : 200 },
+  );
 }
-

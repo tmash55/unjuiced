@@ -247,6 +247,12 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
 
                 {isLive && live?.current_inning != null ? (
                   <div className="flex items-center gap-4">
+                    {/* Bases */}
+                    <BasesDiamond
+                      runners={live.runners_on_base ?? { first: false, second: false, third: false }}
+                      size="md"
+                    />
+
                     {/* Live badge + inning */}
                     <div className="flex flex-col items-center">
                       <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 leading-none">Live</span>
@@ -257,12 +263,6 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
                         <span className="text-sm font-extrabold text-emerald-400 tabular-nums leading-none">{live.current_inning}</span>
                       </div>
                     </div>
-
-                    {/* Bases */}
-                    <BasesDiamond
-                      runners={live.runners_on_base ?? { first: false, second: false, third: false }}
-                      size="md"
-                    />
 
                     {/* Count + Outs */}
                     <div className="flex flex-col items-center gap-1.5">
