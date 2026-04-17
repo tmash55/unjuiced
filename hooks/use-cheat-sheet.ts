@@ -149,12 +149,18 @@ async function fetchCheatSheet(filters: CheatSheetFilters, sport = "nba"): Promi
 // Main hook
 // Best odds are now included directly in the API response (from Redis bestodds:{sport}:* keys)
 // No separate odds fetch needed - detailed odds fetched on demand via /api/{sport}/props/odds-line
-export function useCheatSheet(filters: CheatSheetFilters = {}, sport = "nba") {
+export function useCheatSheet(
+  filters: CheatSheetFilters = {},
+  sport = "nba",
+  options: { enabled?: boolean } = {}
+) {
+  const { enabled = true } = options;
   return useQuery({
     queryKey: ["cheat-sheet", sport, filters],
     queryFn: () => fetchCheatSheet(filters, sport),
     staleTime: 60 * 1000, // 1 minute
     refetchInterval: 60 * 1000, // Refetch every minute for fresh data + odds
+    enabled,
   });
 }
 

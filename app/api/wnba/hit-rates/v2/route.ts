@@ -364,7 +364,7 @@ export async function GET(request: Request) {
     sort = "l10Pct",
     sortDir = "desc",
     skipCache = false,
-    hasOdds = true,
+    hasOdds = false,
   } = query.data;
 
   const market = rawMarket || null;
@@ -401,7 +401,7 @@ export async function GET(request: Request) {
       const { data, error } = await supabase.rpc("get_wnba_hit_rate_profiles_fast_v3", {
         p_dates: datesToFetch,
         p_market: market || null,
-        p_has_odds: hasOdds,
+        p_has_odds: hasOdds ? true : null,
         p_limit: market ? 500 : 3000,
         p_offset: 0,
       });

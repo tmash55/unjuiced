@@ -1158,6 +1158,11 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   const wnbaGamesQuery = useWnbaGames(sport === "wnba");
   const wnbaDates = wnbaGamesQuery.gamesDates.length > 0 ? wnbaGamesQuery.gamesDates : undefined;
 
+  // For WNBA, wait until the games hook resolves before firing the cheat sheet query.
+  // Without this guard the query fires immediately with no dates, the RPC defaults to
+  // "today" (no games yet), and the page shows empty before the real dates are known.
+  const cheatSheetEnabled = sport !== "wnba" || !wnbaGamesQuery.isLoading;
+
   // Compute effective dates: WNBA uses upcoming game dates from the schedule;
   // NBA/MLB use the "today / tomorrow / all" date filter.
   const effectiveDates = sport === "wnba" ? wnbaDates : getDateFilterDates(filters.dateFilter);
@@ -1170,7 +1175,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     oddsCeiling: filters.oddsCeiling,
     markets: effectiveMarkets.length > 0 ? effectiveMarkets : undefined,
     dates: effectiveDates,
-  }, sport);
+  }, sport, { enabled: cheatSheetEnabled });
 
   // Apply client-side filters (for gated users, we'll filter after odds are loaded)
   const filteredRows = useMemo(() => {
