@@ -931,7 +931,7 @@ function formatDisplayStat(val: any, format: StatDisplayItem["format"]): string 
 
 // ── Expanded Row ────────────────────────────────────────────────────────────
 
-function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; marketConfig: MarketConfig }) {
+function ExpandedRow({ player, marketConfig, opposingPitcher }: { player: PropScorePlayer; marketConfig: MarketConfig; opposingPitcher?: string | null }) {
   const applyState = useStateLink();
   const factors = player.factor_scores ?? {};
   const keyStats = player.key_stats ?? {};
@@ -1023,7 +1023,12 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                 if (visibleItems.length === 0) return null;
                 return (
                 <div key={group}>
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">{group}</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">
+                    {group}
+                    {opposingPitcher && (group === "Pitcher" || group === "Matchup") && (
+                      <span className="normal-case tracking-normal text-neutral-400 ml-1">({opposingPitcher})</span>
+                    )}
+                  </h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     {visibleItems.map((item) => {
                       const val = allData[item.key];
@@ -1380,7 +1385,7 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
   );
 }
 
-function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; rank: number; marketConfig: MarketConfig }) {
+function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { player: PropScorePlayer; rank: number; marketConfig: MarketConfig; opposingPitcher?: string | null; isHome?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const config = getGradeConfig(player.grade);
   const factors = player.factor_scores ?? {};
@@ -1410,7 +1415,7 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
             <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", config.bg, config.color)}>{player.grade}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
-            <span>vs {player.opponent_name || "TBD"}</span>
+            <span>{isHome ? "vs " : "@ "}{player.opponent_name || "TBD"}{opposingPitcher && <span className="text-neutral-400"> ({opposingPitcher})</span>}</span>
             {player.line != null && (
               <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{player.line} {marketConfig.lineLabel}</span>
             )}
@@ -1938,9 +1943,15 @@ export function MlbPropCommandCenter() {
       <div className="relative mt-3">
         {isMobile && !isLoading && sortedPlayers.length > 0 ? (
           <div className="space-y-3">
-            {displayPlayers.map((player, idx) => (
-              <MobileCard key={`${player.player_id}-${player.market}-${player.game_id}`} player={player} rank={rankMap.get(player.player_id) ?? idx + 1} marketConfig={marketConfig} />
-            ))}
+            {displayPlayers.map((player, idx) => {
+              const g = gameMap.get(player.game_id);
+              const playerIsHome = g ? player.team_abbr.toUpperCase() === g.home_team_tricode.toUpperCase() : false;
+              const oppP = g ? (playerIsHome ? g.away_probable_pitcher : g.home_probable_pitcher) : null;
+              const oppPShort = oppP ? oppP.split(" ").pop() ?? oppP : null;
+              return (
+                <MobileCard key={`${player.player_id}-${player.market}-${player.game_id}`} player={player} rank={rankMap.get(player.player_id) ?? idx + 1} marketConfig={marketConfig} opposingPitcher={oppPShort} isHome={playerIsHome} />
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden bg-white dark:bg-neutral-900">
@@ -2015,6 +2026,9 @@ export function MlbPropCommandCenter() {
                       const game = gameMap.get(player.game_id);
                       const gameState = getGameState(game?.game_status ?? null);
                       const isStarted = gameState !== "upcoming";
+                      const isOnHomeTeam = game ? player.team_abbr.toUpperCase() === game.home_team_tricode.toUpperCase() : false;
+                      const opposingPitcher = game ? (isOnHomeTeam ? game.away_probable_pitcher : game.home_probable_pitcher) : null;
+                      const opposingPitcherShort = opposingPitcher ? opposingPitcher.split(" ").pop() ?? opposingPitcher : null;
                       return (
                         <React.Fragment key={`${player.player_id}-${player.market}-${player.game_id}`}>
                           <tr
@@ -2092,9 +2106,12 @@ export function MlbPropCommandCenter() {
 
                             {/* Opponent + Game Time */}
                             <td className="px-2 py-2">
-                              <div className="min-w-0 max-w-[140px]">
+                              <div className="min-w-0 max-w-[160px]">
                                 <div className="text-[11px] text-neutral-500 truncate">
-                                  {player.opponent_name || "TBD"}
+                                  {isOnHomeTeam ? "vs " : "@ "}{player.opponent_name || "TBD"}
+                                  {opposingPitcherShort && (
+                                    <span className="text-neutral-400"> ({opposingPitcherShort})</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   {game && (
@@ -2191,7 +2208,7 @@ export function MlbPropCommandCenter() {
                                 : <ChevronRight className="w-4 h-4 text-neutral-400" />}
                             </td>
                           </tr>
-                          {isExpanded && <ExpandedRow player={player} marketConfig={marketConfig} />}
+                          {isExpanded && <ExpandedRow player={player} marketConfig={marketConfig} opposingPitcher={opposingPitcherShort} />}
                         </React.Fragment>
                       );
                     })}
