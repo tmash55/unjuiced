@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { MlbGame } from "@/hooks/use-mlb-games";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { ChevronRight, Thermometer, Wind, CloudSun } from "lucide-react";
+import { BasesDiamond } from "@/components/game-center/bases-diamond";
 
 function getBookLogo(bookId: string): string | null {
   const sb = getSportsbookById(normalizeSportsbookId(bookId));
@@ -99,12 +100,41 @@ function ScoreboardCard({
                 <span className="text-[8px] font-bold text-brand uppercase tracking-wider mb-0.5">{dhLabel}</span>
               )}
               {hasScore ? (
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                  <span className={cn("text-[9px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
-                    {isLive ? "Live" : "Final"}
-                  </span>
-                  <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
+                    <span className={cn("text-[9px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                      {isLive ? "Live" : "Final"}
+                    </span>
+                    <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
+                  </div>
+                  {isLive && game.live?.current_inning != null && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
+                        <span className="text-[8px] text-emerald-400 font-bold leading-none">
+                          {game.live.current_inning_half === "top" ? "▲" : "▼"}
+                        </span>
+                        <span className="text-[9px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                      </div>
+                      <BasesDiamond
+                        runners={game.live.runners_on_base ?? { first: false, second: false, third: false }}
+                        size="sm"
+                      />
+                      <div className="flex items-center gap-0.5">
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full border",
+                              i < (game.live?.current_outs ?? 0)
+                                ? "bg-amber-400 border-amber-500"
+                                : "border-neutral-400 dark:border-neutral-600"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <span className="text-base font-extrabold text-neutral-900 dark:text-white tabular-nums">{gameStatus}</span>
@@ -185,10 +215,37 @@ function ScoreboardCard({
             {hasScore ? (
               <div className="flex items-center gap-3">
                 <span className="text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-0.5">
                   <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
                     {isLive ? "Live" : "Final"}
                   </span>
+                  {isLive && game.live?.current_inning != null && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
+                        <span className="text-[9px] text-emerald-400 font-bold leading-none">
+                          {game.live.current_inning_half === "top" ? "▲" : "▼"}
+                        </span>
+                        <span className="text-[10px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                      </div>
+                      <BasesDiamond
+                        runners={game.live.runners_on_base ?? { first: false, second: false, third: false }}
+                        size="sm"
+                      />
+                      <div className="flex items-center gap-0.5">
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full border",
+                              i < (game.live?.current_outs ?? 0)
+                                ? "bg-amber-400 border-amber-500"
+                                : "border-neutral-400 dark:border-neutral-600"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <span className="text-lg font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
               </div>

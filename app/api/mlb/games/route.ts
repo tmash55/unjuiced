@@ -167,7 +167,9 @@ export async function GET() {
         );
         // Skip serving stale cache if live games are running — live state changes every 30s
         const cacheAgeMs = cached.ts ? Date.now() - cached.ts : 0;
-        if (!anyLiveCached || cacheAgeMs < GAMES_CACHE_TTL_LIVE * 1000) {
+        // Also skip if live games exist but cache has no live state data (poller hadn't written yet)
+        const hasLiveState = anyLiveCached && cached.games.some((g: any) => g.live?.current_inning != null);
+        if ((!anyLiveCached || (hasLiveState && cacheAgeMs < GAMES_CACHE_TTL_LIVE * 1000))) {
           const cacheControl = anyLiveCached
             ? "public, max-age=15, s-maxage=15, stale-while-revalidate=30"
             : "public, max-age=60, s-maxage=60, stale-while-revalidate=120";
