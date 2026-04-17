@@ -67,7 +67,7 @@ function ScoreboardCard({
   const odds = game.odds;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
-  const isLive = gameStatus.toLowerCase().includes("progress");
+  const isLive = !!game.live || gameStatus.toLowerCase().includes("progress") || gameStatus.toLowerCase().includes("challenge") || gameStatus.toLowerCase().includes("review");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
@@ -219,6 +219,17 @@ function ScoreboardCard({
                   <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
                     {isLive ? "Live" : "Final"}
                   </span>
+                  {isFinal && game.winning_pitcher && (
+                    <div className="flex items-center gap-2 text-[9px]">
+                      <span><span className="font-bold text-emerald-500">W</span> <span className="text-neutral-500">{game.winning_pitcher.split(" ").pop()}</span></span>
+                      {game.losing_pitcher && (
+                        <span><span className="font-bold text-red-400">L</span> <span className="text-neutral-500">{game.losing_pitcher.split(" ").pop()}</span></span>
+                      )}
+                      {game.save_pitcher && (
+                        <span><span className="font-bold text-brand">SV</span> <span className="text-neutral-500">{game.save_pitcher.split(" ").pop()}</span></span>
+                      )}
+                    </div>
+                  )}
                   {isLive && game.live?.current_inning != null && (
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-0.5">

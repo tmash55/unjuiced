@@ -13,6 +13,7 @@ import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { useStateLink } from "@/hooks/use-state-link";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
+import { BasesDiamond } from "@/components/game-center/bases-diamond";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import {
@@ -178,11 +179,6 @@ const MARKETS: MarketConfig[] = [
       { key: "weather", label: "Weather", tooltip: "Temperature + wind impact" },
       { key: "avg_exit_velo", label: "Exit Velo", tooltip: "Average exit velocity" },
       { key: "surge", label: "Surge", tooltip: "Recent form z-score" },
-      // Fallbacks for old data
-      { key: "xslg", label: "xSLG" },
-      { key: "opp_hr9", label: "Opp HR/9" },
-      { key: "ballpark", label: "Ballpark" },
-      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -195,7 +191,7 @@ const MARKETS: MarketConfig[] = [
     columns: [
       { key: "rbi_rate", label: "RBI Rate", shortLabel: "Rate", format: "avg", tooltip: "RBI per plate appearance" },
       { key: "slg", label: "SLG", shortLabel: "SLG", format: "avg", tooltip: "Slugging percentage" },
-      { key: "base_traffic", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — OBP of hitters batting ahead" },
+      { key: "base_traffic_obp", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — OBP of hitters batting ahead" },
     ],
     factors: [
       // Run production
@@ -216,11 +212,6 @@ const MARKETS: MarketConfig[] = [
       { key: "opp_era", label: "Opp ERA", tooltip: "Opposing pitcher ERA" },
       { key: "pitcher_bb_rate", label: "P BB Rate", tooltip: "Pitcher walk rate — free baserunners" },
       { key: "game_total", label: "Game Total", tooltip: "Vegas game total — higher O/U = more RBI opportunity" },
-      // Fallbacks for old data
-      { key: "power", label: "Power" },
-      { key: "lineup_spot", label: "Lineup" },
-      { key: "opp_whip", label: "Opp WHIP" },
-      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -423,6 +414,7 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   // RBI market
   rbi_rate:           { elite: 0.25, good: 0.18, poor: 0.10, bad: 0.05, higher: true },
   base_traffic:       { elite: 0.370, good: 0.330, poor: 0.290, bad: 0.260, higher: true },
+  base_traffic_obp:   { elite: 0.370, good: 0.330, poor: 0.290, bad: 0.260, higher: true },
   // HR market
   max_exit_velo:      { elite: 112, good: 108, poor: 104, bad: 100, higher: true },
   iso:                { elite: 0.250, good: 0.200, poor: 0.130, bad: 0.080, higher: true },
@@ -481,7 +473,7 @@ function avgImpliedDeduped(
 const ZERO_IS_NULL_STATS = new Set([
   "opp_lineup_k_rate", "k_rate", "whiff_pct", "csw_pct", "chase_rate", "sb_attempt_rate", "success_rate",
   "hard_hit_pct", "barrel_pct", "opp_lineup_ba", "opp_woba",
-  "xba", "recent_ba", "vs_hand_ba", "slg", "xslg", "rbi_rate", "base_traffic", "obp",
+  "xba", "recent_ba", "vs_hand_ba", "slg", "xslg", "rbi_rate", "base_traffic", "base_traffic_obp", "obp",
   "sprint_speed", "contact_rate", "babip", "iso", "recent_xslg", "vs_hand_iso",
   "ld_pct", "pitcher_k_pct", "pitcher_h9", "effective_ba", "season_ba",
   "walk_rate_pct", "recent_sb_avg", "catcher_pop_time", "catcher_arm_strength",
@@ -524,11 +516,15 @@ function LineupBadge({ status }: { status: string | null }) {
   }
 }
 
-function getGameState(status: string | null): "upcoming" | "live" | "final" {
-  if (!status) return "upcoming";
+function getGameState(status: string | null, live?: any): "upcoming" | "live" | "final" {
+  if (!status) return live ? "live" : "upcoming";
   const s = status.toLowerCase();
   if (s.includes("final")) return "final";
-  if (s.includes("progress") || s.includes("top") || s.includes("bot") || s.includes("mid") || s.includes("end")) return "live";
+  if (s.includes("progress") || s.includes("challenge") || s.includes("review") ||
+      s.includes("warmup") || s.includes("delayed") ||
+      s.includes("top") || s.includes("bot") || s.includes("mid") || s.includes("end")) return "live";
+  // Fallback: if live state data exists, game is live
+  if (live?.current_inning != null) return "live";
   return "upcoming";
 }
 
@@ -2024,7 +2020,7 @@ export function MlbPropCommandCenter() {
                       const config = getGradeConfig(player.grade);
                       const rank = rankMap.get(player.player_id) ?? idx + 1;
                       const game = gameMap.get(player.game_id);
-                      const gameState = getGameState(game?.game_status ?? null);
+                      const gameState = getGameState(game?.game_status ?? null, game?.live);
                       const isStarted = gameState !== "upcoming";
                       const isOnHomeTeam = game ? player.team_abbr.toUpperCase() === game.home_team_tricode.toUpperCase() : false;
                       const opposingPitcher = game ? (isOnHomeTeam ? game.away_probable_pitcher : game.home_probable_pitcher) : null;
@@ -2104,9 +2100,9 @@ export function MlbPropCommandCenter() {
                               </div>
                             </td>
 
-                            {/* Opponent + Game Time */}
+                            {/* Opponent + Game State */}
                             <td className="px-2 py-2">
-                              <div className="min-w-0 max-w-[160px]">
+                              <div className="min-w-0 max-w-[170px]">
                                 <div className="text-[11px] text-neutral-500 truncate">
                                   {isOnHomeTeam ? "vs " : "@ "}{player.opponent_name || "TBD"}
                                   {opposingPitcherShort && (
@@ -2114,21 +2110,105 @@ export function MlbPropCommandCenter() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  {game && (
-                                    <span className="text-[9px] text-neutral-400 tabular-nums">
-                                      {game.game_status}
-                                    </span>
-                                  )}
-                                  {gameState === "live" && game && (
+                                  {gameState === "live" && game?.live?.current_inning != null ? (
+                                    <Tooltip
+                                      content={
+                                        <div className="flex flex-col gap-3 px-1 py-1.5 min-w-[160px]">
+                                          {/* Header: score + inning */}
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-neutral-300">
+                                              {game.away_team_tricode} {game.away_team_score ?? 0} - {game.home_team_score ?? 0} {game.home_team_tricode}
+                                            </span>
+                                            <span className="flex items-center gap-0.5">
+                                              <span className="text-[9px] text-emerald-400 font-bold">{game.live.current_inning_half === "top" ? "▲" : "▼"}</span>
+                                              <span className="text-[10px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                                            </span>
+                                          </div>
+                                          {/* Divider */}
+                                          <div className="h-px bg-neutral-700/60" />
+                                          {/* State: bases + count/outs */}
+                                          <div className="flex items-center justify-center gap-4">
+                                            <BasesDiamond
+                                              runners={game.live.runners_on_base ?? { first: false, second: false, third: false }}
+                                              size="md"
+                                            />
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className="text-sm font-extrabold text-white tabular-nums tracking-wide">
+                                                {game.live.current_balls ?? 0}-{game.live.current_strikes ?? 0}
+                                              </span>
+                                              <div className="flex items-center gap-1.5">
+                                                {[0, 1, 2].map((i) => (
+                                                  <div
+                                                    key={i}
+                                                    className={cn(
+                                                      "w-2.5 h-2.5 rounded-full border",
+                                                      i < (game.live?.current_outs ?? 0)
+                                                        ? "bg-amber-400 border-amber-500"
+                                                        : "border-neutral-500"
+                                                    )}
+                                                  />
+                                                ))}
+                                                <span className="text-[10px] text-neutral-500 ml-0.5">out</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {/* Divider */}
+                                          <div className="h-px bg-neutral-700/60" />
+                                          {/* Footer: matchup + lineup */}
+                                          <div className="flex flex-col gap-1">
+                                            {game.live.current_batter_name && (
+                                              <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                <span className="text-neutral-500">AB{game.live.current_batting_order ? ` #${game.live.current_batting_order}` : ""}</span>
+                                                <span className="font-semibold text-white">{game.live.current_batter_name}</span>
+                                              </div>
+                                            )}
+                                            {game.live.current_pitcher_name && (
+                                              <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                <span className="text-neutral-500">P</span>
+                                                <span className="font-semibold text-neutral-200">{game.live.current_pitcher_name}</span>
+                                              </div>
+                                            )}
+                                            {(game.live.on_deck_name || game.live.in_hole_name) && (
+                                              <>
+                                                <div className="h-px bg-neutral-700/40 mt-0.5" />
+                                                <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                  <span className="text-neutral-600">Due up</span>
+                                                  <span className="text-neutral-400">
+                                                    {[game.live.on_deck_name, game.live.in_hole_name].filter(Boolean).map(n => n!.split(" ").pop()).join(", ")}
+                                                  </span>
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      }
+                                      side="bottom"
+                                    >
+                                      <div className="inline-flex items-center gap-1.5 cursor-help">
+                                        <span className="flex items-center gap-0.5">
+                                          <span className="text-[8px] text-emerald-400 font-bold leading-none">
+                                            {game.live.current_inning_half === "top" ? "▲" : "▼"}
+                                          </span>
+                                          <span className="text-[9px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                                        </span>
+                                        <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 leading-none tabular-nums">
+                                          {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                        </span>
+                                      </div>
+                                    </Tooltip>
+                                  ) : gameState === "live" && game ? (
                                     <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 leading-none tabular-nums">
-                                      {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                      Live {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
                                     </span>
-                                  )}
-                                  {gameState === "final" && game && (
+                                  ) : gameState === "final" && game ? (
                                     <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-neutral-500/15 text-neutral-400 leading-none tabular-nums">
                                       F {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
                                     </span>
-                                  )}
+                                  ) : game ? (
+                                    <span className="text-[9px] text-neutral-400 tabular-nums">
+                                      {game.game_status}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             </td>

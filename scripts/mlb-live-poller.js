@@ -161,6 +161,11 @@ function extractLiveState(feed) {
   const currentBatterId = batterData?.id ?? null;
   const currentBatterName = batterData?.fullName ?? null;
 
+  // Batting order: current spot, on deck, in hole
+  const currentBattingOrder = ls.offense?.battingOrder ?? null;
+  const onDeckName = ls.offense?.onDeck?.fullName ?? null;
+  const inHoleName = ls.offense?.inHole?.fullName ?? null;
+
   // Last play description
   const lastPlayDescription = pd?.result?.description ?? null;
 
@@ -178,6 +183,9 @@ function extractLiveState(feed) {
     current_balls: balls,
     current_strikes: strikes,
     runners_on_base: runnersOnBase,
+    current_batting_order: currentBattingOrder,
+    on_deck_name: onDeckName,
+    in_hole_name: inHoleName,
     last_play_description: lastPlayDescription,
     live_feed_updated_at: new Date().toISOString(),
   };

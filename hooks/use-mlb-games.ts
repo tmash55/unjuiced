@@ -40,6 +40,9 @@ export interface MlbGameLiveState {
   current_balls: number | null;
   current_strikes: number | null;
   runners_on_base: { first: boolean; second: boolean; third: boolean } | null;
+  current_batting_order: number | null;
+  on_deck_name: string | null;
+  in_hole_name: string | null;
   last_play_description: string | null;
   live_feed_updated_at: string | null;
 }
@@ -67,6 +70,10 @@ export interface MlbGame {
   weather: MlbGameWeather | null;
   park_factor: number | null;
   odds: MlbGameOdds | null;
+  // Final game results
+  winning_pitcher: string | null;
+  losing_pitcher: string | null;
+  save_pitcher: string | null;
   // Live game state (populated by VPS poller for in-progress games)
   live: MlbGameLiveState | null;
 }
@@ -90,7 +97,7 @@ export function useMlbGames(enabled = true) {
     enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     // Poll every 30 seconds to pick up live game state changes
     refetchInterval: 30_000,
   });

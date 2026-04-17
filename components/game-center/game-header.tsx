@@ -271,9 +271,11 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
                     </div>
                   </div>
                 ) : (
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                    {isFinal ? "Final" : ""}
-                  </span>
+                  <div className="flex flex-col items-center">
+                    {isFinal && (
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Final</span>
+                    )}
+                  </div>
                 )}
 
                 <span className="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
@@ -283,8 +285,28 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
                 {gameStatus}
               </div>
             )}
-            {/* Sub-line: batter + venue */}
+            {/* Sub-line: batter/venue (live) or W/L/S (final) */}
             <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+              {isFinal && game.winning_pitcher && (
+                <>
+                  <span>
+                    <span className="text-emerald-500 font-bold">W</span>{" "}
+                    <span className="font-semibold text-neutral-600 dark:text-neutral-300">{game.winning_pitcher.split(" ").pop()}</span>
+                  </span>
+                  {game.losing_pitcher && (
+                    <span>
+                      <span className="text-red-400 font-bold">L</span>{" "}
+                      <span className="font-semibold text-neutral-600 dark:text-neutral-300">{game.losing_pitcher.split(" ").pop()}</span>
+                    </span>
+                  )}
+                  {game.save_pitcher && (
+                    <span>
+                      <span className="text-brand font-bold">SV</span>{" "}
+                      <span className="font-semibold text-neutral-600 dark:text-neutral-300">{game.save_pitcher.split(" ").pop()}</span>
+                    </span>
+                  )}
+                </>
+              )}
               {isLive && live?.current_batter_name && (
                 <>
                   <span>
