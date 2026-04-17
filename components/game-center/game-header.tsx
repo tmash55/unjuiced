@@ -196,7 +196,7 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
   const live = game.live;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
-  const isLive = gameStatus.toLowerCase().includes("progress");
+  const isLive = !!game.live || gameStatus.toLowerCase().includes("progress");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
 
@@ -210,7 +210,7 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
       {/* Main scoreboard */}
-      <div className="relative px-6 py-5">
+      <div className="relative px-6 py-4">
         <div className="absolute inset-0 bg-gradient-to-r from-neutral-50 via-transparent to-neutral-50 dark:from-neutral-800/20 dark:via-transparent dark:to-neutral-800/20 pointer-events-none" />
 
         <div className="relative flex items-center justify-between">
@@ -240,35 +240,64 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
           </div>
 
           {/* Center: scoreboard */}
-          <div className="flex flex-col items-center gap-1.5 px-4 shrink-0 min-w-[140px]">
+          <div className="flex flex-col items-center gap-2 px-4 shrink-0">
             {hasScore ? (
-              <>
-                <div className="flex items-center gap-5">
-                  <span className="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                  <div className="flex flex-col items-center">
-                    {isLive ? (
-                      <>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 mb-1">Live</span>
-                        <LiveStatePanel game={game} />
-                      </>
-                    ) : (
-                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Final</span>
-                    )}
+              <div className="flex items-center gap-6">
+                <span className="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
+
+                {isLive && live?.current_inning != null ? (
+                  <div className="flex items-center gap-4">
+                    {/* Live badge + inning */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 leading-none">Live</span>
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        <span className="text-[10px] text-emerald-400 font-bold leading-none">
+                          {live.current_inning_half === "top" ? "▲" : "▼"}
+                        </span>
+                        <span className="text-sm font-extrabold text-emerald-400 tabular-nums leading-none">{live.current_inning}</span>
+                      </div>
+                    </div>
+
+                    {/* Bases */}
+                    <BasesDiamond
+                      runners={live.runners_on_base ?? { first: false, second: false, third: false }}
+                      size="md"
+                    />
+
+                    {/* Count + Outs */}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <CountDisplay balls={live.current_balls ?? 0} strikes={live.current_strikes ?? 0} />
+                      <OutsIndicator outs={live.current_outs ?? 0} />
+                    </div>
                   </div>
-                  <span className="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
-                </div>
-              </>
+                ) : (
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                    {isFinal ? "Final" : ""}
+                  </span>
+                )}
+
+                <span className="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
+              </div>
             ) : (
               <div className="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
                 {gameStatus}
               </div>
             )}
-            {w?.venue_name && (
-              <div className="text-[10px] text-neutral-400 whitespace-nowrap">{w.venue_name}</div>
-            )}
-            {/* Odds */}
+            {/* Sub-line: batter + venue */}
+            <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+              {isLive && live?.current_batter_name && (
+                <>
+                  <span>
+                    AB: <span className="font-semibold text-neutral-600 dark:text-neutral-300">{live.current_batter_name.split(" ").pop()}</span>
+                  </span>
+                  {w?.venue_name && <span className="text-neutral-300 dark:text-neutral-600">·</span>}
+                </>
+              )}
+              {w?.venue_name && <span>{w.venue_name}</span>}
+            </div>
+            {/* Odds strip */}
             {odds && (
-              <div className="flex items-center gap-3 mt-0.5">
+              <div className="flex items-center gap-3">
                 {fdLogo && (
                   <img src={fdLogo} alt="" className="h-4 w-4 rounded object-contain opacity-50" />
                 )}
@@ -330,7 +359,7 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
   const live = game.live;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
-  const isLive = gameStatus.toLowerCase().includes("progress");
+  const isLive = !!game.live || gameStatus.toLowerCase().includes("progress");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
