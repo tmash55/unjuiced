@@ -200,16 +200,39 @@ export function GameCenterPage() {
   const [overrideAwayPitcherId, setOverrideAwayPitcherId] = useState<number | null>(null);
   const [overrideHomePitcherId, setOverrideHomePitcherId] = useState<number | null>(null);
 
-  // Reset pitcher overrides when game changes
-  React.useEffect(() => {
-    setOverrideAwayPitcherId(null);
-    setOverrideHomePitcherId(null);
-  }, [gc.gameId]);
+  // Auto pitcher change: when enabled, watches live current_pitcher_id and swaps automatically
+  const [autoPitcher, setAutoPitcher] = useState(false);
 
   const selectedGame = useMemo(
     () => games.find((g) => Number(g.game_id) === gc.gameId) ?? null,
     [games, gc.gameId]
   );
+
+  // Reset pitcher overrides (and auto mode) when game changes
+  React.useEffect(() => {
+    setOverrideAwayPitcherId(null);
+    setOverrideHomePitcherId(null);
+    setAutoPitcher(false);
+  }, [gc.gameId]);
+
+  // Auto-detect live pitcher changes and apply override when autoPitcher is on
+  React.useEffect(() => {
+    if (!autoPitcher || !selectedGame?.live) return;
+    const live = selectedGame.live;
+    if (!live.current_pitcher_id || !live.current_inning_half) return;
+
+    // Top inning = away team pitching; bottom = home team pitching
+    if (live.current_inning_half === "top") {
+      setOverrideHomePitcherId((prev) =>
+        prev !== live.current_pitcher_id ? live.current_pitcher_id : prev
+      );
+    } else {
+      setOverrideAwayPitcherId((prev) =>
+        prev !== live.current_pitcher_id ? live.current_pitcher_id : prev
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPitcher, selectedGame?.live?.current_pitcher_id, selectedGame?.live?.current_inning_half]);
 
   if (gamesLoading) {
     return (
@@ -351,6 +374,26 @@ export function GameCenterPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Auto pitcher toggle — only shown for live games */}
+                {selectedGame?.live && (
+                  <>
+                    <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700/40 shrink-0" />
+                    <button
+                      onClick={() => setAutoPitcher((v) => !v)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
+                        autoPitcher
+                          ? "bg-emerald-500 text-white shadow-sm"
+                          : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Auto: detects pitcher changes from live feed"
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", autoPitcher ? "bg-white animate-pulse" : "bg-neutral-400")} />
+                      Auto
+                    </button>
+                  </>
+                )}
               </>
             )}
 
@@ -374,6 +417,26 @@ export function GameCenterPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Auto pitcher toggle for Weakness view */}
+                {selectedGame?.live && (
+                  <>
+                    <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700/40 shrink-0" />
+                    <button
+                      onClick={() => setAutoPitcher((v) => !v)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
+                        autoPitcher
+                          ? "bg-emerald-500 text-white shadow-sm"
+                          : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Auto: detects pitcher changes from live feed"
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", autoPitcher ? "bg-white animate-pulse" : "bg-neutral-400")} />
+                      Auto
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -462,27 +525,53 @@ export function GameCenterPage() {
                       </button>
                     ))}
                   </div>
+                  {selectedGame?.live && (
+                    <button
+                      onClick={() => setAutoPitcher((v) => !v)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
+                        autoPitcher ? "bg-emerald-500 text-white shadow-sm" : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500"
+                      )}
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", autoPitcher ? "bg-white animate-pulse" : "bg-neutral-400")} />
+                      Auto
+                    </button>
+                  )}
                 </div>
               </>
             )}
 
             {/* Pitcher Weakness: Season only */}
             {gc.view === "weakness" && (
-              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
-                {SEASON_OPTIONS.map((opt) => (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/60">
+                  {SEASON_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => gc.setSeason(Number(opt.value))}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
+                        gc.season === Number(opt.value)
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {selectedGame?.live && (
                   <button
-                    key={opt.value}
-                    onClick={() => gc.setSeason(Number(opt.value))}
+                    onClick={() => setAutoPitcher((v) => !v)}
                     className={cn(
-                      "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
-                      gc.season === Number(opt.value)
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500"
+                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1",
+                      autoPitcher ? "bg-emerald-500 text-white shadow-sm" : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500"
                     )}
                   >
-                    {opt.label}
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", autoPitcher ? "bg-white animate-pulse" : "bg-neutral-400")} />
+                    Auto
                   </button>
-                ))}
+                )}
               </div>
             )}
           </div>
