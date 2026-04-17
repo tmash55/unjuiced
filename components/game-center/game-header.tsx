@@ -37,17 +37,113 @@ function windImpactLabel(impact: string | null, label: string | null): string {
   return label?.split(" ").pop() || "";
 }
 
+// ── Live Game Indicator ─────────────────────────────────────────────────────
+
+function InningHalfArrow({ half }: { half: "top" | "bottom" | null }) {
+  if (!half) return null;
+  return (
+    <span className="text-[10px] text-emerald-400 font-bold leading-none">
+      {half === "top" ? "▲" : "▼"}
+    </span>
+  );
+}
+
+function CountDots({ count, max, activeColor }: { count: number | null; max: number; activeColor: string }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <div
+          key={i}
+          className={cn(
+            "w-2 h-2 rounded-full border",
+            i < (count ?? 0) ? activeColor : "border-neutral-300 dark:border-neutral-600 bg-transparent"
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LiveGameStatus({ game }: { game: MlbGame }) {
+  const live = game.live;
+  if (!live || live.current_inning == null) return null;
+
+  const inning = live.current_inning;
+  const half = live.current_inning_half;
+  const outs = live.current_outs ?? 0;
+  const balls = live.current_balls ?? 0;
+  const strikes = live.current_strikes ?? 0;
+  const batter = live.current_batter_name;
+  const runners = live.runners_on_base;
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {/* Inning */}
+      <div className="flex items-center gap-1">
+        <InningHalfArrow half={half} />
+        <span className="text-xs font-bold text-emerald-400 tabular-nums">{inning}</span>
+      </div>
+      {/* Count: balls · strikes · outs */}
+      <div className="flex items-center gap-2">
+        <CountDots count={balls} max={4} activeColor="bg-emerald-400 border-emerald-400" />
+        <CountDots count={strikes} max={3} activeColor="bg-yellow-400 border-yellow-400" />
+        <div className="w-px h-3 bg-neutral-200 dark:bg-neutral-700" />
+        <CountDots count={outs} max={3} activeColor="bg-red-400 border-red-400" />
+      </div>
+      {/* Baserunners */}
+      {runners && (
+        <BasesDisplay runners={runners} />
+      )}
+      {/* Batter */}
+      {batter && (
+        <span className="text-[10px] text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
+          AB: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{batter.split(" ").pop()}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BasesDisplay({ runners }: { runners: { first: boolean; second: boolean; third: boolean } }) {
+  return (
+    <div className="relative w-8 h-8 shrink-0">
+      {/* Diamond layout: second on top, first right, third left */}
+      <div className={cn(
+        "absolute w-2.5 h-2.5 rotate-45 border",
+        runners.second ? "bg-yellow-400 border-yellow-400" : "border-neutral-300 dark:border-neutral-600"
+      )} style={{ top: 0, left: "50%", transform: "translateX(-50%) rotate(45deg)" }} />
+      <div className={cn(
+        "absolute w-2.5 h-2.5 rotate-45 border",
+        runners.first ? "bg-yellow-400 border-yellow-400" : "border-neutral-300 dark:border-neutral-600"
+      )} style={{ top: "50%", right: 0, transform: "translateY(-50%) rotate(45deg)" }} />
+      <div className={cn(
+        "absolute w-2.5 h-2.5 rotate-45 border",
+        runners.third ? "bg-yellow-400 border-yellow-400" : "border-neutral-300 dark:border-neutral-600"
+      )} style={{ top: "50%", left: 0, transform: "translateY(-50%) rotate(45deg)" }} />
+    </div>
+  );
+}
+
 // ── Desktop Header ──────────────────────────────────────────────────────────
 
 function DesktopGameHeader({ game }: { game: MlbGame }) {
   const w = game.weather;
   const odds = game.odds;
+  const live = game.live;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
   const isLive = gameStatus.toLowerCase().includes("progress");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
+
+  // Show live pitcher name if different from probable (mid-game swap)
+  const awayPitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "bottom"
+    ? live.current_pitcher_name
+    : (game.away_probable_pitcher || "TBD");
+  const homePitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "top"
+    ? live.current_pitcher_name
+    : (game.home_probable_pitcher || "TBD");
 
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
@@ -74,7 +170,7 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
                 )}
               </div>
               <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                {game.away_probable_pitcher || "TBD"}
+                {awayPitcherDisplay}
               </div>
               {odds?.away_ml && (
                 <div className="text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300 mt-0.5 tabular-nums">
@@ -89,10 +185,11 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
             {hasScore ? (
               <div className="flex items-center gap-4">
                 <span className="text-2xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-0.5">
                   <span className={cn("text-xs font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
                     {isLive ? "Live" : "Final"}
                   </span>
+                  {isLive && <LiveGameStatus game={game} />}
                 </div>
                 <span className="text-2xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
               </div>
@@ -144,7 +241,7 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
                 </span>
               </div>
               <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                {game.home_probable_pitcher || "TBD"}
+                {homePitcherDisplay}
               </div>
               {odds?.home_ml && (
                 <div className="text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300 mt-0.5 tabular-nums">
@@ -214,12 +311,20 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
 function MobileGameHeader({ game }: { game: MlbGame }) {
   const w = game.weather;
   const odds = game.odds;
+  const live = game.live;
   const gameStatus = game.game_status || "TBD";
   const isFinal = isGameFinal(gameStatus);
   const isLive = gameStatus.toLowerCase().includes("progress");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
+
+  const awayPitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "bottom"
+    ? live.current_pitcher_name
+    : (game.away_probable_pitcher || "TBD");
+  const homePitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "top"
+    ? live.current_pitcher_name
+    : (game.home_probable_pitcher || "TBD");
 
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
@@ -235,7 +340,7 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
             />
             <span className="text-sm font-bold text-neutral-900 dark:text-white">{game.away_team_tricode}</span>
             <span className="text-[10px] text-neutral-500 truncate max-w-[100px] text-center">
-              {game.away_probable_pitcher || "TBD"}
+              {awayPitcherDisplay}
             </span>
             {odds?.away_ml && (
               <span className="text-[11px] font-mono font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
@@ -249,9 +354,23 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
             {hasScore ? (
               <div className="flex items-center gap-3">
                 <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.away_team_score ?? 0}</span>
-                <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
-                  {isLive ? "Live" : "Final"}
-                </span>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className={cn("text-[10px] font-bold uppercase tracking-wider", isLive ? "text-emerald-400" : "text-neutral-400")}>
+                    {isLive ? "Live" : "Final"}
+                  </span>
+                  {isLive && live?.current_inning != null && (
+                    <div className="flex items-center gap-1">
+                      <InningHalfArrow half={live.current_inning_half} />
+                      <span className="text-[10px] font-bold text-emerald-400 tabular-nums">{live.current_inning}</span>
+                      <span className="text-[9px] text-neutral-500">{live.current_outs ?? 0}o</span>
+                    </div>
+                  )}
+                  {isLive && live?.current_batter_name && (
+                    <span className="text-[9px] text-neutral-400 whitespace-nowrap">
+                      AB: {live.current_batter_name.split(" ").pop()}
+                    </span>
+                  )}
+                </div>
                 <span className="text-xl font-extrabold text-neutral-900 dark:text-white tabular-nums">{game.home_team_score ?? 0}</span>
               </div>
             ) : (
@@ -280,7 +399,7 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
             />
             <span className="text-sm font-bold text-neutral-900 dark:text-white">{game.home_team_tricode}</span>
             <span className="text-[10px] text-neutral-500 truncate max-w-[100px] text-center">
-              {game.home_probable_pitcher || "TBD"}
+              {homePitcherDisplay}
             </span>
             {odds?.home_ml && (
               <span className="text-[11px] font-mono font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">

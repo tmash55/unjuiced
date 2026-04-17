@@ -5,6 +5,8 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
 const GAMES_CACHE_KEY = "mlb:games:today";
 const GAMES_CACHE_TTL = 300;
+// Shorter TTL for in-progress games so live state propagates quickly
+const GAMES_CACHE_TTL_LIVE = 30;
 
 function parseGameTimeToMinutes(gameStatus: string): number {
   const timeMatch = gameStatus.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*ET$/i);
@@ -65,6 +67,26 @@ function toGameRow(row: any) {
     row.away_team?.abbreviation ||
     getStandardAbbreviation(row.away_name || "", "mlb");
 
+  const statusDetailed = row.status_detailed_state || row.status;
+  const isLive = (statusDetailed || "").toLowerCase().includes("in progress") ||
+                 (statusDetailed || "").toLowerCase().includes("manager challenge");
+
+  // Build live state object when in-progress data exists
+  const live = isLive && row.current_pitcher_id != null ? {
+    current_pitcher_id: row.current_pitcher_id ?? null,
+    current_pitcher_name: row.current_pitcher_name ?? null,
+    current_batter_id: row.current_batter_id ?? null,
+    current_batter_name: row.current_batter_name ?? null,
+    current_inning: row.current_inning ?? null,
+    current_inning_half: row.current_inning_half ?? null,
+    current_outs: row.current_outs ?? null,
+    current_balls: row.current_balls ?? null,
+    current_strikes: row.current_strikes ?? null,
+    runners_on_base: row.runners_on_base ?? null,
+    last_play_description: row.last_play_description ?? null,
+    live_feed_updated_at: row.live_feed_updated_at ?? null,
+  } : null;
+
   return {
     game_id: String(row.game_id),
     game_date: row.game_date,
@@ -74,7 +96,7 @@ function toGameRow(row: any) {
     away_team_tricode: awayAbbr,
     home_team_score: row.home_score ?? null,
     away_team_score: row.away_score ?? null,
-    game_status: getDisplayStatus(row.status_detailed_state || row.status, row.game_datetime),
+    game_status: getDisplayStatus(statusDetailed, row.game_datetime),
     venue_id: row.venue_id ?? null,
     home_probable_pitcher: row.home_probable_pitcher ?? null,
     away_probable_pitcher: row.away_probable_pitcher ?? null,
@@ -85,6 +107,7 @@ function toGameRow(row: any) {
     odds_game_id: row.odds_game_id ?? null,
     home_team_record: null as string | null,
     away_team_record: null as string | null,
+    live,
     // Enriched below
     weather: null as {
       temperature_f: number | null;
@@ -137,21 +160,22 @@ export async function GET() {
 
     const cacheKey = `${GAMES_CACHE_KEY}:${today}`;
     try {
-      const cached = await redis.get<{ games: any[]; dates: string[]; primaryDate: string }>(cacheKey);
+      const cached = await redis.get<{ games: any[]; dates: string[]; primaryDate: string; ts?: number }>(cacheKey);
       if (cached?.games) {
-        return NextResponse.json(
-          {
-            games: cached.games,
-            dates: cached.dates,
-            primaryDate: cached.primaryDate,
-            cached: true,
-          },
-          {
-            headers: {
-              "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
-            },
-          }
+        const anyLiveCached = cached.games.some((g: any) =>
+          (g.game_status || "").toLowerCase().includes("progress")
         );
+        // Skip serving stale cache if live games are running — live state changes every 30s
+        const cacheAgeMs = cached.ts ? Date.now() - cached.ts : 0;
+        if (!anyLiveCached || cacheAgeMs < GAMES_CACHE_TTL_LIVE * 1000) {
+          const cacheControl = anyLiveCached
+            ? "public, max-age=15, s-maxage=15, stale-while-revalidate=30"
+            : "public, max-age=60, s-maxage=60, stale-while-revalidate=120";
+          return NextResponse.json(
+            { games: cached.games, dates: cached.dates, primaryDate: cached.primaryDate, cached: true },
+            { headers: { "Cache-Control": cacheControl } }
+          );
+        }
       }
     } catch (cacheError) {
       console.error("[/api/mlb/games] Cache read error:", cacheError);
@@ -175,6 +199,18 @@ export async function GET() {
       odds_game_id,
       home_probable_pitcher,
       away_probable_pitcher,
+      current_pitcher_id,
+      current_pitcher_name,
+      current_batter_id,
+      current_batter_name,
+      current_inning,
+      current_inning_half,
+      current_outs,
+      current_balls,
+      current_strikes,
+      runners_on_base,
+      last_play_description,
+      live_feed_updated_at,
       home_team:mlb_teams!mlb_games_home_id_fkey (abbreviation, team_id),
       away_team:mlb_teams!mlb_games_away_id_fkey (abbreviation, team_id)
     `;
@@ -466,16 +502,23 @@ export async function GET() {
       primaryDate: dates[0] || today,
     };
 
+    // Use shorter TTL when any game is currently in progress
+    const anyLive = sortedGames.some((g) =>
+      (g.game_status || "").toLowerCase().includes("progress")
+    );
+    const cacheTtl = anyLive ? GAMES_CACHE_TTL_LIVE : GAMES_CACHE_TTL;
+    const cacheControl = anyLive
+      ? "public, max-age=15, s-maxage=15, stale-while-revalidate=30"
+      : "public, max-age=60, s-maxage=60, stale-while-revalidate=120";
+
     redis
-      .set(cacheKey, { ...response, ts: Date.now() }, { ex: GAMES_CACHE_TTL })
+      .set(cacheKey, { ...response, ts: Date.now() }, { ex: cacheTtl })
       .catch((e) => console.error("[/api/mlb/games] Cache write error:", e));
 
-    console.log(`[/api/mlb/games] DB fetch in ${Date.now() - startTime}ms`);
+    console.log(`[/api/mlb/games] DB fetch in ${Date.now() - startTime}ms (TTL=${cacheTtl}s, live=${anyLive})`);
 
     return NextResponse.json(response, {
-      headers: {
-        "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
-      },
+      headers: { "Cache-Control": cacheControl },
     });
   } catch (error: any) {
     console.error("[/api/mlb/games] Error:", error);

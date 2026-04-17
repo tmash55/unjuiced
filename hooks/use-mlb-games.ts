@@ -29,6 +29,21 @@ export interface MlbGameOdds {
   away_total_under_price: string | null;
 }
 
+export interface MlbGameLiveState {
+  current_pitcher_id: number | null;
+  current_pitcher_name: string | null;
+  current_batter_id: number | null;
+  current_batter_name: string | null;
+  current_inning: number | null;
+  current_inning_half: "top" | "bottom" | null;
+  current_outs: number | null;
+  current_balls: number | null;
+  current_strikes: number | null;
+  runners_on_base: { first: boolean; second: boolean; third: boolean } | null;
+  last_play_description: string | null;
+  live_feed_updated_at: string | null;
+}
+
 export interface MlbGame {
   game_id: string;
   game_date: string;
@@ -52,6 +67,8 @@ export interface MlbGame {
   weather: MlbGameWeather | null;
   park_factor: number | null;
   odds: MlbGameOdds | null;
+  // Live game state (populated by VPS poller for in-progress games)
+  live: MlbGameLiveState | null;
 }
 
 interface GamesResponse {
@@ -71,9 +88,11 @@ export function useMlbGames(enabled = true) {
     queryKey: ["mlb-games"],
     queryFn: fetchMlbGames,
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    // Poll every 30 seconds to pick up live game state changes
+    refetchInterval: 30_000,
   });
 
   return {
