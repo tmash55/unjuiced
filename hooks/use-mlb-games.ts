@@ -90,7 +90,7 @@ export function useMlbGames(enabled = true) {
     enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     // Poll every 30 seconds to pick up live game state changes
     refetchInterval: 30_000,
   });
