@@ -1589,7 +1589,7 @@ export function MlbPropCommandCenter() {
 
       // Merge live odds into snapshot (same architecture as slate insights)
       const playerNorm = p.player_name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-      const liveEntry = liveOdds[playerNorm];
+      const liveEntry = liveOdds[`${p.game_id}:${playerNorm}`];
       let mergedSnapshot = { ...(p.odds_snapshot ?? {}) };
       if (liveEntry?.all_books) {
         // Live odds have all lines per book — build snapshot entries keyed by book__line
