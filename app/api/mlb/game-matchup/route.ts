@@ -218,6 +218,12 @@ export interface BatterMatchup {
     vs_rhp: BatterPitchSplit[];
     vs_lhp: BatterPitchSplit[];
   };
+  // Pre-bucketed Statcast splits by pitcher hand and pitch type
+  statcast_splits: {
+    vs_rhp: StatcastBucket | null;
+    vs_lhp: StatcastBucket | null;
+    by_pitch: Record<string, StatcastBucket | null>;
+  } | null;
 }
 
 export interface GameMatchupResponse {
@@ -295,6 +301,36 @@ function filterBBsBySample(bbs: any[], sample: string): any[] {
   const dates = [...new Set(bbs.map((b: any) => b.game_date as string))].sort().reverse();
   const keepDates = new Set(dates.slice(0, gameLimit));
   return bbs.filter((b: any) => keepDates.has(b.game_date));
+}
+
+export interface StatcastBucket {
+  contact_pct: number | null;
+  bip_pct: number | null;
+  avg_ev: number | null;
+  hard_hit_pct: number | null;
+  barrel_pct: number | null;
+  sweet_spot_pct: number | null;
+  max_ev: number | null;
+  sample_bbs: number;
+}
+
+function computeStatcastBucket(
+  bbs: any[],
+  trad?: { pa: number; k: number; ab: number } | null
+): StatcastBucket | null {
+  if (bbs.length < 5) return null;
+  const evBalls = bbs.filter((b: any) => b.exit_velocity != null && b.exit_velocity > 0);
+  const laBalls = bbs.filter((b: any) => b.launch_angle != null);
+  return {
+    contact_pct: trad && trad.pa > 0 ? +((1 - trad.k / trad.pa) * 100).toFixed(1) : null,
+    bip_pct: trad && trad.ab > 0 ? +(((trad.ab - trad.k) / trad.ab) * 100).toFixed(1) : null,
+    avg_ev: evBalls.length > 0 ? +(evBalls.reduce((s: number, b: any) => s + b.exit_velocity, 0) / evBalls.length).toFixed(1) : null,
+    hard_hit_pct: evBalls.length > 0 ? +(evBalls.filter((b: any) => b.exit_velocity >= 95).length / evBalls.length * 100).toFixed(1) : null,
+    barrel_pct: bbs.length > 0 ? +(bbs.filter((b: any) => b.is_barrel === true || b.is_barrel === 1).length / bbs.length * 100).toFixed(1) : null,
+    sweet_spot_pct: laBalls.length > 0 ? +(laBalls.filter((b: any) => b.launch_angle >= 8 && b.launch_angle <= 32).length / laBalls.length * 100).toFixed(1) : null,
+    max_ev: evBalls.length > 0 ? +Math.max(...evBalls.map((b: any) => b.exit_velocity)).toFixed(1) : null,
+    sample_bbs: bbs.length,
+  };
 }
 
 function computeSLGFromEvents(bbs: any[]): number | null {
@@ -900,6 +936,12 @@ export async function GET(req: NextRequest) {
         const npStatcastContact = trad && trad.pa > 0 && trad.k != null ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
         const npStatcastBIP = trad && trad.pa > 0 && trad.ab != null && trad.k != null ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
 
+        const npPitchTypes = [...new Set(bbs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
+        const npByPitch: Record<string, StatcastBucket | null> = {};
+        for (const pt of npPitchTypes) {
+          npByPitch[pt] = computeStatcastBucket(bbs.filter((b: any) => b.pitch_type === pt));
+        }
+
         const buildSplit = (hand: string) => {
           const hs = noHandSplitMap.get(`${p.player_id}:${hand}`);
           if (!hs || hs.pa < 2) return null;
@@ -935,6 +977,11 @@ export async function GET(req: NextRequest) {
             vs_rhp: buildSplit("R"),
             vs_lhp: buildSplit("L"),
           },
+          statcast_splits: bbs.length >= 5 ? {
+            vs_rhp: computeStatcastBucket(bbs.filter((b: any) => b.pitcher_hand === "R")),
+            vs_lhp: computeStatcastBucket(bbs.filter((b: any) => b.pitcher_hand === "L")),
+            by_pitch: npByPitch,
+          } : null,
           matchup_grade: "neutral" as const,
           matchup_reason: "No opposing pitcher announced",
         };
@@ -2186,6 +2233,14 @@ export async function GET(req: NextRequest) {
       const statcastContactPct = trad && trad.pa > 0 ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
       const statcastBIPPct = trad && trad.pa > 0 ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
 
+      const rhpBBs = seasonBBs.filter((b: any) => b.pitcher_hand === "R");
+      const lhpBBs = seasonBBs.filter((b: any) => b.pitcher_hand === "L");
+      const pitchTypes = [...new Set(seasonBBs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
+      const byPitch: Record<string, StatcastBucket | null> = {};
+      for (const pt of pitchTypes) {
+        byPitch[pt] = computeStatcastBucket(seasonBBs.filter((b: any) => b.pitch_type === pt));
+      }
+
       return {
         player_id: p.player_id,
         player_name: p.player_name,
@@ -2235,6 +2290,11 @@ export async function GET(req: NextRequest) {
           vs_rhp: computeHandSplit("R"),
           vs_lhp: computeHandSplit("L"),
         },
+        statcast_splits: seasonBBs.length >= 5 ? {
+          vs_rhp: computeStatcastBucket(rhpBBs),
+          vs_lhp: computeStatcastBucket(lhpBBs),
+          by_pitch: byPitch,
+        } : null,
       };
     });
 
@@ -2362,5 +2422,6 @@ function buildEmptyBatter(p: any): BatterMatchup {
     statcast_sweet_spot_pct: null,
     statcast_max_ev: null,
     hand_splits: { vs_rhp: null, vs_lhp: null },
+    statcast_splits: null,
   };
 }

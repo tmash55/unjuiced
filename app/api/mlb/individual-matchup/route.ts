@@ -802,6 +802,34 @@ export async function GET(req: NextRequest) {
         }
         return { vs_rhp: computeHS("R"), vs_lhp: computeHS("L") };
       })(),
+      statcast_splits: (() => {
+        if (batterBBs.length < 5) return null;
+        function imBucket(bbs: any[]) {
+          if (bbs.length < 5) return null;
+          const evBalls = bbs.filter((b: any) => b.exit_velocity != null && b.exit_velocity > 0);
+          const laBalls = bbs.filter((b: any) => b.launch_angle != null);
+          return {
+            contact_pct: null as null,
+            bip_pct: null as null,
+            avg_ev: evBalls.length > 0 ? +(evBalls.reduce((s: number, b: any) => s + b.exit_velocity, 0) / evBalls.length).toFixed(1) : null,
+            hard_hit_pct: evBalls.length > 0 ? +(evBalls.filter((b: any) => b.exit_velocity >= 95).length / evBalls.length * 100).toFixed(1) : null,
+            barrel_pct: bbs.length > 0 ? +(bbs.filter((b: any) => b.is_barrel === true || b.is_barrel === 1).length / bbs.length * 100).toFixed(1) : null,
+            sweet_spot_pct: laBalls.length > 0 ? +(laBalls.filter((b: any) => b.launch_angle >= 8 && b.launch_angle <= 32).length / laBalls.length * 100).toFixed(1) : null,
+            max_ev: evBalls.length > 0 ? +Math.max(...evBalls.map((b: any) => b.exit_velocity)).toFixed(1) : null,
+            sample_bbs: bbs.length,
+          };
+        }
+        const imPitchTypes = [...new Set(batterBBs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
+        const imByPitch: Record<string, ReturnType<typeof imBucket>> = {};
+        for (const pt of imPitchTypes) {
+          imByPitch[pt] = imBucket(batterBBs.filter((b: any) => b.pitch_type === pt));
+        }
+        return {
+          vs_rhp: imBucket(batterBBs.filter((b: any) => b.pitcher_hand === "R")),
+          vs_lhp: imBucket(batterBBs.filter((b: any) => b.pitcher_hand === "L")),
+          by_pitch: imByPitch,
+        };
+      })(),
     };
 
     console.log(`[/api/mlb/individual-matchup] ${Date.now() - startTime}ms | batter=${batterId} pitcher=${pitcherId} pitcherBBs=${totalPitcherBBs} batterBBs=${batterBBs.length} h2h=${h2hBBs.length} season=${usedSeason}`);
