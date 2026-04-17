@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const supabase = createServerSupabaseClient();
 
     const { data, error } = await supabase
-      .from('wnba_games')
+      .from('wnba_games_hr')
       .select('game_date')
       .order('game_date', { ascending: false })
       .limit(1);

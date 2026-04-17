@@ -229,8 +229,10 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.rpc("get_wnba_hit_rate_cheatsheet_v2", {
       p_time_window: timeWindow,
       p_min_hit_rate: minHitRate,
-      p_odds_floor: oddsFloor,
-      p_odds_ceiling: oddsCeiling,
+      // WNBA profiles are built from season averages and have no live odds yet.
+      // Pass null so the RPC skips the odds filter rather than eliminating all rows.
+      p_odds_floor: null,
+      p_odds_ceiling: null,
       p_markets: markets,
       p_dates: dates,
     });
@@ -288,8 +290,8 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase.rpc("get_wnba_hit_rate_cheatsheet_v2", {
     p_time_window: timeWindow,
     p_min_hit_rate: minHitRate,
-    p_odds_floor: oddsFloor,
-    p_odds_ceiling: oddsCeiling,
+    p_odds_floor: null,
+    p_odds_ceiling: null,
     p_markets: markets,
     p_dates: dates,
   });

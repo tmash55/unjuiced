@@ -1153,6 +1153,15 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   const isGated = !isLoadingAccess && !hasAccess;
   const effectiveMarkets = isGated ? ["player_points"] : filters.markets;
 
+  // For WNBA: always fetch game dates so we can target the actual upcoming game dates
+  // instead of defaulting to today (which has no WNBA games during the season).
+  const wnbaGamesQuery = useWnbaGames(sport === "wnba");
+  const wnbaDates = wnbaGamesQuery.gamesDates.length > 0 ? wnbaGamesQuery.gamesDates : undefined;
+
+  // Compute effective dates: WNBA uses upcoming game dates from the schedule;
+  // NBA/MLB use the "today / tomorrow / all" date filter.
+  const effectiveDates = sport === "wnba" ? wnbaDates : getDateFilterDates(filters.dateFilter);
+
   // Fetch data with API filters
   const { data, isLoading, error } = useCheatSheet({
     timeWindow: filters.timeWindow,
@@ -1160,13 +1169,13 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     oddsFloor: filters.oddsFloor,
     oddsCeiling: filters.oddsCeiling,
     markets: effectiveMarkets.length > 0 ? effectiveMarkets : undefined,
-    dates: getDateFilterDates(filters.dateFilter),
+    dates: effectiveDates,
   }, sport);
 
   // Apply client-side filters (for gated users, we'll filter after odds are loaded)
   const filteredRows = useMemo(() => {
     if (!data?.rows) return [];
-    
+
     let rows = data.rows;
 
     // For gated users, don't apply filters - we'll limit after odds are loaded
@@ -1206,7 +1215,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   const showNoProps = !isLoading && !isLoadingAccess && (!!error || data?.rows?.length === 0);
   const nbaGamesQuery = useNbaGames(sport === "nba" && showNoProps);
   const mlbGamesQuery = useMlbGames(sport === "mlb" && showNoProps);
-  const wnbaGamesQuery = useWnbaGames(sport === "wnba" && showNoProps);
+  // wnbaGamesQuery is already fetched above (always enabled for WNBA)
   const rawNextDate =
     sport === "mlb" ? (mlbGamesQuery.gamesDates[0] ?? null) :
     sport === "wnba" ? (wnbaGamesQuery.gamesDates[0] ?? null) :
