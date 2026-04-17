@@ -2345,6 +2345,60 @@ function BatterExpansion({
         </div>
       </div>
 
+      {/* Season Statcast — always full-season regardless of sample filter */}
+      {(batter.statcast_avg_ev != null || batter.statcast_barrel_pct != null || batter.statcast_contact_pct != null) && (
+        <div className="mt-3 rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Season Statcast</h5>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[260px] text-xs">Full-season Statcast contact quality. Contact% = (PA−K)/PA. BIP% = balls in play per PA. Hard Hit ≥95 mph. Sweet Spot = 8–32° launch angle. All stats are season-long regardless of sample filter.</TooltipContent></Tooltip></TooltipProvider>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            {[
+              {
+                label: "Contact%",
+                value: batter.statcast_contact_pct != null ? `${batter.statcast_contact_pct.toFixed(1)}%` : "-",
+                color: statText(batter.statcast_contact_pct, { elite: 85, good: 80, poor: 72, bad: 65 }),
+              },
+              {
+                label: "BIP%",
+                value: batter.statcast_bip_pct != null ? `${batter.statcast_bip_pct.toFixed(1)}%` : "-",
+                color: statText(batter.statcast_bip_pct, { elite: 75, good: 70, poor: 60, bad: 52 }),
+              },
+              {
+                label: "Avg EV",
+                value: batter.statcast_avg_ev != null ? batter.statcast_avg_ev.toFixed(1) : "-",
+                color: evTextColor(batter.statcast_avg_ev),
+              },
+              {
+                label: "Hard%",
+                value: batter.statcast_hard_hit_pct != null ? `${batter.statcast_hard_hit_pct.toFixed(1)}%` : "-",
+                color: statText(batter.statcast_hard_hit_pct, { elite: 45, good: 38, poor: 30, bad: 25 }),
+              },
+              {
+                label: "Brl%",
+                value: batter.statcast_barrel_pct != null ? `${batter.statcast_barrel_pct.toFixed(1)}%` : "-",
+                color: barrelTextColor(batter.statcast_barrel_pct),
+              },
+              {
+                label: "SwSp%",
+                value: batter.statcast_sweet_spot_pct != null ? `${batter.statcast_sweet_spot_pct.toFixed(1)}%` : "-",
+                color: statText(batter.statcast_sweet_spot_pct, { elite: 38, good: 33, poor: 26, bad: 20 }),
+              },
+              {
+                label: "Max EV",
+                value: batter.statcast_max_ev != null ? batter.statcast_max_ev.toFixed(1) : "-",
+                color: statText(batter.statcast_max_ev, { elite: 112, good: 108, poor: 102, bad: 96 }),
+              },
+            ].map((s) => (
+              <div key={s.label}>
+                <p className="text-[9px] text-neutral-400">{s.label}</p>
+                <p className={cn("text-sm font-bold tabular-nums", s.color || "text-neutral-900 dark:text-white")}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bottom section: H2H + Recent Form */}
       <div className={cn("grid gap-3 mt-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
         {/* H2H */}
