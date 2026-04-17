@@ -33,7 +33,7 @@ async function fetchGameOdds(gameId: number, market: string): Promise<BatterOdds
 /**
  * Fetches live odds for all games in a prop scores result set.
  * Uses the same batter-odds endpoint as slate insights.
- * Returns a map: normalized_player_name → BatterOddsEntry (with all_books containing all lines).
+ * Returns a map: "gameId:normalized_player_name" → BatterOddsEntry (with all_books containing all lines).
  */
 export function usePropLiveOdds(gameIds: number[], market: string) {
   const oddsMarket = MARKET_TO_ODDS[market];
@@ -50,11 +50,15 @@ export function usePropLiveOdds(gameIds: number[], market: string) {
     })),
   });
 
-  // Merge all game results into a single player → odds map
+  // Keyed by "gameId:playerNorm" — prevents same-name players on different teams from colliding
   const allOdds: Record<string, BatterOddsEntry> = {};
-  for (const q of queries) {
+  for (let i = 0; i < queries.length; i++) {
+    const q = queries[i];
+    const gid = gameIds[i];
     if (q.data?.odds) {
-      Object.assign(allOdds, q.data.odds);
+      for (const [name, entry] of Object.entries(q.data.odds)) {
+        allOdds[`${gid}:${name}`] = entry;
+      }
     }
   }
 
