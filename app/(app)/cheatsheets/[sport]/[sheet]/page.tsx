@@ -4,6 +4,10 @@ import { use, useState, useMemo, useRef, useEffect } from "react";
 import { notFound } from "next/navigation";
 import { useCheatSheet, CheatSheetRow } from "@/hooks/use-cheat-sheet";
 import { useInjuryImpactCheatsheet, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
+import { useNbaGames } from "@/hooks/use-nba-games";
+import { useMlbGames } from "@/hooks/use-mlb-games";
+import { useWnbaGames } from "@/hooks/use-wnba-games";
+import { NoPropsEmptyState } from "@/components/cheat-sheet/no-props-empty-state";
 import { 
   CheatSheetFilterState,
   DEFAULT_CHEAT_SHEET_FILTERS,
@@ -1198,8 +1202,18 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     return rows;
   }, [data?.rows, filters, isGated]);
 
-  // Best odds are now included directly in the API response (from Redis bestodds:nba:* keys)
-  // No separate odds fetch needed
+  // When no props are available, fetch games to show next game date
+  const showNoProps = !isLoading && !isLoadingAccess && (!!error || data?.rows?.length === 0);
+  const nbaGamesQuery = useNbaGames(sport === "nba" && showNoProps);
+  const mlbGamesQuery = useMlbGames(sport === "mlb" && showNoProps);
+  const wnbaGamesQuery = useWnbaGames(sport === "wnba" && showNoProps);
+  const rawNextDate =
+    sport === "mlb" ? (mlbGamesQuery.gamesDates[0] ?? null) :
+    sport === "wnba" ? (wnbaGamesQuery.gamesDates[0] ?? null) :
+    (nbaGamesQuery.gamesDates[0] ?? null);
+  // Only surface a next-game date if it's in the future (not today's empty-result case)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const nextGameDate = rawNextDate && rawNextDate > todayStr ? rawNextDate : null;
 
   // For gated users, filter to rows WITH odds first, then limit to 7
   const displayRows = useMemo(() => {
@@ -1226,29 +1240,35 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   if (isMobile) {
     return (
       <>
-        <MobileCheatSheet
-          rows={displayRows}
-          isLoading={isLoading || isLoadingAccess}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onGlossaryOpen={() => setIsGlossaryOpen(true)}
-          onRowClick={handleRowClick}
-          onPlayerClick={(row) => setSelectedPlayer({
-            nba_player_id: row.playerId,
-            player_name: row.playerName,
-            market: row.market,
-            event_id: row.eventId ?? "",
-            line: row.line,
-          })}
-          sport={sport}
-          currentSheet={sheet}
-          isGated={isGated}
-        />
+        {showNoProps ? (
+          <div className="min-h-[60vh] flex items-center justify-center">
+            <NoPropsEmptyState sport={sport} nextDate={nextGameDate} />
+          </div>
+        ) : (
+          <MobileCheatSheet
+            rows={displayRows}
+            isLoading={isLoading || isLoadingAccess}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onGlossaryOpen={() => setIsGlossaryOpen(true)}
+            onRowClick={handleRowClick}
+            onPlayerClick={(row) => setSelectedPlayer({
+              nba_player_id: row.playerId,
+              player_name: row.playerName,
+              market: row.market,
+              event_id: row.eventId ?? "",
+              line: row.line,
+            })}
+            sport={sport}
+            currentSheet={sheet}
+            isGated={isGated}
+          />
+        )}
 
         {/* Mobile Glossary Bottom Sheet */}
-        <MobileConfidenceGlossary 
-          isOpen={isGlossaryOpen} 
-          onClose={() => setIsGlossaryOpen(false)} 
+        <MobileConfidenceGlossary
+          isOpen={isGlossaryOpen}
+          onClose={() => setIsGlossaryOpen(false)}
         />
       </>
     );
@@ -1295,14 +1315,11 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     >
       <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
         {/* Table with Scroll Area */}
-        {error ? (
-          <div className="flex flex-col items-center justify-center py-20 text-red-500">
-            <p className="text-lg font-medium">Failed to load data</p>
-            <p className="text-sm mt-1">Please try again later</p>
-          </div>
+        {showNoProps ? (
+          <NoPropsEmptyState sport={sport} nextDate={nextGameDate} />
         ) : (
           <>
-            <CheatSheetTable 
+            <CheatSheetTable
               rows={displayRows}
               isLoading={isLoading || isLoadingAccess}
               timeWindow={filters.timeWindow}
@@ -1317,7 +1334,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
               onGlossaryOpen={() => setIsGlossaryOpen(true)}
               hideNoOdds={filters.hideNoOdds}
             />
-            
+
             {/* Upgrade CTA for gated users */}
             {isGated && (
               <CheatSheetUpgradeCTA />
