@@ -1,12 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { Ratelimit } from "@upstash/ratelimit";
 
 const GAMES_CACHE_KEY = "mlb:games:today";
 const GAMES_CACHE_TTL = 300;
-// Shorter TTL for in-progress games so live state propagates quickly
 const GAMES_CACHE_TTL_LIVE = 30;
+const RECORDS_CACHE_TTL = 3600; // 1 hour — W/L records don't change often
+
+const ratelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "30 s"),
+  prefix: "rl:mlb:games",
+});
 
 function parseGameTimeToMinutes(gameStatus: string): number {
   const timeMatch = gameStatus.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*ET$/i);
@@ -71,7 +78,6 @@ function toGameRow(row: any) {
   const isLive = (statusDetailed || "").toLowerCase().includes("in progress") ||
                  (statusDetailed || "").toLowerCase().includes("manager challenge");
 
-  // Build live state object when in-progress data exists
   const live = isLive && row.current_pitcher_id != null ? {
     current_pitcher_id: row.current_pitcher_id ?? null,
     current_pitcher_name: row.current_pitcher_name ?? null,
@@ -108,7 +114,6 @@ function toGameRow(row: any) {
     home_team_record: null as string | null,
     away_team_record: null as string | null,
     live,
-    // Enriched below
     weather: null as {
       temperature_f: number | null;
       wind_speed_mph: number | null;
@@ -138,8 +143,18 @@ function toGameRow(row: any) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
+
+  // Rate limit: 10 requests per 30s per IP
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  const { success: rateLimitOk } = await ratelimit.limit(ip);
+  if (!rateLimitOk) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": "30", "Cache-Control": "no-store" } }
+    );
+  }
 
   try {
     const now = new Date();
@@ -159,13 +174,15 @@ export async function GET() {
     const dayAfterTomorrow = dayAfter(2);
 
     const cacheKey = `${GAMES_CACHE_KEY}:${today}`;
+    const mutexKey = `${cacheKey}:mutex`;
+
+    // ── Cache read ──────────────────────────────────────────────────────────
     try {
       const cached = await redis.get<{ games: any[]; dates: string[]; primaryDate: string; ts?: number }>(cacheKey);
       if (cached?.games) {
         const anyLiveCached = cached.games.some((g: any) =>
           (g.game_status || "").toLowerCase().includes("progress")
         );
-        // Skip serving stale cache if live games are running — live state changes every 30s
         const cacheAgeMs = cached.ts ? Date.now() - cached.ts : 0;
         if (!anyLiveCached || cacheAgeMs < GAMES_CACHE_TTL_LIVE * 1000) {
           const cacheControl = anyLiveCached
@@ -181,6 +198,25 @@ export async function GET() {
       console.error("[/api/mlb/games] Cache read error:", cacheError);
     }
 
+    // ── Thundering herd protection: SET NX mutex ────────────────────────────
+    // Only one request rebuilds the cache; others wait briefly then serve stale.
+    const mutexAcquired = await redis.set(mutexKey, "1", { nx: true, ex: 15 }).catch(() => null);
+    if (!mutexAcquired) {
+      // Another request is already rebuilding. Wait up to 2s for it to finish.
+      for (let i = 0; i < 4; i++) {
+        await new Promise<void>((r) => setTimeout(r, 500));
+        const fresh = await redis.get<{ games: any[]; dates: string[]; primaryDate: string }>(cacheKey).catch(() => null);
+        if (fresh?.games) {
+          return NextResponse.json(
+            { games: fresh.games, dates: fresh.dates, primaryDate: fresh.primaryDate, cached: true },
+            { headers: { "Cache-Control": "public, max-age=15, s-maxage=15, stale-while-revalidate=30" } }
+          );
+        }
+      }
+      // Safety valve: let this request proceed if mutex holder hasn't written yet
+    }
+
+    // ── DB fetch ────────────────────────────────────────────────────────────
     const supabase = createServerSupabaseClient();
     const selectFields = `
       game_id,
@@ -215,13 +251,13 @@ export async function GET() {
       away_team:mlb_teams!mlb_games_away_id_fkey (abbreviation, team_id)
     `;
 
-    // Fetch today + next 2 days to always show today's games plus tomorrow
     const { data: nearGames, error: nearError } = await supabase
       .from("mlb_games")
       .select(selectFields)
       .in("game_date", [today, tomorrow, dayAfterTomorrow]);
 
     if (nearError) {
+      redis.del(mutexKey).catch(() => {});
       return NextResponse.json(
         { error: "Failed to fetch games", details: nearError.message },
         { status: 500, headers: { "Cache-Control": "no-store" } }
@@ -231,7 +267,6 @@ export async function GET() {
     let allGames = nearGames || [];
     const currentDates = [...new Set(allGames.map((g: any) => g.game_date))];
 
-    // Always ensure we have at least 2 game days; if not, fetch further ahead
     if (currentDates.length < 2) {
       const lastDate = currentDates.length > 0 ? currentDates[currentDates.length - 1] : today;
       const nextDay = new Date(lastDate + "T12:00:00");
@@ -257,62 +292,72 @@ export async function GET() {
     const sortedGames = sortGamesByDateTime(normalized);
     const dates = [...new Set(sortedGames.map((g) => g.game_date))];
 
-    // Compute team records (W-L) from final games this season
+    // ── Team records (cached in Redis for 1 hour) ───────────────────────────
     try {
       const currentYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric" }).format(new Date()));
-      const seasonStart = `${currentYear}-01-01`;
-      const { data: finalGames } = await supabase
-        .from("mlb_games")
-        .select("home_id, away_id, home_score, away_score, status_detailed_state")
-        .gte("game_date", seasonStart)
-        .eq("game_type", "R")
-        .or("status_detailed_state.ilike.%final%,status.ilike.%final%");
+      const recordsCacheKey = `mlb:team-records:${currentYear}`;
 
-      if (finalGames && finalGames.length > 0) {
-        const records = new Map<number, { wins: number; losses: number }>();
-        const ensureRecord = (id: number) => {
-          if (!records.has(id)) records.set(id, { wins: 0, losses: 0 });
-          return records.get(id)!;
-        };
-        for (const fg of finalGames) {
-          if (fg.home_score == null || fg.away_score == null) continue;
-          const homeRec = ensureRecord(fg.home_id);
-          const awayRec = ensureRecord(fg.away_id);
-          if (fg.home_score > fg.away_score) {
-            homeRec.wins++;
-            awayRec.losses++;
-          } else if (fg.away_score > fg.home_score) {
-            awayRec.wins++;
-            homeRec.losses++;
+      let abbrToRecord: Record<string, string> | null = await redis.get<Record<string, string>>(recordsCacheKey).catch(() => null);
+
+      if (!abbrToRecord) {
+        const seasonStart = `${currentYear}-01-01`;
+        const { data: finalGames } = await supabase
+          .from("mlb_games")
+          .select("home_id, away_id, home_score, away_score, status_detailed_state")
+          .gte("game_date", seasonStart)
+          .eq("game_type", "R")
+          .or("status_detailed_state.ilike.%final%,status.ilike.%final%");
+
+        if (finalGames && finalGames.length > 0) {
+          const records = new Map<number, { wins: number; losses: number }>();
+          const ensureRecord = (id: number) => {
+            if (!records.has(id)) records.set(id, { wins: 0, losses: 0 });
+            return records.get(id)!;
+          };
+          for (const fg of finalGames) {
+            if (fg.home_score == null || fg.away_score == null) continue;
+            const homeRec = ensureRecord(fg.home_id);
+            const awayRec = ensureRecord(fg.away_id);
+            if (fg.home_score > fg.away_score) {
+              homeRec.wins++;
+              awayRec.losses++;
+            } else if (fg.away_score > fg.home_score) {
+              awayRec.wins++;
+              homeRec.losses++;
+            }
           }
-        }
 
-        // Build team_id->abbreviation map from our games
-        const idToAbbr = new Map<number, string>();
-        for (const g of allGames as any[]) {
-          const ht = g.home_team;
-          const at = g.away_team;
-          const homeAbbr = Array.isArray(ht) ? ht[0]?.abbreviation : ht?.abbreviation;
-          const awayAbbr = Array.isArray(at) ? at[0]?.abbreviation : at?.abbreviation;
-          if (g.home_id && homeAbbr) idToAbbr.set(g.home_id, homeAbbr);
-          if (g.away_id && awayAbbr) idToAbbr.set(g.away_id, awayAbbr);
-        }
-        const abbrToRecord = new Map<string, string>();
-        for (const [id, rec] of records) {
-          const abbr = idToAbbr.get(id);
-          if (abbr) abbrToRecord.set(abbr, `${rec.wins}-${rec.losses}`);
-        }
+          const idToAbbr = new Map<number, string>();
+          for (const g of allGames as any[]) {
+            const ht = g.home_team;
+            const at = g.away_team;
+            const homeAbbr = Array.isArray(ht) ? ht[0]?.abbreviation : ht?.abbreviation;
+            const awayAbbr = Array.isArray(at) ? at[0]?.abbreviation : at?.abbreviation;
+            if (g.home_id && homeAbbr) idToAbbr.set(g.home_id, homeAbbr);
+            if (g.away_id && awayAbbr) idToAbbr.set(g.away_id, awayAbbr);
+          }
 
+          abbrToRecord = {};
+          for (const [id, rec] of records) {
+            const abbr = idToAbbr.get(id);
+            if (abbr) abbrToRecord[abbr] = `${rec.wins}-${rec.losses}`;
+          }
+
+          redis.set(recordsCacheKey, abbrToRecord, { ex: RECORDS_CACHE_TTL }).catch(() => {});
+        }
+      }
+
+      if (abbrToRecord) {
         for (const g of sortedGames) {
-          (g as any).home_team_record = abbrToRecord.get(g.home_team_tricode) ?? null;
-          (g as any).away_team_record = abbrToRecord.get(g.away_team_tricode) ?? null;
+          (g as any).home_team_record = abbrToRecord[g.home_team_tricode] ?? null;
+          (g as any).away_team_record = abbrToRecord[g.away_team_tricode] ?? null;
         }
       }
     } catch (recordErr) {
       console.error("[/api/mlb/games] Team records enrichment error:", recordErr);
     }
 
-    // Enrich with weather + park factors (best-effort, don't block on failure)
+    // ── Weather + park factors ──────────────────────────────────────────────
     try {
       const gameIds = sortedGames.map((g) => Number(g.game_id)).filter(Boolean);
       const venueIds = [...new Set(sortedGames.map((g) => g.venue_id).filter(Boolean))] as number[];
@@ -355,7 +400,6 @@ export async function GET() {
       }
 
       if (parkResult.data && parkResult.data.length > 0) {
-        // Prefer current year, fallback to previous
         const parkMap = new Map<number, number>();
         for (const p of parkResult.data as any[]) {
           if (!parkMap.has(p.venue_id)) parkMap.set(p.venue_id, p.factor_overall);
@@ -370,21 +414,21 @@ export async function GET() {
       console.error("[/api/mlb/games] Weather/park enrichment error:", enrichErr);
     }
 
-    // Enrich with live odds from Redis (best-effort)
+    // ── Odds enrichment via batched mget ────────────────────────────────────
     try {
       const gamesWithOdds = sortedGames.filter((g) => g.odds_game_id);
       if (gamesWithOdds.length > 0) {
-        // Fetch ML + total + run_line for each game from FanDuel (primary display book)
         const ODDS_BOOK = "fanduel";
         const MARKETS_PER_GAME = 4;
-        const oddsPromises = gamesWithOdds.flatMap((g) => [
-          redis.get<string>(`odds:mlb:${g.odds_game_id}:game_moneyline:${ODDS_BOOK}`),
-          redis.get<string>(`odds:mlb:${g.odds_game_id}:total_runs:${ODDS_BOOK}`),
-          redis.get<string>(`odds:mlb:${g.odds_game_id}:run_line:${ODDS_BOOK}`),
-          redis.get<string>(`odds:mlb:${g.odds_game_id}:team_total_runs:${ODDS_BOOK}`),
+
+        const oddsKeys = gamesWithOdds.flatMap((g) => [
+          `odds:mlb:${g.odds_game_id}:game_moneyline:${ODDS_BOOK}`,
+          `odds:mlb:${g.odds_game_id}:total_runs:${ODDS_BOOK}`,
+          `odds:mlb:${g.odds_game_id}:run_line:${ODDS_BOOK}`,
+          `odds:mlb:${g.odds_game_id}:team_total_runs:${ODDS_BOOK}`,
         ]);
 
-        const oddsResults = await Promise.all(oddsPromises.map(p => p.catch(() => null)));
+        const oddsResults: (string | null)[] = await redis.mget<string[]>(...oddsKeys).catch(() => oddsKeys.map(() => null));
 
         for (let i = 0; i < gamesWithOdds.length; i++) {
           const g = gamesWithOdds[i];
@@ -401,7 +445,6 @@ export async function GET() {
             away_total: null, away_total_over_price: null, away_total_under_price: null,
           };
 
-          // Parse moneyline
           if (mlRaw) {
             try {
               const mlData = typeof mlRaw === "string" ? JSON.parse(mlRaw) : mlRaw;
@@ -420,7 +463,6 @@ export async function GET() {
             } catch (_) { /* skip malformed */ }
           }
 
-          // Parse total (main line only)
           if (totalRaw) {
             try {
               const totalData = typeof totalRaw === "string" ? JSON.parse(totalRaw) : totalRaw;
@@ -437,7 +479,6 @@ export async function GET() {
             } catch (_) { /* skip malformed */ }
           }
 
-          // Parse run line (main ±1.5 only)
           if (rlRaw) {
             try {
               const rlData = typeof rlRaw === "string" ? JSON.parse(rlRaw) : rlRaw;
@@ -457,7 +498,6 @@ export async function GET() {
             } catch (_) { /* skip malformed */ }
           }
 
-          // Parse team totals (main lines only)
           if (ttRaw) {
             try {
               const ttData = typeof ttRaw === "string" ? JSON.parse(ttRaw) : ttRaw;
@@ -484,7 +524,6 @@ export async function GET() {
             } catch (_) { /* skip malformed */ }
           }
 
-          // Only attach if we got at least one piece of data
           if (odds.home_ml || odds.total || odds.spread != null || odds.home_total != null) {
             g.odds = odds;
           }
@@ -493,7 +532,6 @@ export async function GET() {
       }
     } catch (oddsErr) {
       console.error("[/api/mlb/games] Odds enrichment error:", oddsErr);
-      // Non-fatal — games still return without odds
     }
 
     const response = {
@@ -502,7 +540,6 @@ export async function GET() {
       primaryDate: dates[0] || today,
     };
 
-    // Use shorter TTL when any game is currently in progress
     const anyLive = sortedGames.some((g) =>
       (g.game_status || "").toLowerCase().includes("progress")
     );
@@ -515,6 +552,9 @@ export async function GET() {
       .set(cacheKey, { ...response, ts: Date.now() }, { ex: cacheTtl })
       .catch((e) => console.error("[/api/mlb/games] Cache write error:", e));
 
+    // Release mutex after writing cache
+    redis.del(mutexKey).catch(() => {});
+
     console.log(`[/api/mlb/games] DB fetch in ${Date.now() - startTime}ms (TTL=${cacheTtl}s, live=${anyLive})`);
 
     return NextResponse.json(response, {
@@ -522,10 +562,10 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("[/api/mlb/games] Error:", error);
+    redis.del(`${GAMES_CACHE_KEY}:${new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())}:mutex`).catch(() => {});
     return NextResponse.json(
       { error: "internal_error", message: error?.message || "" },
       { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
-

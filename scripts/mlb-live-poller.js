@@ -12,12 +12,17 @@
 "use strict";
 
 const { createClient } = require("@supabase/supabase-js");
+const { Redis } = require("@upstash/redis");
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const POLL_INTERVAL_MS = 30_000;
+const HEARTBEAT_KEY = "mlb:poller:heartbeat";
+const HEARTBEAT_TTL = 120; // seconds — expires if poller dies
 const MLB_LIVE_FEED = "https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live";
 
 // Skip polling during these hours (ET) — saves API calls overnight
@@ -34,6 +39,13 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false },
 });
+
+let redisClient = null;
+if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
+  redisClient = new Redis({ url: UPSTASH_REDIS_REST_URL, token: UPSTASH_REDIS_REST_TOKEN });
+} else {
+  warn("UPSTASH_REDIS_REST_URL / TOKEN not set — heartbeat disabled");
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -215,21 +227,36 @@ async function pollGame(gamePk) {
 
 // ── Main poll loop ────────────────────────────────────────────────────────────
 
+let isPolling = false;
+
 async function pollCycle() {
-  if (isQuietHours()) {
-    const hour = parseInt(nowHourET(), 10);
-    log(`Quiet hours (${hour}am ET) — skipping poll`);
+  if (isPolling) {
+    warn("Previous poll cycle still running — skipping this tick");
     return;
   }
+  isPolling = true;
+  try {
+    if (isQuietHours()) {
+      const hour = parseInt(nowHourET(), 10);
+      log(`Quiet hours (${hour}am ET) — skipping poll`);
+      return;
+    }
 
-  const gameIds = await getActiveGameIds();
-  if (gameIds.length === 0) {
-    log("No in-progress games found");
-    return;
+    const gameIds = await getActiveGameIds();
+    if (gameIds.length === 0) {
+      log("No in-progress games found");
+    } else {
+      log(`Polling ${gameIds.length} in-progress game(s): ${gameIds.join(", ")}`);
+      await Promise.allSettled(gameIds.map(pollGame));
+    }
+
+    // Heartbeat: update Redis key so health watchdog knows the poller is alive
+    if (redisClient) {
+      await redisClient.set(HEARTBEAT_KEY, Date.now(), { ex: HEARTBEAT_TTL });
+    }
+  } finally {
+    isPolling = false;
   }
-
-  log(`Polling ${gameIds.length} in-progress game(s): ${gameIds.join(", ")}`);
-  await Promise.allSettled(gameIds.map(pollGame));
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
