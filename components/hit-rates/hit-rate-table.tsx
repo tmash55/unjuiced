@@ -1311,7 +1311,10 @@ export function HitRateTable({
                           <img
                             src={getTeamLogoUrl(row.opponentTeamAbbr, sport)}
                             alt={row.opponentTeamAbbr}
-                            className="h-6 w-6 object-contain"
+                            className={cn(
+                              "object-contain",
+                              sport === "wnba" ? "h-9 w-9" : "h-6 w-6"
+                            )}
                           />
                         )}
                       </div>

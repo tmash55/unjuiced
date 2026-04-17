@@ -1,4 +1,5 @@
 const NBA_CDN_BASE = "https://cdn.nba.com/headshots/nba/latest";
+const WNBA_CDN_BASE = "https://cdn.wnba.com/headshots/wnba/latest";
 const MLB_CDN_BASE = "https://img.mlbstatic.com/mlb-photos/image/upload";
 
 export type PlayerHeadshotSize = "tiny" | "small" | "large";
@@ -23,7 +24,8 @@ export function getPlayerHeadshotUrl(
   }
 
   const { path } = SIZE_CONFIG[size] ?? SIZE_CONFIG.small;
-  return `${NBA_CDN_BASE}/${path}/${idSegment}.png`;
+  const base = sport === "wnba" ? WNBA_CDN_BASE : NBA_CDN_BASE;
+  return `${base}/${path}/${idSegment}.png`;
 }
 
 export function getMlbHeadshotUrl(

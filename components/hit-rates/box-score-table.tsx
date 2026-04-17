@@ -92,9 +92,10 @@ export function BoxScoreTable({
   // Only fetch if we don't have prefetched data
   const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
     playerId,
+    sport: sport === "wnba" ? "wnba" : "nba",
     season,
     limit: 50,
-    enabled: sport === "nba" && !!playerId && !prefetchedGames,
+    enabled: (sport === "nba" || sport === "wnba") && !!playerId && !prefetchedGames,
   });
 
   // Use prefetched data if available, otherwise use fetched data

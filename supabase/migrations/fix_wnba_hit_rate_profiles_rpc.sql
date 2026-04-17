@@ -8,6 +8,13 @@
 --   (no live odds vendor yet).  The function is recreated here so that
 --   passing p_has_odds = NULL skips the odds-presence filter entirely,
 --   matching the same pattern used in get_wnba_hit_rate_cheatsheet_v2.
+--
+--   DROP first because CREATE OR REPLACE cannot change a function's
+--   declared return type (id column is UUID, not BIGINT).
+
+DROP FUNCTION IF EXISTS get_wnba_hit_rate_profiles_fast_v3(
+  date[], text, boolean, integer, integer
+);
 
 CREATE OR REPLACE FUNCTION get_wnba_hit_rate_profiles_fast_v3(
   p_dates   DATE[]    DEFAULT NULL,
@@ -17,7 +24,7 @@ CREATE OR REPLACE FUNCTION get_wnba_hit_rate_profiles_fast_v3(
   p_offset  INTEGER   DEFAULT 0
 )
 RETURNS TABLE (
-  id                    BIGINT,
+  id                    UUID,
   player_id             BIGINT,
   player_name           TEXT,
   team_id               BIGINT,
@@ -73,7 +80,7 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    h.id::BIGINT,
+    h.id,
     h.player_id::BIGINT,
     h.player_name,
     NULL::BIGINT                      AS team_id,

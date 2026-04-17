@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "cdn.wnba.com",
+        pathname: "/headshots/wnba/latest/**",
+      },
+      {
+        protocol: "https",
         hostname: "img.mlbstatic.com",
         pathname: "/mlb-photos/image/upload/**",
       },

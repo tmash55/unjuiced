@@ -1,35 +1,47 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, notFound } from "next/navigation";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import { useNbaGames } from "@/hooks/use-nba-games";
+import { useWnbaGames } from "@/hooks/use-wnba-games";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 
+const SUPPORTED_SPORTS = ["nba", "wnba"] as const;
+type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
+
 interface PlayerProfilePageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ sport: string; id: string }>;
 }
 
 export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   const resolvedParams = use(params);
+  const sport = resolvedParams.sport?.toLowerCase() as SupportedSport;
+  if (!SUPPORTED_SPORTS.includes(sport)) {
+    notFound();
+  }
+
   const playerId = parseInt(resolvedParams.id, 10);
   const searchParams = useSearchParams();
   const router = useRouter();
   const marketParam = searchParams.get("market");
   const dateParam = searchParams.get("date");
-  
-  // Detect mobile viewport
+
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const { primaryDate: nextGameDate, isLoading: isLoadingGames } = useNbaGames();
+
+  const nbaGames = useNbaGames(sport === "nba");
+  const wnbaGames = useWnbaGames(sport === "wnba");
+  const { primaryDate: nextGameDate, isLoading: isLoadingGames } =
+    sport === "wnba" ? wnbaGames : nbaGames;
   const effectiveDate = dateParam || nextGameDate || undefined;
 
-  // Fetch all profiles for this player (all markets)
   const { rows: playerProfiles, isLoading: isLoadingProfiles, error } = useHitRateTable({
+    sport,
     playerId: playerId,
     date: effectiveDate,
     enabled: !isNaN(playerId) && (!!dateParam || !isLoadingGames),
@@ -37,18 +49,15 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   });
   const isLoading = isLoadingProfiles || (!dateParam && isLoadingGames);
 
-  // Find the profile for the requested market, or default to first available
   const [selectedMarket, setSelectedMarket] = useState<string | null>(marketParam);
   const profile = playerProfiles.find((r) => r.market === selectedMarket) || playerProfiles[0];
 
-  // Update selected market when URL changes
   useEffect(() => {
     if (marketParam && marketParam !== selectedMarket) {
       setSelectedMarket(marketParam);
     }
   }, [marketParam, selectedMarket]);
 
-  // Update URL when market changes
   const handleMarketChange = (newMarket: string) => {
     setSelectedMarket(newMarket);
     const newSearchParams = new URLSearchParams(searchParams);
@@ -56,15 +65,16 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
     if (effectiveDate) {
       newSearchParams.set("date", effectiveDate);
     }
-    router.replace(`/hit-rates/nba/player/${playerId}?${newSearchParams.toString()}`, {
+    router.replace(`/hit-rates/${sport}/player/${playerId}?${newSearchParams.toString()}`, {
       scroll: false,
     });
   };
 
-  // Handle back navigation
   const handleBack = () => {
-    router.push("/hit-rates/nba");
+    router.push(`/hit-rates/${sport}`);
   };
+
+  const backHref = `/hit-rates/${sport}`;
 
   if (isNaN(playerId)) {
     return (
@@ -73,7 +83,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
           The player ID provided is not valid.
         </p>
         <Link
-          href="/hit-rates/nba"
+          href={backHref}
           className="mt-4 inline-flex items-center gap-2 text-primary hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -84,17 +94,14 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   }
 
   if (isLoading) {
-    // Mobile Loading State
     if (isMobile) {
       return (
         <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-4 space-y-4">
-          {/* Header skeleton */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse" />
             <div className="w-32 h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
           </div>
-          
-          {/* Player card skeleton */}
+
           <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 space-y-4">
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse" />
@@ -103,16 +110,14 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
                 <div className="w-24 h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
               </div>
             </div>
-            
-            {/* Market pills skeleton */}
+
             <div className="flex gap-2 overflow-x-auto">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="w-20 h-8 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse shrink-0" />
               ))}
             </div>
           </div>
-          
-          {/* Chart skeleton */}
+
           <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4">
             <div className="w-full h-48 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
           </div>
@@ -120,10 +125,8 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
       );
     }
 
-    // Desktop Loading State
     return (
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Player header skeleton */}
         <div className="rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 bg-white dark:bg-neutral-800 p-6 space-y-4">
           <div className="flex items-start gap-6">
             <div className="w-24 h-24 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse" />
@@ -139,7 +142,6 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
           </div>
         </div>
 
-        {/* Chart skeleton */}
         <div className="rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 bg-white dark:bg-neutral-800 p-6">
           <div className="w-32 h-6 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse mb-4" />
           <div className="w-full h-64 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
@@ -155,7 +157,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
           {error.message || "Failed to load player profile"}
         </p>
         <Link
-          href="/hit-rates/nba"
+          href={backHref}
           className="mt-4 inline-flex items-center gap-2 text-primary hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -172,7 +174,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
           No hit rate data found for player ID: {playerId}
         </p>
         <Link
-          href="/hit-rates/nba"
+          href={backHref}
           className="mt-4 inline-flex items-center gap-2 text-primary hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -182,7 +184,6 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
     );
   }
 
-  // Mobile View - Full screen player drilldown
   if (isMobile) {
     return (
       <MobilePlayerDrilldown
@@ -190,11 +191,11 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
         allPlayerProfiles={playerProfiles}
         onBack={handleBack}
         onMarketChange={handleMarketChange}
+        sport={sport}
       />
     );
   }
 
-  // Desktop View
   return (
     <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-6">
       <PlayerDrilldown
@@ -202,6 +203,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
         allPlayerProfiles={playerProfiles}
         onMarketChange={handleMarketChange}
         onBack={handleBack}
+        sport={sport}
       />
     </div>
   );

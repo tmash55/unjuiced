@@ -110,8 +110,11 @@ export interface PlayerBoxScoresResponse {
   games: BoxScoreGame[];
 }
 
+export type PlayerBoxScoresSport = "nba" | "wnba";
+
 export interface UsePlayerBoxScoresOptions {
   playerId: number | null;
+  sport?: PlayerBoxScoresSport;
   season?: string;
   limit?: number;
   enabled?: boolean;
@@ -119,6 +122,7 @@ export interface UsePlayerBoxScoresOptions {
 
 async function fetchPlayerBoxScores(
   playerId: number,
+  sport: PlayerBoxScoresSport,
   season?: string,
   limit?: number
 ): Promise<PlayerBoxScoresResponse> {
@@ -127,7 +131,7 @@ async function fetchPlayerBoxScores(
   if (season) params.set("season", season);
   if (limit) params.set("limit", String(limit));
 
-  const res = await fetch(`/api/nba/player-box-scores?${params.toString()}`);
+  const res = await fetch(`/api/${sport}/player-box-scores?${params.toString()}`);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -138,11 +142,11 @@ async function fetchPlayerBoxScores(
 }
 
 export function usePlayerBoxScores(options: UsePlayerBoxScoresOptions) {
-  const { playerId, season, limit, enabled = true } = options;
+  const { playerId, sport = "nba", season, limit, enabled = true } = options;
 
   const query = useQuery<PlayerBoxScoresResponse>({
-    queryKey: ["player-box-scores", playerId, season, limit],
-    queryFn: () => fetchPlayerBoxScores(playerId!, season, limit),
+    queryKey: ["player-box-scores", sport, playerId, season, limit],
+    queryFn: () => fetchPlayerBoxScores(playerId!, sport, season, limit),
     enabled: enabled && playerId !== null,
     staleTime: 10 * 60_000, // 10 minutes - box scores don't change often
     gcTime: 30 * 60_000, // 30 minutes - keep in cache longer

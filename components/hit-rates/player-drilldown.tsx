@@ -90,6 +90,7 @@ interface PlayerDrilldownProps {
   allPlayerProfiles?: HitRateProfile[]; // All profiles for this player (different markets)
   onBack: () => void;
   onMarketChange?: (market: string) => void; // Callback when market changes (for persisting preference)
+  sport?: "nba" | "wnba";
 }
 
 // Format percentage with color class
@@ -565,7 +566,7 @@ function ActiveFiltersBar({
   );
 }
 
-export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [], onBack, onMarketChange }: PlayerDrilldownProps) {
+export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [], onBack, onMarketChange, sport = "nba" }: PlayerDrilldownProps) {
   const applyState = useStateLink();
   const [selectedMarket, setSelectedMarketInternal] = useState<string>(initialProfile.market);
   
@@ -661,6 +662,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Fetch box scores for this player (used for chart and table)
   const { games: boxScoreGames, seasonSummary, isLoading: boxScoresLoading } = usePlayerBoxScores({
     playerId: profile.playerId,
+    sport,
     limit: 100, // Full NBA season is ~82 games
   });
   
@@ -2430,6 +2432,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
         <BoxScoreTable
+          sport={sport}
           playerId={profile.playerId}
           market={profile.market}
           currentLine={profile.line}

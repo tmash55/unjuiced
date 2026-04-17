@@ -119,6 +119,7 @@ interface MobilePlayerDrilldownProps {
   allPlayerProfiles?: HitRateProfile[];
   onBack: () => void;
   onMarketChange?: (market: string) => void;
+  sport?: "nba" | "wnba";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3713,11 +3714,12 @@ function MarketStatCard({
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function MobilePlayerDrilldown({ 
-  profile: initialProfile, 
-  allPlayerProfiles = [], 
-  onBack, 
-  onMarketChange 
+export function MobilePlayerDrilldown({
+  profile: initialProfile,
+  allPlayerProfiles = [],
+  onBack,
+  onMarketChange,
+  sport = "nba",
 }: MobilePlayerDrilldownProps) {
   // Check if mobile nav menu is open (to hide bottom nav)
   const { isMenuOpen } = useMobileNav();
@@ -3812,6 +3814,7 @@ export function MobilePlayerDrilldown({
   // Fetch box scores
   const { games: boxScoreGames, isLoading } = usePlayerBoxScores({
     playerId: profile.playerId,
+    sport,
     limit: 50,
   });
   
