@@ -71,6 +71,17 @@ const MAX_RESPONSE_LIMIT = 2000;
 const EV_MAX_CACHE_BYTES = 750_000;
 const REFERENCE_PRESET_SUGGESTIONS: SharpPreset[] = ["draftkings", "market_average"];
 
+// Books that may be absent from the worker's pre-computed all_books snapshots for standard
+// presets (e.g. prediction markets, offshore books). Probed via live Redis for custom models.
+const LIVE_ODDS_SUPPLEMENTAL_BOOKS = [
+  "kalshi", "polymarket", "novig",
+  "prophetx", "betonline", "superbook",
+  "pointsbet", "espnbet", "wynnbet", "unibet",
+  "betparx", "betfred", "tipico", "fliff",
+] as const;
+
+type LiveOddsCache = Map<string, Record<string, any>>;
+
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
   "wnba", "soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl",
@@ -369,6 +380,37 @@ export async function GET(req: NextRequest) {
       console.log(`[positive-ev] Custom model: reading from '${readPreset}' preset (books: ${customSharpConfig.books.join(",")})`);
     }
 
+    // For custom models: pre-fetch all HGETALL data and batch-fetch supplemental live odds
+    // (Kalshi, Polymarket, etc.) that the worker's snapshot may not include.
+    // Standard models skip this entirely — no extra Redis calls.
+    const storedFieldsBySport = new Map<string, { key: string; fields: Record<string, string> }>();
+    let liveOddsCache: LiveOddsCache | undefined;
+
+    if (customSharpConfig) {
+      const customBooksSet = new Set(customSharpConfig.books.map((b: string) => canonicalizeCustomBookId(b)));
+
+      // Phase 1: collect HGETALL data for all sports (reused in main loop to avoid double-fetch)
+      await forEachWithConcurrency(sports, SPORT_FETCH_CONCURRENCY, async (sport) => {
+        const rowsKey = `ev:${sport}:rows:${readPreset}`;
+        try {
+          const fields = await hgetallSafe(rowsKey);
+          if (fields && Object.keys(fields).length > 0) {
+            storedFieldsBySport.set(sport, { key: rowsKey, fields });
+          }
+        } catch (err) {
+          console.warn(`[positive-ev] HGETALL pre-fetch failed for ${sport}:`, err);
+        }
+      });
+
+      // Phase 2: single batch mget for supplemental book odds across all event/market combos
+      if (storedFieldsBySport.size > 0) {
+        liveOddsCache = await fetchLiveOddsForCustomModel(storedFieldsBySport, customBooksSet).catch((err) => {
+          console.warn("[positive-ev] fetchLiveOddsForCustomModel failed:", err);
+          return new Map() as LiveOddsCache;
+        });
+      }
+    }
+
     await forEachWithConcurrency(
       sports,
       SPORT_FETCH_CONCURRENCY,
@@ -376,11 +418,16 @@ export async function GET(req: NextRequest) {
         const rowsKey = `ev:${sport}:rows:${readPreset}`;
 
         let allFields: Record<string, string> | null = null;
-        try {
-          allFields = await hgetallSafe(rowsKey);
-        } catch (err) {
-          console.warn(`[positive-ev] HGETALL failed for ${sport}:`, err);
-          return;
+        if (storedFieldsBySport.has(sport)) {
+          // Reuse data collected in the pre-fetch phase (custom model path — avoids double HGETALL)
+          allFields = storedFieldsBySport.get(sport)!.fields;
+        } else {
+          try {
+            allFields = await hgetallSafe(rowsKey);
+          } catch (err) {
+            console.warn(`[positive-ev] HGETALL failed for ${sport}:`, err);
+            return;
+          }
         }
 
         if (!allFields || Object.keys(allFields).length === 0) return;
@@ -390,10 +437,10 @@ export async function GET(req: NextRequest) {
           const row = parseRedisValue<WorkerEVRow>(rawValue, `${rowsKey}:${seid}`);
           if (!row) continue;
 
-          // For custom presets, re-devig using the custom sharp books
+          // For custom presets, re-devig using the custom sharp books + supplemental live odds
           let processedRow = row;
           if (customSharpConfig) {
-            const redevigged = redevigWithCustomSharp(row, customSharpConfig, devigMethods);
+            const redevigged = redevigWithCustomSharp(row, customSharpConfig, devigMethods, liveOddsCache);
             if (!redevigged) continue; // Skip if custom sharp books not found in this row
             processedRow = redevigged;
           }
@@ -970,19 +1017,77 @@ function evRowToOpportunity(
   };
 }
 
+// Match the same name normalization used when SSE odds keys are written
+function normalizeEntityName(name: string): string {
+  return name.toLowerCase().replace(/ /g, "_").replace(/\./g, "").replace(/'/g, "").replace(/-/g, "_");
+}
+
+// Batch-fetch live odds for LIVE_ODDS_SUPPLEMENTAL_BOOKS across all event/market combos
+// found in the pre-fetched worker rows. Single mget per chunk — no per-row Redis calls.
+async function fetchLiveOddsForCustomModel(
+  allFieldsBySport: Map<string, { key: string; fields: Record<string, string> }>,
+  customBooksSet: Set<string>
+): Promise<LiveOddsCache> {
+  const combos = new Set<string>();
+  for (const [, { key, fields }] of allFieldsBySport) {
+    for (const rawValue of Object.values(fields)) {
+      const row = parseRedisValue<WorkerEVRow>(rawValue, key);
+      if (row?.sport && row?.eid && row?.mkt) combos.add(`${row.sport}/${row.eid}/${row.mkt}`);
+    }
+  }
+  if (combos.size === 0) return new Map();
+
+  const redisKeys: string[] = [];
+  const cacheKeys: string[] = [];
+  for (const combo of combos) {
+    const firstSlash = combo.indexOf("/");
+    const secondSlash = combo.indexOf("/", firstSlash + 1);
+    const sport = combo.slice(0, firstSlash);
+    const eid = combo.slice(firstSlash + 1, secondSlash);
+    const mkt = combo.slice(secondSlash + 1);
+    for (const book of LIVE_ODDS_SUPPLEMENTAL_BOOKS) {
+      if (customBooksSet.has(canonicalizeCustomBookId(book))) continue;
+      redisKeys.push(`odds:${sport}:${eid}:${mkt}:${book}`);
+      cacheKeys.push(`${combo}/${book}`);
+    }
+  }
+  if (redisKeys.length === 0) return new Map();
+
+  const CHUNK = 500;
+  const cache: LiveOddsCache = new Map();
+  for (let i = 0; i < redisKeys.length; i += CHUNK) {
+    try {
+      const chunkKeys = redisKeys.slice(i, i + CHUNK);
+      const chunkCacheKeys = cacheKeys.slice(i, i + CHUNK);
+      const vals = await redis.mget<(string | null)[]>(...chunkKeys);
+      for (let j = 0; j < vals.length; j++) {
+        const v = vals[j];
+        if (!v) continue;
+        const parsed = parseRedisValue<Record<string, any>>(v as string, chunkKeys[j]);
+        if (parsed) cache.set(chunkCacheKeys[j], parsed);
+      }
+    } catch (err) {
+      console.warn("[positive-ev] supplemental live odds mget failed:", err);
+    }
+  }
+  console.log(`[positive-ev] custom model: ${combos.size} combos → ${cache.size} supplemental book entries`);
+  return cache;
+}
+
 // ---------------------------------------------------------------------------
 // On-demand re-devig for custom sharp presets
 //
 // Uses the all_books + opp_books arrays already stored in each pre-computed
 // EVRow to find the custom sharp book's odds, then re-runs devig + EV math.
-// This avoids fetching raw odds from Redis (the old 5–25s path) and instead
-// does pure CPU math (~0.1ms per row).
+// Supplemented by liveOddsCache which adds books absent from the worker snapshot
+// (e.g. Kalshi, Polymarket) so no +EV opportunity is silently dropped.
 // ---------------------------------------------------------------------------
 
 function redevigWithCustomSharp(
   row: WorkerEVRow,
   config: CustomSharpConfig,
-  devigMethods: DevigMethod[]
+  devigMethods: DevigMethod[],
+  liveOddsCache?: LiveOddsCache
 ): WorkerEVRow | null {
   const side = row.side as "over" | "under";
   const rawAllBooks: Array<Record<string, unknown>> = row.ev_data?.all_books ?? [];
@@ -1111,6 +1216,43 @@ function redevigWithCustomSharp(
     .filter((b) => !customBooksSet.has(b.canonicalId))
     .filter((b) => b.am && b.dec);
 
+  // Supplement with live odds for books absent from the worker snapshot (e.g. Kalshi, Polymarket).
+  // This prevents +EV opportunities from being silently dropped when the best book isn't in
+  // the pre-computed all_books array.
+  const supplementalLiveBooks: CustomBookRow[] = [];
+  if (liveOddsCache && row.sport && row.eid && row.mkt) {
+    const entityName: string = row.ev_data?.player ?? row.ent ?? "";
+    const selKey = `${normalizeEntityName(entityName)}|${side}|${row.line}`;
+    const comboPrefix = `${row.sport}/${row.eid}/${row.mkt}`;
+    const inSnapshot = new Set(bettableBooks.map((b) => b.canonicalId));
+
+    for (const book of LIVE_ODDS_SUPPLEMENTAL_BOOKS) {
+      const canonId = canonicalizeCustomBookId(book);
+      if (customBooksSet.has(canonId) || inSnapshot.has(canonId)) continue;
+      const selections = liveOddsCache.get(`${comboPrefix}/${book}`);
+      if (!selections) continue;
+      const sel = selections[selKey];
+      if (!sel || sel.locked) continue;
+      const am = parseInt(String(sel.price), 10);
+      const dec = typeof sel.price_decimal === "number" ? sel.price_decimal : americanToDecimal(am);
+      if (!Number.isFinite(am) || !Number.isFinite(dec) || dec <= 1) continue;
+      const liveBook: CustomBookRow = {
+        id: book,
+        canonicalId: canonId,
+        am,
+        dec,
+        odd_id: sel.odd_id ?? null,
+        link: sel.link ?? null,
+        mobile_link: sel.mobile_link ?? null,
+        sgp: sel.sgp ?? null,
+        limits: sel.limits ?? null,
+      };
+      bettableBooks.push(liveBook);
+      supplementalLiveBooks.push(liveBook);
+      inSnapshot.add(canonId);
+    }
+  }
+
   if (bettableBooks.length === 0) return null;
 
   // Calculate EV for each bettable book, pick the best
@@ -1143,7 +1285,9 @@ function redevigWithCustomSharp(
     }
   }
 
-  if (bestEvWorst <= 0) return null; // No +EV with custom sharp
+  // Don't gate on bestEvWorst <= 0 here — the outer minEV filter handles it.
+  // Removing this gate ensures rows where a supplemental live book (e.g. Kalshi)
+  // is the only +EV book are not silently dropped before that book is selected.
   if (bestEvWorst > 25) return null; // Data error filter
 
   let bestMethod: DevigMethod = "power";
@@ -1159,19 +1303,34 @@ function redevigWithCustomSharp(
     }
   }
 
-  const updatedAllBooks = rawAllBooks.map((rawBook) => {
-    const rawId = typeof rawBook?.id === "string" ? rawBook.id : "";
-    const canonicalId = canonicalizeCustomBookId(rawId);
-    const am = typeof rawBook?.am === "number" ? rawBook.am : Number(rawBook?.am);
+  const updatedAllBooks = [
+    ...rawAllBooks.map((rawBook) => {
+      const rawId = typeof rawBook?.id === "string" ? rawBook.id : "";
+      const canonicalId = canonicalizeCustomBookId(rawId);
+      const am = typeof rawBook?.am === "number" ? rawBook.am : Number(rawBook?.am);
 
-    return {
-      ...rawBook,
-      ev_pct: Number.isFinite(am)
-        ? calculateEvPercentForBook(am, [fairProbPower, fairProbMult, fairProbAdd, fairProbProbit])
-        : null,
-      is_sharp_ref: customBooksSet.has(canonicalId),
-    };
-  });
+      return {
+        ...rawBook,
+        ev_pct: Number.isFinite(am)
+          ? calculateEvPercentForBook(am, [fairProbPower, fairProbMult, fairProbAdd, fairProbProbit])
+          : null,
+        is_sharp_ref: customBooksSet.has(canonicalId),
+      };
+    }),
+    // Append supplemental live books (e.g. Kalshi) so they appear in allBooks on the frontend
+    ...supplementalLiveBooks.map((b) => ({
+      id: b.id,
+      am: b.am,
+      dec: b.dec,
+      link: b.link ?? null,
+      mobile_link: b.mobile_link ?? null,
+      sgp: b.sgp ?? null,
+      limits: b.limits ?? null,
+      odd_id: b.odd_id ?? null,
+      ev_pct: calculateEvPercentForBook(b.am, [fairProbPower, fairProbMult, fairProbAdd, fairProbProbit]),
+      is_sharp_ref: false,
+    })),
+  ];
 
   const updatedOppBooks = rawOppBooks.map((rawBook) => {
     const rawId = typeof rawBook?.id === "string" ? rawBook.id : "";
