@@ -37,6 +37,9 @@ type LiveState = {
   current_balls: number | null;
   current_strikes: number | null;
   runners_on_base: unknown;
+  current_batting_order: number | null;
+  on_deck_name: string | null;
+  in_hole_name: string | null;
   last_play_description: string | null;
   live_feed_updated_at: string | null;
 };
