@@ -196,6 +196,16 @@ export function GameCenterPage() {
   const { games, isLoading: gamesLoading } = useMlbGames();
   const gc = useGameCenter();
 
+  // Shared pitcher override state — synced across all game center tools
+  const [overrideAwayPitcherId, setOverrideAwayPitcherId] = useState<number | null>(null);
+  const [overrideHomePitcherId, setOverrideHomePitcherId] = useState<number | null>(null);
+
+  // Reset pitcher overrides when game changes
+  React.useEffect(() => {
+    setOverrideAwayPitcherId(null);
+    setOverrideHomePitcherId(null);
+  }, [gc.gameId]);
+
   const selectedGame = useMemo(
     () => games.find((g) => Number(g.game_id) === gc.gameId) ?? null,
     [games, gc.gameId]
@@ -487,6 +497,12 @@ export function GameCenterPage() {
           externalSample={gc.sample}
           externalBattingSide={gc.battingSide as "home" | "away"}
           embedded
+          externalPitcherOverrides={{
+            awayPitcherId: overrideAwayPitcherId,
+            homePitcherId: overrideHomePitcherId,
+            setAwayPitcherId: setOverrideAwayPitcherId,
+            setHomePitcherId: setOverrideHomePitcherId,
+          }}
         />
       )}
       {gc.view === "weakness" && (
@@ -494,6 +510,12 @@ export function GameCenterPage() {
           externalGameId={gc.gameId}
           externalSeason={gc.season}
           embedded
+          externalPitcherOverrides={{
+            awayPitcherId: overrideAwayPitcherId,
+            homePitcherId: overrideHomePitcherId,
+            setAwayPitcherId: setOverrideAwayPitcherId,
+            setHomePitcherId: setOverrideHomePitcherId,
+          }}
         />
       )}
       {gc.view === "correlations" && gc.gameId && selectedGame && (

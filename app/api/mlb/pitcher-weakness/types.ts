@@ -142,6 +142,8 @@ export interface GameInfo {
   game_date: string;
   game_datetime: string | null;
   venue_name: string | null;
+  home_team_id: number;
+  away_team_id: number;
   home_team_abbr: string;
   away_team_abbr: string;
   home_team_name: string;

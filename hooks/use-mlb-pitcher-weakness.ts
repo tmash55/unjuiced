@@ -18,16 +18,22 @@ export type {
 interface UsePitcherWeaknessParams {
   gameId: number | null;
   season?: number;
+  awayPitcherId?: number | null;
+  homePitcherId?: number | null;
 }
 
 async function fetchPitcherWeakness(
   gameId: number,
-  season?: number
+  season?: number,
+  awayPitcherId?: number | null,
+  homePitcherId?: number | null
 ): Promise<PitcherWeaknessResponse> {
   const params = new URLSearchParams({
     gameId: String(gameId),
   });
   if (season) params.set("season", String(season));
+  if (awayPitcherId) params.set("awayPitcherId", String(awayPitcherId));
+  if (homePitcherId) params.set("homePitcherId", String(homePitcherId));
   const res = await fetch(`/api/mlb/pitcher-weakness?${params.toString()}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -36,10 +42,10 @@ async function fetchPitcherWeakness(
   return res.json();
 }
 
-export function useMlbPitcherWeakness({ gameId, season }: UsePitcherWeaknessParams) {
+export function useMlbPitcherWeakness({ gameId, season, awayPitcherId, homePitcherId }: UsePitcherWeaknessParams) {
   const query = useQuery<PitcherWeaknessResponse>({
-    queryKey: ["mlb-pitcher-weakness", gameId, season],
-    queryFn: () => fetchPitcherWeakness(gameId!, season),
+    queryKey: ["mlb-pitcher-weakness", gameId, season, awayPitcherId ?? null, homePitcherId ?? null],
+    queryFn: () => fetchPitcherWeakness(gameId!, season, awayPitcherId, homePitcherId),
     enabled: gameId != null,
     staleTime: 30_000,
     gcTime: 5 * 60_000,

@@ -24,6 +24,7 @@ import { Loader2, ChevronRight, AlertTriangle, Users, ChevronDown, Zap, Info } f
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useStateLink } from "@/hooks/use-state-link";
+import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
 
 // ── Row Color System (Bettor Perspective) ───────────────────────────────────
 
@@ -484,19 +485,39 @@ function GameHeaderBar({ game, gameTime }: { game: GameInfo; gameTime: string })
 
 // ── Pitcher Header (compact, for matchup card) ──────────────────────────────
 
-function PitcherHeader({ pitcher }: { pitcher: PitcherData }) {
+function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherData; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
   const h = pitcher.headline;
   const handLabel = pitcher.hand ? `${pitcher.hand}HP` : "SP";
   const recordLabel = h.wins != null && h.losses != null
     ? `${h.wins}-${h.losses}`
     : (h.games_started != null ? `${h.games_started} GS` : "-");
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   return (
     <div className="flex items-center gap-2.5 p-3">
-      <img
-        src={getMlbHeadshotUrl(pitcher.player_id, "small")}
-        alt={pitcher.name}
-        className="w-10 h-10 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
-      />
+      <div className="relative shrink-0">
+        <img
+          src={getMlbHeadshotUrl(pitcher.player_id, "small")}
+          alt={pitcher.name}
+          className="w-10 h-10 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
+        />
+        {isOverride && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-brand text-white text-[8px] font-black flex items-center justify-center shadow-sm" title="Custom pitcher">
+            ↻
+          </span>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">{pitcher.name}</span>
@@ -510,6 +531,73 @@ function PitcherHeader({ pitcher }: { pitcher: PitcherData }) {
           )}>
             {handLabel}
           </span>
+          {onChangePitcher && teamPitchers && teamPitchers.length > 1 && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+                  menuOpen
+                    ? "bg-brand/10 text-brand border-brand/30 shadow-sm shadow-brand/10"
+                    : isOverride
+                      ? "bg-brand/5 dark:bg-brand/10 text-brand border-brand/20 hover:bg-brand/10"
+                      : "bg-white dark:bg-neutral-800/80 text-neutral-500 border-neutral-200/80 dark:border-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+                )}
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+                </svg>
+                Swap
+                <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", menuOpen && "rotate-180")} />
+              </button>
+              {menuOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+                  <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Pitching Staff</span>
+                  </div>
+                  {isOverride && (
+                    <button
+                      onClick={() => { onChangePitcher(null); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-brand hover:bg-brand/5 dark:hover:bg-brand/10 border-b border-neutral-100 dark:border-neutral-800/50 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                      </svg>
+                      Reset to probable starter
+                    </button>
+                  )}
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {teamPitchers.map((tp) => {
+                      const isActive = tp.player_id === pitcher.player_id;
+                      return (
+                        <button
+                          key={tp.player_id}
+                          onClick={() => { onChangePitcher(tp.player_id); setMenuOpen(false); }}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
+                            isActive
+                              ? "bg-brand/5 dark:bg-brand/10"
+                              : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                          )}
+                        >
+                          <img
+                            src={getMlbHeadshotUrl(tp.player_id, "tiny")}
+                            alt={tp.name}
+                            className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate block">{tp.name}</span>
+                            <span className="text-[10px] text-neutral-500">{tp.throw_hand === "L" ? "LHP" : "RHP"}</span>
+                          </div>
+                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 mt-0.5">
           <span className="text-[10px] text-neutral-500">{pitcher.team_abbr}</span>
@@ -1618,6 +1706,9 @@ function MatchupCard({
   statSeason,
   battingSide,
   propScoreMap,
+  teamPitchers,
+  onChangePitcher,
+  isOverride,
 }: {
   pitcher: PitcherData;
   lineup: LineupBatter[];
@@ -1632,6 +1723,9 @@ function MatchupCard({
   statSeason: number;
   battingSide: "home" | "away";
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
+  teamPitchers?: TeamPitcher[];
+  onChangePitcher?: (id: number | null) => void;
+  isOverride?: boolean;
 }) {
   // Pre-compute edge spots: pitcher weak (SLG >= .400) AND batter strong (SLG >= .450)
   const edgeSpots = useMemo(() => {
@@ -1652,7 +1746,7 @@ function MatchupCard({
     return (
       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
         {/* Pitcher section */}
-        <PitcherHeader pitcher={pitcher} />
+        <PitcherHeader pitcher={pitcher} teamPitchers={teamPitchers} onChangePitcher={onChangePitcher} isOverride={isOverride} />
         <div className="border-t border-neutral-100 dark:border-neutral-800/50">
           <PitcherSplitsTable splits={pitcher.batting_order_splits} isMobile={isMobile} />
         </div>
@@ -1706,7 +1800,7 @@ function MatchupCard({
       <div className="flex">
         {/* Left column (40%): Pitcher splits */}
         <div className="w-[40%] border-r border-neutral-200/60 dark:border-neutral-800/60">
-          <PitcherHeader pitcher={pitcher} />
+          <PitcherHeader pitcher={pitcher} teamPitchers={teamPitchers} onChangePitcher={onChangePitcher} isOverride={isOverride} />
           <div className="border-t border-neutral-100 dark:border-neutral-800/50">
             <PitcherSplitsTable splits={pitcher.batting_order_splits} isMobile={false} />
           </div>
@@ -1767,16 +1861,25 @@ function MatchupCard({
 
 // ── Main Export ────────────────────────────────────────────────────────────────
 
+export interface PitcherOverrides {
+  awayPitcherId: number | null;
+  homePitcherId: number | null;
+  setAwayPitcherId: (id: number | null) => void;
+  setHomePitcherId: (id: number | null) => void;
+}
+
 export interface MlbPitcherWeaknessProps {
   externalGameId?: number | null;
   externalSeason?: number;
   embedded?: boolean;
+  externalPitcherOverrides?: PitcherOverrides;
 }
 
 export function MlbPitcherWeakness({
   externalGameId,
   externalSeason,
   embedded = false,
+  externalPitcherOverrides,
 }: MlbPitcherWeaknessProps = {}) {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const currentYear = new Date().getFullYear();
@@ -1793,6 +1896,14 @@ export function MlbPitcherWeakness({
   const [heatmapStat, setHeatmapStat] = useState<HeatmapStat>("ops");
   const [expandedBatterId, setExpandedBatterId] = useState<number | null>(null);
 
+  // Pitcher overrides: use external (shared game center state) or internal
+  const [internalAwayPitcherId, setInternalAwayPitcherId] = useState<number | null>(null);
+  const [internalHomePitcherId, setInternalHomePitcherId] = useState<number | null>(null);
+  const overrideAwayPitcherId = externalPitcherOverrides?.awayPitcherId ?? internalAwayPitcherId;
+  const overrideHomePitcherId = externalPitcherOverrides?.homePitcherId ?? internalHomePitcherId;
+  const setOverrideAwayPitcherId = externalPitcherOverrides?.setAwayPitcherId ?? setInternalAwayPitcherId;
+  const setOverrideHomePitcherId = externalPitcherOverrides?.setHomePitcherId ?? setInternalHomePitcherId;
+
   // Data
   const { games, isLoading: gamesLoading } = useMlbGames(!embedded);
   const {
@@ -1805,7 +1916,24 @@ export function MlbPitcherWeakness({
     isLoading: dataLoading,
     isFetching,
     error,
-  } = useMlbPitcherWeakness({ gameId: selectedGameId, season: statSeason });
+  } = useMlbPitcherWeakness({
+    gameId: selectedGameId,
+    season: statSeason,
+    awayPitcherId: overrideAwayPitcherId,
+    homePitcherId: overrideHomePitcherId,
+  });
+
+  // Fetch team pitchers for the dropdown (away pitcher pitches for away team, home for home)
+  const { data: awayTeamPitchers } = useTeamPitchers(game?.away_team_id ?? null);
+  const { data: homeTeamPitchers } = useTeamPitchers(game?.home_team_id ?? null);
+
+  // Reset internal pitcher overrides when game changes (external is handled by parent)
+  useEffect(() => {
+    if (!externalPitcherOverrides) {
+      setInternalAwayPitcherId(null);
+      setInternalHomePitcherId(null);
+    }
+  }, [selectedGameId, externalPitcherOverrides]);
 
   // Auto-select first game (only in standalone mode)
   useEffect(() => {
@@ -1952,6 +2080,9 @@ export function MlbPitcherWeakness({
               statSeason={statSeason}
               battingSide="home"
               propScoreMap={propScoreMap}
+              teamPitchers={awayTeamPitchers ?? undefined}
+              onChangePitcher={setOverrideAwayPitcherId}
+              isOverride={overrideAwayPitcherId != null}
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">
@@ -1975,6 +2106,9 @@ export function MlbPitcherWeakness({
               statSeason={statSeason}
               battingSide="away"
               propScoreMap={propScoreMap}
+              teamPitchers={homeTeamPitchers ?? undefined}
+              onChangePitcher={setOverrideHomePitcherId}
+              isOverride={overrideHomePitcherId != null}
             />
           ) : (
             <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center text-sm text-neutral-500">

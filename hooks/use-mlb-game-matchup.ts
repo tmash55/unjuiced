@@ -16,13 +16,15 @@ interface UseGameMatchupParams {
   battingSide: "home" | "away";
   sample?: "season" | "30" | "15" | "7";
   statSeason?: number;
+  pitcherId?: number | null; // Override opposing pitcher (e.g. reliever)
 }
 
 async function fetchGameMatchup(
   gameId: number,
   battingSide: string,
   sample: string,
-  statSeason?: number
+  statSeason?: number,
+  pitcherId?: number | null
 ): Promise<GameMatchupResponse> {
   const params = new URLSearchParams({
     gameId: String(gameId),
@@ -30,6 +32,7 @@ async function fetchGameMatchup(
     sample,
   });
   if (statSeason) params.set("statSeason", String(statSeason));
+  if (pitcherId) params.set("pitcherId", String(pitcherId));
   const res = await fetch(`/api/mlb/game-matchup?${params.toString()}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -38,10 +41,10 @@ async function fetchGameMatchup(
   return res.json();
 }
 
-export function useMlbGameMatchup({ gameId, battingSide, sample = "season", statSeason }: UseGameMatchupParams) {
+export function useMlbGameMatchup({ gameId, battingSide, sample = "season", statSeason, pitcherId }: UseGameMatchupParams) {
   const query = useQuery<GameMatchupResponse>({
-    queryKey: ["mlb-game-matchup", gameId, battingSide, sample, statSeason],
-    queryFn: () => fetchGameMatchup(gameId!, battingSide, sample, statSeason),
+    queryKey: ["mlb-game-matchup", gameId, battingSide, sample, statSeason, pitcherId ?? null],
+    queryFn: () => fetchGameMatchup(gameId!, battingSide, sample, statSeason, pitcherId),
     enabled: gameId != null,
     staleTime: 60_000,
     gcTime: 10 * 60_000,

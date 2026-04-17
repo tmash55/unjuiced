@@ -23,6 +23,7 @@ import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
+import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -868,7 +869,7 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
   );
 }
 
-function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean }) {
+function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
   const maxUsage = Math.max(...pitcher.arsenal.map((a) => a.usage_pct), 1);
 
@@ -923,17 +924,105 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
 
   const arsenalMaxUsage = Math.max(...arsenalData.map((a) => a.usage_pct), 1);
 
+  const [pitcherMenuOpen, setPitcherMenuOpen] = useState(false);
+  const pitcherMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!pitcherMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pitcherMenuRef.current && !pitcherMenuRef.current.contains(e.target as Node)) setPitcherMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [pitcherMenuOpen]);
+
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header with pitcher selector */}
       <div className="flex items-center gap-3">
-        <img
-          src={getMlbHeadshotUrl(pitcher.player_id, "small")}
-          alt={pitcher.name}
-          className="w-16 h-16 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
-        />
-        <div>
-          <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{pitcher.name}</h3>
+        <div className="relative shrink-0">
+          <img
+            src={getMlbHeadshotUrl(pitcher.player_id, "small")}
+            alt={pitcher.name}
+            className="w-16 h-16 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
+          />
+          {isOverride && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand text-white text-[9px] font-black flex items-center justify-center shadow-sm" title="Custom pitcher">
+              ↻
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-white truncate">{pitcher.name}</h3>
+            {onChangePitcher && teamPitchers && teamPitchers.length > 1 && (
+              <div className="relative" ref={pitcherMenuRef}>
+                <button
+                  onClick={() => setPitcherMenuOpen(!pitcherMenuOpen)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+                    pitcherMenuOpen
+                      ? "bg-brand/10 text-brand border-brand/30 shadow-sm shadow-brand/10"
+                      : isOverride
+                        ? "bg-brand/5 dark:bg-brand/10 text-brand border-brand/20 hover:bg-brand/10"
+                        : "bg-white dark:bg-neutral-800/80 text-neutral-500 border-neutral-200/80 dark:border-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+                  )}
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+                  </svg>
+                  {isOverride ? "Swap" : "Swap"}
+                  <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", pitcherMenuOpen && "rotate-180")} />
+                </button>
+                {pitcherMenuOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Pitching Staff</span>
+                    </div>
+                    {isOverride && (
+                      <button
+                        onClick={() => { onChangePitcher(null); setPitcherMenuOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-brand hover:bg-brand/5 dark:hover:bg-brand/10 border-b border-neutral-100 dark:border-neutral-800/50 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                        </svg>
+                        Reset to probable starter
+                      </button>
+                    )}
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {teamPitchers.map((tp) => {
+                        const isActive = tp.player_id === pitcher.player_id;
+                        return (
+                          <button
+                            key={tp.player_id}
+                            onClick={() => { onChangePitcher(tp.player_id); setPitcherMenuOpen(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
+                              isActive
+                                ? "bg-brand/5 dark:bg-brand/10"
+                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            )}
+                          >
+                            <img
+                              src={getMlbHeadshotUrl(tp.player_id, "tiny")}
+                              alt={tp.name}
+                              className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate block">{tp.name}</span>
+                              <span className="text-[10px] text-neutral-500">{tp.throw_hand === "L" ? "LHP" : "RHP"}</span>
+                            </div>
+                            {isActive && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">
             {pitcher.hand === "R" ? "RHP" : pitcher.hand === "L" ? "LHP" : "P"}
             {pitcher.team_name ? ` · ${pitcher.team_name}` : ""}
@@ -2652,12 +2741,20 @@ function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatch
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
+export interface PitcherOverrides {
+  awayPitcherId: number | null;
+  homePitcherId: number | null;
+  setAwayPitcherId: (id: number | null) => void;
+  setHomePitcherId: (id: number | null) => void;
+}
+
 export interface MlbBatterVsPitcherProps {
   externalGameId?: number | null;
   externalSeason?: number;
   externalSample?: "season" | "30" | "15" | "7";
   externalBattingSide?: "home" | "away";
   embedded?: boolean;
+  externalPitcherOverrides?: PitcherOverrides;
 }
 
 export function MlbBatterVsPitcher({
@@ -2666,6 +2763,7 @@ export function MlbBatterVsPitcher({
   externalSample,
   externalBattingSide,
   embedded = false,
+  externalPitcherOverrides,
 }: MlbBatterVsPitcherProps = {}) {
   const [internalGameId, setInternalGameId] = useState<number | null>(null);
   const [internalBattingSide, setInternalBattingSide] = useState<"home" | "away">("away");
@@ -2692,7 +2790,25 @@ export function MlbBatterVsPitcher({
   const setStatSeason = (s: number) => { if (!embedded) setInternalSeason(s); };
   const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
   const [stdSortAsc, setStdSortAsc] = useState(true);
-  const [showBench, setShowBench] = useState(false);
+  const [showBench, setShowBench] = useState(true);
+
+  // Pitcher override: use external (shared game center state) or internal
+  const [internalOverridePitcherId, setInternalOverridePitcherId] = useState<number | null>(null);
+  // When battingSide is "home", opposing pitcher is the away pitcher, and vice versa
+  const overridePitcherId = externalPitcherOverrides
+    ? (battingSide === "home" ? externalPitcherOverrides.awayPitcherId : externalPitcherOverrides.homePitcherId)
+    : internalOverridePitcherId;
+  const setOverridePitcherId = React.useCallback((id: number | null) => {
+    if (externalPitcherOverrides) {
+      if (battingSide === "home") {
+        externalPitcherOverrides.setAwayPitcherId(id);
+      } else {
+        externalPitcherOverrides.setHomePitcherId(id);
+      }
+    } else {
+      setInternalOverridePitcherId(id);
+    }
+  }, [externalPitcherOverrides, battingSide]);
 
   // Odds column state
   const [oddsMarket, setOddsMarket] = useState("player_home_runs");
@@ -2745,7 +2861,19 @@ export function MlbBatterVsPitcher({
     battingSide,
     sample,
     statSeason,
+    pitcherId: overridePitcherId,
   });
+
+  // Pitching team ID for the pitcher dropdown
+  const pitchingTeamId = game
+    ? (battingSide === "home" ? game.away_team.id : game.home_team.id)
+    : null;
+  const { data: teamPitchers } = useTeamPitchers(pitchingTeamId);
+
+  // Reset internal pitcher override when game or side changes (external is handled by parent)
+  React.useEffect(() => {
+    if (!externalPitcherOverrides) setInternalOverridePitcherId(null);
+  }, [selectedGameId, battingSide, externalPitcherOverrides]);
   const selectedGame = useMemo(
     () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
     [games, selectedGameId]
@@ -3307,6 +3435,9 @@ export function MlbBatterVsPitcher({
                         vulnerabilityTags={(summary?.pitcher_tags ?? []).filter((t) => t.type === "vulnerability" && /hittable|SLG/i.test(t.label))}
                         gameId={selectedGameId}
                         hasSharpAccess={hasSharpAccess}
+                        teamPitchers={teamPitchers ?? undefined}
+                        onChangePitcher={setOverridePitcherId}
+                        isOverride={overridePitcherId != null}
                       />
                     </div>
                   ) : (
@@ -3453,14 +3584,16 @@ export function MlbBatterVsPitcher({
                           <>
                             <button
                               onClick={() => setShowBench(!showBench)}
-                              className="w-full flex items-center justify-center gap-2 py-3 mt-1 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
+                              className="w-full flex items-center gap-3 px-4 py-2.5 bg-neutral-200/60 dark:bg-neutral-700/40 border-y-2 border-neutral-300/80 dark:border-neutral-600/60"
                             >
-                              <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
-                                {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                              <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-neutral-500 dark:text-neutral-400 shrink-0">
+                                Bench ({benchPlayers.length})
                               </span>
-                              <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                              <svg className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                 <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
+                              <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
                             </button>
                             {showBench && benchPlayers.map((b, idx) => (
                               <BatterRow
@@ -3660,21 +3793,23 @@ export function MlbBatterVsPitcher({
                                 <td />
                               </tr>
                             ))}
-                            {/* Bench expand row */}
+                            {/* Bench section */}
                             {hasLineup && benchPlayers.length > 0 && (
                               <>
                                 <tr>
                                   <td colSpan={13} className="px-0 py-0">
                                     <button
                                       onClick={() => setShowBench(!showBench)}
-                                      className="w-full flex items-center justify-center gap-2 py-2.5 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 bg-neutral-200/60 dark:bg-neutral-700/40 border-y-2 border-neutral-300/80 dark:border-neutral-600/60 cursor-pointer hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50 transition-colors"
                                     >
-                                      <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
-                                        {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                                      <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
+                                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-neutral-500 dark:text-neutral-400 shrink-0">
+                                        Bench ({benchPlayers.length})
                                       </span>
-                                      <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                                      <svg className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                         <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                       </svg>
+                                      <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
                                     </button>
                                   </td>
                                 </tr>

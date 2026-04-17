@@ -253,6 +253,7 @@ const QuerySchema = z.object({
   battingSide: z.enum(["home", "away"]).optional().default("away"),
   sample: z.enum(["season", "30", "15", "7"]).optional().default("season"),
   statSeason: z.coerce.number().int().optional(),
+  pitcherId: z.coerce.number().int().positive().optional(), // Override opposing pitcher (e.g. reliever)
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -525,6 +526,7 @@ export async function GET(req: NextRequest) {
       battingSide: searchParams.get("battingSide") ?? undefined,
       sample: searchParams.get("sample") ?? undefined,
       statSeason: searchParams.get("statSeason") ?? undefined,
+      pitcherId: searchParams.get("pitcherId") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -534,7 +536,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { gameId, battingSide, sample, statSeason } = parsed.data;
+    const { gameId, battingSide, sample, statSeason, pitcherId: overridePitcherId } = parsed.data;
     const supabase = createServerSupabaseClient();
     const season = statSeason ?? getCurrentSeason();
     // Always show exactly the selected season — no cross-season fallback
@@ -601,15 +603,29 @@ export async function GET(req: NextRequest) {
     // Determine which team is batting and who is pitching
     const battingTeamId = battingSide === "home" ? homeTeamId : awayTeamId;
     const battingTeamAbbr = battingSide === "home" ? homeAbbr : awayAbbr;
-    const pitcherId = battingSide === "home"
-      ? game.away_probable_pitcher_id
-      : game.home_probable_pitcher_id;
-    const pitcherName = battingSide === "home"
-      ? game.away_probable_pitcher
-      : game.home_probable_pitcher;
     const pitcherTeamId = battingSide === "home" ? awayTeamId : homeTeamId;
     const pitcherTeamAbbr = battingSide === "home" ? awayAbbr : homeAbbr;
     const pitcherTeamName = battingSide === "home" ? game.away_name : game.home_name;
+
+    // Allow pitcher override (e.g. reliever selection)
+    const defaultPitcherId = battingSide === "home"
+      ? game.away_probable_pitcher_id
+      : game.home_probable_pitcher_id;
+    let pitcherId = overridePitcherId ?? defaultPitcherId;
+    let pitcherName = battingSide === "home"
+      ? game.away_probable_pitcher
+      : game.home_probable_pitcher;
+
+    // If overriding pitcher, look up their name
+    if (overridePitcherId && overridePitcherId !== defaultPitcherId) {
+      const { data: overridePitcher } = await supabase
+        .from("mlb_players_hr")
+        .select("name")
+        .eq("mlb_player_id", overridePitcherId)
+        .limit(1)
+        .single();
+      if (overridePitcher) pitcherName = overridePitcher.name;
+    }
 
     // Filter lineup to the batting team, deduplicate by player_id
     const allProfiles = (lineupResult.data ?? []) as any[];
@@ -710,8 +726,23 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // No longer filter — send all players with full stats.
+      // No longer filter starters — send all players with full stats.
       // Frontend splits starters (lineup 1-9) from bench.
+    }
+
+    // Remove pitchers from the lineup (they shouldn't appear in the batter table)
+    const allLineupIds = lineup.map((p: any) => p.player_id);
+    const { data: pitcherCheck } = await supabase
+      .from("mlb_players_hr")
+      .select("mlb_player_id")
+      .in("mlb_player_id", allLineupIds.length > 0 ? allLineupIds : [0])
+      .or("pos_type.eq.Pitcher,position.eq.P");
+    if (pitcherCheck && pitcherCheck.length > 0) {
+      const pitcherIds = new Set(pitcherCheck.map((p: any) => p.mlb_player_id));
+      // Keep pitchers who are in the starting lineup (e.g. Ohtani, DH pitchers)
+      lineup = lineup.filter((p: any) =>
+        !pitcherIds.has(p.player_id) || (p.lineup_position != null && p.lineup_position >= 1 && p.lineup_position <= 9)
+      );
     }
 
     const batterIds = lineup.map((p: any) => p.player_id);
