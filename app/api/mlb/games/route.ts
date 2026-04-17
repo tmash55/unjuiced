@@ -68,8 +68,17 @@ function toGameRow(row: any) {
     getStandardAbbreviation(row.away_name || "", "mlb");
 
   const statusDetailed = row.status_detailed_state || row.status;
-  const isLive = (statusDetailed || "").toLowerCase().includes("in progress") ||
-                 (statusDetailed || "").toLowerCase().includes("manager challenge");
+  const statusLower = (statusDetailed || "").toLowerCase();
+  // Treat any mid-game state as live (challenges, reviews, delays, warmups, etc.)
+  const isLive = statusLower.includes("progress") ||
+                 statusLower.includes("challenge") ||
+                 statusLower.includes("review") ||
+                 statusLower.includes("warmup") ||
+                 statusLower.includes("delayed") ||
+                 // Fallback: if we have live poller data and game isn't final/scheduled, it's live
+                 (!statusLower.includes("final") && !statusLower.includes("scheduled") &&
+                  !statusLower.includes("postponed") && !statusLower.includes("cancelled") &&
+                  !statusLower.includes("pre-game") && row.current_pitcher_id != null);
 
   // Build live state object when in-progress data exists
   const live = isLive && row.current_pitcher_id != null ? {
