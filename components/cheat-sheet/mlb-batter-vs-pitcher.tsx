@@ -869,6 +869,86 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
   );
 }
 
+function TbdPitcherCard({ teamPitchers, onChangePitcher }: { teamPitchers?: TeamPitcher[]; onChangePitcher: (id: number | null) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  return (
+    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+          <span className="text-xl text-neutral-400 dark:text-neutral-600">?</span>
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-white">Pitcher TBD</p>
+            {teamPitchers && teamPitchers.length > 0 && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+                    menuOpen
+                      ? "bg-brand/10 text-brand border-brand/30 shadow-sm shadow-brand/10"
+                      : "bg-white dark:bg-neutral-800/80 text-neutral-500 border-neutral-200/80 dark:border-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+                  )}
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+                  </svg>
+                  Select
+                  <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", menuOpen && "rotate-180")} />
+                </button>
+                {menuOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Pitching Staff</span>
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {teamPitchers.map((tp) => (
+                        <button
+                          key={tp.player_id}
+                          onClick={() => { onChangePitcher(tp.player_id); setMenuOpen(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        >
+                          <img
+                            src={getMlbHeadshotUrl(tp.player_id, "tiny")}
+                            alt={tp.name}
+                            className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate block">{tp.name}</span>
+                            <span className="text-[10px] text-neutral-500">{tp.throw_hand === "L" ? "LHP" : "RHP"}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-neutral-400 mt-0.5">Starting pitcher has not been announced</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-3/4 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+        <div className="h-3 w-1/2 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+        <div className="h-3 w-2/3 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+      </div>
+    </div>
+  );
+}
+
 function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
   const maxUsage = Math.max(...pitcher.arsenal.map((a) => a.usage_pct), 1);
@@ -3441,22 +3521,10 @@ export function MlbBatterVsPitcher({
                       />
                     </div>
                   ) : (
-                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-                          <span className="text-xl text-neutral-400 dark:text-neutral-600">?</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">Pitcher TBD</p>
-                          <p className="text-xs text-neutral-400">Starting pitcher has not been announced</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-3 w-3/4 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                        <div className="h-3 w-1/2 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                        <div className="h-3 w-2/3 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                      </div>
-                    </div>
+                    <TbdPitcherCard
+                      teamPitchers={teamPitchers ?? undefined}
+                      onChangePitcher={setOverridePitcherId}
+                    />
                   )}
                 </div>
 
