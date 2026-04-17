@@ -200,6 +200,14 @@ export interface BatterMatchup {
   // Plate discipline (from game logs, respects sample filter)
   k_pct: number | null;
   bb_pct: number | null;
+  // Season-long Statcast (always full season, not affected by sample filter)
+  statcast_contact_pct: number | null;
+  statcast_bip_pct: number | null;
+  statcast_avg_ev: number | null;
+  statcast_hard_hit_pct: number | null;
+  statcast_barrel_pct: number | null;
+  statcast_sweet_spot_pct: number | null;
+  statcast_max_ev: number | null;
   // Hand splits: vs RHP and vs LHP
   hand_splits: {
     vs_rhp: { avg: number | null; slg: number | null; iso: number | null; woba: number | null; hr: number; ev: number | null; brl: number | null; bbs: number; k_pct: number | null; bb_pct: number | null } | null;
@@ -812,7 +820,7 @@ export async function GET(req: NextRequest) {
         const obp = totalPA > 0 ? Math.round(((totalH + totalBB + totalHBP) / totalPA) * 1000) / 1000 : null;
         const slg = totalAB > 0 ? Math.round((totalTB / totalAB) * 1000) / 1000 : null;
         noBatterTraditionalMap.set(batterIds[i], {
-          pa: totalPA, avg, obp, slg,
+          pa: totalPA, ab: totalAB, k: totalK, avg, obp, slg,
           ops: obp != null && slg != null ? Math.round((obp + slg) * 1000) / 1000 : null,
           iso: avg != null && slg != null ? Math.round((slg - avg) * 1000) / 1000 : null,
           hr: totalHR,
@@ -882,6 +890,16 @@ export async function GET(req: NextRequest) {
         const barrelPct = computeBarrelPct(bbs);
         const avgEV = computeAvgEV(bbs);
 
+        // Season-long Statcast stats
+        const npSeasonEVs = bbs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
+        const npStatcastAvgEV = npSeasonEVs.length > 0 ? Math.round(npSeasonEVs.reduce((a: number, b: number) => a + b, 0) / npSeasonEVs.length * 10) / 10 : null;
+        const npStatcastMaxEV = npSeasonEVs.length > 0 ? Math.round(Math.max(...npSeasonEVs) * 10) / 10 : null;
+        const npStatcastHardHit = bbs.length > 0 ? Math.round(bbs.filter((b: any) => Number(b.exit_velocity) >= 95).length / bbs.length * 1000) / 10 : null;
+        const npStatcastBarrel = bbs.length > 0 ? Math.round(bbs.filter((b: any) => b.is_barrel === true).length / bbs.length * 1000) / 10 : null;
+        const npStatcastSweet = bbs.length > 0 ? Math.round(bbs.filter((b: any) => { const la = Number(b.launch_angle); return !isNaN(la) && la >= 8 && la <= 32; }).length / bbs.length * 1000) / 10 : null;
+        const npStatcastContact = trad && trad.pa > 0 && trad.k != null ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
+        const npStatcastBIP = trad && trad.pa > 0 && trad.ab != null && trad.k != null ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
+
         const buildSplit = (hand: string) => {
           const hs = noHandSplitMap.get(`${p.player_id}:${hand}`);
           if (!hs || hs.pa < 2) return null;
@@ -906,6 +924,13 @@ export async function GET(req: NextRequest) {
           total_batted_balls: bbs.length,
           k_pct: trad?.k_pct ?? null,
           bb_pct: trad?.bb_pct ?? null,
+          statcast_contact_pct: npStatcastContact,
+          statcast_bip_pct: npStatcastBIP,
+          statcast_avg_ev: npStatcastAvgEV,
+          statcast_hard_hit_pct: npStatcastHardHit,
+          statcast_barrel_pct: npStatcastBarrel,
+          statcast_sweet_spot_pct: npStatcastSweet,
+          statcast_max_ev: npStatcastMaxEV,
           hand_splits: {
             vs_rhp: buildSplit("R"),
             vs_lhp: buildSplit("L"),
@@ -1868,6 +1893,14 @@ export async function GET(req: NextRequest) {
       batterBBMap.set(bb.batter_id, arr);
     }
 
+    // Season-long BB map: unfiltered by sample, for Statcast aggregations
+    const seasonBatterBBMap = new Map<number, any[]>();
+    for (const bb of batterBBsCurrent) {
+      const arr = seasonBatterBBMap.get(bb.batter_id) || [];
+      arr.push(bb);
+      seasonBatterBBMap.set(bb.batter_id, arr);
+    }
+
     const h2hMap = new Map<number, any[]>();
     for (const bb of h2hBBs) {
       const arr = h2hMap.get(bb.batter_id) || [];
@@ -2137,6 +2170,22 @@ export async function GET(req: NextRequest) {
       // Never fall back to BB-computed BA/SLG — they inflate numbers by excluding K/BB
       const trad = batterTraditionalMap.get(p.player_id);
 
+      // Season-long Statcast stats (full season BBs, not sample-filtered)
+      const seasonBBs = seasonBatterBBMap.get(p.player_id) || [];
+      const seasonEVs = seasonBBs
+        .map((b: any) => Number(b.exit_velocity))
+        .filter((v: number) => !isNaN(v) && v > 0);
+      const statcastAvgEV = seasonEVs.length > 0 ? Math.round(seasonEVs.reduce((a: number, b: number) => a + b, 0) / seasonEVs.length * 10) / 10 : null;
+      const statcastMaxEV = seasonEVs.length > 0 ? Math.round(Math.max(...seasonEVs) * 10) / 10 : null;
+      const statcastHardHitPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => Number(b.exit_velocity) >= 95).length / seasonBBs.length * 1000) / 10 : null;
+      const statcastBarrelPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => b.is_barrel === true).length / seasonBBs.length * 1000) / 10 : null;
+      const statcastSweetSpotPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => {
+        const la = Number(b.launch_angle);
+        return !isNaN(la) && la >= 8 && la <= 32;
+      }).length / seasonBBs.length * 1000) / 10 : null;
+      const statcastContactPct = trad && trad.pa > 0 ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
+      const statcastBIPPct = trad && trad.pa > 0 ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
+
       return {
         player_id: p.player_id,
         player_name: p.player_name,
@@ -2175,6 +2224,13 @@ export async function GET(req: NextRequest) {
         recent_ev_sparkline: recentEvSparkline,
         k_pct: trad?.k_pct ?? null,
         bb_pct: trad?.bb_pct ?? null,
+        statcast_contact_pct: statcastContactPct,
+        statcast_bip_pct: statcastBIPPct,
+        statcast_avg_ev: statcastAvgEV,
+        statcast_hard_hit_pct: statcastHardHitPct,
+        statcast_barrel_pct: statcastBarrelPct,
+        statcast_sweet_spot_pct: statcastSweetSpotPct,
+        statcast_max_ev: statcastMaxEV,
         hand_splits: {
           vs_rhp: computeHandSplit("R"),
           vs_lhp: computeHandSplit("L"),
@@ -2298,6 +2354,13 @@ function buildEmptyBatter(p: any): BatterMatchup {
     recent_ev_sparkline: [],
     k_pct: null,
     bb_pct: null,
+    statcast_contact_pct: null,
+    statcast_bip_pct: null,
+    statcast_avg_ev: null,
+    statcast_hard_hit_pct: null,
+    statcast_barrel_pct: null,
+    statcast_sweet_spot_pct: null,
+    statcast_max_ev: null,
     hand_splits: { vs_rhp: null, vs_lhp: null },
   };
 }

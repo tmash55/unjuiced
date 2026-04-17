@@ -765,6 +765,19 @@ export async function GET(req: NextRequest) {
       recent_ev_sparkline: recentEvSparkline,
       k_pct: batterKPct,
       bb_pct: batterBBPct,
+      statcast_contact_pct: null,
+      statcast_bip_pct: null,
+      statcast_avg_ev: (() => {
+        const evs = batterBBs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
+        return evs.length > 0 ? Math.round(evs.reduce((a: number, b: number) => a + b, 0) / evs.length * 10) / 10 : null;
+      })(),
+      statcast_hard_hit_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => Number(b.exit_velocity) >= 95).length / batterBBs.length * 1000) / 10 : null,
+      statcast_barrel_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => b.is_barrel === true).length / batterBBs.length * 1000) / 10 : null,
+      statcast_sweet_spot_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => { const la = Number(b.launch_angle); return !isNaN(la) && la >= 8 && la <= 32; }).length / batterBBs.length * 1000) / 10 : null,
+      statcast_max_ev: (() => {
+        const evs = batterBBs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
+        return evs.length > 0 ? Math.round(Math.max(...evs) * 10) / 10 : null;
+      })(),
       hand_splits: (() => {
         function computeHS(hand: string) {
           const hBBs = batterBBs.filter((b: any) => b.pitcher_hand === hand);
