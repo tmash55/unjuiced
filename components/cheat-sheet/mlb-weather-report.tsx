@@ -189,7 +189,7 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
           </span>
         )}
         {windSpeed != null && windSpeed > 0 && (
-          <span className={cn("text-[10px] font-semibold tabular-nums", windFavScore(row) >= 70 ? "text-emerald-500" : windFavScore(row) <= 30 ? "text-red-400" : "text-neutral-600 dark:text-neutral-400")}>
+          <span className="text-[10px] font-semibold tabular-nums text-neutral-600 dark:text-neutral-400">
             {windSpeed}mph {row.windLabel ? (row.windLabel.toLowerCase().includes("out") ? "↗" : row.windLabel.toLowerCase().includes("in") ? "↙" : row.windLabel.toLowerCase().includes("cross") ? "→" : "") : ""}
           </span>
         )}
