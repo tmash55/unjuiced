@@ -563,7 +563,7 @@ export function LivingStadiumCard({ row, windOverride }: {
                   refY="2.5"
                   orient="auto"
                 >
-                  <path d="M0,0.5 L5,2.5 L0,4.5 z" fill="rgba(224, 242, 254, 0.9)" />
+                  <path d="M0,0.5 L5,2.5 L0,4.5 z" className="fill-slate-500/70 dark:fill-sky-200/80" />
                 </marker>
                 <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
@@ -580,13 +580,16 @@ export function LivingStadiumCard({ row, windOverride }: {
               <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-heat)`} />
 
               <g transform={`rotate(${windFlowRotationDeg} ${VIEWBOX_WIDTH / 2} ${VIEWBOX_HEIGHT / 2})`}>
-                {[...Array(14)].map((_, index) => {
+                {[...Array(22)].map((_, index) => {
                   const row_i = index;
-                  // Stagger starting positions across the field width
-                  const startX = 20 + (row_i % 3) * 60;
-                  const startY = 16 + row_i * 13;
-                  // Vary particle length by row for natural look
-                  const particleLen = 14 + (row_i % 3) * 6;
+                  // Organic stagger — 4-column grid with offsets for natural feel
+                  const col = row_i % 4;
+                  const rowGroup = Math.floor(row_i / 4);
+                  const startX = 10 + col * 45 + (rowGroup % 2) * 20;
+                  const startY = 8 + row_i * 8.5;
+                  // Vary particle length: some short dashes, some long streaks
+                  const particleLen = row_i % 5 === 0 ? 6 : row_i % 3 === 0 ? 18 : 12 + (row_i % 4) * 3;
+                  const particleOpacity = row_i % 4 === 0 ? windOpacity * 0.5 : windOpacity;
                   return (
                     <g key={`wind-particle-row-${row_i}`} transform={`translate(${startX} ${startY})`}>
                       <g
@@ -594,13 +597,13 @@ export function LivingStadiumCard({ row, windOverride }: {
                         style={
                           {
                             animationDuration: windFlowDuration,
-                            animationDelay: `${row_i * 0.14}s`,
-                            opacity: windOpacity,
+                            animationDelay: `${row_i * 0.09}s`,
+                            opacity: particleOpacity,
                             "--wind-shift": `${windShiftPx}px`,
                           } as CSSProperties
                         }
                       >
-                        <line x1={-particleLen} y1={0} x2={particleLen} y2={0} className="living-wind-particle-line" markerEnd={`url(#${cardId}-particle-tip)`} />
+                        <line x1={-particleLen} y1={0} x2={particleLen} y2={0} className="living-wind-particle-line" markerEnd={particleLen > 8 ? `url(#${cardId}-particle-tip)` : undefined} />
                       </g>
                     </g>
                   );
@@ -922,7 +925,7 @@ export function LivingStadiumCard({ row, windOverride }: {
         }
 
         .living-wind-particle-line {
-          stroke: rgba(186, 230, 253, 0.65);
+          stroke: rgba(51, 65, 85, 0.5);
           stroke-width: 1.5;
           stroke-linecap: round;
         }

@@ -1111,9 +1111,52 @@ function redevigWithCustomSharp(
     return null; // No custom book odds at all
   }
 
-  if ((thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) && !hasNoVig) {
-    // Standard devig requires both sides — skip if missing
+  if (thisSideSharpEntries.length === 0 && oppSideSharpEntries.length === 0 && !hasNoVig) {
+    // No sharp odds at all — skip
     return null;
+  }
+
+  // If we only have one side from the sharp book, infer the other side
+  // Since it's a two-outcome market: fair_over + fair_under = 1 (before vig)
+  // We can estimate the missing side from the available side + typical vig
+  if ((thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) && !hasNoVig) {
+    const availableEntries = thisSideSharpEntries.length > 0 ? thisSideSharpEntries : oppSideSharpEntries;
+    const availableSide = thisSideSharpEntries.length > 0 ? "this" : "opp";
+
+    // Use the available odds to compute fair prob directly
+    // Sharp books have low vig (~2-3%), so implied prob is close to fair
+    const sharpAm = availableEntries[0].am;
+    const sharpImplied = americanToImpliedProb(sharpAm);
+    // Estimate fair prob by removing ~1.5% vig from each side
+    const fairProb = availableSide === "this"
+      ? (side === "over" ? sharpImplied * 0.97 : sharpImplied * 0.97)
+      : (side === "over" ? (1 - sharpImplied * 0.97) : (1 - sharpImplied * 0.97));
+
+    // Find best bettable book on this side
+    const bettableBooks = allBooks
+      .filter((b) => !customBooksSet.has(b.canonicalId))
+      .sort((a, b) => americanToImpliedProb(a.am) - americanToImpliedProb(b.am));
+    const bestBettable = bettableBooks[0];
+    if (!bestBettable) return null;
+
+    const bettableProb = americanToImpliedProb(bestBettable.am);
+    const ev = ((fairProb / bettableProb) - 1) * 100;
+
+    if (ev < -50 || ev > 200) return null; // Sanity check
+
+    const fairAm = impliedProbToAmerican(fairProb);
+    return {
+      ...row,
+      book: { id: bestBettable.canonicalId, odds: { am: bestBettable.am, dec: bestBettable.dec ?? 0 } },
+      ev_data: {
+        ...(row.ev_data ?? {}),
+        power: { ev, fairProb, fairAm },
+        multiplicative: { ev, fairProb, fairAm },
+        additive: { ev, fairProb, fairAm },
+        probit: { ev, fairProb, fairAm },
+        sharp: { id: availableEntries[0].canonicalId, odds: { am: sharpAm, dec: availableEntries[0].dec ?? 0 } },
+      },
+    } as WorkerEVRow;
   }
 
   // If we have a NoVig entry on this side but missing the opposite side,

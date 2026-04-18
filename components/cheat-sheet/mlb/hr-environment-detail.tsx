@@ -438,12 +438,14 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
                 key={i}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-[11px] font-semibold",
-                  tag.positive
-                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                  tag.sentiment === "neutral"
+                    ? "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
+                    : tag.sentiment === "positive" || (!tag.sentiment && tag.positive)
+                      ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
+                      : "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400"
                 )}
               >
-                {tag.positive ? "+" : "-"} {tag.label}
+                {tag.sentiment === "neutral" ? "~" : tag.positive ? "+" : "-"} {tag.label}
               </span>
             ))}
           </div>

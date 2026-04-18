@@ -152,6 +152,7 @@ export function getFactorBarColor(score: number): string {
 export interface LeanTag {
   label: string;
   positive: boolean; // green vs red
+  sentiment?: "positive" | "negative" | "neutral"; // overrides positive for amber/yellow tags
 }
 
 export function getWhyItLeansTags(row: MlbWeatherReportRow): LeanTag[] {
@@ -172,11 +173,22 @@ export function getWhyItLeansTags(row: MlbWeatherReportRow): LeanTag[] {
       case "park":
         label = positive ? `HR-friendly park (${row.ballparkFactors?.hr?.overall ?? "?"})` : `HR-suppressing park (${row.ballparkFactors?.hr?.overall ?? "?"})`;
         break;
-      case "wind":
-        label = positive
-          ? `Wind blowing out ${row.windSpeedMph ? Math.round(row.windSpeedMph) + " mph" : ""}`
-          : `Wind blowing in ${row.windSpeedMph ? Math.round(row.windSpeedMph) + " mph" : ""}`;
+      case "wind": {
+        const wLabel = (row.windLabel ?? "").toLowerCase();
+        const wImpact = (row.windImpact ?? "").toLowerCase();
+        const wSpeed = row.windSpeedMph ? Math.round(row.windSpeedMph) + " mph" : "";
+        // Check crosswind FIRST — "crosswind" contains "in" so must be before the "in" check
+        if (wLabel.includes("cross")) {
+          label = `Crosswind ${wSpeed}`;
+        } else if (wLabel.includes("out") || wImpact.includes("blowing out")) {
+          label = `+ Wind blowing out ${wSpeed}`;
+        } else if (wLabel.includes("blowing in") || wImpact.includes("blowing in")) {
+          label = `- Wind blowing in ${wSpeed}`;
+        } else {
+          label = positive ? `+ Favorable wind ${wSpeed}` : `- Unfavorable wind ${wSpeed}`;
+        }
         break;
+      }
       case "temperature": {
         const temp = row.temperatureF;
         label = positive ? `Warm air ${temp ? Math.round(temp) + "°F" : ""}` : `Cold air ${temp ? Math.round(temp) + "°F" : ""}`;
@@ -193,7 +205,21 @@ export function getWhyItLeansTags(row: MlbWeatherReportRow): LeanTag[] {
         break;
     }
 
-    if (label) tags.push({ label: label.trim(), positive });
+    if (!label) continue;
+
+    // Determine sentiment: crosswind and borderline factors are neutral (amber)
+    let sentiment: "positive" | "negative" | "neutral" = positive ? "positive" : "negative";
+    if (f.key === "wind" && (row.windLabel ?? "").toLowerCase().includes("cross")) {
+      sentiment = "neutral";
+    }
+    if (f.key === "temperature" && !positive && (row.temperatureF ?? 70) >= 50) {
+      sentiment = "neutral"; // Cool but not extreme cold
+    }
+    if (f.key === "elevation" && !positive) {
+      continue; // Skip "low elevation" — not actionable
+    }
+
+    tags.push({ label: label.trim(), positive, sentiment });
   }
 
   return tags;
