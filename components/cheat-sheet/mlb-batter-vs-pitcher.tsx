@@ -3860,16 +3860,17 @@ export function MlbBatterVsPitcher({
                         {/* Scrollable table */}
                         <div className="overflow-x-auto @container/tbl">
                         <table className="w-full border-separate border-spacing-0">
-                          <thead>
+                          <thead className="sticky top-0 z-20">
                             {(() => {
                               const sThCls = "px-1.5 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-neutral-400 dark:text-neutral-500 text-center cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
                                 <>
-                                {/* Group header row: Season | Last 15 ABs */}
+                                {/* Group header row — inside table so divider aligns perfectly */}
                                 <tr className="bg-white dark:bg-neutral-900/95">
-                                  <th colSpan={11} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 sticky left-0 z-10 bg-white dark:bg-neutral-900/95">
+                                  <th colSpan={2} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95 sticky left-0 z-10">
                                     Season
                                   </th>
+                                  <th colSpan={9} className="border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95" />
                                   <th colSpan={5} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 border-l-2 border-neutral-300/80 dark:border-neutral-600/60 bg-white dark:bg-neutral-900/95">
                                     Last 15 ABs
                                   </th>
