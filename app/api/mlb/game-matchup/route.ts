@@ -944,7 +944,11 @@ export async function GET(req: NextRequest) {
       const noPitcherBatters = lineup.map((p: any) => {
         const trad = noBatterTraditionalMap.get(p.player_id);
         const bbs = noBBMap.get(p.player_id) || [];
-        if (bbs.length > 0 && bbs[0].batter_hand) p.batting_hand = bbs[0].batter_hand;
+        if (bbs.length > 0) {
+          const hands = new Set(bbs.map((b: any) => b.batter_hand).filter(Boolean));
+          if (hands.size >= 2) { p.batting_hand = "S"; }
+          else if (bbs[0].batter_hand) { p.batting_hand = bbs[0].batter_hand; }
+        }
         const barrelPct = computeBarrelPct(bbs);
         const avgEV = computeAvgEV(bbs);
 
@@ -1975,8 +1979,14 @@ export async function GET(req: NextRequest) {
     for (const p of lineup) {
       const bbs = batterBBMap.get(p.player_id);
       if (bbs && bbs.length > 0) {
-        const hand = bbs[0].batter_hand;
-        if (hand) p.batting_hand = hand;
+        // Check if batter has BBs from both hands = switch hitter
+        const hands = new Set(bbs.map((b: any) => b.batter_hand).filter(Boolean));
+        if (hands.size >= 2) {
+          p.batting_hand = "S"; // Switch hitter
+        } else {
+          const hand = bbs[0].batter_hand;
+          if (hand) p.batting_hand = hand;
+        }
       }
     }
 
