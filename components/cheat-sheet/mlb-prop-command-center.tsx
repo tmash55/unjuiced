@@ -1517,11 +1517,21 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
                 {marketConfig.columns.map((col) => {
                   const rawVal = player.key_stats?.[col.key];
                   const isNullish = rawVal == null || (Number(rawVal) === 0 && ZERO_IS_NULL_STATS.has(col.key));
-                  const cellColor = isNullish ? "" : getStatCellColor(col.key, rawVal);
+                  // Text-only color for mobile (no bg)
+                  const t = !isNullish ? STAT_CELL_THRESHOLDS[col.key] : null;
+                  const num = Number(rawVal);
+                  let textColor = "text-neutral-800 dark:text-neutral-200";
+                  if (t && !isNaN(num)) {
+                    const higher = t.higher !== false;
+                    if (higher ? num >= t.elite : num <= t.elite) textColor = "text-emerald-600 dark:text-emerald-400";
+                    else if (higher ? num >= t.good : num <= t.good) textColor = "text-emerald-600/80 dark:text-emerald-400/80";
+                    else if (higher ? num <= t.bad : num >= t.bad) textColor = "text-red-600 dark:text-red-400";
+                    else if (higher ? num <= t.poor : num >= t.poor) textColor = "text-red-500/80 dark:text-red-400/70";
+                  }
                   return (
                     <div key={col.key} className="flex-1 min-w-0">
                       <span className="text-[9px] text-neutral-400 dark:text-neutral-500 block">{col.shortLabel || col.label}</span>
-                      <span className={cn("text-sm font-bold tabular-nums", cellColor || "text-neutral-800 dark:text-neutral-200")}>
+                      <span className={cn("text-sm font-bold tabular-nums", textColor)}>
                         {isNullish ? "-" : formatStatValue(rawVal, col.format)}
                       </span>
                     </div>
