@@ -317,15 +317,18 @@ export interface StatcastBucket {
 
 const STATCAST_SAMPLE_SIZE = 15; // Last N batted balls for Statcast columns (matches exit velocity tool)
 
-/** Sort BBs by game_date desc + id desc (matches EV tool query order) and take the most recent N */
+/** Sort BBs by game_date desc + id desc (matches EV tool query order) */
+function sortBBsByRecency(bbs: any[]): any[] {
+  return [...bbs].sort((a, b) => {
+    const dateCmp = (b.game_date || "").localeCompare(a.game_date || "");
+    if (dateCmp !== 0) return dateCmp;
+    return (b.id ?? 0) - (a.id ?? 0);
+  });
+}
+
+/** From a pre-sorted array, take the most recent N */
 function takeRecentBBs(bbs: any[], n: number = STATCAST_SAMPLE_SIZE): any[] {
-  return [...bbs]
-    .sort((a, b) => {
-      const dateCmp = (b.game_date || "").localeCompare(a.game_date || "");
-      if (dateCmp !== 0) return dateCmp;
-      return (b.id ?? 0) - (a.id ?? 0);
-    })
-    .slice(0, n);
+  return bbs.slice(0, n);
 }
 
 /**
@@ -946,13 +949,13 @@ export async function GET(req: NextRequest) {
         const avgEV = computeAvgEV(bbs);
 
         // Statcast stats — last 15 batted balls (matches exit velocity tool)
-        const npRecentBBs = takeRecentBBs(bbs);
-        const npStatcast = computeStatcastBucket(npRecentBBs, trad);
+        const sortedBBs = sortBBsByRecency(bbs);
+        const npStatcast = computeStatcastBucket(takeRecentBBs(sortedBBs), trad);
 
         const npPitchTypes = [...new Set(bbs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
         const npByPitch: Record<string, StatcastBucket | null> = {};
         for (const pt of npPitchTypes) {
-          npByPitch[pt] = computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitch_type === pt)));
+          npByPitch[pt] = computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitch_type === pt)));
         }
 
         const buildSplit = (hand: string) => {
@@ -991,8 +994,8 @@ export async function GET(req: NextRequest) {
             vs_lhp: buildSplit("L"),
           },
           statcast_splits: bbs.length >= 5 ? {
-            vs_rhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "R"))),
-            vs_lhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "L"))),
+            vs_rhp: computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitcher_hand === "R"))),
+            vs_lhp: computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitcher_hand === "L"))),
             by_pitch: npByPitch,
           } : null,
           matchup_grade: "neutral" as const,
@@ -2224,14 +2227,14 @@ export async function GET(req: NextRequest) {
       const trad = batterTraditionalMap.get(p.player_id);
 
       // Statcast stats — last 15 batted balls (matches exit velocity tool)
-      const recentStatcastBBs = takeRecentBBs(bbs);
-      const statcastBucket = computeStatcastBucket(recentStatcastBBs, trad);
+      const sortedBBs = sortBBsByRecency(bbs);
+      const statcastBucket = computeStatcastBucket(takeRecentBBs(sortedBBs), trad);
 
-      // Statcast splits — filter first, then take last 15 of each
+      // Statcast splits — filter from pre-sorted, then take last 15
       const pitchTypes = [...new Set(bbs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
       const byPitch: Record<string, StatcastBucket | null> = {};
       for (const pt of pitchTypes) {
-        byPitch[pt] = computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitch_type === pt)));
+        byPitch[pt] = computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitch_type === pt)));
       }
 
       return {
@@ -2284,8 +2287,8 @@ export async function GET(req: NextRequest) {
           vs_lhp: computeHandSplit("L"),
         },
         statcast_splits: bbs.length >= 3 ? {
-          vs_rhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "R"))),
-          vs_lhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "L"))),
+          vs_rhp: computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitcher_hand === "R"))),
+          vs_lhp: computeStatcastBucket(takeRecentBBs(sortedBBs.filter((b: any) => b.pitcher_hand === "L"))),
           by_pitch: byPitch,
         } : null,
       };
