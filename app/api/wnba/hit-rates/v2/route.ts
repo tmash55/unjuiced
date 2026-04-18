@@ -235,9 +235,12 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
       updated_at: bestOdds.updated_at,
     } : null,
     books: bestOdds?.book_count ?? 0,
-    // Keep nba_ field names for schema compatibility with shared frontend components
+    // Top-level nba_player_id flows into HitRateProfile.nbaPlayerId for cdn.nba.com headshots
+    nba_player_id: row.nba_player_id ?? null,
+    // Keep nba_ field names for schema compatibility with shared frontend components.
+    // For WNBA, nba_player_id may be null until the backfill catches that player.
     nba_players_hr: row.player_name ? {
-      nba_player_id: row.player_id,
+      nba_player_id: row.nba_player_id ?? row.player_id,
       name: row.player_name,
       position: row.player_depth_chart_pos || row.player_position,
       depth_chart_pos: row.player_depth_chart_pos,

@@ -4837,7 +4837,8 @@ export function MobilePlayerDrilldown({
               >
                 <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
                   <PlayerHeadshot
-                    nbaPlayerId={profile.playerId}
+                    sport={sport}
+                    nbaPlayerId={profile.nbaPlayerId ?? profile.playerId}
                     name={profile.playerName}
                     size="small"
                     className="w-full h-auto"

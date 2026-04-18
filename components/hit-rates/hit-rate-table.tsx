@@ -1213,7 +1213,7 @@ export function HitRateTable({
                           >
                             <PlayerHeadshot
                               sport={sport}
-                              nbaPlayerId={row.playerId}
+                              nbaPlayerId={row.nbaPlayerId ?? row.playerId}
                               mlbPlayerId={row.playerId}
                               name={row.playerName}
                               size="small"

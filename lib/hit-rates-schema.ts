@@ -89,6 +89,10 @@ export interface RawHitRateProfile {
 export interface HitRateProfile {
   id: string;
   playerId: number;
+  // For WNBA: nba.com player_id (used for cdn.nba.com headshots).
+  // Distinct from playerId, which is the WNBA-specific stats id used for joins.
+  // Null when the mapping hasn't been backfilled yet.
+  nbaPlayerId?: number | null;
   playerName: string;
   teamId: number | null;
   teamAbbr: string | null;

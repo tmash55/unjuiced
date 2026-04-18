@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 
 export interface PlayerInfo {
   playerId: number;
+  // For WNBA: nba.com player_id used for cdn.nba.com headshots.
+  nbaPlayerId?: number | null;
   name: string;
   firstName: string;
   lastName: string;

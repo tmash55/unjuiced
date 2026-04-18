@@ -22,6 +22,7 @@ const QuerySchema = z.object({
 
 interface RpcPlayerInfo {
   player_id: number;
+  nba_player_id: number | null;
   name: string;
   first_name: string;
   last_name: string;
@@ -109,6 +110,7 @@ interface RpcResponse {
 
 export interface PlayerInfo {
   playerId: number;
+  nbaPlayerId?: number | null;
   name: string;
   firstName: string;
   lastName: string;
@@ -242,6 +244,7 @@ export async function GET(req: NextRequest) {
 
     const player: PlayerInfo | null = data.player ? {
       playerId: data.player.player_id,
+      nbaPlayerId: data.player.nba_player_id ?? null,
       name: data.player.name,
       firstName: data.player.first_name,
       lastName: data.player.last_name,

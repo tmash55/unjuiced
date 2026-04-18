@@ -436,7 +436,7 @@ export function OddsLadderDrawer({ open, onOpenChange, row }: OddsLadderDrawerPr
                     }}
                   >
                     <PlayerHeadshot
-                      nbaPlayerId={row.playerId}
+                      nbaPlayerId={row.nbaPlayerId ?? row.playerId}
                       name={row.playerName}
                       size="small"
                       className="h-full w-full object-cover"

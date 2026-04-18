@@ -23,9 +23,12 @@ export function getPlayerHeadshotUrl(
     return getMlbHeadshotUrl(idSegment, size);
   }
 
+  // WNBA player IDs in the DB come from the NBA Stats namespace (not the
+  // stats.wnba.com namespace), so they resolve on cdn.nba.com — not
+  // cdn.wnba.com. Use NBA CDN for both leagues until a separate mapping
+  // is populated.
   const { path } = SIZE_CONFIG[size] ?? SIZE_CONFIG.small;
-  const base = sport === "wnba" ? WNBA_CDN_BASE : NBA_CDN_BASE;
-  return `${base}/${path}/${idSegment}.png`;
+  return `${NBA_CDN_BASE}/${path}/${idSegment}.png`;
 }
 
 export function getMlbHeadshotUrl(

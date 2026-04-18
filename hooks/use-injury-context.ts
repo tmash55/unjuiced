@@ -47,15 +47,25 @@ export interface GameWithInjuries {
   bs: number;
   teammates_out: Array<{
     player_id: number;
+    // WNBA: separate cdn.nba.com headshot ID (null when not yet backfilled)
+    nba_player_id?: number | null;
     name: string;
     position: string | null;
     reason: string | null;
+    // WNBA RPC also embeds these per-game; NBA RPC may not
+    avg_pts?: number | null;
+    avg_reb?: number | null;
+    avg_ast?: number | null;
   }>;
   opponents_out: Array<{
     player_id: number;
+    nba_player_id?: number | null;
     name: string;
     position: string | null;
     reason: string | null;
+    avg_pts?: number | null;
+    avg_reb?: number | null;
+    avg_ast?: number | null;
   }>;
 }
 

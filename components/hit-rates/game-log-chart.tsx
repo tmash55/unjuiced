@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getPlayerHeadshotUrl } from "@/lib/utils/player-headshot";
 import { useStateLink } from "@/hooks/use-state-link";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { GripVertical, ChevronDown, ChevronUp } from "lucide-react";
@@ -37,6 +38,8 @@ const formatOddsPrice = (price: number): string => {
 // Teammate out structure from game_logs
 interface TeammateOut {
   player_id: number;
+  // For WNBA: cdn.nba.com headshot ID (null when not yet backfilled)
+  nba_player_id?: number | null;
   name: string;
   avg: number | null;
 }
@@ -273,6 +276,7 @@ interface GameLogChartProps {
 // Get the stat value based on market
 const getMarketStat = (game: BoxScoreGame, market: string): number => {
   switch (market) {
+    // NBA
     case "player_points": return game.pts;
     case "player_rebounds": return game.reb;
     case "player_assists": return game.ast;
@@ -285,6 +289,20 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    // WNBA bare keys
+    case "points": return game.pts;
+    case "rebounds": return game.reb;
+    case "assists": return game.ast;
+    case "three_pointers_made": return game.fg3m;
+    case "steals": return game.stl;
+    case "blocks": return game.blk;
+    case "turnovers": return game.tov;
+    case "pts_reb_ast": return game.pra;
+    case "pts_reb": return game.pr;
+    case "pts_ast": return game.pa;
+    case "reb_ast": return game.ra;
+    case "blk_stl": return game.bs;
+    // MLB
     case "player_hits": return game.mlbHits ?? 0;
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
@@ -299,10 +317,16 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
 const isComboMarket = (market: string): boolean => {
   return [
     "player_points_rebounds_assists",
-    "player_points_rebounds", 
+    "player_points_rebounds",
     "player_points_assists",
     "player_rebounds_assists",
-    "player_blocks_steals"
+    "player_blocks_steals",
+    // WNBA bare keys
+    "pts_reb_ast",
+    "pts_reb",
+    "pts_ast",
+    "reb_ast",
+    "blk_stl",
   ].includes(market);
 };
 
@@ -340,6 +364,33 @@ const getComboSegments = (game: BoxScoreGame, market: string): ComboStatSegment[
         { value: game.blk, label: "BLK" },
         { value: game.stl, label: "STL" },
       ];
+    // WNBA bare keys
+    case "pts_reb_ast":
+      return [
+        { value: game.pts, label: "P" },
+        { value: game.reb, label: "R" },
+        { value: game.ast, label: "A" },
+      ];
+    case "pts_reb":
+      return [
+        { value: game.pts, label: "P" },
+        { value: game.reb, label: "R" },
+      ];
+    case "pts_ast":
+      return [
+        { value: game.pts, label: "P" },
+        { value: game.ast, label: "A" },
+      ];
+    case "reb_ast":
+      return [
+        { value: game.reb, label: "R" },
+        { value: game.ast, label: "A" },
+      ];
+    case "blk_stl":
+      return [
+        { value: game.blk, label: "BLK" },
+        { value: game.stl, label: "STL" },
+      ];
     default:
       return [];
   }
@@ -348,6 +399,7 @@ const getComboSegments = (game: BoxScoreGame, market: string): ComboStatSegment[
 // Get short market label for tooltip
 const getMarketLabel = (market: string): string => {
   const labels: Record<string, string> = {
+    // NBA / shared
     player_points: "pts",
     player_rebounds: "reb",
     player_assists: "ast",
@@ -360,6 +412,20 @@ const getMarketLabel = (market: string): string => {
     player_points_assists: "p+a",
     player_rebounds_assists: "r+a",
     player_blocks_steals: "Blk+Stl",
+    // WNBA bare keys (wnba_hit_rate_profiles.market values)
+    points: "pts",
+    rebounds: "reb",
+    assists: "ast",
+    three_pointers_made: "3pm",
+    blocks: "blk",
+    steals: "stl",
+    turnovers: "tov",
+    pts_reb_ast: "pra",
+    pts_reb: "p+r",
+    pts_ast: "p+a",
+    reb_ast: "r+a",
+    blk_stl: "Blk+Stl",
+    // MLB
     player_hits: "hits",
     player_home_runs: "hr",
     player_runs_scored: "runs",
@@ -391,8 +457,26 @@ const StatRow = ({ label, value, subValue }: { label: string; value: string | nu
   </div>
 );
 
+// Map WNBA bare market keys to NBA-style keys so the rest of the function
+// (which switches on player_* keys) handles WNBA without duplication.
+const WNBA_TO_NBA_MARKET: Record<string, string> = {
+  points: "player_points",
+  rebounds: "player_rebounds",
+  assists: "player_assists",
+  three_pointers_made: "player_threes_made",
+  blocks: "player_blocks",
+  steals: "player_steals",
+  turnovers: "player_turnovers",
+  pts_reb_ast: "player_points_rebounds_assists",
+  pts_reb: "player_points_rebounds",
+  pts_ast: "player_points_assists",
+  reb_ast: "player_rebounds_assists",
+  blk_stl: "player_blocks_steals",
+};
+
 // Get market-specific stats for tooltip
-const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => {
+const getMarketStats = (game: BoxScoreGame, marketRaw: string): React.ReactNode => {
+  const market = WNBA_TO_NBA_MARKET[marketRaw] ?? marketRaw;
   switch (market) {
     case "player_hits":
     case "player_home_runs":
@@ -1145,7 +1229,7 @@ export function GameLogChart({
             
             // Tooltip content - Premium trillion-dollar design
             const tooltipContent = (
-              <div className="min-w-[240px] bg-neutral-900 dark:bg-neutral-950 rounded-xl overflow-hidden shadow-2xl border border-neutral-800/50">
+              <div className="min-w-[240px] max-h-[calc(100vh-32px)] overflow-y-auto bg-neutral-900 dark:bg-neutral-950 rounded-xl shadow-2xl border border-neutral-800/50">
                 {/* ═══ HEADER BLOCK ═══ */}
                 <div className="bg-neutral-950 dark:bg-black px-4 py-3 border-b border-neutral-800/50">
                   <div className="flex items-center justify-between gap-3">
@@ -1282,7 +1366,11 @@ export function GameLogChart({
                               {/* Player Headshot - using NBA CDN */}
                               <div className="w-5 h-5 rounded-full overflow-hidden bg-neutral-800 ring-1 ring-white/10 flex-shrink-0">
                                 <img
-                                  src={`https://cdn.nba.com/headshots/nba/latest/260x190/${teammate.player_id}.png`}
+                                  src={getPlayerHeadshotUrl(
+                                    teammate.nba_player_id ?? teammate.player_id,
+                                    "small",
+                                    sport === "mlb" ? "mlb" : sport === "wnba" ? "wnba" : "nba"
+                                  )}
                                   alt={teammate.name}
                                   className="w-full h-full object-cover object-top"
                                   onError={(e) => {
@@ -1314,7 +1402,14 @@ export function GameLogChart({
             );
 
             return (
-              <Tooltip key={game.gameId || idx} content={tooltipContent} side="top">
+              <Tooltip
+                key={game.gameId || idx}
+                content={tooltipContent}
+                side="top"
+                align="center"
+                avoidCollisions
+                collisionPadding={16}
+              >
                 <div
                   className="relative shrink-0 flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
                   style={{ width: barWidth, height: chartHeight }}

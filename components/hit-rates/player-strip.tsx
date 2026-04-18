@@ -208,7 +208,8 @@ export function PlayerStrip({
               >
                 <div className="relative">
                   <PlayerHeadshot
-                    nbaPlayerId={player.playerId}
+                    sport={sport}
+                    nbaPlayerId={player.nbaPlayerId ?? player.playerId}
                     name={player.playerName}
                     size="small"
                     className={cn(

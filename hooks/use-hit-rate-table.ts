@@ -76,14 +76,23 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
 }
 
 function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
-  const raw = profile as RawHitRateProfile & { player_name?: string; player_position?: string };
+  const raw = profile as RawHitRateProfile & {
+    player_name?: string;
+    player_position?: string;
+    nba_player_id?: number | null;
+  };
   const player = profile.nba_players_hr;
   const game = profile.nba_games_hr;
   const team = profile.nba_teams;
   const matchup = profile.matchup;
+  // For WNBA the RPC returns nba_player_id as a flat field; for NBA it
+  // lives on the joined player object. Fall back to playerId as last resort.
+  const nbaPlayerId =
+    raw.nba_player_id ?? player?.nba_player_id ?? null;
   return {
     id: profile.id,
     playerId: player?.nba_player_id ?? profile.player_id,
+    nbaPlayerId,
     playerName: player?.name || raw.player_name || profile.team_name || "Unknown",
     teamId: profile.team_id ?? null,
     teamAbbr: profile.team_abbr ?? null,

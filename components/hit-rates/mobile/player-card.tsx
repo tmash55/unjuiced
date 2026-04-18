@@ -204,6 +204,7 @@ export function PlayerCard({
 
   const {
     playerId,
+    nbaPlayerId,
     playerName,
     teamAbbr,
     position,
@@ -487,7 +488,7 @@ export function PlayerCard({
                     <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
                       <PlayerHeadshot
                         sport={sport}
-                        nbaPlayerId={playerId}
+                        nbaPlayerId={nbaPlayerId ?? playerId}
                         mlbPlayerId={playerId}
                         name={playerName}
                         size="small"

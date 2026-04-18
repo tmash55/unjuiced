@@ -1031,56 +1031,67 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Transform gamesWithInjuries into the format expected by GameLogChart
   // This provides teammates_out data for ALL games, not just recent ones
   const profileGameLogsForChart = useMemo(() => {
-    // Build a lookup of player_id -> avg from playersOutData (which has avg_pts, avg_reb, avg_ast)
-    // Map the appropriate stat based on the current market
+    // Build a lookup of player_id -> avg from playersOutData (NBA path: has avg_pts/reb/ast).
+    // Map the appropriate stat based on the current market.
     const playerAvgMap = new Map<number, number | null>();
-    
+
+    const computeAvgForMarket = (
+      avgPts: number | null | undefined,
+      avgReb: number | null | undefined,
+      avgAst: number | null | undefined
+    ): number | null => {
+      const m = profile.market?.toLowerCase() || "";
+      if (m.includes("pra") || m.includes("pts_reb_ast") || m.includes("pts_rebs_asts")) {
+        return (avgPts ?? 0) + (avgReb ?? 0) + (avgAst ?? 0);
+      }
+      if (m === "pts_reb" || m.includes("pts_rebs")) {
+        return (avgPts ?? 0) + (avgReb ?? 0);
+      }
+      if (m === "pts_ast" || m.includes("pts_asts")) {
+        return (avgPts ?? 0) + (avgAst ?? 0);
+      }
+      if (m === "reb_ast" || m.includes("rebs_asts")) {
+        return (avgReb ?? 0) + (avgAst ?? 0);
+      }
+      if (m.includes("point") || m.includes("pts")) return avgPts ?? null;
+      if (m.includes("rebound") || m.includes("reb")) return avgReb ?? null;
+      if (m.includes("assist") || m.includes("ast")) return avgAst ?? null;
+      return avgPts ?? null;
+    };
+
     if (playersOutData?.teammates_out) {
       for (const t of playersOutData.teammates_out) {
         if (t.player_id) {
-          // Get the appropriate average based on the current market
-          let avg: number | null = null;
-          const m = profile.market?.toLowerCase() || "";
-          
-          if (m.includes("point") || m.includes("pts")) {
-            avg = t.avg_pts;
-          } else if (m.includes("rebound") || m.includes("reb")) {
-            avg = t.avg_reb;
-          } else if (m.includes("assist") || m.includes("ast")) {
-            avg = t.avg_ast;
-          } else if (m.includes("pra") || m.includes("pts_rebs_asts")) {
-            // For PRA, sum all three
-            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
-          } else if (m.includes("pts_rebs") || m.includes("pr")) {
-            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0);
-          } else if (m.includes("pts_asts") || m.includes("pa")) {
-            avg = (t.avg_pts ?? 0) + (t.avg_ast ?? 0);
-          } else if (m.includes("rebs_asts") || m.includes("ra")) {
-            avg = (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
-          } else {
-            // Default to points for unknown markets
-            avg = t.avg_pts;
-          }
-          
-          playerAvgMap.set(t.player_id, avg);
+          playerAvgMap.set(t.player_id, computeAvgForMarket(t.avg_pts, t.avg_reb, t.avg_ast));
         }
       }
     }
-    
-    // Use gamesWithInjuries for the game-by-game teammates_out data
+
+    // WNBA path: avgs are embedded directly on each game's teammates_out
+    // (no separate players-out RPC). Fill the map from there as a fallback.
+    if (gamesWithInjuries) {
+      for (const game of gamesWithInjuries) {
+        for (const t of game.teammates_out ?? []) {
+          if (t.player_id && !playerAvgMap.has(t.player_id)) {
+            playerAvgMap.set(t.player_id, computeAvgForMarket(t.avg_pts, t.avg_reb, t.avg_ast));
+          }
+        }
+      }
+    }
+
     if (gamesWithInjuries && gamesWithInjuries.length > 0) {
       return gamesWithInjuries.map(game => ({
         game_id: game.game_id,
         date: game.game_date,
         teammates_out: game.teammates_out?.map(t => ({
           player_id: t.player_id,
+          nba_player_id: t.nba_player_id ?? null,
           name: t.name,
-          avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from playersOutData
+          avg: playerAvgMap.get(t.player_id) ?? null,
         })) || [],
       }));
     }
-    
-    // Return empty array if no data available
+
     return [];
   }, [gamesWithInjuries, playersOutData, profile.market]);
 
@@ -1673,7 +1684,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             }}
           >
             <PlayerHeadshot
-              nbaPlayerId={profile.playerId}
+              sport={sport}
+              nbaPlayerId={profile.nbaPlayerId ?? profile.playerId}
               name={profile.playerName}
               size="small"
               className="h-full w-full object-cover"
