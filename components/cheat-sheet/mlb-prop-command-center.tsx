@@ -1457,16 +1457,16 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
               {marketConfig.columns.map((col) => (
                 <React.Fragment key={col.key}>
-                  <span className="text-neutral-500">{col.label}</span>
-                  <span className="font-bold text-neutral-200 tabular-nums">
+                  <span className="text-neutral-500 dark:text-neutral-400">{col.label}</span>
+                  <span className="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">
                     {formatStatValue(player.key_stats?.[col.key], col.format)}
                   </span>
                 </React.Fragment>
               ))}
               {!marketConfig.hideOdds && (
                 <>
-                  <span className="text-neutral-500">Best Odds</span>
-                  <span className="font-bold text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">Best Odds</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
                 </>
               )}
             </div>
