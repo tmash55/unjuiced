@@ -1446,33 +1446,102 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
         </div>
       </button>
 
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t border-neutral-100 dark:border-neutral-800">
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div className="flex flex-col gap-1.5">
-              {marketConfig.factors.map((f) => (
-                <SubScoreBar key={f.key} label={f.label} value={factors[f.key] ?? 0} />
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-              {marketConfig.columns.map((col) => (
-                <React.Fragment key={col.key}>
-                  <span className="text-neutral-500 dark:text-neutral-400">{col.label}</span>
-                  <span className="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">
-                    {formatStatValue(player.key_stats?.[col.key], col.format)}
-                  </span>
-                </React.Fragment>
-              ))}
-              {!marketConfig.hideOdds && (
-                <>
-                  <span className="text-neutral-500 dark:text-neutral-400">Best Odds</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
-                </>
-              )}
+      {expanded && (() => {
+        const snapshot = player.odds_snapshot ?? {};
+        const targetLine = player.line;
+        // Get top books with odds at this line, deduped
+        const bookEntries = Object.entries(snapshot)
+          .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
+          .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
+          .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
+            const realBook = parseBookKey(entry[0]);
+            if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
+            return acc;
+          }, [])
+          .slice(0, 6);
+
+        return (
+          <div className="border-t border-neutral-100 dark:border-neutral-800">
+            {/* Odds strip */}
+            {!marketConfig.hideOdds && bookEntries.length > 0 && (
+              <div className="px-4 py-3 border-b border-neutral-100/80 dark:border-neutral-800/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Best Odds</span>
+                  {player.model_prob != null && player.implied_prob != null && (
+                    <span className="text-[9px] text-neutral-400">
+                      Model <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.model_prob * 100).toFixed(0)}%</span>
+                      <span className="mx-1 text-neutral-300 dark:text-neutral-600">vs</span>
+                      Market <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.implied_prob * 100).toFixed(0)}%</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+                  {bookEntries.map(([bookKey, data]) => {
+                    const realBook = parseBookKey(bookKey);
+                    const sb = getSportsbookById(realBook);
+                    const logo = sb?.image?.square ?? sb?.image?.light ?? null;
+                    const isBest = data?.over === player.best_odds;
+                    return (
+                      <div key={bookKey} className={cn(
+                        "flex items-center gap-1.5 px-2 py-1.5 rounded-lg shrink-0 border transition-colors",
+                        isBest
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
+                          : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30"
+                      )}>
+                        {logo && <img src={logo} alt="" className="w-4 h-4 rounded object-contain" />}
+                        <span className={cn(
+                          "text-xs font-bold tabular-nums",
+                          isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+                        )}>
+                          {formatOdds(data?.over ?? null)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Stats + Score Breakdown */}
+            <div className="px-4 py-3">
+              {/* Key stats row */}
+              <div className="flex items-center gap-4 mb-3 pb-3 border-b border-neutral-100/80 dark:border-neutral-800/40">
+                {marketConfig.columns.map((col) => {
+                  const rawVal = player.key_stats?.[col.key];
+                  const isNullish = rawVal == null || (Number(rawVal) === 0 && ZERO_IS_NULL_STATS.has(col.key));
+                  const cellColor = isNullish ? "" : getStatCellColor(col.key, rawVal);
+                  return (
+                    <div key={col.key} className="flex-1 min-w-0">
+                      <span className="text-[9px] text-neutral-400 dark:text-neutral-500 block">{col.shortLabel || col.label}</span>
+                      <span className={cn("text-sm font-bold tabular-nums", cellColor || "text-neutral-800 dark:text-neutral-200")}>
+                        {isNullish ? "-" : formatStatValue(rawVal, col.format)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {!marketConfig.hideOdds && player.edge_pct != null && (
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 block">Edge</span>
+                    <span className={cn("text-sm font-bold tabular-nums",
+                      player.edge_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : player.edge_pct < 0 ? "text-red-500 dark:text-red-400" : "text-neutral-500"
+                    )}>
+                      {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Score breakdown */}
+              <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-2 block">Score Breakdown</span>
+              <div className="flex flex-col gap-1.5">
+                {marketConfig.factors.map((f) => (
+                  <SubScoreBar key={f.key} label={f.label} value={factors[f.key] ?? 0} />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
