@@ -1798,8 +1798,8 @@ function BatterRow({
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-neutral-400 w-4 tabular-nums">{batter.lineup_position ?? "-"}</span>
                 <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{batter.player_name}</span>
-                <span className={cn("text-[10px] font-medium", hasPlatoon ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
-                  {batter.batting_hand}
+                <span className={cn("text-[10px] font-medium", batter.batting_hand === "S" ? "text-purple-500 dark:text-purple-400" : hasPlatoon ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
+                  {batter.batting_hand === "S" ? "SW" : batter.batting_hand}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-[10px] tabular-nums">
@@ -1881,10 +1881,10 @@ function BatterRow({
             <span
               className={cn(
                 "text-[10px] font-semibold px-1 py-0.5 rounded shrink-0",
-                hasPlatoon ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
+                batter.batting_hand === "S" ? "bg-purple-500/10 text-purple-500 dark:text-purple-400" : hasPlatoon ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
               )}
             >
-              {batter.batting_hand}
+              {batter.batting_hand === "S" ? "SW" : batter.batting_hand}
             </span>
           </div>
         </td>
