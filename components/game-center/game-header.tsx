@@ -200,12 +200,10 @@ function DesktopGameHeader({ game }: { game: MlbGame }) {
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
 
-  const awayPitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "bottom"
-    ? live.current_pitcher_name
-    : (game.away_probable_pitcher || "TBD");
-  const homePitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "top"
-    ? live.current_pitcher_name
-    : (game.home_probable_pitcher || "TBD");
+  // Always show the probable/starting pitcher under each team.
+  // The current pitcher on the mound is shown in the live state panel instead.
+  const awayPitcherDisplay = game.away_probable_pitcher || "TBD";
+  const homePitcherDisplay = game.home_probable_pitcher || "TBD";
 
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
@@ -386,12 +384,8 @@ function MobileGameHeader({ game }: { game: MlbGame }) {
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";
 
-  const awayPitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "bottom"
-    ? live.current_pitcher_name
-    : (game.away_probable_pitcher || "TBD");
-  const homePitcherDisplay = isLive && live?.current_pitcher_name && live.current_inning_half === "top"
-    ? live.current_pitcher_name
-    : (game.home_probable_pitcher || "TBD");
+  const awayPitcherDisplay = game.away_probable_pitcher || "TBD";
+  const homePitcherDisplay = game.home_probable_pitcher || "TBD";
 
   return (
     <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">

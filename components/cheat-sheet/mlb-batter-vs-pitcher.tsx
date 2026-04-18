@@ -21,7 +21,8 @@ import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks
 import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip } from "@/components/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
 
@@ -1746,6 +1747,7 @@ function BatterRow({
   propScores,
   scoreMarket,
   zebra = false,
+  activeStatcast,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1762,6 +1764,7 @@ function BatterRow({
   propScores?: Record<string, PropScorePlayer>;
   scoreMarket?: string;
   zebra?: boolean;
+  activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -1837,7 +1840,7 @@ function BatterRow({
           </div>
         </button>
 
-        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />}
+        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} activeStatcast={activeStatcast} />}
       </div>
     );
   }
@@ -1858,10 +1861,16 @@ function BatterRow({
               )
         )}
       >
-        <td className="pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center">
+        <td className={cn(
+          "pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center sticky left-0 z-[5]",
+          expanded ? "bg-sky-50 dark:bg-neutral-900" : zebra ? "bg-[#f9fafb] dark:bg-neutral-900" : "bg-white dark:bg-neutral-900"
+        )}>
           {batter.lineup_position ?? "-"}
         </td>
-        <td className="px-2 py-2">
+        <td className={cn(
+          "pl-2 pr-3 py-2 sticky left-8 z-[5] min-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-neutral-200/60 dark:after:bg-neutral-700/30",
+          expanded ? "bg-sky-50 dark:bg-neutral-900" : zebra ? "bg-[#f9fafb] dark:bg-neutral-900" : "bg-white dark:bg-neutral-900"
+        )}>
           <div className="flex items-center gap-2">
             <img
               src={getMlbHeadshotUrl(batter.player_id, "tiny")}
@@ -1879,7 +1888,7 @@ function BatterRow({
             </span>
           </div>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", baaColor(ds.avg))}>
+        <td className={cn("pl-3 pr-1.5 py-2 text-xs text-center tabular-nums font-medium", baaColor(ds.avg))}>
           {fmtAvg(ds.avg)}
         </td>
         <td className="px-1.5 py-2 text-xs text-center tabular-nums font-semibold text-neutral-900 dark:text-white">
@@ -1912,6 +1921,37 @@ function BatterRow({
         <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", bbPctColor(ds.bb_pct ?? null))}>
           {ds.bb_pct != null ? `${ds.bb_pct.toFixed(1)}%` : "-"}
         </td>
+        {/* Statcast columns — react to pitch/hand filters via activeStatcast */}
+        {(() => {
+          const scRaw = activeStatcast ?? {
+            contact_pct: batter.statcast_contact_pct,
+            avg_ev: batter.statcast_avg_ev,
+            hard_hit_pct: batter.statcast_hard_hit_pct,
+            barrel_pct: batter.statcast_barrel_pct,
+            sweet_spot_pct: batter.statcast_sweet_spot_pct,
+            max_ev: batter.statcast_max_ev,
+          };
+          const sc = scRaw;
+          return (
+            <>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium border-l-2 border-neutral-300/80 dark:border-neutral-600/60", evColor(sc.avg_ev))}>
+                {sc.avg_ev != null ? sc.avg_ev.toFixed(1) : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", hardHitColor(sc.hard_hit_pct))}>
+                {sc.hard_hit_pct != null ? `${sc.hard_hit_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", barrelColor(sc.barrel_pct))}>
+                {sc.barrel_pct != null ? `${sc.barrel_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", statText(sc.sweet_spot_pct, { elite: 38, good: 33, poor: 26, bad: 20 }) || "text-neutral-600 dark:text-neutral-400")}>
+                {sc.sweet_spot_pct != null ? `${sc.sweet_spot_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", statText(sc.max_ev, { elite: 112, good: 108, poor: 102, bad: 96 }) || "text-neutral-600 dark:text-neutral-400")}>
+                {sc.max_ev != null ? sc.max_ev.toFixed(1) : "-"}
+              </td>
+            </>
+          );
+        })()}
         {/* Odds cell with dropdown */}
         <td className="px-1.5 py-2 text-right relative">
           <OddsCell entry={oddsEntry ?? null} hasSharpAccess={hasSharpAccess ?? false} isLoading={!!oddsLoading && !oddsEntry} />
@@ -1925,7 +1965,8 @@ function BatterRow({
         "border-b border-neutral-200/30 dark:border-neutral-800/15",
         expanded ? "bg-sky-50/50 dark:bg-sky-500/[0.05]" : "bg-white dark:bg-neutral-900/40"
       )}>
-        <td colSpan={13} className="px-3 pb-2.5 pt-0">
+        <td colSpan={11} className="p-0">
+          <div className="sticky left-0 w-fit px-3 pb-2.5">
           <div className="ml-9 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-neutral-400 dark:text-neutral-500">
             {top2Pitches.map((p) => {
               const split = batter.pitch_splits.find((s) => s.pitch_type === p.pitch_type);
@@ -1966,13 +2007,18 @@ function BatterRow({
               {badge.label}
             </span>
           </div>
+          </div>
         </td>
+        <td colSpan={5} className="p-0 border-l-2 border-neutral-300/80 dark:border-neutral-600/60" />
+        <td colSpan={2} className="p-0" />
       </tr>
       {/* Expansion */}
       {expanded && (
         <tr>
-          <td colSpan={13} className="px-3 pb-4 bg-neutral-50/80 dark:bg-neutral-800/15 border-b border-neutral-200/40 dark:border-neutral-700/20">
-            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />
+          <td colSpan={20} className="p-0 border-b border-neutral-200/40 dark:border-neutral-700/20">
+            <div className="sticky left-0 bg-neutral-50/80 dark:bg-neutral-800/15 px-3 pb-4 w-[100cqi]">
+              <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} activeStatcast={activeStatcast} />
+            </div>
           </td>
         </tr>
       )}
@@ -2042,6 +2088,7 @@ function BatterExpansion({
   hasSharpAccess,
   gameId,
   propScores,
+  activeStatcast,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -2051,6 +2098,7 @@ function BatterExpansion({
   hasSharpAccess?: boolean;
   gameId?: number | null;
   propScores?: Record<string, PropScorePlayer>;
+  activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
   const h2hMeetings = batter.h2h?.last_meetings ?? [];
   const hrFactors = batter.hr_factors ?? [];
@@ -2104,7 +2152,7 @@ function BatterExpansion({
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">
               {pitcher ? `vs ${pitcher.name.split(" ").pop()} — Pitch Splits` : "Pitch Splits"}
             </h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           <div className="space-y-1">
             {pitcher.arsenal.map((a) => {
@@ -2165,7 +2213,7 @@ function BatterExpansion({
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-1.5">
                     <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">{marketName} Score</h5>
-                    <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite {marketName.toLowerCase()} score (0-100) from the Prop Center scoring engine. Changes when you switch markets above.</TooltipContent></Tooltip></TooltipProvider>
+                    <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite {marketName.toLowerCase()} score (0-100) from the Prop Center scoring engine. Changes when you switch markets above.</TooltipContent></RadixTooltip></TooltipProvider>
                   </div>
                   {grade && (
                     <span className={cn(
@@ -2345,49 +2393,45 @@ function BatterExpansion({
         </div>
       </div>
 
-      {/* Season Statcast — always full-season regardless of sample filter */}
-      {(batter.statcast_avg_ev != null || batter.statcast_barrel_pct != null || batter.statcast_contact_pct != null) && (
+      {/* Advanced — Last 15 ABs (reacts to hand/pitch filters) */}
+      {(() => {
+        const sc = activeStatcast ?? {
+          avg_ev: batter.statcast_avg_ev, hard_hit_pct: batter.statcast_hard_hit_pct,
+          barrel_pct: batter.statcast_barrel_pct, sweet_spot_pct: batter.statcast_sweet_spot_pct,
+          max_ev: batter.statcast_max_ev,
+        };
+        return (sc.avg_ev != null || sc.barrel_pct != null) && (
         <div className="mt-3 rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
           <div className="flex items-center gap-1.5 mb-2.5">
-            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Season Statcast</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[260px] text-xs">Full-season Statcast contact quality. Contact% = (PA−K)/PA. BIP% = balls in play per PA. Hard Hit ≥95 mph. Sweet Spot = 8–32° launch angle. All stats are season-long regardless of sample filter.</TooltipContent></Tooltip></TooltipProvider>
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Advanced <span className="text-neutral-400/70 font-normal">L15 ABs</span></h5>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[260px] text-xs">Last 15 batted balls. Hard Hit ≥95 mph. Barrel = optimal EV + launch angle. Sweet Spot = 8–32° launch angle.</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {[
               {
-                label: "Contact%",
-                value: batter.statcast_contact_pct != null ? `${batter.statcast_contact_pct.toFixed(1)}%` : "-",
-                color: statText(batter.statcast_contact_pct, { elite: 85, good: 80, poor: 72, bad: 65 }),
-              },
-              {
-                label: "BIP%",
-                value: batter.statcast_bip_pct != null ? `${batter.statcast_bip_pct.toFixed(1)}%` : "-",
-                color: statText(batter.statcast_bip_pct, { elite: 75, good: 70, poor: 60, bad: 52 }),
-              },
-              {
                 label: "Avg EV",
-                value: batter.statcast_avg_ev != null ? batter.statcast_avg_ev.toFixed(1) : "-",
-                color: evTextColor(batter.statcast_avg_ev),
+                value: sc.avg_ev != null ? sc.avg_ev.toFixed(1) : "-",
+                color: evTextColor(sc.avg_ev ?? null),
               },
               {
                 label: "Hard%",
-                value: batter.statcast_hard_hit_pct != null ? `${batter.statcast_hard_hit_pct.toFixed(1)}%` : "-",
-                color: statText(batter.statcast_hard_hit_pct, { elite: 45, good: 38, poor: 30, bad: 25 }),
+                value: sc.hard_hit_pct != null ? `${sc.hard_hit_pct.toFixed(1)}%` : "-",
+                color: statText(sc.hard_hit_pct ?? null, { elite: 45, good: 38, poor: 30, bad: 25 }),
               },
               {
                 label: "Brl%",
-                value: batter.statcast_barrel_pct != null ? `${batter.statcast_barrel_pct.toFixed(1)}%` : "-",
-                color: barrelTextColor(batter.statcast_barrel_pct),
+                value: sc.barrel_pct != null ? `${sc.barrel_pct.toFixed(1)}%` : "-",
+                color: barrelTextColor(sc.barrel_pct ?? null),
               },
               {
                 label: "SwSp%",
-                value: batter.statcast_sweet_spot_pct != null ? `${batter.statcast_sweet_spot_pct.toFixed(1)}%` : "-",
-                color: statText(batter.statcast_sweet_spot_pct, { elite: 38, good: 33, poor: 26, bad: 20 }),
+                value: sc.sweet_spot_pct != null ? `${sc.sweet_spot_pct.toFixed(1)}%` : "-",
+                color: statText(sc.sweet_spot_pct ?? null, { elite: 38, good: 33, poor: 26, bad: 20 }),
               },
               {
                 label: "Max EV",
-                value: batter.statcast_max_ev != null ? batter.statcast_max_ev.toFixed(1) : "-",
-                color: statText(batter.statcast_max_ev, { elite: 112, good: 108, poor: 102, bad: 96 }),
+                value: sc.max_ev != null ? sc.max_ev.toFixed(1) : "-",
+                color: statText(sc.max_ev ?? null, { elite: 112, good: 108, poor: 102, bad: 96 }),
               },
             ].map((s) => (
               <div key={s.label}>
@@ -2397,7 +2441,8 @@ function BatterExpansion({
             ))}
           </div>
         </div>
-      )}
+      );
+      })()}
 
       {/* Bottom section: H2H + Recent Form */}
       <div className={cn("grid gap-3 mt-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
@@ -2405,7 +2450,7 @@ function BatterExpansion({
         <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
           <div className="flex items-center gap-1.5 mb-2.5">
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Head-to-Head</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Career stats for this batter vs this specific pitcher across all seasons.</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Career stats for this batter vs this specific pitcher across all seasons.</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           {batter.h2h && batter.h2h.pa > 0 ? (
             <div className="space-y-2">
@@ -2448,7 +2493,7 @@ function BatterExpansion({
         <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
           <div className="flex items-center gap-1.5 mb-2.5">
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Recent Form (60d)</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Contact quality and power metrics from the last 60 days. EV Trend shows avg exit velocity per game day.</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Contact quality and power metrics from the last 60 days. EV Trend shows avg exit velocity per game day.</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           <div className="flex items-center gap-6">
             {[
@@ -2854,9 +2899,14 @@ function ComparisonView({
 
 // ── Standard View Sort ───────────────────────────────────────────────────────
 
-type StdSortKey = "lineup" | "slg" | "iso" | "hr" | "ev" | "brl" | "woba" | "ba" | "k_pct" | "bb_pct";
+type StdSortKey = "lineup" | "slg" | "iso" | "hr" | "ev" | "brl" | "woba" | "ba" | "k_pct" | "bb_pct" | "sc_ev" | "sc_hh" | "sc_brl" | "sc_ss" | "sc_max";
 
-function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatchup) => DisplayStats): number {
+function stdSortVal(
+  b: BatterMatchup,
+  key: StdSortKey,
+  getStats: (b: BatterMatchup) => DisplayStats,
+  getStatcast?: (b: BatterMatchup) => any
+): number {
   const ds = getStats(b);
   switch (key) {
     case "lineup": return b.lineup_position ?? 99;
@@ -2869,6 +2919,11 @@ function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatch
     case "ba": return ds.avg ?? -1;
     case "k_pct": return b.k_pct ?? 999;
     case "bb_pct": return b.bb_pct ?? -1;
+    case "sc_ev": { const sc = getStatcast?.(b); return sc?.avg_ev ?? b.statcast_avg_ev ?? -1; }
+    case "sc_hh": { const sc = getStatcast?.(b); return sc?.hard_hit_pct ?? b.statcast_hard_hit_pct ?? -1; }
+    case "sc_brl": { const sc = getStatcast?.(b); return sc?.barrel_pct ?? b.statcast_barrel_pct ?? -1; }
+    case "sc_ss": { const sc = getStatcast?.(b); return sc?.sweet_spot_pct ?? b.statcast_sweet_spot_pct ?? -1; }
+    case "sc_max": { const sc = getStatcast?.(b); return sc?.max_ev ?? b.statcast_max_ev ?? -1; }
     default: return 0;
   }
 }
@@ -3107,6 +3162,26 @@ export function MlbBatterVsPitcher({
     return base;
   }, [pitchFilters, handFilter]);
 
+  // Helper: get active Statcast bucket based on hand/pitch filters
+  // statcast_splits now respects the active sample filter (L15/L30/L7/season)
+  const getActiveStatcast = useCallback((b: BatterMatchup) => {
+    const splits = b.statcast_splits;
+    if (!splits) return null;
+
+    // Pitch filter takes priority — look up by_pitch bucket
+    if (pitchFilters.length === 1 && splits.by_pitch) {
+      const bucket = splits.by_pitch[pitchFilters[0]];
+      if (bucket) return bucket;
+    }
+
+    // Hand filter
+    if (handFilter === "rhp" && splits.vs_rhp) return splits.vs_rhp;
+    if (handFilter === "lhp" && splits.vs_lhp) return splits.vs_lhp;
+
+    // Default: overall (null = BatterRow falls back to batter.statcast_*)
+    return null;
+  }, [pitchFilters, handFilter]);
+
   const handleStdSort = useCallback((key: StdSortKey) => {
     if (stdSortKey === key) {
       setStdSortAsc(!stdSortAsc);
@@ -3119,12 +3194,12 @@ export function MlbBatterVsPitcher({
   const sortedBatters = useMemo(() => {
     const arr = [...batters];
     arr.sort((a, b) => {
-      const va = stdSortVal(a, stdSortKey, getBatterStats);
-      const vb = stdSortVal(b, stdSortKey, getBatterStats);
+      const va = stdSortVal(a, stdSortKey, getBatterStats, getActiveStatcast);
+      const vb = stdSortVal(b, stdSortKey, getBatterStats, getActiveStatcast);
       return stdSortAsc ? va - vb : vb - va;
     });
     return arr;
-  }, [batters, stdSortKey, stdSortAsc, getBatterStats]);
+  }, [batters, stdSortKey, stdSortAsc, getBatterStats, getActiveStatcast]);
 
   // Split into starters (lineup 1-9) and bench
   const starters = useMemo(() =>
@@ -3151,6 +3226,12 @@ export function MlbBatterVsPitcher({
       if (withData.length === 0) return null;
       const avg = (arr: { avg: number | null }[]) => { const v = arr.filter((s) => s.avg != null); return v.length > 0 ? v.reduce((sum, s) => sum + s.avg!, 0) / v.length : null; };
       const mean = (arr: (number | null)[]) => { const v = arr.filter((x): x is number => x != null); return v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+      // Statcast L15 averages
+      const scBuckets = group.map((b) => getActiveStatcast(b) ?? {
+        avg_ev: b.statcast_avg_ev, hard_hit_pct: b.statcast_hard_hit_pct,
+        barrel_pct: b.statcast_barrel_pct, sweet_spot_pct: b.statcast_sweet_spot_pct,
+        max_ev: b.statcast_max_ev, contact_pct: null,
+      });
       return {
         avg: avg(withData),
         slg: mean(withData.map((s) => s.slg)),
@@ -3162,6 +3243,12 @@ export function MlbBatterVsPitcher({
         k_pct: mean(group.map((b) => b.k_pct)),
         bb_pct: mean(group.map((b) => b.bb_pct)),
         count: group.length,
+        // L15 Statcast averages
+        sc_ev: mean(scBuckets.map((s) => s.avg_ev ?? null)),
+        sc_hh: mean(scBuckets.map((s) => s.hard_hit_pct ?? null)),
+        sc_brl: mean(scBuckets.map((s) => s.barrel_pct ?? null)),
+        sc_ss: mean(scBuckets.map((s) => s.sweet_spot_pct ?? null)),
+        sc_max: mean(scBuckets.map((s) => s.max_ev ?? null)),
       };
     }
 
@@ -3700,6 +3787,7 @@ export function MlbBatterVsPitcher({
                             propScores={propScoreMap.get(b.player_id)}
                             scoreMarket={activePropMarket}
                             zebra={idx % 2 === 1}
+                            activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
@@ -3732,55 +3820,65 @@ export function MlbBatterVsPitcher({
                                 zebra={idx % 2 === 1}
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
+                                activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                               />
                             ))}
                           </>
                         )}
                       </div>
                     ) : (
-                      <div className="rounded-xl bg-neutral-50/50 dark:bg-neutral-900/80 border border-neutral-200/60 dark:border-neutral-800/50 overflow-x-auto shadow-sm">
+                      <div className="rounded-xl bg-neutral-50/50 dark:bg-neutral-900/80 border border-neutral-200/60 dark:border-neutral-800/50 shadow-sm">
+                        {/* Lineup status — fixed, not scrollable */}
+                        {!matchupLoading && batters.length > 0 && (
+                          <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-neutral-900 border-b border-neutral-200/40 dark:border-neutral-800/40 rounded-t-xl">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 text-[10px] font-semibold",
+                              isLineupConfirmed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                            )}>
+                              {isLineupConfirmed ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Confirmed
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Projected
+                                </>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => refetch()}
+                              disabled={isFetching}
+                              className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center gap-1"
+                            >
+                              <svg className={cn("w-2.5 h-2.5", isFetching && "animate-spin")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+                              {isFetching ? "..." : "Refresh"}
+                            </button>
+                          </div>
+                        )}
+                        {/* Scrollable table */}
+                        <div className="overflow-x-auto @container/tbl">
                         <table className="w-full border-separate border-spacing-0">
                           <thead>
-                            {/* Lineup status row */}
-                            {!matchupLoading && batters.length > 0 && (
-                              <tr>
-                                <th colSpan={13} className="px-4 py-2 bg-white dark:bg-neutral-900 border-b border-neutral-200/40 dark:border-neutral-800/40">
-                                  <div className="flex items-center justify-between">
-                                    <span className={cn(
-                                      "inline-flex items-center gap-1.5 text-[10px] font-semibold",
-                                      isLineupConfirmed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                                    )}>
-                                      {isLineupConfirmed ? (
-                                        <>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                          Confirmed
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                          Projected
-                                        </>
-                                      )}
-                                    </span>
-                                    <button
-                                      onClick={() => refetch()}
-                                      disabled={isFetching}
-                                      className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center gap-1"
-                                    >
-                                      <svg className={cn("w-2.5 h-2.5", isFetching && "animate-spin")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
-                                      {isFetching ? "..." : "Refresh"}
-                                    </button>
-                                  </div>
-                                </th>
-                              </tr>
-                            )}
                             {(() => {
                               const sThCls = "px-1.5 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-neutral-400 dark:text-neutral-500 text-center cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
+                                <>
+                                {/* Group header row: Season | Last 15 ABs */}
+                                <tr className="bg-white dark:bg-neutral-900/95">
+                                  <th colSpan={11} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 sticky left-0 z-10 bg-white dark:bg-neutral-900/95">
+                                    Season
+                                  </th>
+                                  <th colSpan={5} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 border-l-2 border-neutral-300/80 dark:border-neutral-600/60 bg-white dark:bg-neutral-900/95">
+                                    Last 15 ABs
+                                  </th>
+                                  <th colSpan={2} className="border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95" />
+                                </tr>
                                 <tr className="bg-white dark:bg-neutral-900/60 border-b border-neutral-200/60 dark:border-neutral-700/20">
-                                  <th className={cn(sThCls, "text-center pl-3 pr-1 w-8")} onClick={() => handleStdSort("lineup")}>#</th>
-                                  <th className={cn(sThCls, "text-left px-2")}>Batter</th>
-                                  <th className={sThCls} onClick={() => handleStdSort("ba")}>BA{stdSortIcon("ba")}</th>
+                                  <th className={cn(sThCls, "text-center pl-3 pr-1 w-8 sticky left-0 z-10 bg-white dark:bg-neutral-900/95")} onClick={() => handleStdSort("lineup")}>#</th>
+                                  <th className={cn(sThCls, "text-left px-2 sticky left-8 z-10 bg-white dark:bg-neutral-900/95")}>Batter</th>
+                                  <th className={cn(sThCls, "pl-3")} onClick={() => handleStdSort("ba")}>BA{stdSortIcon("ba")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("hr")}>HR{stdSortIcon("hr")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("slg")}>SLG{stdSortIcon("slg")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("iso")}>ISO{stdSortIcon("iso")}</th>
@@ -3789,6 +3887,22 @@ export function MlbBatterVsPitcher({
                                   <th className={sThCls} onClick={() => handleStdSort("woba")}>wOBA{stdSortIcon("woba")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("k_pct")}>K%{stdSortIcon("k_pct")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("bb_pct")}>BB%{stdSortIcon("bb_pct")}</th>
+                                  {/* Statcast columns — L15 batted balls, sortable */}
+                                  <th className={cn(sThCls, "border-l-2 border-neutral-300/80 dark:border-neutral-600/60")} onClick={() => handleStdSort("sc_ev")}>
+                                    <Tooltip content="Avg Exit Velocity. Last 15 batted balls." side="top"><span className="cursor-help">EV{stdSortIcon("sc_ev")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_hh")}>
+                                    <Tooltip content="Hard Hit Rate — batted balls ≥95 mph. Last 15 batted balls." side="top"><span className="cursor-help">HH%{stdSortIcon("sc_hh")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_brl")}>
+                                    <Tooltip content="Barrel Rate — optimal EV + launch angle. Last 15 batted balls." side="top"><span className="cursor-help">BRL%{stdSortIcon("sc_brl")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_ss")}>
+                                    <Tooltip content="Sweet Spot Rate — launch angle 8–32°. Last 15 batted balls." side="top"><span className="cursor-help">SS%{stdSortIcon("sc_ss")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_max")}>
+                                    <Tooltip content="Max Exit Velocity. Last 15 batted balls." side="top"><span className="cursor-help">Max{stdSortIcon("sc_max")}</span></Tooltip>
+                                  </th>
                                   {/* Odds column header — clickable dropdown */}
                                   <th ref={oddsMenuRef} className="px-1.5 py-2 text-right relative">
                                     <button
@@ -3846,6 +3960,7 @@ export function MlbBatterVsPitcher({
                                   </th>
                                   <th className="w-8" />
                                 </tr>
+                                </>
                               );
                             })()}
                           </thead>
@@ -3868,6 +3983,7 @@ export function MlbBatterVsPitcher({
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
                                 zebra={idx % 2 === 1}
+                                activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                               />
                             ))}
                             {/* Lineup summary — starters only */}
@@ -3912,6 +4028,22 @@ export function MlbBatterVsPitcher({
                                 <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", bbPctColor(row.data.bb_pct ?? null))}>
                                   {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
                                 </td>
+                                {/* L15 Statcast summary */}
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums border-l-2 border-neutral-300/80 dark:border-neutral-600/60", row.isFirst ? "font-bold" : "font-medium", evColor(row.data.sc_ev ?? null))}>
+                                  {row.data.sc_ev != null ? row.data.sc_ev.toFixed(1) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", hardHitColor(row.data.sc_hh ?? null))}>
+                                  {row.data.sc_hh != null ? `${row.data.sc_hh.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.sc_brl ?? null))}>
+                                  {row.data.sc_brl != null ? `${row.data.sc_brl.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", statText(row.data.sc_ss ?? null, { elite: 38, good: 33, poor: 26, bad: 20 }) || "text-neutral-600 dark:text-neutral-400")}>
+                                  {row.data.sc_ss != null ? `${row.data.sc_ss.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", statText(row.data.sc_max ?? null, { elite: 112, good: 108, poor: 102, bad: 96 }) || "text-neutral-600 dark:text-neutral-400")}>
+                                  {row.data.sc_max != null ? row.data.sc_max.toFixed(1) : "-"}
+                                </td>
                                 <td />
                               </tr>
                             ))}
@@ -3919,7 +4051,7 @@ export function MlbBatterVsPitcher({
                             {hasLineup && benchPlayers.length > 0 && (
                               <>
                                 <tr>
-                                  <td colSpan={13} className="px-0 py-0">
+                                  <td colSpan={20} className="px-0 py-0">
                                     <button
                                       onClick={() => setShowBench(!showBench)}
                                       className="w-full flex items-center gap-3 px-4 py-2.5 bg-neutral-200/60 dark:bg-neutral-700/40 border-y-2 border-neutral-300/80 dark:border-neutral-600/60 cursor-pointer hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50 transition-colors"
@@ -3953,12 +4085,14 @@ export function MlbBatterVsPitcher({
                                     propScores={propScoreMap.get(b.player_id)}
                                     scoreMarket={activePropMarket}
                                     zebra={idx % 2 === 1}
+                                    activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                                   />
                                 ))}
                               </>
                             )}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )
                   ) : !matchupLoading ? (

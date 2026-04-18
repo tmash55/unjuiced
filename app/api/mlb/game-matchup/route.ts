@@ -219,6 +219,7 @@ export interface BatterMatchup {
     vs_lhp: BatterPitchSplit[];
   };
   // Pre-bucketed Statcast splits by pitcher hand and pitch type
+  // Respects the active sample filter (L15/L30/L7/season)
   statcast_splits: {
     vs_rhp: StatcastBucket | null;
     vs_lhp: StatcastBucket | null;
@@ -314,21 +315,39 @@ export interface StatcastBucket {
   sample_bbs: number;
 }
 
+const STATCAST_SAMPLE_SIZE = 15; // Last N batted balls for Statcast columns (matches exit velocity tool)
+
+/** Sort BBs by game_date desc + id desc (matches EV tool query order) and take the most recent N */
+function takeRecentBBs(bbs: any[], n: number = STATCAST_SAMPLE_SIZE): any[] {
+  return [...bbs]
+    .sort((a, b) => {
+      const dateCmp = (b.game_date || "").localeCompare(a.game_date || "");
+      if (dateCmp !== 0) return dateCmp;
+      return (b.id ?? 0) - (a.id ?? 0);
+    })
+    .slice(0, n);
+}
+
+/**
+ * Compute Statcast bucket — matches exit-velocity-leaders/route.ts exactly.
+ * EVs are NOT filtered for > 0 (matches EV tool's `recentEVs` which uses all values).
+ * Hard hit: >= 95 OR hardness === "hard". Sweet spot: divide by total BBs.
+ */
 function computeStatcastBucket(
   bbs: any[],
   trad?: { pa: number; k: number; ab: number } | null
 ): StatcastBucket | null {
-  if (bbs.length < 5) return null;
-  const evBalls = bbs.filter((b: any) => b.exit_velocity != null && b.exit_velocity > 0);
-  const laBalls = bbs.filter((b: any) => b.launch_angle != null);
+  if (bbs.length < 3) return null;
+  const evs = bbs.map((b: any) => Number(b.exit_velocity));
+  const validEvs = evs.filter((v) => !isNaN(v));
   return {
     contact_pct: trad && trad.pa > 0 ? +((1 - trad.k / trad.pa) * 100).toFixed(1) : null,
     bip_pct: trad && trad.ab > 0 ? +(((trad.ab - trad.k) / trad.ab) * 100).toFixed(1) : null,
-    avg_ev: evBalls.length > 0 ? +(evBalls.reduce((s: number, b: any) => s + b.exit_velocity, 0) / evBalls.length).toFixed(1) : null,
-    hard_hit_pct: evBalls.length > 0 ? +(evBalls.filter((b: any) => b.exit_velocity >= 95).length / evBalls.length * 100).toFixed(1) : null,
-    barrel_pct: bbs.length > 0 ? +(bbs.filter((b: any) => b.is_barrel === true || b.is_barrel === 1).length / bbs.length * 100).toFixed(1) : null,
-    sweet_spot_pct: laBalls.length > 0 ? +(laBalls.filter((b: any) => b.launch_angle >= 8 && b.launch_angle <= 32).length / laBalls.length * 100).toFixed(1) : null,
-    max_ev: evBalls.length > 0 ? +Math.max(...evBalls.map((b: any) => b.exit_velocity)).toFixed(1) : null,
+    avg_ev: validEvs.length > 0 ? +(validEvs.reduce((a, b) => a + b, 0) / validEvs.length).toFixed(1) : null,
+    hard_hit_pct: bbs.length > 0 ? +(bbs.filter((b: any) => Number(b.exit_velocity) >= 95 || b.hardness === "hard").length / bbs.length * 100).toFixed(1) : null,
+    barrel_pct: bbs.length > 0 ? +(bbs.filter((b: any) => b.is_barrel === true).length / bbs.length * 100).toFixed(1) : null,
+    sweet_spot_pct: bbs.length > 0 ? +(bbs.filter((b: any) => { const la = Number(b.launch_angle); return !isNaN(la) && la >= 8 && la <= 32; }).length / bbs.length * 100).toFixed(1) : null,
+    max_ev: validEvs.length > 0 ? +Math.max(...validEvs).toFixed(1) : null,
     sample_bbs: bbs.length,
   };
 }
@@ -926,20 +945,14 @@ export async function GET(req: NextRequest) {
         const barrelPct = computeBarrelPct(bbs);
         const avgEV = computeAvgEV(bbs);
 
-        // Season-long Statcast stats
-        const npSeasonEVs = bbs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
-        const npStatcastAvgEV = npSeasonEVs.length > 0 ? Math.round(npSeasonEVs.reduce((a: number, b: number) => a + b, 0) / npSeasonEVs.length * 10) / 10 : null;
-        const npStatcastMaxEV = npSeasonEVs.length > 0 ? Math.round(Math.max(...npSeasonEVs) * 10) / 10 : null;
-        const npStatcastHardHit = bbs.length > 0 ? Math.round(bbs.filter((b: any) => Number(b.exit_velocity) >= 95).length / bbs.length * 1000) / 10 : null;
-        const npStatcastBarrel = bbs.length > 0 ? Math.round(bbs.filter((b: any) => b.is_barrel === true).length / bbs.length * 1000) / 10 : null;
-        const npStatcastSweet = bbs.length > 0 ? Math.round(bbs.filter((b: any) => { const la = Number(b.launch_angle); return !isNaN(la) && la >= 8 && la <= 32; }).length / bbs.length * 1000) / 10 : null;
-        const npStatcastContact = trad && trad.pa > 0 && trad.k != null ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
-        const npStatcastBIP = trad && trad.pa > 0 && trad.ab != null && trad.k != null ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
+        // Statcast stats — last 15 batted balls (matches exit velocity tool)
+        const npRecentBBs = takeRecentBBs(bbs);
+        const npStatcast = computeStatcastBucket(npRecentBBs, trad);
 
         const npPitchTypes = [...new Set(bbs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
         const npByPitch: Record<string, StatcastBucket | null> = {};
         for (const pt of npPitchTypes) {
-          npByPitch[pt] = computeStatcastBucket(bbs.filter((b: any) => b.pitch_type === pt));
+          npByPitch[pt] = computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitch_type === pt)));
         }
 
         const buildSplit = (hand: string) => {
@@ -966,20 +979,20 @@ export async function GET(req: NextRequest) {
           total_batted_balls: bbs.length,
           k_pct: trad?.k_pct ?? null,
           bb_pct: trad?.bb_pct ?? null,
-          statcast_contact_pct: npStatcastContact,
-          statcast_bip_pct: npStatcastBIP,
-          statcast_avg_ev: npStatcastAvgEV,
-          statcast_hard_hit_pct: npStatcastHardHit,
-          statcast_barrel_pct: npStatcastBarrel,
-          statcast_sweet_spot_pct: npStatcastSweet,
-          statcast_max_ev: npStatcastMaxEV,
+          statcast_contact_pct: npStatcast?.contact_pct ?? null,
+          statcast_bip_pct: npStatcast?.bip_pct ?? null,
+          statcast_avg_ev: npStatcast?.avg_ev ?? null,
+          statcast_hard_hit_pct: npStatcast?.hard_hit_pct ?? null,
+          statcast_barrel_pct: npStatcast?.barrel_pct ?? null,
+          statcast_sweet_spot_pct: npStatcast?.sweet_spot_pct ?? null,
+          statcast_max_ev: npStatcast?.max_ev ?? null,
           hand_splits: {
             vs_rhp: buildSplit("R"),
             vs_lhp: buildSplit("L"),
           },
           statcast_splits: bbs.length >= 5 ? {
-            vs_rhp: computeStatcastBucket(bbs.filter((b: any) => b.pitcher_hand === "R")),
-            vs_lhp: computeStatcastBucket(bbs.filter((b: any) => b.pitcher_hand === "L")),
+            vs_rhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "R"))),
+            vs_lhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "L"))),
             by_pitch: npByPitch,
           } : null,
           matchup_grade: "neutral" as const,
@@ -1940,13 +1953,6 @@ export async function GET(req: NextRequest) {
       batterBBMap.set(bb.batter_id, arr);
     }
 
-    // Season-long BB map: unfiltered by sample, for Statcast aggregations
-    const seasonBatterBBMap = new Map<number, any[]>();
-    for (const bb of batterBBsCurrent) {
-      const arr = seasonBatterBBMap.get(bb.batter_id) || [];
-      arr.push(bb);
-      seasonBatterBBMap.set(bb.batter_id, arr);
-    }
 
     const h2hMap = new Map<number, any[]>();
     for (const bb of h2hBBs) {
@@ -2217,28 +2223,15 @@ export async function GET(req: NextRequest) {
       // Never fall back to BB-computed BA/SLG — they inflate numbers by excluding K/BB
       const trad = batterTraditionalMap.get(p.player_id);
 
-      // Season-long Statcast stats (full season BBs, not sample-filtered)
-      const seasonBBs = seasonBatterBBMap.get(p.player_id) || [];
-      const seasonEVs = seasonBBs
-        .map((b: any) => Number(b.exit_velocity))
-        .filter((v: number) => !isNaN(v) && v > 0);
-      const statcastAvgEV = seasonEVs.length > 0 ? Math.round(seasonEVs.reduce((a: number, b: number) => a + b, 0) / seasonEVs.length * 10) / 10 : null;
-      const statcastMaxEV = seasonEVs.length > 0 ? Math.round(Math.max(...seasonEVs) * 10) / 10 : null;
-      const statcastHardHitPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => Number(b.exit_velocity) >= 95).length / seasonBBs.length * 1000) / 10 : null;
-      const statcastBarrelPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => b.is_barrel === true).length / seasonBBs.length * 1000) / 10 : null;
-      const statcastSweetSpotPct = seasonBBs.length > 0 ? Math.round(seasonBBs.filter((b: any) => {
-        const la = Number(b.launch_angle);
-        return !isNaN(la) && la >= 8 && la <= 32;
-      }).length / seasonBBs.length * 1000) / 10 : null;
-      const statcastContactPct = trad && trad.pa > 0 ? Math.round(((trad.pa - trad.k) / trad.pa) * 1000) / 10 : null;
-      const statcastBIPPct = trad && trad.pa > 0 ? Math.round(((trad.ab - trad.k) / trad.pa) * 1000) / 10 : null;
+      // Statcast stats — last 15 batted balls (matches exit velocity tool)
+      const recentStatcastBBs = takeRecentBBs(bbs);
+      const statcastBucket = computeStatcastBucket(recentStatcastBBs, trad);
 
-      const rhpBBs = seasonBBs.filter((b: any) => b.pitcher_hand === "R");
-      const lhpBBs = seasonBBs.filter((b: any) => b.pitcher_hand === "L");
-      const pitchTypes = [...new Set(seasonBBs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
+      // Statcast splits — filter first, then take last 15 of each
+      const pitchTypes = [...new Set(bbs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
       const byPitch: Record<string, StatcastBucket | null> = {};
       for (const pt of pitchTypes) {
-        byPitch[pt] = computeStatcastBucket(seasonBBs.filter((b: any) => b.pitch_type === pt));
+        byPitch[pt] = computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitch_type === pt)));
       }
 
       return {
@@ -2279,20 +2272,20 @@ export async function GET(req: NextRequest) {
         recent_ev_sparkline: recentEvSparkline,
         k_pct: trad?.k_pct ?? null,
         bb_pct: trad?.bb_pct ?? null,
-        statcast_contact_pct: statcastContactPct,
-        statcast_bip_pct: statcastBIPPct,
-        statcast_avg_ev: statcastAvgEV,
-        statcast_hard_hit_pct: statcastHardHitPct,
-        statcast_barrel_pct: statcastBarrelPct,
-        statcast_sweet_spot_pct: statcastSweetSpotPct,
-        statcast_max_ev: statcastMaxEV,
+        statcast_contact_pct: statcastBucket?.contact_pct ?? null,
+        statcast_bip_pct: statcastBucket?.bip_pct ?? null,
+        statcast_avg_ev: statcastBucket?.avg_ev ?? null,
+        statcast_hard_hit_pct: statcastBucket?.hard_hit_pct ?? null,
+        statcast_barrel_pct: statcastBucket?.barrel_pct ?? null,
+        statcast_sweet_spot_pct: statcastBucket?.sweet_spot_pct ?? null,
+        statcast_max_ev: statcastBucket?.max_ev ?? null,
         hand_splits: {
           vs_rhp: computeHandSplit("R"),
           vs_lhp: computeHandSplit("L"),
         },
-        statcast_splits: seasonBBs.length >= 5 ? {
-          vs_rhp: computeStatcastBucket(rhpBBs),
-          vs_lhp: computeStatcastBucket(lhpBBs),
+        statcast_splits: bbs.length >= 3 ? {
+          vs_rhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "R"))),
+          vs_lhp: computeStatcastBucket(takeRecentBBs(bbs.filter((b: any) => b.pitcher_hand === "L"))),
           by_pitch: byPitch,
         } : null,
       };
