@@ -75,10 +75,10 @@ function mapRow(row: any) {
     ballparkFactors: row.ballpark_factors ?? null,
     hourlyForecast: row.hourly_forecast ?? null,
     // Calibrated weather impact deltas
-    hrPctDelta: row.hr_pct_delta ?? null,
-    runsPctDelta: row.runs_pct_delta ?? null,
-    xbhPctDelta: row.xbh_pct_delta ?? null,
-    singlesPctDelta: row.singles_pct_delta ?? null,
+    hrPctDelta: row.hr_pct_delta != null ? Number(row.hr_pct_delta) : null,
+    runsPctDelta: row.runs_pct_delta != null ? Number(row.runs_pct_delta) : null,
+    xbhPctDelta: row.xbh_pct_delta != null ? Number(row.xbh_pct_delta) : null,
+    singlesPctDelta: row.singles_pct_delta != null ? Number(row.singles_pct_delta) : null,
   };
 }
 
