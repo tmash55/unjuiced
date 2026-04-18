@@ -1385,6 +1385,7 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
   const [expanded, setExpanded] = useState(false);
   const config = getGradeConfig(player.grade);
   const factors = player.factor_scores ?? {};
+  const applyState = useStateLink();
 
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 overflow-hidden">
@@ -1481,13 +1482,20 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
                     const sb = getSportsbookById(realBook);
                     const logo = sb?.image?.square ?? sb?.image?.light ?? null;
                     const isBest = data?.over === player.best_odds;
+                    const bookLink = resolveBookLink(bookKey, data, true, applyState);
+                    const Tag = bookLink ? "a" : "div";
                     return (
-                      <div key={bookKey} className={cn(
-                        "flex items-center gap-1.5 px-2 py-1.5 rounded-lg shrink-0 border transition-colors",
-                        isBest
-                          ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
-                          : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30"
-                      )}>
+                      <Tag
+                        key={bookKey}
+                        {...(bookLink ? { href: bookLink, target: "_blank", rel: "noopener noreferrer" } : {})}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1.5 rounded-lg shrink-0 border transition-colors",
+                          isBest
+                            ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
+                            : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30",
+                          bookLink && "active:scale-95"
+                        )}
+                      >
                         {logo && <img src={logo} alt="" className="w-4 h-4 rounded object-contain" />}
                         <span className={cn(
                           "text-xs font-bold tabular-nums",
@@ -1495,7 +1503,7 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
                         )}>
                           {formatOdds(data?.over ?? null)}
                         </span>
-                      </div>
+                      </Tag>
                     );
                   })}
                 </div>
