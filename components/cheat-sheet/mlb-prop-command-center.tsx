@@ -1459,7 +1459,7 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
             if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
             return acc;
           }, [])
-          .slice(0, 6);
+          ; // Show all books
 
         return (
           <div className="border-t border-neutral-100 dark:border-neutral-800">
