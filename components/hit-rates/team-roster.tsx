@@ -13,6 +13,7 @@ interface TeamRosterProps {
   currentPlayerId?: number | null;
   season?: string;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 const getInjuryColor = (status: string | null) => {
@@ -40,6 +41,7 @@ export function TeamRoster({
   currentPlayerId,
   season,
   className,
+  sport = "nba",
 }: TeamRosterProps) {
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
@@ -101,6 +103,7 @@ export function TeamRoster({
             players={playerTeam.players}
             currentPlayerId={currentPlayerId}
             label="Player's Team"
+            sport={sport}
           />
         )}
 
@@ -111,6 +114,7 @@ export function TeamRoster({
             teamName={opponentTeam.teamName}
             players={opponentTeam.players}
             label="Opponent"
+            sport={sport}
           />
         )}
       </div>
@@ -124,12 +128,14 @@ function TeamRosterSection({
   players,
   currentPlayerId,
   label,
+  sport = "nba",
 }: {
   teamAbbr: string;
   teamName: string;
   players: TeamRosterPlayer[];
   currentPlayerId?: number | null;
   label: string;
+  sport?: "nba" | "wnba";
 }) {
   // Split into starters (top 5 by minutes) and bench
   const starters = players.slice(0, 5);
@@ -145,7 +151,7 @@ function TeamRosterSection({
       {/* Team Header */}
       <div className="flex items-center gap-3 mb-4">
         <img
-          src={getTeamLogoUrl(teamAbbr, "nba")}
+          src={getTeamLogoUrl(teamAbbr, sport)}
           alt={teamAbbr}
           className="w-8 h-8 object-contain"
         />

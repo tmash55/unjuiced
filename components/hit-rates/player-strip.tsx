@@ -12,6 +12,7 @@ interface PlayerStripProps {
   allPlayers: HitRateProfile[];
   onPlayerSelect: (player: HitRateProfile) => void;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 // Get home/away team abbreviations from profile
@@ -70,6 +71,7 @@ export function PlayerStrip({
   allPlayers,
   onPlayerSelect,
   className,
+  sport = "nba",
 }: PlayerStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -134,7 +136,7 @@ export function PlayerStrip({
         <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
           <div className="flex items-center gap-1.5">
             <img
-              src={getTeamLogoUrl(awayTeamAbbr || "", "nba")}
+              src={getTeamLogoUrl(awayTeamAbbr || "", sport)}
               alt={awayTeamAbbr || ""}
               className="h-4 w-4 object-contain"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -144,7 +146,7 @@ export function PlayerStrip({
           <span>@</span>
           <div className="flex items-center gap-1.5">
             <img
-              src={getTeamLogoUrl(homeTeamAbbr || "", "nba")}
+              src={getTeamLogoUrl(homeTeamAbbr || "", sport)}
               alt={homeTeamAbbr || ""}
               className="h-4 w-4 object-contain"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}

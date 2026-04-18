@@ -14,6 +14,7 @@ interface DefensiveAnalysisProps {
   opponentTeamAbbr: string | null;
   position: string | null;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
@@ -59,6 +60,7 @@ export function DefensiveAnalysis({
   opponentTeamAbbr,
   position,
   className,
+  sport = "nba",
 }: DefensiveAnalysisProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("ranks");
   
@@ -68,7 +70,7 @@ export function DefensiveAnalysis({
     enabled: !!opponentTeamId,
   });
 
-  const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, "nba") : null;
+  const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, sport) : null;
   
   // Get market data organized by market name
   const getMarketDataByPosition = (market: string, pos: string) => {

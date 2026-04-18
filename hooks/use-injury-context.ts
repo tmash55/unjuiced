@@ -72,12 +72,14 @@ export interface PlayerGamesWithInjuriesResponse {
 // Hook options
 export interface UsePlayersOutForFilterOptions {
   playerId: number | null;
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }
 
 export interface UsePlayerGamesWithInjuriesOptions {
   playerId: number | null;
+  sport?: "nba" | "wnba";
   season?: string;
   filterPlayerId?: number | null;
   enabled?: boolean;
@@ -96,13 +98,21 @@ function getSupabaseClient() {
  * Used to populate the injury filter dropdown
  */
 export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
-  const { playerId, season = "2025-26", enabled = true } = options;
+  const {
+    playerId,
+    sport = "nba",
+    season = sport === "wnba" ? "2025" : "2025-26",
+    enabled = true,
+  } = options;
+
+  // WNBA has no matching RPC yet — disable the query until one exists.
+  const sportEnabled = sport !== "wnba";
 
   const query = useQuery<PlayersOutForFilterResponse | null>({
-    queryKey: ["players-out-for-filter", playerId, season],
+    queryKey: ["players-out-for-filter", sport, playerId, season],
     queryFn: async () => {
       if (!playerId) return null;
-      
+
       const supabase = getSupabaseClient();
       const { data, error } = await supabase.rpc("get_players_out_for_filter", {
         p_player_id: playerId,
@@ -116,7 +126,7 @@ export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
 
       return data as PlayersOutForFilterResponse;
     },
-    enabled: enabled && playerId !== null,
+    enabled: enabled && playerId !== null && sportEnabled,
     staleTime: 5 * 60_000, // 5 minutes
     gcTime: 10 * 60_000, // 10 minutes
   });
@@ -137,15 +147,25 @@ export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
  * Each game includes who was out (teammates and opponents)
  */
 export function usePlayerGamesWithInjuries(options: UsePlayerGamesWithInjuriesOptions) {
-  const { playerId, season = "2025-26", filterPlayerId, enabled = true } = options;
+  const {
+    playerId,
+    sport = "nba",
+    season = sport === "wnba" ? "2025" : "2025-26",
+    filterPlayerId,
+    enabled = true,
+  } = options;
+
+  const rpcName = sport === "wnba"
+    ? "get_wnba_player_games_with_injuries"
+    : "get_player_games_with_injuries";
 
   const query = useQuery<PlayerGamesWithInjuriesResponse | null>({
-    queryKey: ["player-games-with-injuries", playerId, season, filterPlayerId],
+    queryKey: ["player-games-with-injuries", sport, playerId, season, filterPlayerId],
     queryFn: async () => {
       if (!playerId) return null;
 
       const supabase = getSupabaseClient();
-      const { data, error } = await supabase.rpc("get_player_games_with_injuries", {
+      const { data, error } = await supabase.rpc(rpcName, {
         p_player_id: playerId,
         p_season: season,
         p_filter_player_id: filterPlayerId ?? null,

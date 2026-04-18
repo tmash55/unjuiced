@@ -109,6 +109,7 @@ const oddsScreenSports: NavChildItem[] = [
 // Sport icon wrappers for NavItem compatibility
 const NbaIcon = ({ className }: { className?: string }) => <SportIcon sport="nba" className={className} />
 const MlbIcon = ({ className }: { className?: string }) => <SportIcon sport="mlb" className={className} />
+const WnbaIcon = ({ className }: { className?: string }) => <SportIcon sport="wnba" className={className} />
 
 // Edge Tools - Money-making tools (Arbitrage, EV, Edge Finder)
 const edgeToolsLinks: NavItem[] = [
@@ -133,6 +134,17 @@ const nbaLink: NavItem = {
     { label: "Double Double", href: "/cheatsheets/nba/double-double-sheet" },
     { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     { label: "King of the Court", href: "/stats/nba/king-of-the-court" },
+  ],
+}
+
+const wnbaLink: NavItem = {
+  label: "WNBA",
+  href: "#wnba",
+  icon: WnbaIcon,
+  children: [
+    { label: "Hit Rates", href: "/hit-rates/wnba" },
+    { label: "sheets", href: "", sectionLabel: "sheets" },
+    { label: "Top Props", href: "/cheatsheets/wnba/hit-rates" },
   ],
 }
 
@@ -1030,7 +1042,7 @@ export function AppSidebar() {
   
   // Auto-expand the parent of the active child on initial load only
   React.useEffect(() => {
-    const allExpandableLinks = [nbaLink, mlbLink, oddsScreenLink, ...resourcesLinks]
+    const allExpandableLinks = [nbaLink, wnbaLink, mlbLink, oddsScreenLink, ...resourcesLinks]
     for (const link of allExpandableLinks) {
       if (link.children?.some(child => !child.sectionLabel && (pathname === child.href || pathname?.startsWith(`${child.href}/`)))) {
         setExpandedHref(link.href)
@@ -1075,8 +1087,9 @@ export function AppSidebar() {
             {/* Research — Sports + Odds */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Research</SectionLabel>
-              <NavLink link={nbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
               <NavLink link={mlbLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+              <NavLink link={nbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+              <NavLink link={wnbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
               <NavLink link={oddsScreenLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
             </div>
             

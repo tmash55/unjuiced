@@ -26,6 +26,7 @@ interface InjuryReportProps {
   filters: InjuryFilter[];
   onFiltersChange: (filters: InjuryFilter[]) => void;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 const getInjuryColor = (status: string | null) => {
@@ -171,6 +172,7 @@ function TeamInjurySection({
   filters,
   onFilterChange,
   isPlayerTeam,
+  sport = "nba",
 }: {
   teamAbbr: string;
   teamName: string;
@@ -180,6 +182,7 @@ function TeamInjurySection({
   filters: InjuryFilter[];
   onFilterChange: (playerId: number, mode: InjuryFilterMode) => void;
   isPlayerTeam: boolean;
+  sport?: "nba" | "wnba";
 }) {
   // Filter to only injured players and sort by injury priority
   const injuredPlayers = useMemo(() => {
@@ -196,7 +199,7 @@ function TeamInjurySection({
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-3">
           <img
-            src={getTeamLogoUrl(teamAbbr, "nba")}
+            src={getTeamLogoUrl(teamAbbr, sport)}
             alt={teamAbbr}
             className="h-6 w-6 object-contain"
           />
@@ -222,7 +225,7 @@ function TeamInjurySection({
       {/* Team Header */}
       <div className="flex items-center gap-2 mb-3">
         <img
-          src={getTeamLogoUrl(teamAbbr, "nba")}
+          src={getTeamLogoUrl(teamAbbr, sport)}
           alt={teamAbbr}
           className="h-6 w-6 object-contain"
         />
@@ -264,6 +267,7 @@ export function InjuryReport({
   filters,
   onFiltersChange,
   className,
+  sport = "nba",
 }: InjuryReportProps) {
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
@@ -368,6 +372,7 @@ export function InjuryReport({
               filters={filters}
               onFilterChange={handleFilterChange}
               isPlayerTeam={true}
+              sport={sport}
             />
           )}
 
@@ -387,6 +392,7 @@ export function InjuryReport({
               filters={filters}
               onFilterChange={handleFilterChange}
               isPlayerTeam={false}
+              sport={sport}
             />
           )}
         </div>

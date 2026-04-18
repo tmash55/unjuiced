@@ -3822,12 +3822,14 @@ export function MobilePlayerDrilldown({
   // This replaces the limited gameLogs data from the profile
   const { games: gamesWithInjuries, isLoading: injuryGamesLoading } = usePlayerGamesWithInjuries({
     playerId: profile.playerId,
+    sport,
     enabled: !!profile.playerId,
   });
 
   // Fetch players out data - provides avg_pts, avg_reb, avg_ast for teammates who were out
   const { data: playersOutData } = usePlayersOutForFilter({
     playerId: profile.playerId,
+    sport,
     enabled: !!profile.playerId,
   });
   

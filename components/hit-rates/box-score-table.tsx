@@ -464,7 +464,7 @@ export function BoxScoreTable({
                         <div className="flex items-center justify-center gap-1">
                           <span className="text-neutral-400 text-[10px]">{game.homeAway === "H" ? "vs" : "@"}</span>
                           <img
-                            src={getTeamLogoUrl(game.opponentAbbr, "mlb")}
+                            src={getTeamLogoUrl(game.opponentAbbr, sport)}
                             alt={game.opponentAbbr}
                             className="w-4 h-4 object-contain"
                           />
@@ -691,7 +691,7 @@ export function BoxScoreTable({
                           {game.homeAway === "H" ? "vs" : "@"}
                         </span>
                         <img
-                          src={getTeamLogoUrl(game.opponentAbbr, "nba")}
+                          src={getTeamLogoUrl(game.opponentAbbr, sport)}
                           alt={game.opponentAbbr}
                           className="w-4 h-4 object-contain"
                         />

@@ -15,6 +15,7 @@ interface PositionVsTeamProps {
   market: string | null;
   currentLine: number | null;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 const formatDate = (dateStr: string) => {
@@ -47,6 +48,7 @@ export function PositionVsTeam({
   market,
   currentLine,
   className,
+  sport = "nba",
 }: PositionVsTeamProps) {
   // Local state for filters
   const [selectedPosition, setSelectedPosition] = useState<string | null>(position);
@@ -82,7 +84,7 @@ export function PositionVsTeam({
     enabled: !!selectedPosition && !!opponentTeamId && !!market,
   });
 
-  const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, "nba") : null;
+  const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, sport) : null;
 
   // Calculate hit rate vs this opponent from recent games
   const hitsVsOpponent = currentLine !== null 
@@ -361,9 +363,10 @@ export function PositionVsTeam({
               </tr>
             ) : (
               players.map((player, idx) => (
-              <PlayerMatchupRow 
-                key={`${player.gameDate}-${player.playerName}-${idx}`} 
-                player={player} 
+              <PlayerMatchupRow
+                key={`${player.gameDate}-${player.playerName}-${idx}`}
+                player={player}
+                sport={sport}
               />
               ))
             )}
@@ -390,10 +393,12 @@ export function PositionVsTeam({
   );
 }
 
-function PlayerMatchupRow({ 
-  player, 
-}: { 
-  player: PositionVsTeamPlayer; 
+function PlayerMatchupRow({
+  player,
+  sport = "nba",
+}: {
+  player: PositionVsTeamPlayer;
+  sport?: "nba" | "wnba";
 }) {
   return (
     <tr className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700/30">
@@ -409,7 +414,7 @@ function PlayerMatchupRow({
         <div className="flex items-center gap-2">
           {player.teamAbbr && (
             <img
-              src={getTeamLogoUrl(player.teamAbbr, "nba")}
+              src={getTeamLogoUrl(player.teamAbbr, sport)}
               alt={player.teamAbbr}
               className="w-5 h-5 object-contain shrink-0"
             />

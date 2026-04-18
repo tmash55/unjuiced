@@ -4,6 +4,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { HeartPulse, ChevronDown, ChevronUp, ArrowDown } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
@@ -24,6 +25,7 @@ interface RosterAndInjuriesProps {
   filters: InjuryFilter[];
   onFiltersChange: (filters: InjuryFilter[]) => void;
   className?: string;
+  sport?: "nba" | "wnba";
 }
 
 const getInjuryColor = (status: string | null) => {
@@ -50,6 +52,7 @@ function TeamRosterSection({
   filters,
   onFilterChange,
   isPlayerTeam,
+  sport = "nba",
 }: {
   teamAbbr: string;
   teamName: string;
@@ -59,6 +62,7 @@ function TeamRosterSection({
   filters: InjuryFilter[];
   onFilterChange: (playerId: number, mode: InjuryFilterMode) => void;
   isPlayerTeam: boolean;
+  sport?: "nba" | "wnba";
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
 
@@ -102,7 +106,7 @@ function TeamRosterSection({
             {/* Team Logo - Smaller */}
             <div className="h-7 w-7 rounded-full bg-white dark:bg-neutral-900 p-1 shadow ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
               <img
-                src={`/team-logos/nba/${teamAbbr.toUpperCase()}.svg`}
+                src={getTeamLogoUrl(teamAbbr, sport)}
                 alt={teamAbbr}
                 className="h-full w-full object-contain"
               />
@@ -159,6 +163,7 @@ function TeamRosterSection({
                   isCurrentPlayer={player.playerId === currentPlayerId}
                   filter={filters.find((f) => f.playerId === player.playerId)}
                   onFilterChange={onFilterChange}
+                  sport={sport}
                 />
               ))}
             </div>
@@ -198,11 +203,13 @@ function PlayerRow({
   isCurrentPlayer,
   filter,
   onFilterChange,
+  sport = "nba",
 }: {
   player: TeamRosterPlayer;
   isCurrentPlayer: boolean;
   filter?: InjuryFilter;
   onFilterChange: (playerId: number, mode: InjuryFilterMode) => void;
+  sport?: "nba" | "wnba";
 }) {
   const hasInjury = player.injuryStatus && 
     !["active", "available"].includes(player.injuryStatus.toLowerCase());
@@ -234,6 +241,7 @@ function PlayerRow({
               nbaPlayerId={player.playerId}
               name={player.name}
               size="tiny"
+              sport={sport}
               className="h-full w-full object-cover scale-150 translate-y-0.5"
             />
           </div>
@@ -338,6 +346,7 @@ export function RosterAndInjuries({
   filters,
   onFiltersChange,
   className,
+  sport = "nba",
 }: RosterAndInjuriesProps) {
   // Default to collapsed for a cleaner reading flow
   const [isCollapsed, setIsCollapsed] = React.useState(true);
@@ -552,6 +561,7 @@ export function RosterAndInjuries({
               filters={filters}
               onFilterChange={handleFilterChange}
               isPlayerTeam={true}
+              sport={sport}
             />
           )}
 
@@ -571,6 +581,7 @@ export function RosterAndInjuries({
               filters={filters}
               onFilterChange={handleFilterChange}
               isPlayerTeam={false}
+              sport={sport}
             />
           )}
         </div>

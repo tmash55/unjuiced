@@ -8,6 +8,7 @@ import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { AlternateLinesMatrix } from "./alternate-lines-matrix";
 import { PlayerCorrelations } from "./player-correlations";
 import { PositionVsTeam } from "./position-vs-team";
@@ -670,6 +671,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // This replaces the limited gameLogs data from the profile
   const { games: gamesWithInjuries, isLoading: injuryGamesLoading } = usePlayerGamesWithInjuries({
     playerId: profile.playerId,
+    sport,
     enabled: !!profile.playerId,
   });
 
@@ -677,6 +679,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // This replaces the avg data that was previously in profile.gameLogs
   const { data: playersOutData } = usePlayersOutForFilter({
     playerId: profile.playerId,
+    sport,
     enabled: !!profile.playerId,
   });
 
@@ -1734,7 +1737,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   {profile.teamAbbr && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50">
                       <img
-                        src={`/team-logos/nba/${profile.teamAbbr.toUpperCase()}.svg`}
+                        src={getTeamLogoUrl(profile.teamAbbr, sport)}
                         alt={profile.teamAbbr}
                         className="h-4 w-4 object-contain"
                       />
@@ -1758,7 +1761,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                     <span className="text-[10px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-400">Next</span>
                     {profile.teamAbbr && (
                       <img
-                        src={`/team-logos/nba/${profile.teamAbbr.toUpperCase()}.svg`}
+                        src={getTeamLogoUrl(profile.teamAbbr, sport)}
                         alt={profile.teamAbbr}
                         className="h-4 w-4 object-contain"
                       />
@@ -1768,7 +1771,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                     </span>
               {profile.opponentTeamAbbr && (
                 <img
-                  src={`/team-logos/nba/${profile.opponentTeamAbbr.toUpperCase()}.svg`}
+                  src={getTeamLogoUrl(profile.opponentTeamAbbr, sport)}
                   alt={profile.opponentTeamAbbr}
                   className="h-4 w-4 object-contain"
                 />
@@ -2093,6 +2096,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
               </div>
             ) : (
               <GameLogChart
+                sport={sport}
                 games={filteredGames}
                 line={customLine ?? profile.line}
                 market={profile.market}
@@ -2341,6 +2345,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           currentPlayerId={profile.playerId}
           filters={injuryFilters}
           onFiltersChange={setInjuryFilters}
+          sport={sport}
         />
       </div>
 
@@ -2354,6 +2359,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamId={profile.opponentTeamId}
           opponentTeamAbbr={profile.opponentTeamAbbr}
           position={profile.position}
+          sport={sport}
         />
 
         {/* Right Column: Position vs Team Game Log */}
@@ -2363,6 +2369,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamAbbr={profile.opponentTeamAbbr}
           market={profile.market}
           currentLine={profile.line}
+          sport={sport}
         />
       </div>
 

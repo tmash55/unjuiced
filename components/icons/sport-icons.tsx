@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconBallBaseball } from '@tabler/icons-react';
+import { IconBallBaseball, IconBallBasketball } from '@tabler/icons-react';
 
 interface SportIconProps {
   sport: string;
@@ -23,8 +23,13 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
     );
   }
 
-  // Basketball
-  if (sportLower.includes('basketball') || sportLower.includes('nba') || sportLower === 'ncaab' || sportLower === 'wnba') {
+  // WNBA — outline basketball to distinguish from NBA's filled icon
+  if (sportLower === 'wnba' || sportLower === 'basketball_wnba') {
+    return <IconBallBasketball className={className} stroke={1.75} />;
+  }
+
+  // Basketball (NBA / NCAAB)
+  if (sportLower.includes('basketball') || sportLower.includes('nba') || sportLower === 'ncaab') {
     return (
       <svg 
         xmlns="http://www.w3.org/2000/svg"

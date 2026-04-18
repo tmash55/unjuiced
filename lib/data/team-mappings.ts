@@ -245,16 +245,28 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   export const WNBA_TEAM_MAP: Record<string, string> = {
     ATL: "ATL", // Atlanta Dream
     CHI: "CHI", // Chicago Sky
-    CON: "CTN", // Connecticut Sun (changed from CON due to Windows reserved name)
+    CON: "CTN", // Connecticut Sun (CTN filename due to Windows reserved "CON")
+    CONN: "CTN",
+    CTN: "CTN",
     DAL: "DAL", // Dallas Wings
+    GSV: "GSV", // Golden State Valkyries
+    GOL: "GSV",
+    GSW: "GSV",
     IND: "IND", // Indiana Fever
-    LAS: "LAS", // Los Angeles Sparks
-    LVA: "LVA", // Las Vegas Aces
+    LA: "LAS",  // Los Angeles Sparks (stats.wnba.com uses "LA")
+    LAS: "LAS",
+    LOS: "LAS",
+    LV: "LVA",  // Las Vegas Aces (stats.wnba.com uses "LV")
+    LVA: "LVA",
     MIN: "MIN", // Minnesota Lynx
-    NYL: "NYL", // New York Liberty
-    PHO: "PHO", // Phoenix Mercury
+    NY: "NYL",  // New York Liberty (stats.wnba.com uses "NY")
+    NYL: "NYL",
+    NEW: "NYL",
+    PHX: "PHX", // Phoenix Mercury (stats.wnba.com uses "PHX")
+    PHO: "PHX",
     SEA: "SEA", // Seattle Storm
-    WAS: "WAS"  // Washington Mystics
+    WAS: "WAS", // Washington Mystics
+    WSH: "WAS",
   }
   
   // Get team logo filename based on abbreviation and sport
@@ -286,7 +298,11 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     if (!teamName) return ""
     
     // Normalize sport name - handle both 'mlb' and 'baseball_mlb'
-    const normalizedSport = sport === "mlb" ? "baseball_mlb" : sport
+    let normalizedSport = sport === "mlb" ? "baseball_mlb" : sport
+    if (normalizedSport === "wnba") normalizedSport = "basketball_wnba"
+    if (normalizedSport === "nba") normalizedSport = "basketball_nba"
+    if (normalizedSport === "nfl") normalizedSport = "football_nfl"
+    if (normalizedSport === "nhl") normalizedSport = "icehockey_nhl"
     
     // First, check if it's a full team name
     const teamMaps: Record<string, Record<string, string>> = {
@@ -478,7 +494,12 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     if ((normalizedSport === "icehockey_nhl" || normalizedSport === "nhl") && nhlVariationMap[teamName]) {
       return nhlVariationMap[teamName]
     }
-  
+
+    // WNBA abbreviation variants (DB may send stats.wnba.com style: NY, LA, LV, PHX, WSH)
+    if (normalizedSport === "basketball_wnba" && WNBA_TEAM_MAP[teamName.toUpperCase()]) {
+      return WNBA_TEAM_MAP[teamName.toUpperCase()]
+    }
+
   // If no match found, check if it's already a valid abbreviation
   const validAbbrs = new Set(Object.values(teamMaps[normalizedSport] || {}))
   if (validAbbrs.has(teamName.toUpperCase())) {
