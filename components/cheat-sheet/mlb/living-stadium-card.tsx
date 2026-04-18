@@ -503,12 +503,36 @@ export function LivingStadiumCard({ row, windOverride }: {
             <p className="text-[10px] uppercase tracking-[0.1em] font-semibold opacity-70">Edge Signal</p>
             <p className="text-sm font-bold leading-tight">{formatImpactLabel(row.totalImpact)}</p>
           </div>
-          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrImpactScore))}>
-            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR Delta</p>
-            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrImpactScore))}>
-              {formatSigned(row.hrImpactScore, 1)}
+          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrPctDelta ?? row.hrImpactScore))}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR</p>
+            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrPctDelta ?? row.hrImpactScore))}>
+              {row.hrPctDelta != null ? `${row.hrPctDelta > 0 ? "+" : ""}${row.hrPctDelta.toFixed(1)}%` : formatSigned(row.hrImpactScore, 1)}
             </p>
           </div>
+          {row.runsPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.runsPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">Runs</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.runsPctDelta))}>
+                {row.runsPctDelta > 0 ? "+" : ""}{row.runsPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.xbhPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.xbhPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">XBH</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.xbhPctDelta))}>
+                {row.xbhPctDelta > 0 ? "+" : ""}{row.xbhPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.singlesPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.singlesPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">1B</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.singlesPctDelta))}>
+                {row.singlesPctDelta > 0 ? "+" : ""}{row.singlesPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900/60 dark:to-neutral-900">
