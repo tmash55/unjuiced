@@ -14,7 +14,7 @@ import { redis } from "@/lib/redis";
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:wnba:v4";
+const CACHE_KEY_PREFIX = "hitrates:wnba:v5";
 
 // =============================================================================
 // TYPES
@@ -238,9 +238,11 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
     // Top-level nba_player_id flows into HitRateProfile.nbaPlayerId for cdn.nba.com headshots
     nba_player_id: row.nba_player_id ?? null,
     // Keep nba_ field names for schema compatibility with shared frontend components.
-    // For WNBA, nba_player_id may be null until the backfill catches that player.
+    // For WNBA: this object's nba_player_id is read as the canonical routing
+    // playerId (URLs, RPC queries), so it MUST be the wnba_player_id, not the
+    // cdn headshot id. Headshots use the separate top-level nba_player_id above.
     nba_players_hr: row.player_name ? {
-      nba_player_id: row.nba_player_id ?? row.player_id,
+      nba_player_id: row.player_id,
       name: row.player_name,
       position: row.player_depth_chart_pos || row.player_position,
       depth_chart_pos: row.player_depth_chart_pos,
