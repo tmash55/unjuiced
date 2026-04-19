@@ -897,6 +897,7 @@ export function MlbExitVelocity() {
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
   const [season, setSeason] = useState<number | undefined>(2026);
   const [selectedGame, setSelectedGame] = useState<string>("all");
+  const [minBBs, setMinBBs] = useState<number>(0);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -930,6 +931,9 @@ export function MlbExitVelocity() {
     if (selectedGame !== "all") {
       result = result.filter((l) => l.game_id === selectedGame);
     }
+    if (minBBs > 0) {
+      result = result.filter((l) => (l.total_batted_balls ?? 0) >= minBBs);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -940,7 +944,7 @@ export function MlbExitVelocity() {
       );
     }
     return result;
-  }, [leaders, searchQuery, selectedGame]);
+  }, [leaders, searchQuery, selectedGame, minBBs]);
 
   // Sort
   const sortedLeaders = useMemo(() => {
@@ -1009,6 +1013,17 @@ export function MlbExitVelocity() {
                 value={String(sampleSize)}
                 onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
                 options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+              />
+              <FilterDivider />
+              <SegmentedControl
+                value={String(minBBs)}
+                onChange={(v) => setMinBBs(Number(v))}
+                options={[
+                  { label: "All", value: "0" },
+                  { label: "5+", value: "5" },
+                  { label: "10+", value: "10" },
+                  { label: "15+", value: "15" },
+                ]}
               />
               <FilterDivider />
               <SegmentedControl
@@ -1200,6 +1215,17 @@ export function MlbExitVelocity() {
                   onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
                   options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
                 />
+                <SegmentedControl
+                  value={String(minBBs)}
+                  onChange={(v) => setMinBBs(Number(v))}
+                  options={[
+                    { label: "All", value: "0" },
+                    { label: "5+", value: "5" },
+                    { label: "10+", value: "10" },
+                  ]}
+                />
+              </div>
+              <div className="flex items-center gap-2 w-full">
                 <button
                   onClick={() => {
                     setMatchupSplit(!matchupSplit);
