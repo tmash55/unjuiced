@@ -49,6 +49,26 @@ export function FilterDivider() {
   return <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700/40 shrink-0" />;
 }
 
+/** Labeled filter group — small uppercase title sits above the control(s) */
+export function FilterGroup({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5 min-w-0", className)}>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-500 leading-none select-none">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
 /** Search input with icon and clear button */
 export function FilterSearch({
   value,
