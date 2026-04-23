@@ -6,12 +6,16 @@
  *   - Bettor quality (tier, rank, ROI, sample) is #2
  *   - Edge (poly vs sportsbook) is a bonus
  *   - Recency keeps stale signals from floating to the top
+ *   - Convergence (multiple sharps on same side) is a multiplier signal
+ *   - Position action (NEW_ENTRY vs INCREASE vs EXIT etc.) refines intent
  *
  * Weights:
  *   Bettor quality           35%
  *   Stake conviction         35%
  *   Edge / odds value        15%
  *   Recency                  15%
+ *   Convergence              up to +15 additive bonus
+ *   Position action          ±5 additive modifier
  */
 
 export interface ScoreInput {
@@ -29,15 +33,23 @@ export interface ScoreInput {
   book_implied?: number | null;
   quality_score?: number | null;
   created_at: string;
+  // Convergence fields — populated by VPS position-tracker
+  convergence_count?: number | null;
+  convergence_wallets?: string[] | null;
+  known_s_tier_wallets?: string[] | null;
+  // Position action — what the wallet did (NEW_ENTRY, INCREASE, DECREASE, EXIT, etc.)
+  position_action?: string | null;
 }
 
 export interface ScoreResult {
-  total: number;         // 0 - 100
+  total: number;         // 10 - 99
   breakdown: {
-    bettor: number;      // 0-100
-    conviction: number;  // 0-100
-    edge: number;        // 0-100
-    recency: number;     // 0-100
+    bettor: number;      // 0-100 subscore
+    conviction: number;  // 0-100 subscore
+    edge: number;        // 0-100 subscore
+    recency: number;     // 0-100 subscore
+    convergence: number; // additive modifier points
+    position_action: number; // additive modifier points
   };
   label: "🔥" | "⭐" | "👍" | "👀";
 }
@@ -273,8 +285,42 @@ export function computeSignalScore(input: ScoreInput): ScoreResult {
   else if (ageHours > 6) recencyMod = -3;
   else if (ageHours > 3) recencyMod = -1;
 
+  // Convergence modifier — multiple sharps on same side amplifies the signal
+  let convergenceMod = 0;
+  const cc = input.convergence_count ?? 0;
+  if (cc >= 4) convergenceMod = 12;
+  else if (cc === 3) convergenceMod = 8;
+  else if (cc === 2) convergenceMod = 4;
+  // S-tier wallet in convergence group adds extra weight
+  if (
+    convergenceMod > 0 &&
+    input.convergence_wallets?.length &&
+    input.known_s_tier_wallets?.length
+  ) {
+    const sTierSet = new Set(input.known_s_tier_wallets);
+    if (input.convergence_wallets.some((w) => sTierSet.has(w))) {
+      convergenceMod += 3;
+    }
+  }
+
+  // Position action modifier — what the wallet did signals intent strength
+  let positionActionMod = 0;
+  switch (input.position_action) {
+    case "NEW_ENTRY":  positionActionMod =  3; break;
+    case "INCREASE":   positionActionMod =  5; break;
+    case "DECREASE":   positionActionMod = -3; break;
+    case "EXIT":
+    case "FULL_EXIT":  positionActionMod = -5; break;
+    case "FLIP":       positionActionMod =  4; break;
+    case "HEDGE":      positionActionMod = -2; break;
+    default:           positionActionMod =  0; break;
+  }
+
   const total = clamp(
-    Math.round(baseline + convictionMod + bettorMod + edgeMod + recencyMod),
+    Math.round(
+      baseline + convictionMod + bettorMod + edgeMod + recencyMod +
+      convergenceMod + positionActionMod
+    ),
     10,
     99
   );
@@ -288,7 +334,14 @@ export function computeSignalScore(input: ScoreInput): ScoreResult {
 
   return {
     total,
-    breakdown: { bettor, conviction, edge, recency },
+    breakdown: {
+      bettor,
+      conviction,
+      edge,
+      recency,
+      convergence: convergenceMod,
+      position_action: positionActionMod,
+    },
     label,
   };
 }
