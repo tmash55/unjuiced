@@ -17,6 +17,7 @@ interface SgpLeg {
   sport?: string | null;
   player_id?: string | null;
   player_name?: string | null;
+  odds_key?: string | null;
   event_id: string;
   market: string;
   line: number | null;

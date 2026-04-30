@@ -7,8 +7,12 @@ import { useCallback, useRef, useState } from "react";
 // =============================================================================
 
 export interface SgpLeg {
+  favorite_id?: string | null;
+  sport?: string | null;
   event_id: string;
+  odds_key?: string | null;
   player_id?: string | null;
+  player_name?: string | null;
   market: string;
   line: number | null;
   side: string;
@@ -334,8 +338,11 @@ interface RefreshedBookOdds {
 export function favoritesToSgpLegs(
   favorites: Array<{
     id?: string;
+    sport?: string | null;
     event_id: string;
+    odds_key?: string | null;
     player_id?: string | null;
+    player_name?: string | null;
     market: string;
     line: number | null;
     side: string;
@@ -370,8 +377,12 @@ export function favoritesToSgpLegs(
     }
     
     return {
+      favorite_id: fav.id,
+      sport: fav.sport,
       event_id: fav.event_id,
+      odds_key: fav.odds_key,
       player_id: fav.player_id,
+      player_name: fav.player_name,
       market: fav.market,
       line: fav.line,
       side: fav.side,
