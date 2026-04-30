@@ -992,6 +992,7 @@ function PropCenterFavoriteButton({
               sport: "mlb",
               event_id: favoriteParams.event_id,
               odds_key: favoriteParams.odds_key,
+              player_id: favoriteParams.player_id,
               market: favoriteParams.market,
               player_name: playerName,
               line: favoriteParams.line,

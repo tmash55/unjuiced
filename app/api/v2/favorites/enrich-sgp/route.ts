@@ -16,6 +16,7 @@ interface EnrichRequest {
   sport: string;
   event_id: string;
   odds_key?: string | null;
+  player_id?: string | null;
   market: string;
   player_name: string;
   line: number | null;
@@ -26,7 +27,7 @@ interface EnrichRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: EnrichRequest = await request.json();
-    const { sport, event_id, odds_key, market, player_name, line, side, books } = body;
+    const { sport, event_id, odds_key, player_id, market, player_name, line, side, books } = body;
 
     if (!sport || !event_id || !market) {
       return NextResponse.json({ sgp_tokens: {} });
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
           sport,
           event_id,
           odds_key,
+          player_id,
           market,
           player_name,
           line,

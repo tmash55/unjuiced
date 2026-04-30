@@ -29,6 +29,7 @@ export interface PropScorePlayer {
     under: number | null;
     link?: string | null;
     mobile_link: string | null;
+    sgp?: string | null;
     odd_id?: string | null;
   }> | null;
   // Results (populated after game resolves)

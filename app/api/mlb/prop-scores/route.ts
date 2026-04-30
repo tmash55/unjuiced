@@ -151,6 +151,7 @@ interface OddsValue {
       desktop?: string;
       mobile?: string;
     };
+    sgp?: string | null;
     player?: string;
     player_id?: string;
     odd_id?: string;
@@ -165,7 +166,7 @@ interface LiveOdds {
   best_odds_mobile_link: string | null;
   best_odds_link: string | null;
   implied_prob: number; // avg implied across consensus-line books
-  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; odd_id: string | null }>;
+  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; sgp: string | null; odd_id: string | null }>;
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -403,6 +404,7 @@ function getLiveOdds(
     under_price: number | null;
     link: string | null;
     mobile_link: string | null;
+    sgp: string | null;
     odd_id: string | null;
   }
 
@@ -446,6 +448,7 @@ function getLiveOdds(
         under_price: isNaN(underPrice as number) ? null : underPrice,
         link: selectionLinks.desktop,
         mobile_link: selectionLinks.mobile,
+        sgp: typeof (sel as any).sgp === "string" ? (sel as any).sgp : null,
         odd_id: typeof (sel as any).odd_id === "string" ? (sel as any).odd_id : null,
       });
     }
@@ -498,7 +501,7 @@ function getLiveOdds(
 
   // Build all-book snapshot — store every book+line combo so frontend can filter by any line
   // Key format: "book" for consensus line, "book__2.5" for alternate lines
-  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; odd_id: string | null }> =
+  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; sgp: string | null; odd_id: string | null }> =
     {};
   for (const e of entries) {
     if (e.line === consensusLine) {
@@ -509,6 +512,7 @@ function getLiveOdds(
         under: e.under_price,
         link: e.link,
         mobile_link: e.mobile_link,
+        sgp: e.sgp,
         odd_id: e.odd_id,
       };
     }
@@ -520,6 +524,7 @@ function getLiveOdds(
       under: e.under_price,
       link: e.link,
       mobile_link: e.mobile_link,
+      sgp: e.sgp,
       odd_id: e.odd_id,
     };
   }
