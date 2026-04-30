@@ -2085,12 +2085,14 @@ export function MlbPropCommandCenter() {
           const line = ab.line ?? liveEntry.line;
           if (line == null) continue;
           const key = `${ab.book}__${line}`;
+          const existing = mergedSnapshot[key] ?? mergedSnapshot[ab.book];
           mergedSnapshot[key] = {
             line,
             over: ab.price,
             under: null,
             link: ab.link,
             mobile_link: ab.mobile_link,
+            sgp: ab.sgp ?? existing?.sgp ?? null,
             odd_id: ab.odd_id || null,
           };
         }

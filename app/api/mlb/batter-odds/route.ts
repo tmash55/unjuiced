@@ -19,7 +19,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 const BOOKS = [
   "draftkings", "fanduel", "betmgm", "caesars", "bet365",
   "betrivers", "fanatics", "espn", "fliff", "hard-rock",
-  "thescore", "betparx", "wynnbet",
+  "thescore", "betparx", "bally-bet", "wynnbet",
 ];
 const SHARP_BOOKS = ["pinnacle", "circa", "novig", "prophetx"];
 
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
     const oppositeSide = sideFilter === "over" ? "under" : "over";
 
     // First pass: collect all odds per player per side
-    const playerOverOdds: Record<string, { book: string; price: number; link: string | null; mobile_link: string | null; line: number; odd_id: string | null }[]> = {};
+    const playerOverOdds: Record<string, { book: string; price: number; link: string | null; mobile_link: string | null; line: number; sgp: string | null; odd_id: string | null }[]> = {};
     const playerUnderOdds: Record<string, { book: string; price: number }[]> = {};
 
     for (const [book, selections] of bookData) {
@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
             link: sel.link || null,
             mobile_link: sel.mobile_link || null,
             line: selLine,
+            sgp: typeof sel.sgp === "string" ? sel.sgp : null,
             odd_id: typeof sel.odd_id === "string" ? sel.odd_id : null,
           });
         } else if (selSide === oppositeSide) {
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
       ev_pct: number | null;
       fair_american: string | null;
       sharp_book: string | null;
-      all_books: { book: string; price: number; link: string | null; mobile_link: string | null; line?: number; odd_id?: string | null }[];
+      all_books: { book: string; price: number; link: string | null; mobile_link: string | null; line?: number; sgp?: string | null; odd_id?: string | null }[];
     }> = {};
 
     for (const [player, books] of Object.entries(playerOverOdds)) {
