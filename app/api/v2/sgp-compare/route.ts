@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
-import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
 import { fetchSgpQuote } from "@/lib/sgp/quote-service";
+import {
+  buildBookTokenMap,
+  formatCoverageForLog,
+  getSgpSupportingBooks,
+  resolveSgpTokensForLegs,
+} from "@/lib/sgp/token-resolver";
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
 interface SgpLeg {
-  favorite_id: string;
-  player_name?: string;
+  favorite_id?: string;
+  sport?: string | null;
+  player_id?: string | null;
+  player_name?: string | null;
   event_id: string;
   market: string;
   line: number | null;
@@ -42,10 +49,7 @@ interface SgpOddsCache {
   [bookId: string]: SgpBookOdds;
 }
 
-// SGP-supporting books from config
-const SGP_SUPPORTING_BOOKS = Object.entries(SPORTSBOOKS_META)
-  .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
-  .map(([id]) => id);
+const SGP_SUPPORTING_BOOKS = getSgpSupportingBooks();
 
 // =============================================================================
 // API HANDLER
@@ -76,29 +80,19 @@ export async function POST(request: NextRequest) {
       ? sportsbooks.filter(b => SGP_SUPPORTING_BOOKS.includes(b))
       : SGP_SUPPORTING_BOOKS;
 
-    // Build token map for each book
-    const bookTokensMap = new Map<string, string[]>();
-    const bookLegsCount = new Map<string, number>();
+    const resolvedTokens = await resolveSgpTokensForLegs(legs, {
+      books: booksToFetch,
+      loggerPrefix: "[SGP Compare]",
+    });
+    const { bookTokensMap, bookLegsCount } = buildBookTokenMap(
+      resolvedTokens.legs,
+      booksToFetch,
+      { minTokens: 2 }
+    );
 
-    for (const bookId of booksToFetch) {
-      const tokens: string[] = [];
-      
-      for (const leg of legs) {
-        const sgpToken = leg.sgp_tokens[bookId];
-        if (sgpToken) {
-          tokens.push(sgpToken);
-        }
-      }
-
-      bookLegsCount.set(bookId, tokens.length);
-
-      // Only include books that have at least 2 SGP tokens
-      if (tokens.length >= 2) {
-        bookTokensMap.set(bookId, tokens);
-      }
-    }
-
-    console.log(`[SGP Compare] Found tokens for books: ${Array.from(bookTokensMap.keys()).join(', ')}`);
+    console.log(
+      `[SGP Compare] Found tokens for books: ${formatCoverageForLog(resolvedTokens.coverage)}`
+    );
 
     if (bookTokensMap.size === 0) {
       return NextResponse.json({
@@ -106,6 +100,11 @@ export async function POST(request: NextRequest) {
         total_legs: totalLegs,
         books_fetched: [],
         error: "No sportsbooks have SGP tokens for these legs",
+        diagnostics: {
+          token_coverage: resolvedTokens.coverage.by_book,
+          full_support_books: resolvedTokens.coverage.full_support_books,
+          partial_support_books: resolvedTokens.coverage.partial_support_books,
+        },
       });
     }
 
@@ -178,6 +177,11 @@ export async function POST(request: NextRequest) {
       odds: oddsCache,
       total_legs: totalLegs,
       books_fetched: Array.from(bookTokensMap.keys()),
+      diagnostics: {
+        token_coverage: resolvedTokens.coverage.by_book,
+        full_support_books: resolvedTokens.coverage.full_support_books,
+        partial_support_books: resolvedTokens.coverage.partial_support_books,
+      },
     });
   } catch (error) {
     console.error("[SGP Compare] Unexpected error:", error);

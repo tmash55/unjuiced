@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
     const oppositeSide = sideFilter === "over" ? "under" : "over";
 
     // First pass: collect all odds per player per side
-    const playerOverOdds: Record<string, { book: string; price: number; link: string | null; mobile_link: string | null; line: number }[]> = {};
+    const playerOverOdds: Record<string, { book: string; price: number; link: string | null; mobile_link: string | null; line: number; odd_id: string | null }[]> = {};
     const playerUnderOdds: Record<string, { book: string; price: number }[]> = {};
 
     for (const [book, selections] of bookData) {
@@ -108,7 +108,14 @@ export async function GET(req: NextRequest) {
         const selSide = sel.side || "";
         if (selSide === sideFilter) {
           if (!playerOverOdds[normalizedName]) playerOverOdds[normalizedName] = [];
-          playerOverOdds[normalizedName].push({ book, price, link: sel.link || null, mobile_link: sel.mobile_link || null, line: selLine });
+          playerOverOdds[normalizedName].push({
+            book,
+            price,
+            link: sel.link || null,
+            mobile_link: sel.mobile_link || null,
+            line: selLine,
+            odd_id: typeof sel.odd_id === "string" ? sel.odd_id : null,
+          });
         } else if (selSide === oppositeSide) {
           if (!playerUnderOdds[normalizedName]) playerUnderOdds[normalizedName] = [];
           playerUnderOdds[normalizedName].push({ book, price });
@@ -136,7 +143,7 @@ export async function GET(req: NextRequest) {
       ev_pct: number | null;
       fair_american: string | null;
       sharp_book: string | null;
-      all_books: { book: string; price: number; link: string | null; mobile_link: string | null; line?: number }[];
+      all_books: { book: string; price: number; link: string | null; mobile_link: string | null; line?: number; odd_id?: string | null }[];
     }> = {};
 
     for (const [player, books] of Object.entries(playerOverOdds)) {

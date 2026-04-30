@@ -31,6 +31,7 @@ export interface BookSnapshot {
   u?: string | null;       // Desktop bet link (short key for storage)
   m?: string | null;       // Mobile deep link (short key for storage)
   sgp?: string | null;     // SGP token for same-game parlay API calls
+  odd_id?: string | null;  // Vendor odds id for exact line-history lookups
 }
 
 /**
@@ -49,6 +50,7 @@ export interface RefreshedOdds {
     decimal: number;
     link: string | null;
     sgp: string | null;
+    odd_id?: string | null;
   }>;
   is_available: boolean;
   line: number | null;

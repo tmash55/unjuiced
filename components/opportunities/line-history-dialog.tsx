@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, LineChart, Loader2, Lock } from "lucide-react";
 import type {
   LineHistoryApiRequest,
   LineHistoryApiResponse,
@@ -28,6 +29,63 @@ import { useEVTimeline } from "@/components/line-history/ev-overlay";
 
 const SHARP_BOOK_IDS = Object.keys(SHARP_BOOKS);
 
+function hasLineHistoryAccess(plan?: string | null): boolean {
+  return plan === "sharp" || plan === "elite" || plan === "admin" || plan === "unlimited";
+}
+
+function LineMovementPreview() {
+  const points = [
+    { x: 0, y: 58 },
+    { x: 16, y: 58 },
+    { x: 16, y: 48 },
+    { x: 32, y: 48 },
+    { x: 32, y: 66 },
+    { x: 48, y: 66 },
+    { x: 48, y: 40 },
+    { x: 67, y: 40 },
+    { x: 67, y: 25 },
+    { x: 84, y: 25 },
+    { x: 84, y: 34 },
+    { x: 100, y: 34 },
+  ];
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+
+  return (
+    <div className="relative overflow-hidden rounded-[18px] border border-sky-400/20 bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,0.16),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-200/70">
+        <span>Line Movement</span>
+        <span>Preview</span>
+      </div>
+      <div className="relative h-44 rounded-2xl border border-white/10 bg-white/[0.03]">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:25%_33.33%]" />
+        <svg viewBox="0 0 100 80" className="absolute inset-4 h-[calc(100%-2rem)] w-[calc(100%-2rem)] overflow-visible">
+          <path d={path} fill="none" stroke="rgba(56,189,248,0.2)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={path} fill="none" stroke="rgb(56,189,248)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          {[points[2], points[6], points[8], points[10]].map((point, index) => (
+            <circle key={`${point.x}-${point.y}`} cx={point.x} cy={point.y} r="2.6" fill={index % 2 === 0 ? "rgb(34,197,94)" : "rgb(248,113,113)"} />
+          ))}
+        </svg>
+        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[10px] text-neutral-400">
+          <span>Open +1700</span>
+          <span>Current +2200</span>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+        {[
+          ["CLV", "+500"],
+          ["Moves", "24"],
+          ["Books", "6"],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{label}</div>
+            <div className="mt-1 font-bold tabular-nums text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface LineHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +95,7 @@ interface LineHistoryDialogProps {
 export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDialogProps) {
   const isMobile = useIsMobile();
   const chartRef = useRef<HTMLDivElement>(null);
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
   const [bookDataById, setBookDataById] = useState<Record<string, LineHistoryBookData>>({});
   const [loadingBookIds, setLoadingBookIds] = useState<Set<string>>(new Set());
@@ -44,6 +103,22 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   const [hiddenBookIds, setHiddenBookIds] = useState<Set<string>>(new Set());
   const [timeRange, setTimeRange] = useState<TimeRangeKey>("all");
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const canViewLineHistory = !isLoadingEntitlements && !!entitlements?.authenticated && hasLineHistoryAccess(entitlements?.plan);
+  const accessKnown = !isLoadingEntitlements;
+  const showLockedState = open && accessKnown && !canViewLineHistory;
+  const lockedStateCopy = entitlements?.authenticated
+    ? {
+        title: "Line movement is a Sharp tool",
+        description: "Upgrade to Sharp or Elite to compare historical price movement, CLV, opening lines, and book-by-book steam before you add a play.",
+        cta: "View plans",
+        href: "/pricing",
+      }
+    : {
+        title: "Sign in to view line movement",
+        description: "Line movement is available to signed-in Sharp and Elite members.",
+        cta: "Sign in",
+        href: "/login",
+      };
 
   /* ── Derived book lists ───────────────────────────────────────────── */
 
@@ -115,7 +190,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
 
   const fetchBooks = useCallback(
     async (books: string[], options?: { addToSelected?: boolean; silent?: boolean }) => {
-      if (!context || books.length === 0) return;
+      if (!context || books.length === 0 || !canViewLineHistory) return;
 
       const targetBooks = Array.from(new Set(books.filter(Boolean)));
       if (targetBooks.length === 0) return;
@@ -135,6 +210,12 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
           body: JSON.stringify(payload),
         });
 
+        if (response.status === 401) {
+          throw new Error("Sign in to view historical line movement.");
+        }
+        if (response.status === 403) {
+          throw new Error("Historical line movement is available on Sharp and Elite plans.");
+        }
         if (!response.ok) {
           throw new Error(`Failed to load line history (${response.status})`);
         }
@@ -165,7 +246,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
         });
       }
     },
-    [context]
+    [canViewLineHistory, context]
   );
 
   /* ── Smarter initial selection ────────────────────────────────────── */
@@ -177,6 +258,13 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
     setErrorMessage(null);
     setTimeRange("all");
     setMobileDetailsOpen(false);
+
+    if (!canViewLineHistory) {
+      setSelectedBookIds([]);
+      setHiddenBookIds(new Set());
+      setLoadingBookIds(new Set());
+      return;
+    }
 
     // Select ALL books, but hide everything except bestBook + first sharp from compareBookIds
     const firstBooks = priorityBookIds.length > 0 ? priorityBookIds : allBookIds.slice(0, 1);
@@ -205,7 +293,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
       }, 250);
       return () => window.clearTimeout(timer);
     }
-  }, [open, context, priorityBookIds, allBookIds, fetchBooks]);
+  }, [open, context, canViewLineHistory, priorityBookIds, allBookIds, fetchBooks]);
 
   /* ── Legend toggle handlers ───────────────────────────────────────── */
 
@@ -244,7 +332,16 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   const bestBookName = context?.bestBookId ? getSportsbookById(context.bestBookId)?.name || context.bestBookId : null;
   const visibleCount = visibleBookIds.length;
   const totalCount = selectedBookIds.length;
-  const sourceLabel = context?.source === "positive_ev" ? "EV Tool" : context?.source === "edge" ? "Edge Finder" : null;
+  const sourceLabel =
+    context?.source === "positive_ev"
+      ? "EV Tool"
+      : context?.source === "edge"
+        ? "Edge Finder"
+      : context?.source === "betslip"
+        ? "My Betslip"
+        : context?.source === "prop_center"
+          ? "Prop Center"
+          : null;
   const sectionClass = "rounded-[20px] border border-neutral-200/80 dark:border-neutral-800/80 bg-white/85 dark:bg-neutral-950/65 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.55)] backdrop-blur-sm";
 
   /* ── Render ───────────────────────────────────────────────────────── */
@@ -276,11 +373,11 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                 </div>
                 <DialogTitle className="text-[19px] sm:text-[21px] font-semibold tracking-tight text-neutral-950 dark:text-white">Historical Line Movement</DialogTitle>
                 <DialogDescription className="text-[11px] sm:text-sm text-neutral-500 truncate max-w-[760px]">
-                  {selectionTitle || "Selection history"}
+                  {showLockedState ? "Sharp and Elite plan feature" : selectionTitle || "Selection history"}
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:justify-end">
-                {canShowEV && (
+                {!showLockedState && canShowEV && (
                   <button
                     type="button"
                     onClick={toggleEV}
@@ -303,15 +400,57 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                     )}
                   </button>
                 )}
-                <ChartHelpButton canShowEV={canShowEV} />
-                <ExportChartButton chartRef={chartRef} selectionTitle={selectionTitle || "line-history"} />
-                <TimeRangeSelector value={timeRange} onChange={setTimeRange} className={isMobile ? "" : "ml-1"} />
+                {!showLockedState && (
+                  <>
+                    <ChartHelpButton canShowEV={canShowEV} />
+                    <ExportChartButton chartRef={chartRef} selectionTitle={selectionTitle || "line-history"} />
+                    <TimeRangeSelector value={timeRange} onChange={setTimeRange} className={isMobile ? "" : "ml-1"} />
+                  </>
+                )}
               </div>
             </div>
           </div>
         </DialogHeader>
 
         <div className="px-3 sm:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 max-h-[calc(100dvh-6.5rem)] sm:max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden overscroll-contain">
+          {isLoadingEntitlements && (
+            <div className="rounded-[20px] border border-neutral-200/70 dark:border-neutral-800/70 p-6 text-sm text-neutral-500 text-center bg-white/80 dark:bg-neutral-950/60">
+              <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin text-brand" />
+              Checking line movement access...
+            </div>
+          )}
+
+          {showLockedState && (
+            <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+              <section className={cn(sectionClass, "p-5 sm:p-6")}>
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <h3 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+                  {lockedStateCopy.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-400">
+                  {lockedStateCopy.description}
+                </p>
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <a
+                    href={lockedStateCopy.href}
+                    className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-sky-400 active:scale-[0.98]"
+                  >
+                    <LineChart className="h-4 w-4" />
+                    {lockedStateCopy.cta}
+                  </a>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Historical prices, OLV, CLV, and movement depth.
+                  </span>
+                </div>
+              </section>
+              <LineMovementPreview />
+            </div>
+          )}
+
+          {!showLockedState && !isLoadingEntitlements && (
+            <>
           {errorMessage && (
             <div className="rounded-2xl border border-red-300/70 dark:border-red-900/70 bg-red-50/80 dark:bg-red-950/25 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
               {errorMessage}
@@ -462,6 +601,8 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                 })}
               </div>
             </section>
+          )}
+            </>
           )}
         </div>
       </DialogContent>

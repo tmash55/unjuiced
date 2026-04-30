@@ -12,6 +12,8 @@ import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -30,6 +32,8 @@ import {
   Search,
   AlertTriangle,
   RefreshCw,
+  ListChecks,
+  LineChart,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -129,11 +133,66 @@ function getGameLabel(fav: Favorite): string | null {
   return null;
 }
 
+function normalizeLineHistorySide(side: string): LineHistoryContext["side"] {
+  if (side === "over" || side === "under" || side === "yes" || side === "no" || side === "ml" || side === "spread") {
+    return side;
+  }
+  if (side === "o") return "over";
+  if (side === "u") return "under";
+  return undefined;
+}
+
+function getAllBookPrices(
+  fav: Favorite,
+  refreshed?: RefreshedFavoriteOdds | null
+): {
+  allBookIds: string[];
+  currentPricesByBook: Record<string, number>;
+  bestBookId: string | null;
+  compareBookIds: string[];
+  oddIdsByBook: Record<string, string>;
+} {
+  const currentPricesByBook: Record<string, number> = {};
+  const oddIdsByBook: Record<string, string> = {};
+  const bookIds: string[] = [];
+  const seen = new Set<string>();
+
+  const addBook = (bookId: string, price?: number | null, oddId?: string | null) => {
+    if (!bookId) return;
+    if (!seen.has(bookId)) {
+      seen.add(bookId);
+      bookIds.push(bookId);
+    }
+    if (typeof price === "number" && Number.isFinite(price)) {
+      currentPricesByBook[bookId] = price;
+    }
+    if (oddId) oddIdsByBook[bookId] = oddId;
+  };
+
+  if (refreshed?.allBooks) {
+    for (const [bookId, data] of Object.entries(refreshed.allBooks)) {
+      addBook(bookId, data.price, data.oddId);
+    }
+  }
+
+  const snapshot = parseSnapshot(fav.books_snapshot);
+  if (snapshot) {
+    for (const [bookId, data] of Object.entries(snapshot)) {
+      addBook(bookId, data.price, data.odd_id);
+    }
+  }
+
+  const bestBookId = refreshed?.best?.book || fav.best_book_at_save || getBestOdds(fav.books_snapshot)?.bookId || null;
+  const compareBookIds = bookIds.filter((bookId) => bookId !== bestBookId).slice(0, 4);
+
+  return { allBookIds: bookIds, currentPricesByBook, bestBookId, compareBookIds, oddIdsByBook };
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface RefreshedFavoriteOdds {
   best: { price: number; book: string } | null;
-  allBooks: Record<string, { price: number; link: string | null; sgp: string | null }>;
+  allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }>;
 }
 
 // ── Panel Props ──────────────────────────────────────────────────────────────
@@ -158,6 +217,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
   const [isLoadingCompare, setIsLoadingCompare] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
   const compareCache = useRef<Map<string, Record<string, SgpBookOdds>>>(new Map());
   const prevFavIdsRef = useRef<string>("");
 
@@ -237,6 +297,33 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
 
   const selectedFavorites = useMemo(() => favorites.filter((f) => selectedIds.has(f.id)), [favorites, selectedIds]);
 
+  const handleOpenLineHistory = useCallback((fav: Favorite) => {
+    const refreshed = refreshedOddsMap.get(fav.id);
+    const { allBookIds, currentPricesByBook, bestBookId, compareBookIds, oddIdsByBook } = getAllBookPrices(fav, refreshed);
+    const playerOrTeam = getPlayerOrTeam(fav);
+
+    setLineHistoryContext({
+      source: "betslip",
+      sport: fav.sport,
+      eventId: fav.event_id,
+      market: fav.market,
+      marketDisplay: formatMarketLabel(fav.market) || formatMarketLabelShort(fav.market) || fav.market,
+      side: normalizeLineHistorySide(fav.side),
+      line: fav.line,
+      selectionName: playerOrTeam,
+      playerName: fav.player_name,
+      team: fav.player_team,
+      homeTeam: fav.home_team,
+      awayTeam: fav.away_team,
+      bestBookId,
+      compareBookIds,
+      allBookIds,
+      currentPricesByBook,
+      oddIdsByBook,
+    });
+    onOpenChange(false);
+  }, [onOpenChange, refreshedOddsMap]);
+
   // Estimated combo odds
   const comboOdds = useMemo(() => {
     if (selectedFavorites.length < 2) return null;
@@ -315,7 +402,22 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
     return { fullBooks: full, partialBooks: partial };
   }, [compareOdds]);
 
+  const compareErrorSummary = useMemo(() => {
+    const entries = Object.entries(compareOdds)
+      .map(([bookId, rawOdds]) => [bookId, rawOdds as SgpBookOdds & { legs_supported?: number; total_legs?: number }] as const)
+      .filter(([, odds]) => odds.error || !odds.price);
+
+    if (entries.length === 0) return null;
+
+    const firstUsefulError = entries.find(([, odds]) => odds.error)?.[1]?.error;
+    return {
+      checkedCount: entries.length,
+      message: firstUsefulError || "No price available for this combination",
+    };
+  }, [compareOdds]);
+
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
@@ -517,7 +619,10 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
 
                           {/* Expand to see all books for this leg */}
                           <button
+                            type="button"
                             onClick={() => setExpandedLegId(expandedLegId === fav.id ? null : fav.id)}
+                            aria-label={expandedLegId === fav.id ? "Hide sportsbook prices" : "Show sportsbook prices"}
+                            title={expandedLegId === fav.id ? "Hide sportsbook prices" : "Show sportsbook prices"}
                             className={cn(
                               "p-1 rounded transition-colors",
                               expandedLegId === fav.id
@@ -525,11 +630,23 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                                 : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                             )}
                           >
-                            <BarChart3 className="w-3.5 h-3.5" />
+                            <ListChecks className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Open historical line movement for this leg */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenLineHistory(fav)}
+                            aria-label="View line movement"
+                            title="View line movement"
+                            className="p-1 rounded text-neutral-400 hover:text-brand hover:bg-brand/10 transition-colors"
+                          >
+                            <LineChart className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Remove */}
                           <button
+                            type="button"
                             onClick={() => handleRemove(fav.id)}
                             className="p-1 rounded text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 transition-colors opacity-0 group-hover/play:opacity-100"
                           >
@@ -694,6 +811,11 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                     ) : fullBooks.length === 0 && partialBooks.length === 0 ? (
                       <div className="text-center py-4">
                         <p className="text-xs text-neutral-400">No sportsbooks returned odds for this combo</p>
+                        {compareErrorSummary && (
+                          <p className="mx-auto mt-1 max-w-[280px] text-[11px] leading-4 text-neutral-500">
+                            Checked {compareErrorSummary.checkedCount} books. {compareErrorSummary.message}
+                          </p>
+                        )}
                         <button
                           onClick={() => fetchCompare(true)}
                           className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-brand bg-brand/10 hover:bg-brand/20 transition-colors"
@@ -883,5 +1005,13 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
         </AnimatePresence>
       </SheetContent>
     </Sheet>
+    <LineHistoryDialog
+      open={!!lineHistoryContext}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setLineHistoryContext(null);
+      }}
+      context={lineHistoryContext}
+    />
+    </>
   );
 }

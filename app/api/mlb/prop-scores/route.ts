@@ -34,6 +34,31 @@ function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function getAvailableGameDates(sb: ReturnType<typeof createServerSupabaseClient>, targetDate: string): Promise<string[]> {
+  const from = addDays(targetDate, -14);
+  const to = addDays(targetDate, 14);
+  const { data, error } = await sb
+    .from("mlb_games")
+    .select("game_date")
+    .gte("game_date", from)
+    .lte("game_date", to)
+    .order("game_date", { ascending: true });
+
+  if (error) {
+    console.warn("[Prop Scores API] Failed to fetch available game dates:", error.message);
+    return [targetDate];
+  }
+
+  const dates = Array.from(new Set((data ?? []).map((r: any) => r.game_date as string))).sort();
+  return dates.length > 0 ? dates : [targetDate];
+}
+
 /** Normalize player name to Redis selection key format */
 function normalizePlayerName(name: string): string {
   return name
@@ -128,6 +153,7 @@ interface OddsValue {
     };
     player?: string;
     player_id?: string;
+    odd_id?: string;
   };
 }
 
@@ -139,7 +165,7 @@ interface LiveOdds {
   best_odds_mobile_link: string | null;
   best_odds_link: string | null;
   implied_prob: number; // avg implied across consensus-line books
-  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }>;
+  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; odd_id: string | null }>;
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -152,6 +178,7 @@ export async function GET(req: NextRequest) {
     const targetDate = dateParam || getETDate();
 
     const sb = createServerSupabaseClient();
+    const availableDatesPromise = getAvailableGameDates(sb, targetDate);
 
     // ── 1. Fetch prop scores from Supabase ─────────────────────────────
     let query = sb
@@ -173,10 +200,11 @@ export async function GET(req: NextRequest) {
 
     const scores = (rawScores ?? []) as any[];
     if (scores.length === 0) {
+      const availableDates = await availableDatesPromise;
       return NextResponse.json({
         scores: [],
         lineups: {},
-        meta: { date: targetDate, totalScores: 0, markets: [], oddsMatched: 0 },
+        meta: { date: targetDate, totalScores: 0, markets: [], oddsMatched: 0, availableDates },
       });
     }
 
@@ -317,14 +345,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // ── 6. Available dates ─────────────────────────────────────────────
-    const { data: dateRows } = await sb
-      .from("mlb_prop_scores")
-      .select("game_date")
-      .order("game_date", { ascending: false })
-      .limit(200);
-
-    const availableDates = Array.from(new Set((dateRows ?? []).map((r: any) => r.game_date))).sort().reverse();
+    // ── 6. Available dates (ascending — DateNav expects oldest first) ──
+    const availableDates = await availableDatesPromise;
 
     // ── 7. Response ────────────────────────────────────────────────────
     return NextResponse.json({
@@ -367,6 +389,7 @@ function getLiveOdds(
     under_price: number | null;
     link: string | null;
     mobile_link: string | null;
+    odd_id: string | null;
   }
 
   const entries: BookOdds[] = [];
@@ -409,6 +432,7 @@ function getLiveOdds(
         under_price: isNaN(underPrice as number) ? null : underPrice,
         link: selectionLinks.desktop,
         mobile_link: selectionLinks.mobile,
+        odd_id: typeof (sel as any).odd_id === "string" ? (sel as any).odd_id : null,
       });
     }
   }
@@ -460,7 +484,7 @@ function getLiveOdds(
 
   // Build all-book snapshot — store every book+line combo so frontend can filter by any line
   // Key format: "book" for consensus line, "book__2.5" for alternate lines
-  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }> =
+  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; odd_id: string | null }> =
     {};
   for (const e of entries) {
     if (e.line === consensusLine) {
@@ -471,6 +495,7 @@ function getLiveOdds(
         under: e.under_price,
         link: e.link,
         mobile_link: e.mobile_link,
+        odd_id: e.odd_id,
       };
     }
     // Always store the line-specific key for alt-line lookups
@@ -481,6 +506,7 @@ function getLiveOdds(
       under: e.under_price,
       link: e.link,
       mobile_link: e.mobile_link,
+      odd_id: e.odd_id,
     };
   }
 

@@ -1,4 +1,4 @@
-export type LineHistorySource = "edge" | "positive_ev";
+export type LineHistorySource = "edge" | "positive_ev" | "betslip" | "prop_center";
 
 export interface LineHistoryContext {
   source: LineHistorySource;

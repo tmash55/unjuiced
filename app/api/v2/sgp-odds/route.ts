@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
-import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
-import { redis } from "@/lib/redis";
 import { fetchSgpQuote } from "@/lib/sgp/quote-service";
-import { getMarketOddsPattern, normalizeFavoriteOddsKey } from "@/lib/odds/types";
+import { normalizeFavoriteOddsKey } from "@/lib/odds/types";
+import {
+  buildBookTokenMap,
+  formatCoverageForLog,
+  getSgpSupportingBooks,
+  resolveSgpTokensForLegs,
+} from "@/lib/sgp/token-resolver";
 
 // =============================================================================
 // TYPES
@@ -47,24 +51,9 @@ interface BetslipItemWithFavorite {
     player_name?: string | null;
     line?: number | null;
     side?: string | null;
-    books_snapshot?: Record<string, { sgp?: string }>;
+    books_snapshot?: Record<string, { sgp?: string | null } | null>;
   } | null;
 }
-
-// SSE/live odds selection format
-interface SSESelection {
-  player: string;
-  line: number;
-  side: string;
-  price: string;
-  price_decimal: number;
-  link?: string;
-  sgp?: string;
-  locked?: boolean;
-  market?: string; // Market type for matching
-}
-
-type SSEBookSelections = Record<string, SSESelection>;
 
 // =============================================================================
 // CONSTANTS
@@ -73,9 +62,7 @@ type SSEBookSelections = Record<string, SSESelection>;
 const SGP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (database cache)
 
 // Get all sportsbooks that support SGP (only books with sgp: true in sportsbooks.ts)
-const SGP_SUPPORTING_BOOKS = Object.entries(SPORTSBOOKS_META)
-  .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
-  .map(([id]) => id);
+const SGP_SUPPORTING_BOOKS = getSgpSupportingBooks();
 
 console.log("[SGP API] SGP-supporting books:", SGP_SUPPORTING_BOOKS);
 
@@ -98,183 +85,6 @@ function generateLegsHash(tokens: string[]): string {
   }
   // Convert to base36 for shorter string
   return (hash >>> 0).toString(36);
-}
-
-/**
- * Normalize player name for matching
- */
-function normalizePlayerName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Scan Redis keys with pattern
- */
-async function scanKeys(pattern: string): Promise<string[]> {
-  const keys: string[] = [];
-  let cursor = "0";
-
-  do {
-    const result: [string, string[]] = await redis.scan(cursor, {
-      match: pattern,
-      count: 100,
-    });
-    cursor = result[0];
-    keys.push(...result[1]);
-  } while (cursor !== "0");
-
-  return keys;
-}
-
-/**
- * Fetch live SGP tokens from Redis for a favorite
- * Falls back to books_snapshot if live data unavailable
- */
-async function fetchLiveSgpTokens(
-  favorite: BetslipItemWithFavorite['favorite'],
-  booksToFetch: string[]
-): Promise<Record<string, string>> {
-  const tokens: Record<string, string> = {};
-  if (!favorite) return tokens;
-  const marketOddsKey = normalizeFavoriteOddsKey({
-    oddsKey: favorite.odds_key,
-    sport: favorite.sport,
-    eventId: favorite.event_id,
-    market: favorite.market,
-  });
-
-  if (!marketOddsKey) {
-    // Fallback to saved snapshot
-    if (favorite.books_snapshot) {
-      for (const bookId of booksToFetch) {
-        const sgp = favorite.books_snapshot[bookId]?.sgp;
-        if (sgp) tokens[bookId] = sgp;
-      }
-    }
-    return tokens;
-  }
-  
-  // Try to fetch live data from Redis
-  try {
-    // Get all book keys for this market
-    const oddsKeyParts = marketOddsKey.split(":");
-    const favoriteMarket = favorite.market || oddsKeyParts[3] || null;
-    const bookPattern = getMarketOddsPattern(
-      oddsKeyParts[1],
-      oddsKeyParts[2],
-      oddsKeyParts[3]
-    );
-    const bookKeys = await scanKeys(bookPattern);
-    
-    if (bookKeys.length === 0) {
-      // No live data - fall back to snapshot
-      if (favorite?.books_snapshot) {
-        for (const bookId of booksToFetch) {
-          const sgp = favorite.books_snapshot[bookId]?.sgp;
-          if (sgp) tokens[bookId] = sgp;
-        }
-      }
-      return tokens;
-    }
-    
-    // Fetch all book data
-    const bookDataRaw = await redis.mget<(string | SSEBookSelections | null)[]>(...bookKeys);
-    
-    // Build book → selections map
-    const bookSelections: Record<string, SSEBookSelections> = {};
-    bookKeys.forEach((key, i) => {
-      const book = key.split(":").pop()!;
-      const data = bookDataRaw[i];
-      if (data && booksToFetch.includes(book)) {
-        bookSelections[book] = typeof data === "string" ? JSON.parse(data) : data;
-      }
-    });
-    
-    // Find matching selection for each book
-    const normalizedPlayer = normalizePlayerName(favorite.player_name || "");
-    
-    console.log(`[SGP API] Looking for: player="${favorite.player_name}", line=${favorite.line}, side=${favorite.side}, market=${favoriteMarket}`);
-    
-    for (const [book, selections] of Object.entries(bookSelections)) {
-      let matchFound = false;
-      let bestCandidate: { sel: SSESelection; lineDiff: number } | null = null;
-      
-      for (const sel of Object.values(selections) as SSESelection[]) {
-        // Match by player name
-        const selPlayerNormalized = normalizePlayerName(sel.player);
-        if (!selPlayerNormalized.includes(normalizedPlayer) && !normalizedPlayer.includes(selPlayerNormalized)) {
-          continue;
-        }
-        
-        // Match by side
-        if (sel.side !== favorite.side) {
-          continue;
-        }
-        
-        // Match by market if available (important for players with multiple props)
-        if (favoriteMarket && sel.market && sel.market !== favoriteMarket) {
-          continue;
-        }
-        
-        // Must have SGP token
-        if (!sel.sgp) {
-          continue;
-        }
-        
-        // Calculate line difference (prefer exact match, then closest)
-        const lineDiff = (favorite.line !== null && favorite.line !== undefined)
-          ? Math.abs(sel.line - favorite.line)
-          : 0;
-        
-        // Exact line match - use immediately
-        if (lineDiff === 0) {
-          bestCandidate = { sel, lineDiff: 0 };
-          break;
-        }
-        
-        // Track closest line match as fallback (within ±3 of saved line)
-        if (lineDiff <= 3 && (!bestCandidate || lineDiff < bestCandidate.lineDiff)) {
-          bestCandidate = { sel, lineDiff };
-        }
-      }
-      
-      if (bestCandidate) {
-        tokens[book] = bestCandidate.sel.sgp!;
-        matchFound = true;
-        console.log(`[SGP API] ✓ Found token for ${book}: searched="${favorite.player_name}" matched="${bestCandidate.sel.player}", line=${bestCandidate.sel.line} (saved=${favorite.line}, diff=${bestCandidate.lineDiff}), side=${bestCandidate.sel.side}, token=${bestCandidate.sel.sgp?.substring(0, 40)}...`);
-      }
-      
-      if (!matchFound && Object.keys(selections).length > 0) {
-        console.log(`[SGP API] ✗ No match for ${book} (searched="${favorite.player_name}", checked ${Object.keys(selections).length} selections)`);
-      }
-    }
-    
-    // Fall back to snapshot for any books not found in live data
-    if (favorite.books_snapshot) {
-      for (const bookId of booksToFetch) {
-        if (!tokens[bookId]) {
-          const sgp = favorite.books_snapshot[bookId]?.sgp;
-          if (sgp) tokens[bookId] = sgp;
-        }
-      }
-    }
-    
-    return tokens;
-  } catch (error) {
-    console.warn("[SGP API] Failed to fetch live SGP tokens:", error);
-    // Fallback to saved snapshot
-    if (favorite?.books_snapshot) {
-      for (const bookId of booksToFetch) {
-        const sgp = favorite.books_snapshot[bookId]?.sgp;
-        if (sgp) tokens[bookId] = sgp;
-      }
-    }
-    return tokens;
-  }
 }
 
 /**
@@ -479,9 +289,6 @@ export async function POST(request: NextRequest) {
       ? sportsbooks.filter(b => SGP_SUPPORTING_BOOKS.includes(b))
       : SGP_SUPPORTING_BOOKS;
 
-    // Collect SGP tokens for each book AND compute global legs hash
-    const bookTokensMap = new Map<string, string[]>();
-    
     // Collect all favorite IDs to compute betslip legs hash
     // This helps frontend detect when legs were added/removed
     const favoriteIds = items
@@ -490,65 +297,39 @@ export async function POST(request: NextRequest) {
       .sort() as string[];
     const betslipLegsHash = generateLegsHash(favoriteIds);
     
-    // Fetch LIVE SGP tokens for each favorite (not just from database snapshot)
-    // This ensures we have current tokens even if they weren't saved originally
+    // Resolve SGP tokens from saved snapshots plus current Redis odds data.
     const totalLegs = items.length;
-    console.log(`[SGP API] Fetching live SGP tokens for ${totalLegs} legs...`);
-    
-    const liveSgpTokensByFavorite = await Promise.all(
-      items.map(async (item) => {
-        const tokens = await fetchLiveSgpTokens(item.favorite, booksToFetch);
-        return { favoriteId: item.favorite?.id, tokens };
-      })
+    console.log(`[SGP API] Resolving SGP tokens for ${totalLegs} legs...`);
+
+    const resolvedTokens = await resolveSgpTokensForLegs(
+      items.map((item) => {
+        const favorite = item.favorite;
+        return {
+          favorite_id: favorite?.id,
+          sport: favorite?.sport,
+          event_id: favorite?.event_id,
+          market: favorite?.market,
+          odds_key: favorite?.odds_key,
+          player_name: favorite?.player_name,
+          line: favorite?.line,
+          side: favorite?.side,
+          books_snapshot: favorite?.books_snapshot,
+        };
+      }),
+      {
+        books: booksToFetch,
+        loggerPrefix: "[SGP API]",
+      }
     );
-    
-    // Track how many legs each book supports (before filtering)
-    const bookLegsCount = new Map<string, number>();
-    
-    // Build bookTokensMap from live tokens
-    for (const bookId of booksToFetch) {
-      const tokens: string[] = [];
-      
-      for (const { tokens: favTokens } of liveSgpTokensByFavorite) {
-        const sgpToken = favTokens[bookId];
-        if (sgpToken) {
-          tokens.push(sgpToken);
-        }
-      }
-      
-      // Track legs count for all books
-      bookLegsCount.set(bookId, tokens.length);
-      
-      // Only include books that have at least 2 SGP tokens
-      if (tokens.length >= 2) {
-        bookTokensMap.set(bookId, tokens);
-      }
-    }
-    
-    console.log(`[SGP API] Found tokens for books: ${Array.from(bookTokensMap.keys()).join(', ')}`);
-    
-    // If no books have tokens from live data, fall back to database snapshot
-    if (bookTokensMap.size === 0) {
-      console.log(`[SGP API] No live tokens found, falling back to database snapshot`);
-      for (const bookId of booksToFetch) {
-        const tokens: string[] = [];
-        
-        for (const item of items) {
-          const favorite = item.favorite;
-          if (!favorite?.books_snapshot) continue;
-          
-          const bookSnapshot = favorite.books_snapshot[bookId];
-          if (bookSnapshot?.sgp) {
-            tokens.push(bookSnapshot.sgp);
-          }
-        }
-        
-        // Only include books that have at least 2 SGP tokens
-        if (tokens.length >= 2) {
-          bookTokensMap.set(bookId, tokens);
-        }
-      }
-    }
+    const { bookTokensMap, bookLegsCount } = buildBookTokenMap(
+      resolvedTokens.legs,
+      booksToFetch,
+      { minTokens: 2 }
+    );
+
+    console.log(
+      `[SGP API] Found tokens for books: ${formatCoverageForLog(resolvedTokens.coverage)}`
+    );
 
     // Fetch each book independently. Odds are sportsbook-specific and
     // should not be reused across different books even with matching tokens.
@@ -635,6 +416,11 @@ export async function POST(request: NextRequest) {
       cache_stats: {
         redis_hits: redisCacheHits,
         vendor_calls: vendorCalls,
+      },
+      diagnostics: {
+        token_coverage: resolvedTokens.coverage.by_book,
+        full_support_books: resolvedTokens.coverage.full_support_books,
+        partial_support_books: resolvedTokens.coverage.partial_support_books,
       },
     });
   } catch (error) {
