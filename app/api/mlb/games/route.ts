@@ -572,6 +572,7 @@ export async function GET() {
       return {
         game_id: String(row.game_id),
         game_date: row.game_date,
+        game_datetime: row.game_datetime ?? null,
         home_team_name: row.home_name,
         away_team_name: row.away_name,
         home_team_tricode: homeAbbr,

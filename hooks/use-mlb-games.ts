@@ -50,6 +50,7 @@ export interface MlbGameLiveState {
 export interface MlbGame {
   game_id: string;
   game_date: string;
+  game_datetime: string | null;
   home_team_name: string;
   away_team_name: string;
   home_team_tricode: string;
