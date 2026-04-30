@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
@@ -17,7 +18,7 @@ import { LineHistoryDialog } from "@/components/opportunities/line-history-dialo
 import { BasesDiamond } from "@/components/game-center/bases-diamond";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite } from "@/hooks/use-favorites";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
 import { toast } from "sonner";
 import {
@@ -889,6 +890,8 @@ function buildPropCenterFavoriteParams({
     return null;
   }
 
+  const favoritePlayerId = player.odds_player_id || String(player.player_id);
+
   const booksSnapshot: Record<string, BookSnapshot> = {};
   for (const [bookKey, data] of Object.entries(player.odds_snapshot ?? {})) {
     if (!data || data.over == null || data.line !== line) continue;
@@ -907,18 +910,18 @@ function buildPropCenterFavoriteParams({
     sport: "mlb",
     event_id: eventId,
     game_date: game?.game_date || player.game_date || null,
-    home_team: game?.home_team_name || null,
-    away_team: game?.away_team_name || null,
+    home_team: game?.home_team_tricode || null,
+    away_team: game?.away_team_tricode || null,
     start_time: game?.game_datetime || player.game_time || null,
-    player_id: String(player.player_id),
+    player_id: favoritePlayerId,
     player_name: player.player_name,
     player_team: player.team_abbr || null,
-    player_position: player.player_type === "pitcher" ? "P" : null,
+    player_position: player.player_position || (player.player_type === "pitcher" ? "P" : null),
     market,
     line,
     side: "over",
     odds_key: `odds:mlb:${eventId}:${market}`,
-    odds_selection_id: `${eventId}:${player.player_id}:${market}:${line}:over`,
+    odds_selection_id: `${eventId}:${favoritePlayerId}:${market}:${line}:over`,
     books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
     best_price_at_save: player.best_odds,
     best_book_at_save: player.best_odds_book ? parseBookKey(player.best_odds_book) : null,
@@ -938,6 +941,7 @@ function PropCenterFavoriteButton({
   className?: string;
 }) {
   const { toggleFavorite, isFavorited, isLoggedIn, isToggling } = useFavorites();
+  const queryClient = useQueryClient();
   const [optimisticState, setOptimisticState] = useState<boolean | null>(null);
 
   const favoriteParams = useMemo(
@@ -981,47 +985,54 @@ function PropCenterFavoriteButton({
             duration: 3000,
           });
 
-          const enrichBooks = Object.keys(snapshot).filter((bookId) => !snapshot[bookId]?.sgp);
-          if (enrichBooks.length > 0) {
-            fetch("/api/v2/favorites/enrich-sgp", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sport: "mlb",
-                event_id: favoriteParams.event_id,
-                market: favoriteParams.market,
-                player_name: playerName,
-                line: favoriteParams.line,
-                side: "over",
-                books: enrichBooks,
-              }),
+          fetch("/api/v2/favorites/enrich-sgp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sport: "mlb",
+              event_id: favoriteParams.event_id,
+              odds_key: favoriteParams.odds_key,
+              market: favoriteParams.market,
+              player_name: playerName,
+              line: favoriteParams.line,
+              side: "over",
+            }),
+          })
+            .then((response) => {
+              if (!response.ok) throw new Error("enrich failed");
+              return response.json();
             })
-              .then((response) => {
-                if (!response.ok) throw new Error("enrich failed");
-                return response.json();
-              })
-              .then((data) => {
-                if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
-                const favoriteId = result.favorite?.id;
-                if (!favoriteId) return;
+            .then((data) => {
+              if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
+              const favorite = result.favorite;
+              if (!favorite?.id) return;
 
-                const enriched = { ...snapshot };
-                for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
-                  if (enriched[bookId]) {
-                    enriched[bookId] = { ...enriched[bookId], sgp: token as string };
-                  }
+              const enriched = { ...snapshot };
+              for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                if (enriched[bookId]) {
+                  enriched[bookId] = { ...enriched[bookId], sgp: token as string };
                 }
+              }
 
-                import("@/libs/supabase/client").then(({ createClient }) => {
-                  createClient()
-                    .from("user_favorites")
-                    .update({ books_snapshot: enriched })
-                    .eq("id", favoriteId)
-                    .then(() => {});
-                });
-              })
-              .catch(() => {});
-          }
+              const enrichedFavorite = { ...favorite, books_snapshot: enriched };
+              queryClient.setQueryData<Favorite[]>(
+                ["favorites", favorite.user_id],
+                (old) => old
+                  ? old.map((fav) => (fav?.id === favorite.id ? enrichedFavorite : fav))
+                  : old
+              );
+
+              import("@/libs/supabase/client").then(({ createClient }) => {
+                createClient()
+                  .from("user_favorites")
+                  .update({ books_snapshot: enriched })
+                  .eq("id", favorite.id)
+                  .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["favorites", favorite.user_id] });
+                  });
+              });
+            })
+            .catch(() => {});
         } else if (result?.action === "removed") {
           toast("Removed from My Plays", { duration: 2000 });
         }

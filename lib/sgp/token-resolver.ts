@@ -140,6 +140,10 @@ function selectionMatchesLeg(
     if (Math.abs(selectionLine - legLine) > LINE_TOLERANCE) return false;
   }
 
+  const legPlayerId = String(leg.player_id || "").trim().toLowerCase();
+  const selectionPlayerId = String(selection.player_id || "").trim().toLowerCase();
+  if (legPlayerId && selectionPlayerId && legPlayerId === selectionPlayerId) return true;
+
   const legPlayer = normalizePlayerName(leg.player_name || "");
   if (!legPlayer) return true;
 

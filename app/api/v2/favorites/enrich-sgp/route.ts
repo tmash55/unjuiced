@@ -15,19 +15,20 @@ import { resolveSgpTokensForLegs } from "@/lib/sgp/token-resolver";
 interface EnrichRequest {
   sport: string;
   event_id: string;
+  odds_key?: string | null;
   market: string;
   player_name: string;
   line: number | null;
   side: string;
-  books: string[]; // Book IDs to enrich
+  books?: string[]; // Book IDs to enrich. Omit to try every SGP-capable book.
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: EnrichRequest = await request.json();
-    const { sport, event_id, market, player_name, line, side, books } = body;
+    const { sport, event_id, odds_key, market, player_name, line, side, books } = body;
 
-    if (!sport || !event_id || !market || !books?.length) {
+    if (!sport || !event_id || !market) {
       return NextResponse.json({ sgp_tokens: {} });
     }
 
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
         {
           sport,
           event_id,
+          odds_key,
           market,
           player_name,
           line,
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
         },
       ],
       {
-        books,
+        books: books?.length ? books : undefined,
         loggerPrefix: "[enrich-sgp]",
       }
     );

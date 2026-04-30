@@ -1,8 +1,10 @@
 export interface PropScorePlayer {
   player_id: number;
+  odds_player_id?: string | null;
   player_name: string;
   player_type: "batter" | "pitcher";
   team_abbr: string;
+  player_position?: string | null;
   game_id: number;
   game_date: string;
   market: string;

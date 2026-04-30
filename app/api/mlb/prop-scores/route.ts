@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
 
     const { data: gameRows } = await sb
       .from("mlb_games")
-      .select("game_id, odds_game_id, home_id, away_id, venue_name, game_time")
+      .select("game_id, odds_game_id, home_id, away_id, venue_name, game_datetime")
       .in("game_id", gameIds);
 
     const gameMap = new Map<number, any>();
@@ -221,6 +221,17 @@ export async function GET(req: NextRequest) {
     for (const g of gameRows ?? []) {
       gameMap.set(g.game_id, g);
       if (g.odds_game_id) gameToEvent.set(g.game_id, g.odds_game_id);
+    }
+
+    const playerIds = Array.from(new Set(scores.map((s: any) => s.player_id).filter(Boolean)));
+    const { data: playerRows } = await sb
+      .from("mlb_players_hr")
+      .select("mlb_player_id, odds_player_id, pos_abbr, position")
+      .in("mlb_player_id", playerIds);
+
+    const playerMetaMap = new Map<number, any>();
+    for (const row of playerRows ?? []) {
+      playerMetaMap.set(row.mlb_player_id, row);
     }
 
     // ── 3. Fetch lineups for all games ─────────────────────────────────
@@ -323,9 +334,12 @@ export async function GET(req: NextRequest) {
       if (liveOdds) oddsMatched++;
 
       const gameInfo = gameMap.get(score.game_id);
+      const playerMeta = playerMetaMap.get(score.player_id);
 
       return {
         ...score,
+        odds_player_id: playerMeta?.odds_player_id ?? null,
+        player_position: playerMeta?.pos_abbr ?? playerMeta?.position ?? null,
         // Live odds override pre-computed
         line: liveOdds?.line ?? score.line,
         best_odds: liveOdds?.best_odds ?? score.best_odds,
@@ -340,7 +354,7 @@ export async function GET(req: NextRequest) {
           ? Math.round(((score.model_prob - liveOdds.implied_prob) / liveOdds.implied_prob) * 10000) / 100
           : score.edge_pct,
         // Game context
-        game_time: gameInfo?.game_time ?? null,
+        game_time: gameInfo?.game_datetime ?? null,
         venue_name: gameInfo?.venue_name ?? null,
       };
     });
