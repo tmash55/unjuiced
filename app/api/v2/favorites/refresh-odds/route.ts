@@ -45,6 +45,7 @@ interface BookOdds {
   decimal: number;
   link: string | null;
   sgp: string | null;
+  odd_id: string | null;
 }
 
 interface RefreshedOdds {
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
               decimal: sel.price_decimal,
               link: sel.link || null,
               sgp: sel.sgp || null,
+              odd_id: sel.odd_id || null,
             });
           }
         }

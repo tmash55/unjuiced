@@ -9,13 +9,17 @@ import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
 import { usePropLiveOdds } from "@/hooks/use-prop-live-odds";
 import { useMlbGames, type MlbGame } from "@/hooks/use-mlb-games";
 import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
-import { useHasHitRateAccess } from "@/hooks/use-entitlements";
+import { useEntitlements, useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { useStateLink } from "@/hooks/use-state-link";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import { BasesDiamond } from "@/components/game-center/bases-diamond";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
+import { toast } from "sonner";
 import {
   SheetFilterBar,
   SegmentedControl,
@@ -30,6 +34,8 @@ import {
   ChevronRight,
   Lock,
   ExternalLink,
+  Heart,
+  LineChart,
 } from "lucide-react";
 import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
 
@@ -325,6 +331,18 @@ const MARKETS: MarketConfig[] = [
 
 const MARKET_MAP = new Map(MARKETS.map((m) => [m.key, m]));
 
+const PROP_MARKET_TO_ODDS_MARKET: Record<string, string> = {
+  hr: "player_home_runs",
+  hits: "player_hits",
+  tb: "player_total_bases",
+  rbi: "player_rbis",
+  sb: "player_stolen_bases",
+  pitcher_k: "player_strikeouts",
+  pitcher_h: "player_hits_allowed",
+  pitcher_er: "player_earned_runs",
+  h_r_rbi: "player_hits__runs__rbis",
+};
+
 
 // ── Grade System ─────────────────────────────────────────────────────────────
 
@@ -575,6 +593,88 @@ function resolveBookLink(
   return applyState?.(resolved) || resolved;
 }
 
+type PropOddsSnapshot = NonNullable<PropScorePlayer["odds_snapshot"]>;
+type PropOddsSnapshotEntry = PropOddsSnapshot[string];
+type PropBookEntry = [string, PropOddsSnapshotEntry];
+
+type LineHistoryAccessState = {
+  canView: boolean;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+};
+
+function getBookEntriesForLine(player: PropScorePlayer): PropBookEntry[] {
+  const snapshot = player.odds_snapshot ?? {};
+  const targetLine = player.line;
+
+  return Object.entries(snapshot)
+    .filter(([, data]) => data?.over != null && (targetLine == null || data.line === targetLine))
+    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
+    .reduce<PropBookEntry[]>((acc, entry) => {
+      const realBook = parseBookKey(entry[0]);
+      if (!acc.some(([key]) => parseBookKey(key) === realBook)) acc.push(entry);
+      return acc;
+    }, []);
+}
+
+function buildPropCenterLineHistoryContext(
+  player: PropScorePlayer,
+  marketConfig: MarketConfig,
+  game?: MlbGame
+): LineHistoryContext | null {
+  const market = PROP_MARKET_TO_ODDS_MARKET[marketConfig.key];
+  const eventId = game?.odds_game_id || "";
+  if (!market || !eventId || player.line == null) return null;
+
+  const allBookIds: string[] = [];
+  const currentPricesByBook: Record<string, number> = {};
+  const oddIdsByBook: Record<string, string> = {};
+  const seen = new Set<string>();
+
+  for (const [bookKey, data] of getBookEntriesForLine(player)) {
+    const bookId = parseBookKey(bookKey);
+    if (!seen.has(bookId)) {
+      seen.add(bookId);
+      allBookIds.push(bookId);
+    }
+    if (typeof data?.over === "number" && Number.isFinite(data.over)) {
+      currentPricesByBook[bookId] = data.over;
+    }
+    if (data?.odd_id) {
+      oddIdsByBook[bookId] = data.odd_id;
+    }
+  }
+
+  const bestBookId = player.best_odds_book ? parseBookKey(player.best_odds_book) : allBookIds[0] || null;
+  const compareBookIds = allBookIds.filter((bookId) => bookId !== bestBookId).slice(0, 4);
+
+  return {
+    source: "prop_center",
+    sport: "mlb",
+    eventId,
+    market,
+    marketDisplay: marketConfig.label,
+    side: "over",
+    line: player.line,
+    selectionName: player.player_name,
+    playerName: player.player_name,
+    team: player.team_abbr || null,
+    homeTeam: game?.home_team_name || null,
+    awayTeam: game?.away_team_name || null,
+    bestBookId,
+    compareBookIds,
+    allBookIds,
+    currentPricesByBook,
+    oddIdsByBook,
+  };
+}
+
+function getLineHistoryGateLabel(access: LineHistoryAccessState): string {
+  if (access.isLoading) return "Checking access...";
+  if (access.canView) return "Line movement";
+  return access.isAuthenticated ? "Sharp plan required" : "Sign in required";
+}
+
 type SortField = "score" | "player" | "edge_pct" | "line" | "best_odds" | "col0" | "col1" | "col2";
 type SortDirection = "asc" | "desc";
 
@@ -610,7 +710,19 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
   return bar;
 }
 
-function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScorePlayer; marketConfig: MarketConfig; isMobile?: boolean }) {
+function OddsCell({
+  player,
+  marketConfig,
+  isMobile = false,
+  lineHistoryAccess,
+  onLineHistoryClick,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  isMobile?: boolean;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+}) {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
@@ -627,17 +739,8 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
   if (!hasOdds) return <span className="text-xs text-neutral-500">—</span>;
 
   const logo = player.best_odds_book ? getBookLogo(player.best_odds_book) : null;
-  const snapshot = player.odds_snapshot ?? {};
-  const targetLine = player.line;
-  // Only show books offering the same line — deduplicate by real book ID (prefer best price)
-  const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
-    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
-      const realBook = parseBookKey(entry[0]);
-      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
-      return acc;
-    }, []);
+  const bookEntries = getBookEntriesForLine(player);
+  const showLineHistoryAction = !!lineHistoryAccess && !!onLineHistoryClick;
 
   return (
     <div ref={ref} className="relative inline-flex">
@@ -732,10 +835,222 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
                 );
               })}
             </div>
+            {showLineHistoryAction && (
+              <div className="border-t border-neutral-100 dark:border-neutral-800/70 p-2">
+                <Tooltip content={lineHistoryAccess.canView ? "View historical line movement" : getLineHistoryGateLabel(lineHistoryAccess)} side="left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLineHistoryClick?.();
+                      if (lineHistoryAccess.canView) setIsOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors active:scale-[0.98]",
+                      lineHistoryAccess.canView
+                        ? "text-neutral-700 hover:bg-brand/5 dark:text-neutral-200 dark:hover:bg-brand/10"
+                        : "text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <LineChart className="h-3.5 w-3.5 text-brand shrink-0" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider truncate">
+                        Line movement
+                      </span>
+                    </span>
+                    {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && (
+                      <Lock className="h-3 w-3 shrink-0 text-neutral-500" />
+                    )}
+                  </button>
+                </Tooltip>
+              </div>
+            )}
           </div>
         );
       })()}
     </div>
+  );
+}
+
+function buildPropCenterFavoriteParams({
+  player,
+  marketConfig,
+  game,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  game?: MlbGame;
+}): AddFavoriteParams | null {
+  const market = PROP_MARKET_TO_ODDS_MARKET[marketConfig.key];
+  const eventId = game?.odds_game_id || String(player.game_id || "");
+  const line = player.line ?? null;
+
+  if (!market || !eventId || line == null || player.best_odds == null) {
+    return null;
+  }
+
+  const booksSnapshot: Record<string, BookSnapshot> = {};
+  for (const [bookKey, data] of Object.entries(player.odds_snapshot ?? {})) {
+    if (!data || data.over == null || data.line !== line) continue;
+    const bookId = parseBookKey(bookKey);
+    booksSnapshot[bookId] = {
+      price: data.over,
+      u: data.link || null,
+      m: data.mobile_link || null,
+      sgp: (data as any).sgp || null,
+      odd_id: data.odd_id || null,
+    };
+  }
+
+  return {
+    type: "player",
+    sport: "mlb",
+    event_id: eventId,
+    game_date: game?.game_date || player.game_date || null,
+    home_team: game?.home_team_name || null,
+    away_team: game?.away_team_name || null,
+    start_time: game?.game_datetime || player.game_time || null,
+    player_id: String(player.player_id),
+    player_name: player.player_name,
+    player_team: player.team_abbr || null,
+    player_position: player.player_type === "pitcher" ? "P" : null,
+    market,
+    line,
+    side: "over",
+    odds_key: `odds:mlb:${eventId}:${market}`,
+    odds_selection_id: `${eventId}:${player.player_id}:${market}:${line}:over`,
+    books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+    best_price_at_save: player.best_odds,
+    best_book_at_save: player.best_odds_book ? parseBookKey(player.best_odds_book) : null,
+    source: "prop_center",
+  };
+}
+
+function PropCenterFavoriteButton({
+  player,
+  marketConfig,
+  game,
+  className,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  game?: MlbGame;
+  className?: string;
+}) {
+  const { toggleFavorite, isFavorited, isLoggedIn, isToggling } = useFavorites();
+  const [optimisticState, setOptimisticState] = useState<boolean | null>(null);
+
+  const favoriteParams = useMemo(
+    () => buildPropCenterFavoriteParams({ player, marketConfig, game }),
+    [player, marketConfig, game]
+  );
+
+  const isFavoritedServer = favoriteParams
+    ? isFavorited({
+        event_id: favoriteParams.event_id,
+        type: "player",
+        player_id: favoriteParams.player_id,
+        market: favoriteParams.market,
+        line: favoriteParams.line,
+        side: "over",
+      })
+    : false;
+
+  React.useEffect(() => {
+    if (optimisticState !== null && optimisticState === isFavoritedServer) {
+      setOptimisticState(null);
+    }
+  }, [isFavoritedServer, optimisticState]);
+
+  const isFilled = optimisticState ?? isFavoritedServer;
+  const isDisabled = !favoriteParams || isToggling;
+
+  const handleClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!favoriteParams || !isLoggedIn) return;
+
+    setOptimisticState(!isFilled);
+    const snapshot = favoriteParams.books_snapshot ?? {};
+    const playerName = favoriteParams.player_name || "Play";
+
+    toggleFavorite(favoriteParams)
+      .then((result) => {
+        if (result?.action === "added") {
+          toast.success("Saved to My Plays", {
+            description: `${playerName} over ${favoriteParams.line} ${marketConfig.lineLabel}`,
+            duration: 3000,
+          });
+
+          const enrichBooks = Object.keys(snapshot).filter((bookId) => !snapshot[bookId]?.sgp);
+          if (enrichBooks.length > 0) {
+            fetch("/api/v2/favorites/enrich-sgp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sport: "mlb",
+                event_id: favoriteParams.event_id,
+                market: favoriteParams.market,
+                player_name: playerName,
+                line: favoriteParams.line,
+                side: "over",
+                books: enrichBooks,
+              }),
+            })
+              .then((response) => {
+                if (!response.ok) throw new Error("enrich failed");
+                return response.json();
+              })
+              .then((data) => {
+                if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
+                const favoriteId = result.favorite?.id;
+                if (!favoriteId) return;
+
+                const enriched = { ...snapshot };
+                for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                  if (enriched[bookId]) {
+                    enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                  }
+                }
+
+                import("@/libs/supabase/client").then(({ createClient }) => {
+                  createClient()
+                    .from("user_favorites")
+                    .update({ books_snapshot: enriched })
+                    .eq("id", favoriteId)
+                    .then(() => {});
+                });
+              })
+              .catch(() => {});
+          }
+        } else if (result?.action === "removed") {
+          toast("Removed from My Plays", { duration: 2000 });
+        }
+      })
+      .catch(() => {
+        setOptimisticState(null);
+        toast.error("Could not update My Plays");
+      });
+  };
+
+  return (
+    <Tooltip content={!isLoggedIn ? "Sign in to save plays" : isFilled ? "Remove from My Plays" : "Add to My Plays"} side="top">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isDisabled}
+        className={cn(
+          "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors active:scale-[0.97]",
+          isFilled
+            ? "bg-red-50 text-red-500 dark:bg-red-950/30"
+            : "text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:text-neutral-500 dark:hover:bg-neutral-800",
+          isDisabled && "cursor-not-allowed opacity-50",
+          className
+        )}
+        aria-label={isFilled ? "Remove from My Plays" : "Add to My Plays"}
+      >
+        <Heart className={cn("h-4 w-4", isFilled && "fill-current")} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -927,22 +1242,25 @@ function formatDisplayStat(val: any, format: StatDisplayItem["format"]): string 
 
 // ── Expanded Row ────────────────────────────────────────────────────────────
 
-function ExpandedRow({ player, marketConfig, opposingPitcher }: { player: PropScorePlayer; marketConfig: MarketConfig; opposingPitcher?: string | null }) {
+function ExpandedRow({
+  player,
+  marketConfig,
+  opposingPitcher,
+  lineHistoryAccess,
+  onLineHistoryClick,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  opposingPitcher?: string | null;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+}) {
   const applyState = useStateLink();
   const factors = player.factor_scores ?? {};
   const keyStats = player.key_stats ?? {};
   const expandedStats = player.expanded_stats ?? {};
   const allData = { ...keyStats, ...expandedStats };
-  const snapshot = player.odds_snapshot ?? {};
-  const targetLine = player.line;
-  const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
-    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
-      const realBook = parseBookKey(entry[0]);
-      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
-      return acc;
-    }, []);
+  const bookEntries = getBookEntriesForLine(player);
   const bestBook = player.best_odds_book;
 
   // Market-specific stat display
@@ -1313,20 +1631,43 @@ function ExpandedRow({ player, marketConfig, opposingPitcher }: { player: PropSc
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">All Book Odds</h4>
-                    {/* Odds variance callout */}
-                    {(() => {
-                      const prices = bookEntries.map(([, d]) => d?.over).filter((p): p is number => p != null);
-                      if (prices.length < 3) return null;
-                      const spread = Math.max(...prices) - Math.min(...prices);
-                      if (spread < 200) return null;
-                      return (
-                        <Tooltip content={`${spread}+ point spread across books — market hasn't settled, potential value opportunity`} side="left">
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
-                            Wide Spread
-                          </span>
+                    <div className="flex items-center gap-2">
+                      {/* Odds variance callout */}
+                      {(() => {
+                        const prices = bookEntries.map(([, d]) => d?.over).filter((p): p is number => p != null);
+                        if (prices.length < 3) return null;
+                        const spread = Math.max(...prices) - Math.min(...prices);
+                        if (spread < 200) return null;
+                        return (
+                          <Tooltip content={`${spread}+ point spread across books — market hasn't settled, potential value opportunity`} side="left">
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
+                              Wide Spread
+                            </span>
+                          </Tooltip>
+                        );
+                      })()}
+                      {lineHistoryAccess && onLineHistoryClick && (
+                        <Tooltip content={lineHistoryAccess.canView ? "View historical line movement" : getLineHistoryGateLabel(lineHistoryAccess)} side="left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onLineHistoryClick();
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors active:scale-[0.98]",
+                              lineHistoryAccess.canView
+                                ? "bg-brand/10 text-brand hover:bg-brand/15"
+                                : "bg-neutral-500/10 text-neutral-400 hover:bg-neutral-500/15"
+                            )}
+                          >
+                            <LineChart className="h-3 w-3" />
+                            Movement
+                            {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && <Lock className="h-2.5 w-2.5" />}
+                          </button>
                         </Tooltip>
-                      );
-                    })()}
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-0.5">
                     {bookEntries.map(([book, info], idx) => {
@@ -1381,7 +1722,25 @@ function ExpandedRow({ player, marketConfig, opposingPitcher }: { player: PropSc
   );
 }
 
-function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { player: PropScorePlayer; rank: number; marketConfig: MarketConfig; opposingPitcher?: string | null; isHome?: boolean }) {
+function MobileCard({
+  player,
+  rank,
+  marketConfig,
+  opposingPitcher,
+  isHome,
+  game,
+  lineHistoryAccess,
+  onLineHistoryClick,
+}: {
+  player: PropScorePlayer;
+  rank: number;
+  marketConfig: MarketConfig;
+  opposingPitcher?: string | null;
+  isHome?: boolean;
+  game?: MlbGame;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const config = getGradeConfig(player.grade);
   const factors = player.factor_scores ?? {};
@@ -1389,7 +1748,18 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
 
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 overflow-hidden">
-      <button onClick={() => setExpanded(!expanded)} className="w-full text-left p-4 flex items-center gap-3">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setExpanded((value) => !value);
+          }
+        }}
+        className="w-full text-left p-4 flex items-center gap-3"
+      >
         <span className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0",
           rank <= 3 ? "bg-amber-500/20 text-amber-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400"
         )}>
@@ -1430,7 +1800,10 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {!marketConfig.hideOdds && (
+            <PropCenterFavoriteButton player={player} marketConfig={marketConfig} game={game} />
+          )}
           {!marketConfig.hideOdds && (
             <div className="text-right">
               <span className="text-[10px] text-neutral-500 block">Edge</span>
@@ -1445,21 +1818,10 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
             <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
           </div>
         </div>
-      </button>
+      </div>
 
       {expanded && (() => {
-        const snapshot = player.odds_snapshot ?? {};
-        const targetLine = player.line;
-        // Get top books with odds at this line, deduped
-        const bookEntries = Object.entries(snapshot)
-          .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-          .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
-          .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
-            const realBook = parseBookKey(entry[0]);
-            if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
-            return acc;
-          }, [])
-          ; // Show all books
+        const bookEntries = getBookEntriesForLine(player);
 
         return (
           <div className="border-t border-neutral-100 dark:border-neutral-800">
@@ -1468,13 +1830,34 @@ function MobileCard({ player, rank, marketConfig, opposingPitcher, isHome }: { p
               <div className="px-4 py-3 border-b border-neutral-100/80 dark:border-neutral-800/50">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Best Odds</span>
-                  {player.model_prob != null && player.implied_prob != null && (
-                    <span className="text-[9px] text-neutral-400">
-                      Model <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.model_prob * 100).toFixed(0)}%</span>
-                      <span className="mx-1 text-neutral-300 dark:text-neutral-600">vs</span>
-                      Market <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.implied_prob * 100).toFixed(0)}%</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {player.model_prob != null && player.implied_prob != null && (
+                      <span className="text-[9px] text-neutral-400">
+                        Model <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.model_prob * 100).toFixed(0)}%</span>
+                        <span className="mx-1 text-neutral-300 dark:text-neutral-600">vs</span>
+                        Market <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.implied_prob * 100).toFixed(0)}%</span>
+                      </span>
+                    )}
+                    {lineHistoryAccess && onLineHistoryClick && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onLineHistoryClick();
+                        }}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors active:scale-[0.98]",
+                          lineHistoryAccess.canView
+                            ? "bg-brand/10 text-brand"
+                            : "bg-neutral-500/10 text-neutral-400"
+                        )}
+                      >
+                        <LineChart className="h-3 w-3" />
+                        Movement
+                        {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && <Lock className="h-2.5 w-2.5" />}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
                   {bookEntries.map(([bookKey, data]) => {
@@ -1627,10 +2010,20 @@ export function MlbPropCommandCenter() {
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>("all");
   const [selectedLine, setSelectedLine] = useState<number | null>(null); // null = use consensus
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
   const isGated = !isLoadingAccess && !hasAccess;
+  const lineHistoryAccess = useMemo<LineHistoryAccessState>(() => {
+    const plan = entitlements?.plan;
+    return {
+      canView: !isLoadingEntitlements && !!entitlements?.authenticated && (plan === "sharp" || plan === "elite" || plan === "unlimited"),
+      isLoading: isLoadingEntitlements,
+      isAuthenticated: !!entitlements?.authenticated,
+    };
+  }, [entitlements?.authenticated, entitlements?.plan, isLoadingEntitlements]);
 
   const marketConfig = MARKET_MAP.get(selectedMarket) ?? MARKETS[0];
 
@@ -1686,6 +2079,7 @@ export function MlbPropCommandCenter() {
             under: null,
             link: ab.link,
             mobile_link: ab.mobile_link,
+            odd_id: ab.odd_id || null,
           };
         }
       }
@@ -1845,6 +2239,18 @@ export function MlbPropCommandCenter() {
     ranked.forEach((p, i) => map.set(p.player_id, i + 1));
     return map;
   }, [filteredPlayers]);
+
+  const handleOpenLineHistory = useCallback((player: PropScorePlayer, config: MarketConfig, game?: MlbGame) => {
+    if (lineHistoryAccess.isLoading) return;
+
+    const context = buildPropCenterLineHistoryContext(player, config, game);
+    if (!context) {
+      toast.error("Line movement is unavailable for this play");
+      return;
+    }
+
+    setLineHistoryContext(context);
+  }, [lineHistoryAccess.isLoading]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -2032,7 +2438,17 @@ export function MlbPropCommandCenter() {
               const oppP = g ? (playerIsHome ? g.away_probable_pitcher : g.home_probable_pitcher) : null;
               const oppPShort = oppP ? oppP.split(" ").pop() ?? oppP : null;
               return (
-                <MobileCard key={`${player.player_id}-${player.market}-${player.game_id}`} player={player} rank={rankMap.get(player.player_id) ?? idx + 1} marketConfig={marketConfig} opposingPitcher={oppPShort} isHome={playerIsHome} />
+                <MobileCard
+                  key={`${player.player_id}-${player.market}-${player.game_id}`}
+                  player={player}
+                  rank={rankMap.get(player.player_id) ?? idx + 1}
+                  marketConfig={marketConfig}
+                  opposingPitcher={oppPShort}
+                  isHome={playerIsHome}
+                  game={g}
+                  lineHistoryAccess={lineHistoryAccess}
+                  onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, g)}
+                />
               );
             })}
           </div>
@@ -2098,6 +2514,7 @@ export function MlbPropCommandCenter() {
                           </Tooltip>
                         </Th>
                       )}
+                      {!marketConfig.hideOdds && <Th className="w-10" />}
                       <Th className="w-8" />
                     </tr>
                   </thead>
@@ -2324,7 +2741,13 @@ export function MlbPropCommandCenter() {
                             {/* Odds */}
                             {!marketConfig.hideOdds && (
                               <td className="px-2 py-2 text-center">
-                                <OddsCell player={player} marketConfig={marketConfig} isMobile={isMobile} />
+                                <OddsCell
+                                  player={player}
+                                  marketConfig={marketConfig}
+                                  isMobile={isMobile}
+                                  lineHistoryAccess={lineHistoryAccess}
+                                  onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, game)}
+                                />
                               </td>
                             )}
 
@@ -2368,6 +2791,13 @@ export function MlbPropCommandCenter() {
                               </td>
                             )}
 
+                            {/* Favorite */}
+                            {!marketConfig.hideOdds && (
+                              <td className="px-1.5 py-2 text-center">
+                                <PropCenterFavoriteButton player={player} marketConfig={marketConfig} game={game} />
+                              </td>
+                            )}
+
                             {/* Expand */}
                             <td className="px-2 py-2.5 text-center">
                               {isExpanded
@@ -2375,7 +2805,15 @@ export function MlbPropCommandCenter() {
                                 : <ChevronRight className="w-4 h-4 text-neutral-400" />}
                             </td>
                           </tr>
-                          {isExpanded && <ExpandedRow player={player} marketConfig={marketConfig} opposingPitcher={opposingPitcherShort} />}
+                          {isExpanded && (
+                            <ExpandedRow
+                              player={player}
+                              marketConfig={marketConfig}
+                              opposingPitcher={opposingPitcherShort}
+                              lineHistoryAccess={lineHistoryAccess}
+                              onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, game)}
+                            />
+                          )}
                         </React.Fragment>
                       );
                     })}
@@ -2401,6 +2839,13 @@ export function MlbPropCommandCenter() {
           </div>
         )}
       </div>
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
     </div>
   );
 }
