@@ -82,6 +82,8 @@ interface UseHitRateOddsOptions {
   sport?: "nba" | "mlb";
   /** Whether to enable the query */
   enabled?: boolean;
+  /** Optional polling interval for compact live widgets that need fresher odds */
+  refetchIntervalMs?: number | false;
 }
 
 /**
@@ -96,7 +98,7 @@ interface UseHitRateOddsOptions {
 // This ensures we don't lose odds when navigating to/from drilldown
 const globalOddsCache: Record<string, LineOdds> = {};
 
-export function useHitRateOdds({ rows, sport = "nba", enabled = true }: UseHitRateOddsOptions) {
+export function useHitRateOdds({ rows, sport = "nba", enabled = true, refetchIntervalMs = false }: UseHitRateOddsOptions) {
   const queryClient = useQueryClient();
   const backgroundFetchRef = useRef<boolean>(false);
   const allOddsRef = useRef<Record<string, LineOdds>>(globalOddsCache);
@@ -173,6 +175,8 @@ export function useHitRateOdds({ rows, sport = "nba", enabled = true }: UseHitRa
     enabled: isReady && initialSelections.length > 0,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
+    refetchInterval: refetchIntervalMs,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

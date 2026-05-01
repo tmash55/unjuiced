@@ -289,8 +289,21 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
     case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
+    case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed": return game.mlbHitsAllowed ?? 0;
+    case "player_earned_runs":
+    case "pitcher_earned_runs": return game.mlbEarnedRuns ?? 0;
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded": return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed": return game.mlbWalks ?? 0;
     default: return game.pts;
   }
 };
@@ -302,7 +315,8 @@ const isComboMarket = (market: string): boolean => {
     "player_points_rebounds", 
     "player_points_assists",
     "player_rebounds_assists",
-    "player_blocks_steals"
+    "player_blocks_steals",
+    "player_hits__runs__rbis"
   ].includes(market);
 };
 
@@ -340,6 +354,12 @@ const getComboSegments = (game: BoxScoreGame, market: string): ComboStatSegment[
         { value: game.blk, label: "BLK" },
         { value: game.stl, label: "STL" },
       ];
+    case "player_hits__runs__rbis":
+      return [
+        { value: game.mlbHits ?? 0, label: "H" },
+        { value: game.mlbRunsScored ?? 0, label: "R" },
+        { value: game.mlbRbi ?? 0, label: "RBI" },
+      ];
     default:
       return [];
   }
@@ -364,8 +384,21 @@ const getMarketLabel = (market: string): string => {
     player_home_runs: "hr",
     player_runs_scored: "runs",
     player_rbi: "rbi",
+    player_rbis: "rbi",
     player_total_bases: "tb",
+    player_hits__runs__rbis: "h+r+rbi",
+    player_strikeouts: "k",
     pitcher_strikeouts: "k",
+    player_hits_allowed: "hits allowed",
+    pitcher_hits_allowed: "hits allowed",
+    player_earned_runs: "earned runs",
+    pitcher_earned_runs: "earned runs",
+    player_outs: "outs",
+    pitcher_outs: "outs",
+    pitcher_outs_recorded: "outs",
+    player_walks_allowed: "walks",
+    pitcher_walks: "walks",
+    pitcher_walks_allowed: "walks",
   };
   return labels[market] || "stat";
 };
@@ -391,6 +424,21 @@ const StatRow = ({ label, value, subValue }: { label: string; value: string | nu
   </div>
 );
 
+const formatMlbRate = (value?: number | null): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  return value.toFixed(3).replace(/^0/, "");
+};
+
+const formatMlbIp = (innings?: number | null): string => {
+  if (innings === null || innings === undefined || !Number.isFinite(innings)) return "-";
+  const outs = Math.round(innings * 3);
+  return `${Math.floor(outs / 3)}.${outs % 3}`;
+};
+
+const getPitcherOuts = (game: BoxScoreGame): number => {
+  return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
+};
+
 // Get market-specific stats for tooltip
 const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => {
   switch (market) {
@@ -398,26 +446,45 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
     case "player_home_runs":
     case "player_runs_scored":
     case "player_rbi":
+    case "player_rbis":
     case "player_total_bases":
+    case "player_hits__runs__rbis":
       return (
         <>
+          <StatRow label="H/AB" value={`${game.mlbHits ?? 0}/${game.mlbAtBats ?? 0}`} />
           <StatRow label="AB" value={game.mlbAtBats ?? 0} />
           <StatRow label="Hits" value={game.mlbHits ?? 0} />
+          <StatRow label="HR" value={game.mlbHomeRuns ?? 0} />
+          <StatRow label="TB" value={game.mlbTotalBases ?? 0} />
           <StatRow label="Runs" value={game.mlbRunsScored ?? 0} />
           <StatRow label="RBI" value={game.mlbRbi ?? 0} />
-          <StatRow label="Total Bases" value={game.mlbTotalBases ?? 0} />
-          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+          <div className="my-2 border-t border-[#ffffff0d]" />
+          <StatRow label="BB / K" value={`${game.mlbWalks ?? 0} / ${game.mlbStrikeOuts ?? 0}`} />
+          <StatRow label="AVG / OBP / SLG" value={`${formatMlbRate(game.mlbBattingAvg)} / ${formatMlbRate(game.mlbObp)} / ${formatMlbRate(game.mlbSlg)}`} />
         </>
       );
+    case "player_strikeouts":
     case "pitcher_strikeouts":
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed":
+    case "player_earned_runs":
+    case "pitcher_earned_runs":
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded":
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed":
       return (
         <>
-          <StatRow label="IP" value={game.mlbInningsPitched ?? 0} />
+          <StatRow label="IP / Outs" value={`${formatMlbIp(game.mlbInningsPitched)} / ${getPitcherOuts(game)}`} />
           <StatRow label="Strikeouts" value={game.mlbPitcherStrikeouts ?? 0} />
+          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+          <StatRow label="K-BB" value={(game.mlbPitcherStrikeouts ?? 0) - (game.mlbWalks ?? 0)} />
+          <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Hits Allowed" value={game.mlbHitsAllowed ?? 0} />
           <StatRow label="Earned Runs" value={game.mlbEarnedRuns ?? 0} />
-          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
-          <StatRow label="WHIP" value={game.mlbWhipGame?.toFixed(2) ?? "-"} />
+          <StatRow label="ERA / WHIP" value={`${game.mlbEraGame?.toFixed(2) ?? "-"} / ${game.mlbWhipGame?.toFixed(2) ?? "-"}`} />
         </>
       );
   }
@@ -1489,19 +1556,27 @@ export function GameLogChart({
                     </span>
                   )}
 
-                  {/* Opponent logo indicator */}
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5">
+                  {/* Opponent and location indicator */}
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5">
                     {opponentLogo ? (
                       <img
                         src={opponentLogo}
                         alt={game.opponentAbbr}
-                        className="w-4 h-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity"
+                        className="h-4 w-4 object-contain opacity-65 transition-opacity group-hover:opacity-100"
                       />
                     ) : (
-                      <span className="text-[10px] text-neutral-400">
-                        {game.homeAway === "H" ? "H" : "A"}
-                      </span>
+                      <span className="text-[9px] font-bold text-neutral-400">{game.opponentAbbr}</span>
                     )}
+                    <span
+                      className={cn(
+                        "text-[8px] font-black uppercase leading-none tabular-nums",
+                        game.homeAway === "H"
+                          ? "text-sky-500 dark:text-sky-300"
+                          : "text-neutral-400 dark:text-slate-500"
+                      )}
+                    >
+                      {game.homeAway === "H" ? "vs" : "@"}
+                    </span>
                   </div>
                 </div>
               </Tooltip>
@@ -1540,7 +1615,7 @@ export function GameLogChart({
       </div>
 
       {/* X-Axis - Dates */}
-      <div className="mt-8 flex justify-start gap-3">
+      <div className="mt-10 flex justify-start gap-3">
         {games.map((game, idx) => (
           <div
             key={game.gameId || idx}
@@ -1626,6 +1701,14 @@ export function GameLogChart({
           <div className="flex items-center gap-1">
             <div className="w-4 border-t border-dashed border-neutral-400/50" />
             <span>{line}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] font-black text-sky-500 dark:text-sky-300">vs</span>
+            <span>Home</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] font-black text-neutral-400 dark:text-slate-500">@</span>
+            <span>Away</span>
           </div>
           {/* DvP Line Toggle - subtle */}
           {opponentDvpRanks && opponentDvpRanks.size > 0 && (

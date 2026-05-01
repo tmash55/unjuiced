@@ -4,7 +4,8 @@ import { z } from "zod";
 
 // Request validation - accept either odds_player_id or player_name
 const RequestSchema = z.object({
-  odds_player_id: z.string().uuid().optional(),
+  sport: z.enum(["nba", "mlb"]).default("nba"),
+  odds_player_id: z.string().min(1).optional(),
   player_name: z.string().optional(),
 }).refine(
   (data) => data.odds_player_id || data.player_name,
@@ -12,7 +13,8 @@ const RequestSchema = z.object({
 );
 
 export interface PlayerLookupResult {
-  nba_player_id: number;
+  nba_player_id?: number | null;
+  mlb_player_id?: number | null;
   odds_player_id: string;
   name: string;
   first_name: string;
@@ -38,10 +40,10 @@ export interface PlayerLookupResponse {
 
 /**
  * Player Lookup API
- * Maps odds_player_id (UUID) to nba_player_id (number) and returns full player data
+ * Maps odds_player_id to the internal sport player ID and returns full player data
  * 
  * POST /api/players/lookup
- * Body: { odds_player_id: "uuid" } or { player_name: "LeBron James" }
+ * Body: { sport: "nba" | "mlb", odds_player_id: "uuid" } or { sport, player_name }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -55,31 +57,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { odds_player_id, player_name } = parsed.data;
+    const { sport, odds_player_id, player_name } = parsed.data;
     const supabase = createServerSupabaseClient();
 
     // Build query based on what was provided
-    let query = supabase
-      .from("nba_players_hr")
-      .select(`
-        nba_player_id,
-        odds_player_id,
-        name,
-        first_name,
-        last_name,
-        team_id,
-        odds_team_name,
-        odds_team_abbr,
-        position,
-        depth_chart_pos,
-        jersey_number,
-        injury_status,
-        injury_notes,
-        height_feet,
-        height_inches,
-        weight_pounds,
-        birthdate
-      `);
+    let query =
+      sport === "mlb"
+        ? supabase
+            .from("mlb_players_hr")
+            .select(`
+              mlb_player_id,
+              odds_player_id,
+              name,
+              team_id,
+              odds_team_name,
+              odds_team_abbr,
+              position,
+              pos_abbr
+            `)
+        : supabase
+            .from("nba_players_hr")
+            .select(`
+              nba_player_id,
+              odds_player_id,
+              name,
+              first_name,
+              last_name,
+              team_id,
+              odds_team_name,
+              odds_team_abbr,
+              position,
+              depth_chart_pos,
+              jersey_number,
+              injury_status,
+              injury_notes,
+              height_feet,
+              height_inches,
+              weight_pounds,
+              birthdate
+            `);
 
     // Filter by odds_player_id if provided, otherwise by name
     if (odds_player_id) {
@@ -111,25 +127,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const row = data as any;
+
     // Transform response to match interface
     const playerResult: PlayerLookupResult = {
-      nba_player_id: data.nba_player_id,
-      odds_player_id: data.odds_player_id,
-      name: data.name,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      team_id: data.team_id,
-      team_name: data.odds_team_name,
-      team_abbr: data.odds_team_abbr,
-      position: data.position,
-      depth_chart_pos: data.depth_chart_pos,
-      jersey_number: data.jersey_number,
-      injury_status: data.injury_status,
-      injury_notes: data.injury_notes,
-      height_feet: data.height_feet,
-      height_inches: data.height_inches,
-      weight_pounds: data.weight_pounds,
-      birthdate: data.birthdate,
+      nba_player_id: row.nba_player_id ?? null,
+      mlb_player_id: row.mlb_player_id ?? null,
+      odds_player_id: row.odds_player_id,
+      name: row.name,
+      first_name: row.first_name ?? "",
+      last_name: row.last_name ?? "",
+      team_id: row.team_id,
+      team_name: row.odds_team_name,
+      team_abbr: row.odds_team_abbr,
+      position: row.pos_abbr ?? row.position ?? null,
+      depth_chart_pos: row.depth_chart_pos ?? null,
+      jersey_number: row.jersey_number ?? null,
+      injury_status: row.injury_status ?? null,
+      injury_notes: row.injury_notes ?? null,
+      height_feet: row.height_feet ?? null,
+      height_inches: row.height_inches ?? null,
+      weight_pounds: row.weight_pounds ?? null,
+      birthdate: row.birthdate ?? null,
     };
 
     return NextResponse.json(
@@ -149,4 +168,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

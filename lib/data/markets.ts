@@ -1963,6 +1963,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       // MLB Batter
       'player_home_runs': 'Home Runs',
       'player_total_bases': 'Total Bases',
+      'player_rbi': 'RBI',
       'player_rbis': 'RBIs',
       'player_runs': 'Runs Scored',
       'player_stolen_bases': 'Stolen Bases',

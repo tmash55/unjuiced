@@ -36,8 +36,17 @@ type SortField =
   | "runs"
   | "rbi"
   | "totalBases"
+  | "hitsAllowed"
   | "strikeouts"
-  | "innings";
+  | "outs"
+  | "innings"
+  | "plateAppearances"
+  | "walks"
+  | "battingAvg"
+  | "obp"
+  | "slg"
+  | "earnedRuns"
+  | "whip";
 type SortDirection = "asc" | "desc";
 
 // Get the stat value based on market
@@ -60,10 +69,42 @@ const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): n
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
     case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
+    case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed": return game.mlbHitsAllowed ?? 0;
+    case "player_earned_runs":
+    case "pitcher_earned_runs": return game.mlbEarnedRuns ?? 0;
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded": return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed": return game.mlbWalks ?? 0;
     default: return game.pts;
   }
+};
+
+const MLB_PITCHER_MARKETS = new Set([
+  "player_strikeouts",
+  "pitcher_strikeouts",
+  "player_hits_allowed",
+  "pitcher_hits_allowed",
+  "player_earned_runs",
+  "pitcher_earned_runs",
+  "player_outs",
+  "pitcher_outs",
+  "pitcher_outs_recorded",
+  "player_walks_allowed",
+  "pitcher_walks",
+  "pitcher_walks_allowed",
+]);
+
+const isMlbPitcherMarket = (market: string | null | undefined) => {
+  return !!market && MLB_PITCHER_MARKETS.has(market);
 };
 
 // Format date as "Sun 11/30"
@@ -73,6 +114,42 @@ const formatGameDate = (dateStr: string) => {
   const month = date.getMonth() + 1;
   const dayNum = date.getDate();
   return `${day} ${month}/${dayNum}`;
+};
+
+const formatMlbRate = (value: number | null | undefined) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  const normalized = value > 1 ? value / 1000 : value;
+  return normalized.toFixed(3).replace(/^0/, "");
+};
+
+const getMlbBattingAvg = (game: BoxScoreGame) => {
+  if (game.mlbBattingAvg !== null && game.mlbBattingAvg !== undefined) return game.mlbBattingAvg;
+  const atBats = game.mlbAtBats ?? 0;
+  return atBats > 0 ? (game.mlbHits ?? 0) / atBats : null;
+};
+
+const getMlbObp = (game: BoxScoreGame) => {
+  if (game.mlbObp !== null && game.mlbObp !== undefined) return game.mlbObp;
+  const plateAppearances = game.mlbPlateAppearances ?? 0;
+  return plateAppearances > 0 ? ((game.mlbHits ?? 0) + (game.mlbWalks ?? 0)) / plateAppearances : null;
+};
+
+const getMlbSlg = (game: BoxScoreGame) => {
+  if (game.mlbSlg !== null && game.mlbSlg !== undefined) return game.mlbSlg;
+  const atBats = game.mlbAtBats ?? 0;
+  return atBats > 0 ? (game.mlbTotalBases ?? 0) / atBats : null;
+};
+
+const formatInningsPitched = (value: number | null | undefined) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  const whole = Math.trunc(value);
+  let outs = Math.round((value - whole) * 3);
+  if (outs >= 3) return `${whole + 1}.0`;
+  return `${whole}.${outs}`;
+};
+
+const getPitcherOuts = (game: BoxScoreGame) => {
+  return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
 };
 
 export function BoxScoreTable({
@@ -136,13 +213,49 @@ export function BoxScoreTable({
           aVal = a.mlbTotalBases ?? 0;
           bVal = b.mlbTotalBases ?? 0;
           break;
+        case "hitsAllowed":
+          aVal = a.mlbHitsAllowed ?? 0;
+          bVal = b.mlbHitsAllowed ?? 0;
+          break;
         case "strikeouts":
-          aVal = a.mlbPitcherStrikeouts ?? 0;
-          bVal = b.mlbPitcherStrikeouts ?? 0;
+          aVal = isMlbPitcherMarket(market) ? a.mlbPitcherStrikeouts ?? 0 : a.mlbStrikeOuts ?? 0;
+          bVal = isMlbPitcherMarket(market) ? b.mlbPitcherStrikeouts ?? 0 : b.mlbStrikeOuts ?? 0;
+          break;
+        case "outs":
+          aVal = getPitcherOuts(a);
+          bVal = getPitcherOuts(b);
           break;
         case "innings":
           aVal = a.mlbInningsPitched ?? 0;
           bVal = b.mlbInningsPitched ?? 0;
+          break;
+        case "plateAppearances":
+          aVal = a.mlbPlateAppearances ?? 0;
+          bVal = b.mlbPlateAppearances ?? 0;
+          break;
+        case "walks":
+          aVal = a.mlbWalks ?? 0;
+          bVal = b.mlbWalks ?? 0;
+          break;
+        case "battingAvg":
+          aVal = getMlbBattingAvg(a) ?? 0;
+          bVal = getMlbBattingAvg(b) ?? 0;
+          break;
+        case "obp":
+          aVal = getMlbObp(a) ?? 0;
+          bVal = getMlbObp(b) ?? 0;
+          break;
+        case "slg":
+          aVal = getMlbSlg(a) ?? 0;
+          bVal = getMlbSlg(b) ?? 0;
+          break;
+        case "earnedRuns":
+          aVal = a.mlbEarnedRuns ?? 0;
+          bVal = b.mlbEarnedRuns ?? 0;
+          break;
+        case "whip":
+          aVal = a.mlbWhipGame ?? 0;
+          bVal = b.mlbWhipGame ?? 0;
           break;
         case "pts":
           aVal = a.pts;
@@ -194,7 +307,7 @@ export function BoxScoreTable({
     });
 
     return sorted;
-  }, [games, sortField, sortDirection]);
+  }, [games, market, sortField, sortDirection]);
 
   // Calculate averages for footer - must be before early returns
   const averages = useMemo(() => {
@@ -255,8 +368,15 @@ export function BoxScoreTable({
         rbi: acc.rbi + (g.mlbRbi ?? 0),
         totalBases: acc.totalBases + (g.mlbTotalBases ?? 0),
         strikeouts: acc.strikeouts + (g.mlbPitcherStrikeouts ?? 0),
+        outs: acc.outs + getPitcherOuts(g),
         innings: acc.innings + (g.mlbInningsPitched ?? 0),
         walks: acc.walks + (g.mlbWalks ?? 0),
+        batterStrikeouts: acc.batterStrikeouts + (g.mlbStrikeOuts ?? 0),
+        hitsAllowed: acc.hitsAllowed + (g.mlbHitsAllowed ?? 0),
+        earnedRuns: acc.earnedRuns + (g.mlbEarnedRuns ?? 0),
+        whip: acc.whip + (g.mlbWhipGame ?? 0),
+        atBats: acc.atBats + (g.mlbAtBats ?? 0),
+        plateAppearances: acc.plateAppearances + (g.mlbPlateAppearances ?? 0),
       }),
       {
         marketStat: 0,
@@ -266,8 +386,15 @@ export function BoxScoreTable({
         rbi: 0,
         totalBases: 0,
         strikeouts: 0,
+        outs: 0,
         innings: 0,
         walks: 0,
+        batterStrikeouts: 0,
+        hitsAllowed: 0,
+        earnedRuns: 0,
+        whip: 0,
+        atBats: 0,
+        plateAppearances: 0,
       }
     );
 
@@ -279,8 +406,18 @@ export function BoxScoreTable({
       rbi: (sum.rbi / n).toFixed(1),
       totalBases: (sum.totalBases / n).toFixed(1),
       strikeouts: (sum.strikeouts / n).toFixed(1),
-      innings: (sum.innings / n).toFixed(1),
+      outs: (sum.outs / n).toFixed(1),
+      innings: formatInningsPitched(sum.innings / n),
       walks: (sum.walks / n).toFixed(1),
+      batterStrikeouts: (sum.batterStrikeouts / n).toFixed(1),
+      hitsAllowed: (sum.hitsAllowed / n).toFixed(1),
+      earnedRuns: (sum.earnedRuns / n).toFixed(1),
+      era: sum.innings > 0 ? ((sum.earnedRuns * 9) / sum.innings).toFixed(2) : "-",
+      whip: sum.innings > 0 ? ((sum.walks + sum.hitsAllowed) / sum.innings).toFixed(2) : "-",
+      kMinusBb: ((sum.strikeouts - sum.walks) / n).toFixed(1),
+      battingAvg: formatMlbRate(sum.atBats > 0 ? sum.hits / sum.atBats : null),
+      obp: formatMlbRate(sum.plateAppearances > 0 ? (sum.hits + sum.walks) / sum.plateAppearances : null),
+      slg: formatMlbRate(sum.atBats > 0 ? sum.totalBases / sum.atBats : null),
     };
   }, [games, isMlb, market]);
 
@@ -332,7 +469,7 @@ export function BoxScoreTable({
   }
 
   if (isMlb) {
-    const isPitcherMarket = market === "pitcher_strikeouts";
+    const isPitcherMarket = isMlbPitcherMarket(market);
     return (
       <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <div className="relative overflow-hidden">
@@ -392,21 +529,71 @@ export function BoxScoreTable({
                           IP <SortIcon field="innings" />
                         </div>
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                        H
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("outs")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          OUTS <SortIcon field="outs" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("strikeouts")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          K <SortIcon field="strikeouts" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("hitsAllowed")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          H <SortIcon field="hitsAllowed" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("earnedRuns")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          ER <SortIcon field="earnedRuns" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("walks")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          BB <SortIcon field="walks" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("whip")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          WHIP <SortIcon field="whip" />
+                        </div>
                       </th>
                       <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                        ER
+                        ERA
                       </th>
                       <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                        BB
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                        WHIP
+                        K-BB
                       </th>
                     </>
                   ) : (
                     <>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("plateAppearances")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          PA <SortIcon field="plateAppearances" />
+                        </div>
+                      </th>
                       <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
                         AB
                       </th>
@@ -416,6 +603,14 @@ export function BoxScoreTable({
                       >
                         <div className="flex items-center justify-center gap-1">
                           H <SortIcon field="hits" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("homeRuns")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          HR <SortIcon field="homeRuns" />
                         </div>
                       </th>
                       <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
@@ -437,8 +632,45 @@ export function BoxScoreTable({
                           TB <SortIcon field="totalBases" />
                         </div>
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                        BB
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("walks")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          BB <SortIcon field="walks" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("strikeouts")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          SO <SortIcon field="strikeouts" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("battingAvg")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          AVG <SortIcon field="battingAvg" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("obp")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          OBP <SortIcon field="obp" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("slg")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          SLG <SortIcon field="slg" />
+                        </div>
                       </th>
                     </>
                   )}
@@ -481,20 +713,32 @@ export function BoxScoreTable({
                       </td>
                       {isPitcherMarket ? (
                         <>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbInningsPitched?.toFixed(1) ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{formatInningsPitched(game.mlbInningsPitched)}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{getPitcherOuts(game)}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbPitcherStrikeouts ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHitsAllowed ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbEarnedRuns ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWhipGame?.toFixed(2) ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbEraGame?.toFixed(2) ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">
+                            {game.mlbPitcherStrikeouts != null && game.mlbWalks != null ? game.mlbPitcherStrikeouts - game.mlbWalks : "-"}
+                          </td>
                         </>
                       ) : (
                         <>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbPlateAppearances ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbAtBats ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHits ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHomeRuns ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRunsScored ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRbi ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbTotalBases ?? "-"}</td>
                           <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbStrikeOuts ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbBattingAvg(game))}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbObp(game))}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbSlg(game))}</td>
                         </>
                       )}
                     </tr>
@@ -511,19 +755,29 @@ export function BoxScoreTable({
                     {isPitcherMarket ? (
                       <>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.innings}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.outs}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.strikeouts}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.hitsAllowed}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.earnedRuns}</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.whip}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.era}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.kMinusBb}</td>
                       </>
                     ) : (
                       <>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.hits}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.homeRuns}</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.runs}</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.rbi}</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.totalBases}</td>
                         <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.batterStrikeouts}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.battingAvg}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.obp}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.slg}</td>
                       </>
                     )}
                   </tr>

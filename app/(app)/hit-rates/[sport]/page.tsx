@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
 import { GamesFilterDropdown, hasGameStarted } from "@/components/hit-rates/games-filter-dropdown";
 import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
@@ -13,7 +13,6 @@ import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
-import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 
 const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
@@ -56,6 +55,7 @@ const SPORT_CONFIG: Record<
       { value: "player_runs_scored", label: "Runs" },
       { value: "player_rbi", label: "RBIs" },
       { value: "player_total_bases", label: "Total Bases" },
+      { value: "player_hits__runs__rbis", label: "H+R+RBI" },
       { value: "pitcher_strikeouts", label: "Pitcher Strikeouts" },
     ],
   },
@@ -87,6 +87,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     notFound();
   }
   const sportConfig = SPORT_CONFIG[sport];
+  const router = useRouter();
 
   // Detect mobile viewport
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -161,6 +162,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const nbaGamesQuery = useNbaGames(sport === "nba");
   const mlbGamesQuery = useMlbGames(sport === "mlb");
   const allGames = sport === "mlb" ? mlbGamesQuery.games : nbaGamesQuery.games;
+  const apiPrimaryDate = sport === "mlb" ? mlbGamesQuery.primaryDate : nbaGamesQuery.primaryDate;
 
   // Ensure selected markets are valid for the active sport
   useEffect(() => {
@@ -263,10 +265,6 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       setSelectedDate(undefined);
     }
   }, [effectiveDesktopGameIds, allGames]);
-  
-  // Player drill-down state
-  const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
-  const [preferredMarket, setPreferredMarket] = useState<string | null>(null);
   
   // Table scroll ref
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -421,9 +419,15 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Player drill-down handler for TABLE clicks
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
     saveFilterState();
-    setSelectedPlayer(player);
-    setPreferredMarket(player.market);
-  }, [saveFilterState]);
+    const params = new URLSearchParams({
+      market: player.market,
+    });
+    const profileDate = player.gameDate || effectiveDate || apiPrimaryDate || undefined;
+    if (profileDate) {
+      params.set("date", profileDate);
+    }
+    router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
+  }, [apiPrimaryDate, effectiveDate, router, saveFilterState, sport]);
 
   // Pre-compute normalized selected game IDs
   const normalizedSelectedGameIds = useMemo(() => 
@@ -504,106 +508,76 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Mobile Layout
   if (isMobile) {
     return (
-      <>
-        <GatedMobileHitRates
-          sport={sport}
-          rows={mobileFilteredRows}
-          games={allGames ?? []}
-          loading={isLoading}
-          error={error?.message}
-          onPlayerClick={handleTableRowClick}
-          selectedMarkets={mobileSelectedMarkets}
-          onMarketsChange={setMobileSelectedMarkets}
-          marketOptions={sportConfig.markets}
-          sortField={mobileSortField}
-          onSortChange={setMobileSortField}
-          searchQuery={mobileSearchQuery}
-          onSearchChange={setMobileSearchQuery}
-          selectedGameIds={effectiveMobileGameIds}
-          onGameIdsChange={setMobileSelectedGameIds}
-          startedGameIds={startedGameIds}
-          hideNoOdds={hideNoOdds}
-          onHideNoOddsChange={setHideNoOdds}
-        />
-        <PlayerQuickViewModal
-          sport={sport}
-          nba_player_id={sport === "nba" ? selectedPlayer?.playerId : undefined}
-          mlb_player_id={sport === "mlb" ? selectedPlayer?.playerId : undefined}
-          player_name={selectedPlayer?.playerName}
-          initial_market={preferredMarket ?? selectedPlayer?.market}
-          initial_line={selectedPlayer?.line ?? undefined}
-          event_id={selectedPlayer?.eventId ?? undefined}
-          open={!!selectedPlayer}
-          onOpenChange={(open) => {
-            if (!open) setSelectedPlayer(null);
-          }}
-        />
-      </>
+      <GatedMobileHitRates
+        sport={sport}
+        rows={mobileFilteredRows}
+        games={allGames ?? []}
+        loading={isLoading}
+        error={error?.message}
+        onPlayerClick={handleTableRowClick}
+        selectedMarkets={mobileSelectedMarkets}
+        onMarketsChange={setMobileSelectedMarkets}
+        marketOptions={sportConfig.markets}
+        sortField={mobileSortField}
+        onSortChange={setMobileSortField}
+        searchQuery={mobileSearchQuery}
+        onSearchChange={setMobileSearchQuery}
+        selectedGameIds={effectiveMobileGameIds}
+        onGameIdsChange={setMobileSelectedGameIds}
+        startedGameIds={startedGameIds}
+        hideNoOdds={hideNoOdds}
+        onHideNoOddsChange={setHideNoOdds}
+      />
     );
   }
 
   // Desktop Layout - Using AppPageLayout
   return (
-    <>
-      <AppPageLayout
-        title={sportConfig.title}
-        subtitle={sportConfig.subtitle}
-        sport={sport}
-        contextBar={<CheatSheetNav sport={sport} currentSheet="hit-rates" />}
-        stickyContextBar
-        headerActions={<GlossaryButton onClick={() => setShowGlossary(true)} />}
-      >
-        {/* Glossary Modal */}
-        <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+    <AppPageLayout
+      title={sportConfig.title}
+      subtitle={sportConfig.subtitle}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet="hit-rates" />}
+      stickyContextBar
+      headerActions={<GlossaryButton onClick={() => setShowGlossary(true)} />}
+    >
+      {/* Glossary Modal */}
+      <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
 
-        {/* Hit Rate Table - with Games Filter passed as additional filter */}
-        <GatedHitRateTable 
-          sport={sport}
-          rows={paginatedRows} 
-          loading={showLoadingState} 
-          error={error?.message}
-          onRowClick={handleTableRowClick}
-          hasMore={hasMoreRows}
-          onLoadMore={handleLoadMore}
-          isLoadingMore={isFetching && rows.length > 0}
-          totalCount={filteredRows.length}
-          selectedMarkets={selectedMarkets}
-          onMarketsChange={setSelectedMarkets}
-          marketOptions={sportConfig.markets}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          sortField={sortField}
-          sortDirection={sortDirection}
-          onSortChange={handleSortChange}
-          scrollRef={tableScrollRef as React.RefObject<HTMLDivElement>}
-          hideNoOdds={hideNoOdds}
-          onHideNoOddsChange={setHideNoOdds}
-          onOddsAvailabilityChange={handleOddsAvailabilityChange}
-          // Pass games filter props
-          gamesFilter={
-            <GamesFilterDropdown
-              sport={sport}
-              games={allGames ?? []}
-              selectedGameIds={effectiveDesktopGameIds}
-              onToggleGame={toggleGame}
-              onSelectAll={selectAllGames}
-            />
-          }
-        />
-      </AppPageLayout>
-      <PlayerQuickViewModal
+      {/* Hit Rate Table - with Games Filter passed as additional filter */}
+      <GatedHitRateTable
         sport={sport}
-        nba_player_id={sport === "nba" ? selectedPlayer?.playerId : undefined}
-        mlb_player_id={sport === "mlb" ? selectedPlayer?.playerId : undefined}
-        player_name={selectedPlayer?.playerName}
-        initial_market={preferredMarket ?? selectedPlayer?.market}
-        initial_line={selectedPlayer?.line ?? undefined}
-        event_id={selectedPlayer?.eventId ?? undefined}
-        open={!!selectedPlayer}
-        onOpenChange={(open) => {
-          if (!open) setSelectedPlayer(null);
-        }}
+        rows={paginatedRows}
+        loading={showLoadingState}
+        error={error?.message}
+        onRowClick={handleTableRowClick}
+        hasMore={hasMoreRows}
+        onLoadMore={handleLoadMore}
+        isLoadingMore={isFetching && rows.length > 0}
+        totalCount={filteredRows.length}
+        selectedMarkets={selectedMarkets}
+        onMarketsChange={setSelectedMarkets}
+        marketOptions={sportConfig.markets}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSortChange={handleSortChange}
+        scrollRef={tableScrollRef as React.RefObject<HTMLDivElement>}
+        hideNoOdds={hideNoOdds}
+        onHideNoOddsChange={setHideNoOdds}
+        onOddsAvailabilityChange={handleOddsAvailabilityChange}
+        // Pass games filter props
+        gamesFilter={
+          <GamesFilterDropdown
+            sport={sport}
+            games={allGames ?? []}
+            selectedGameIds={effectiveDesktopGameIds}
+            onToggleGame={toggleGame}
+            onSelectAll={selectAllGames}
+          />
+        }
       />
-    </>
+    </AppPageLayout>
   );
 }

@@ -48,6 +48,14 @@ import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-ty
 import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
+import {
+  getQuickViewSport,
+  buildQuickViewGameContext,
+  normalizeQuickViewMarket,
+  parseQuickViewPlayerId,
+  type QuickViewGameContext,
+  type QuickViewSport,
+} from "@/lib/hit-rates/quick-view";
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = [
@@ -196,12 +204,15 @@ export default function EdgeFinderPage() {
 
   // Player quick view modal state
   const [selectedPlayer, setSelectedPlayer] = useState<{
+    sport: QuickViewSport;
     odds_player_id: string;
     player_name: string;
     market: string;
     event_id: string;
     line?: number;
     odds?: BestOddsData;
+    gameContext?: QuickViewGameContext;
+    liveBookOffers?: Array<{ side: "over" | "under"; book: string; price: number; line?: number | null; url?: string | null; mobileUrl?: string | null; mobileLink?: string | null; decimal?: number | null }>;
   } | null>(null);
   const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
 
@@ -571,12 +582,21 @@ export default function EdgeFinderPage() {
           onRefresh={handleRefresh}
           onPlayerClick={(opp) => {
             if (opp.playerId && opp.player) {
+              const quickViewSport = getQuickViewSport(opp.sport);
+              if (!quickViewSport) return;
               setSelectedPlayer({
+                sport: quickViewSport,
                 odds_player_id: opp.playerId,
                 player_name: opp.player,
-                market: opp.market || "",
+                market: normalizeQuickViewMarket(quickViewSport, opp.market),
                 event_id: opp.eventId || "",
                 line: opp.line,
+                gameContext: buildQuickViewGameContext({
+                  startTime: opp.gameStart,
+                  homeTeam: opp.homeTeam,
+                  awayTeam: opp.awayTeam,
+                  playerTeam: opp.team,
+                }),
               });
             }
           }}
@@ -617,12 +637,17 @@ export default function EdgeFinderPage() {
         {/* Player Quick View Modal */}
         {selectedPlayer && (
           <PlayerQuickViewModal
+            sport={selectedPlayer.sport}
             odds_player_id={selectedPlayer.odds_player_id}
+            nba_player_id={selectedPlayer.sport === "nba" ? parseQuickViewPlayerId(selectedPlayer.odds_player_id) : undefined}
             player_name={selectedPlayer.player_name}
             initial_market={selectedPlayer.market}
             initial_line={selectedPlayer.line}
             event_id={selectedPlayer.event_id}
             odds={selectedPlayer.odds ?? undefined}
+            liveBookOffers={selectedPlayer.liveBookOffers}
+            gameContext={selectedPlayer.gameContext}
+            showFullProfileLink={selectedPlayer.sport !== "mlb"}
             open={!!selectedPlayer}
             onOpenChange={(open) => {
               if (!open) setSelectedPlayer(null);
@@ -943,12 +968,17 @@ export default function EdgeFinderPage() {
       {/* Player Quick View Modal */}
       {selectedPlayer && (
         <PlayerQuickViewModal
+          sport={selectedPlayer.sport}
           odds_player_id={selectedPlayer.odds_player_id}
+          nba_player_id={selectedPlayer.sport === "nba" ? parseQuickViewPlayerId(selectedPlayer.odds_player_id) : undefined}
           player_name={selectedPlayer.player_name}
           initial_market={selectedPlayer.market}
           initial_line={selectedPlayer.line}
           event_id={selectedPlayer.event_id}
           odds={selectedPlayer.odds ?? undefined}
+          liveBookOffers={selectedPlayer.liveBookOffers}
+          gameContext={selectedPlayer.gameContext}
+          showFullProfileLink={selectedPlayer.sport !== "mlb"}
           open={!!selectedPlayer}
           onOpenChange={(open) => {
             if (!open) setSelectedPlayer(null);

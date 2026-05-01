@@ -173,6 +173,17 @@
   --color-success: #22C55E;
   --color-warning: #FACC15;
   --color-error:   #EF4444;
+
+  /* NRFI / YRFI palette */
+  --color-nrfi-green:          oklch(0.68 0.18 155);
+  --color-nrfi-green-subtle:   oklch(0.68 0.18 155 / 0.10);
+  --color-nrfi-green-border:   oklch(0.68 0.18 155 / 0.25);
+  --color-yrfi-red:            oklch(0.62 0.2 25);
+  --color-yrfi-red-subtle:     oklch(0.62 0.2 25 / 0.10);
+  --color-yrfi-red-border:     oklch(0.62 0.2 25 / 0.25);
+  --color-neutral-yellow:        oklch(0.78 0.17 85);
+  --color-neutral-yellow-subtle: oklch(0.78 0.17 85 / 0.10);
+  --color-neutral-yellow-border: oklch(0.78 0.17 85 / 0.25);
    /* Secondary – Teal (EV/edge) */
    --color-secondary:       #14B8A6;
    --color-secondary-light: #5EEAD4; /* tint */

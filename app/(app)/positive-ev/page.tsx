@@ -96,6 +96,14 @@ import { PositiveEVTour, PositiveEVTourTrigger } from "@/components/opportunitie
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
+import {
+  getQuickViewSport,
+  buildQuickViewGameContext,
+  normalizeQuickViewMarket,
+  parseQuickViewPlayerId,
+  type QuickViewGameContext,
+  type QuickViewSport,
+} from "@/lib/hit-rates/quick-view";
 
 // Constants
 const AVAILABLE_SPORTS = [
@@ -533,6 +541,7 @@ export default function PositiveEVPage() {
   
   // Player quick view modal state (for NBA hit rates)
   const [selectedPlayer, setSelectedPlayer] = useState<{
+    sport: QuickViewSport;
     odds_player_id: string;
     player_name: string;
     market: string;
@@ -542,6 +551,8 @@ export default function PositiveEVPage() {
       over?: { price: number; line: number; book?: string; mobileLink?: string | null };
       under?: { price: number; line: number; book?: string; mobileLink?: string | null };
     };
+    liveBookOffers?: Array<{ side: "over" | "under"; book: string; price: number; line?: number | null; url?: string | null; mobileUrl?: string | null; mobileLink?: string | null; decimal?: number | null; evPercent?: number | null; isSharpRef?: boolean | null }>;
+    gameContext?: QuickViewGameContext;
   } | null>(null);
   const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
   
@@ -1225,14 +1236,22 @@ export default function PositiveEVPage() {
           error={error}
           onRefresh={freshRefetch}
           onPlayerClick={(opp) => {
-            // Only show modal for NBA player props
-            if (opp.sport === "nba" && opp.playerId && opp.playerName) {
+            const quickViewSport = getQuickViewSport(opp.sport);
+            if (quickViewSport && opp.playerId && opp.playerName) {
               setSelectedPlayer({
+                sport: quickViewSport,
                 odds_player_id: opp.playerId,
                 player_name: opp.playerName,
-                market: opp.market,
+                market: normalizeQuickViewMarket(quickViewSport, opp.market),
                 event_id: opp.eventId,
                 line: opp.line,
+                gameContext: buildQuickViewGameContext({
+                  startTime: opp.startTime,
+                  gameDate: opp.gameDate,
+                  homeTeam: opp.homeTeam,
+                  awayTeam: opp.awayTeam,
+                  playerTeam: opp.playerTeam,
+                }),
                 odds: {
                   [opp.side]: {
                     price: opp.book.price,
@@ -1241,6 +1260,30 @@ export default function PositiveEVPage() {
                     mobileLink: opp.book.mobileLink,
                   },
                 },
+                liveBookOffers: [
+                  ...((opp.side === "over" || opp.side === "under") ? (opp.allBooks || []).map((book) => ({
+                    side: opp.side as "over" | "under",
+                    book: book.bookId,
+                    price: book.price,
+                    line: opp.line,
+                    url: book.link,
+                    mobileUrl: book.mobileLink,
+                    decimal: book.priceDecimal,
+                    evPercent: book.evPercent ?? null,
+                    isSharpRef: book.isSharpRef ?? false,
+                  })) : []),
+                  ...((opp.side === "over" || opp.side === "under") ? (opp.oppositeBooks || []).map((book) => ({
+                    side: opp.side === "over" ? "under" as const : "over" as const,
+                    book: book.bookId,
+                    price: book.price,
+                    line: opp.line,
+                    url: book.link,
+                    mobileUrl: book.mobileLink,
+                    decimal: book.priceDecimal,
+                    evPercent: book.evPercent ?? null,
+                    isSharpRef: book.isSharpRef ?? false,
+                  })) : []),
+                ],
               });
             }
           }}
@@ -1291,12 +1334,17 @@ export default function PositiveEVPage() {
         {/* Player Quick View Modal (NBA Hit Rates) - Mobile */}
         {selectedPlayer && (
           <PlayerQuickViewModal
+            sport={selectedPlayer.sport}
             odds_player_id={selectedPlayer.odds_player_id}
+            nba_player_id={selectedPlayer.sport === "nba" ? parseQuickViewPlayerId(selectedPlayer.odds_player_id) : undefined}
             player_name={selectedPlayer.player_name}
             initial_market={selectedPlayer.market}
             initial_line={selectedPlayer.line}
             event_id={selectedPlayer.event_id}
             odds={selectedPlayer.odds ?? undefined}
+            liveBookOffers={selectedPlayer.liveBookOffers}
+            gameContext={selectedPlayer.gameContext}
+            showFullProfileLink={selectedPlayer.sport !== "mlb"}
             open={!!selectedPlayer}
             onOpenChange={(open) => {
               if (!open) setSelectedPlayer(null);
@@ -2136,19 +2184,29 @@ export default function PositiveEVPage() {
                         <div className="flex items-center gap-1.5">
                           {/* Sport icon - shown on smaller screens when League column is hidden */}
                           <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-400 xl:hidden shrink-0" />
-                          {/* NBA player names are clickable to show hit rate modal */}
-                          {opp.sport === "nba" && opp.playerId && opp.playerName ? (
+                          {/* Supported player names are clickable to show hit rate modal */}
+                          {getQuickViewSport(opp.sport) && opp.playerId && opp.playerName ? (
                             <button
-                              onMouseEnter={() => prefetchPlayer(opp.playerId)}
+                              onMouseEnter={() => getQuickViewSport(opp.sport) === "nba" && prefetchPlayer(opp.playerId)}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                const quickViewSport = getQuickViewSport(opp.sport);
+                                if (!quickViewSport) return;
                                 setSelectedPlayer({
+                                  sport: quickViewSport,
                                   odds_player_id: opp.playerId!,
                                   player_name: opp.playerName!,
-                                  market: opp.market,
+                                  market: normalizeQuickViewMarket(quickViewSport, opp.market),
                                   event_id: opp.eventId,
                                   line: opp.line,
+                                  gameContext: buildQuickViewGameContext({
+                                    startTime: opp.startTime,
+                                    gameDate: opp.gameDate,
+                                    homeTeam: opp.homeTeam,
+                                    awayTeam: opp.awayTeam,
+                                    playerTeam: opp.playerTeam,
+                                  }),
                                   odds: {
                                     [opp.side]: {
                                       price: opp.book.price,
@@ -2157,6 +2215,30 @@ export default function PositiveEVPage() {
                                       mobileLink: opp.book.mobileLink,
                                     },
                                   },
+                                  liveBookOffers: [
+                                    ...((opp.side === "over" || opp.side === "under") ? (opp.allBooks || []).map((book) => ({
+                                      side: opp.side as "over" | "under",
+                                      book: book.bookId,
+                                      price: book.price,
+                                      line: opp.line,
+                                      url: book.link,
+                                      mobileUrl: book.mobileLink,
+                                      decimal: book.priceDecimal,
+                                      evPercent: book.evPercent ?? null,
+                                      isSharpRef: book.isSharpRef ?? false,
+                                    })) : []),
+                                    ...((opp.side === "over" || opp.side === "under") ? (opp.oppositeBooks || []).map((book) => ({
+                                      side: opp.side === "over" ? "under" as const : "over" as const,
+                                      book: book.bookId,
+                                      price: book.price,
+                                      line: opp.line,
+                                      url: book.link,
+                                      mobileUrl: book.mobileLink,
+                                      decimal: book.priceDecimal,
+                                      evPercent: book.evPercent ?? null,
+                                      isSharpRef: book.isSharpRef ?? false,
+                                    })) : []),
+                                  ],
                                 });
                               }}
                               className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight hover:text-brand dark:hover:text-brand transition-colors text-left truncate"
@@ -3238,12 +3320,17 @@ export default function PositiveEVPage() {
       {/* Player Quick View Modal (NBA Hit Rates) */}
       {selectedPlayer && (
         <PlayerQuickViewModal
+          sport={selectedPlayer.sport}
           odds_player_id={selectedPlayer.odds_player_id}
+          nba_player_id={selectedPlayer.sport === "nba" ? parseQuickViewPlayerId(selectedPlayer.odds_player_id) : undefined}
           player_name={selectedPlayer.player_name}
           initial_market={selectedPlayer.market}
           initial_line={selectedPlayer.line}
           event_id={selectedPlayer.event_id}
           odds={selectedPlayer.odds ?? undefined}
+          liveBookOffers={selectedPlayer.liveBookOffers}
+          gameContext={selectedPlayer.gameContext}
+          showFullProfileLink={selectedPlayer.sport !== "mlb"}
           open={!!selectedPlayer}
           onOpenChange={(open) => {
             if (!open) setSelectedPlayer(null);

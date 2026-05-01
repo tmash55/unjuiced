@@ -133,6 +133,7 @@ interface MlbSprayChartProps {
 
 
 const SEASON_OPTIONS = [
+  { value: "2026", label: "2026" },
   { value: "2025", label: "2025" },
   { value: "2024", label: "2024" },
   { value: "2023", label: "2023" },
@@ -348,7 +349,7 @@ interface ZoneOverlay {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartProps) {
-  const [seasonFilter, setSeasonFilter] = useState("2025");
+  const [seasonFilter, setSeasonFilter] = useState(() => String(getCurrentSeasonYear()));
   const [trajectoryFilter, setTrajectoryFilter] = useState<TrajectoryFilter>("all");
   const [evThreshold, setEvThreshold] = useState<EvThreshold>("off");
   const [animKey, setAnimKey] = useState(0);
@@ -551,8 +552,8 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
     );
   }
 
-  // ── Empty ──
-  if (!data || dots.length === 0) {
+  // ── Empty initial response ──
+  if (!data) {
     return (
       <section className="relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/95 dark:border-neutral-700/60 dark:bg-neutral-900/65 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-br from-emerald-500/25 via-emerald-400/10 to-transparent dark:from-emerald-400/25 dark:via-emerald-300/10 opacity-90" />
@@ -577,6 +578,14 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
 
   // ── Zone overlay color (based on deviation from even split) ──
   const maxZonePct = Math.max(...zoneOverlays.map((z) => z.pct), 0.01);
+  const hasNoPlottedResults = dots.length === 0;
+  const resetFilters = () => {
+    setTrajectoryFilter("all");
+    setHitFilter("all");
+    setEvThreshold("off");
+    setZoneDisplay("show");
+    setHoveredIdx(null);
+  };
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/95 dark:border-neutral-700/60 dark:bg-neutral-900/65 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
@@ -962,6 +971,30 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
                         </span>
                       )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {hasNoPlottedResults && (
+                <div className="absolute inset-6 z-10 flex items-center justify-center rounded-2xl border border-dashed border-neutral-300/70 bg-white/80 text-center shadow-sm backdrop-blur-md dark:border-neutral-700/70 dark:bg-neutral-950/70">
+                  <div className="max-w-xs px-5 py-6">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">
+                      No Results
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                      No batted balls match these filters.
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                      The field and controls stay visible so you can loosen the filters without losing context.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-100 px-3 py-1.5 text-xs font-bold text-neutral-700 transition-colors hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Reset filters
+                    </button>
                   </div>
                 </div>
               )}
