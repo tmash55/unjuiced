@@ -7,7 +7,7 @@ import { matchOddsTeamSide } from "@/lib/mlb/odds-team-mapping";
 
 // --- Cache key prefixes ---
 // Fix #4: split static metadata (1h) from live game state (30s)
-const STATIC_CACHE_PREFIX = "mlb:games:static";
+const STATIC_CACHE_PREFIX = "mlb:games:static:v4";
 const LIVE_CACHE_PREFIX = "mlb:games:live";
 const STATIC_CACHE_TTL = 3600; // team names, records, weather, park factors
 const LIVE_CACHE_TTL_ACTIVE = 90; // stored 90s; considered fresh for 30s
@@ -64,6 +64,9 @@ type OddsData = {
 type StaticGameEntry = {
   game_id: string;
   game_date: string;
+  game_datetime: string | null;
+  doubleheader: string | null;
+  game_num: number | null;
   home_team_name: string;
   away_team_name: string;
   home_team_tricode: string;
@@ -83,6 +86,7 @@ type LiveGameEntry = {
   home_team_score: number | null;
   away_team_score: number | null;
   game_status: string;
+  final_inning: number | null;
   live: LiveState | null;
   odds: OddsData | null;
 };
@@ -115,14 +119,23 @@ function parseGameTimeToMinutes(gameStatus: string): number {
   return hour * 60 + parseInt(minutes, 10);
 }
 
+function getGameStartSortValue(game: { game_date: string; game_datetime?: string | null; game_status?: string | null }): number {
+  if (game.game_datetime) {
+    const time = new Date(game.game_datetime).getTime();
+    if (Number.isFinite(time)) return time;
+  }
+
+  const date = new Date(`${game.game_date}T00:00:00`).getTime();
+  return date + parseGameTimeToMinutes(game.game_status || "") * 60_000;
+}
+
 function sortGamesByDateTime(games: any[]): any[] {
   return [...games].sort((a, b) => {
     const dateCompare = a.game_date.localeCompare(b.game_date);
     if (dateCompare !== 0) return dateCompare;
-    return (
-      parseGameTimeToMinutes(a.game_status || "") -
-      parseGameTimeToMinutes(b.game_status || "")
-    );
+    const startDiff = getGameStartSortValue(a) - getGameStartSortValue(b);
+    if (startDiff !== 0) return startDiff;
+    return Number(a.game_id) - Number(b.game_id);
   });
 }
 
@@ -150,6 +163,13 @@ function getDisplayStatus(statusDetailed: string | null, gameDateTime: string | 
   if (status.includes("postponed")) return "Postponed";
   if (status.includes("in progress") || status.includes("manager challenge")) return "In Progress";
   return formatScheduledStatus(gameDateTime);
+}
+
+function getFinalInning(statusDetailed: string | null, currentInning: number | null): number | null {
+  const status = statusDetailed?.toLowerCase() ?? "";
+  if (!status.includes("final")) return null;
+  const inning = Number(currentInning);
+  return Number.isFinite(inning) ? inning : null;
 }
 
 function isLiveStatus(statusDetailed: string | null, currentPitcherId: number | null): boolean {
@@ -318,6 +338,7 @@ function assembleGames(
       home_team_score: live?.home_team_score ?? null,
       away_team_score: live?.away_team_score ?? null,
       game_status: live?.game_status ?? "TBD",
+      final_inning: live?.final_inning ?? null,
       live: live?.live ?? null,
       odds: live?.odds ?? null,
       is_primetime: null,
@@ -369,6 +390,7 @@ async function refreshLiveCache(
         home_team_score: row.home_score ?? null,
         away_team_score: row.away_score ?? null,
         game_status: getDisplayStatus(statusDetailed, row.game_datetime),
+        final_inning: getFinalInning(statusDetailed, row.current_inning ?? null),
         live,
         odds: null,
       };
@@ -431,7 +453,13 @@ export async function GET() {
       console.error("[/api/mlb/games] Cache read error:", cacheErr);
     }
 
-    if (staticCached?.games) {
+    const liveCacheHasFinalInning =
+      !!liveCached?.games &&
+      Object.values(liveCached.games).every((game) =>
+        Object.prototype.hasOwnProperty.call(game, "final_inning"),
+      );
+
+    if (staticCached?.games && liveCached?.games && liveCacheHasFinalInning) {
       const liveAge = Date.now() - (liveCached?.ts ?? 0);
       const freshThreshold = liveCached?.anyLive ? LIVE_FRESH_MS_ACTIVE : LIVE_FRESH_MS_IDLE;
       const liveStale = !liveCached || liveAge > freshThreshold;
@@ -467,6 +495,8 @@ export async function GET() {
       game_id,
       game_date,
       game_datetime,
+      doubleheader,
+      game_num,
       game_type,
       status,
       status_detailed_state,
@@ -573,6 +603,8 @@ export async function GET() {
         game_id: String(row.game_id),
         game_date: row.game_date,
         game_datetime: row.game_datetime ?? null,
+        doubleheader: row.doubleheader ?? null,
+        game_num: Number.isFinite(Number(row.game_num)) ? Number(row.game_num) : null,
         home_team_name: row.home_name,
         away_team_name: row.away_name,
         home_team_tricode: homeAbbr,
@@ -580,6 +612,7 @@ export async function GET() {
         home_team_score: row.home_score ?? null,
         away_team_score: row.away_score ?? null,
         game_status: getDisplayStatus(statusDetailed, row.game_datetime),
+        final_inning: getFinalInning(statusDetailed, row.current_inning ?? null),
         venue_id: row.venue_id ?? null,
         home_probable_pitcher: row.home_probable_pitcher ?? null,
         away_probable_pitcher: row.away_probable_pitcher ?? null,
@@ -757,6 +790,9 @@ export async function GET() {
     const staticGames: StaticGameEntry[] = sortedGames.map((g) => ({
       game_id: g.game_id,
       game_date: g.game_date,
+      game_datetime: g.game_datetime,
+      doubleheader: g.doubleheader,
+      game_num: g.game_num,
       home_team_name: g.home_team_name,
       away_team_name: g.away_team_name,
       home_team_tricode: g.home_team_tricode,
@@ -778,6 +814,7 @@ export async function GET() {
         home_team_score: g.home_team_score,
         away_team_score: g.away_team_score,
         game_status: g.game_status,
+        final_inning: g.final_inning,
         live: g.live,
         odds: g.odds,
       };

@@ -51,6 +51,8 @@ export interface MlbGame {
   game_id: string;
   game_date: string;
   game_datetime: string | null;
+  doubleheader: string | null;
+  game_num: number | null;
   home_team_name: string;
   away_team_name: string;
   home_team_tricode: string;
@@ -60,6 +62,7 @@ export interface MlbGame {
   home_team_record: string | null;
   away_team_record: string | null;
   game_status: string;
+  final_inning: number | null;
   venue_id: number | null;
   odds_game_id: string | null;
   home_probable_pitcher: string | null;

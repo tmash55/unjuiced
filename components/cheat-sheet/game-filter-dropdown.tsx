@@ -8,7 +8,42 @@ import type { MlbGame } from "@/hooks/use-mlb-games";
 function lastNameOnly(name: string | null): string {
   if (!name) return "TBD";
   const parts = name.trim().split(" ");
-  return parts.length > 1 ? parts[parts.length - 1] : name;
+  if (parts.length <= 1) return name;
+
+  const suffixes = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"]);
+  const last = parts[parts.length - 1];
+  if (suffixes.has(last.toLowerCase()) && parts.length > 2) {
+    return `${parts[parts.length - 2]} ${last}`;
+  }
+
+  return last;
+}
+
+function getGameStatusLabel(game: MlbGame): string {
+  const status = game.game_status || "TBD";
+  if (status.toLowerCase().includes("final")) {
+    return game.final_inning && game.final_inning > 9 ? `F/${game.final_inning}` : "Final";
+  }
+
+  const live = game.live;
+  if (live?.current_inning != null) {
+    const half = live.current_inning_half === "top" ? "T" : live.current_inning_half === "bottom" ? "B" : "";
+    return `${half}${live.current_inning}`;
+  }
+
+  if (status.toLowerCase().includes("progress")) return "Live";
+  return status;
+}
+
+function isGameLive(game: MlbGame): boolean {
+  const status = (game.game_status || "").toLowerCase();
+  return Boolean(game.live?.current_inning != null || status.includes("progress"));
+}
+
+function getDoubleheaderLabel(game: MlbGame): string | null {
+  const isDoubleheader = game.doubleheader && game.doubleheader !== "N";
+  if (!isDoubleheader || !game.game_num) return null;
+  return `G${game.game_num}`;
 }
 
 export function GameFilterDropdown({
@@ -87,6 +122,12 @@ export function GameFilterDropdown({
               const id = String(g.game_id);
               const isSelected = id === selectedGame;
               const isFinal = (g.game_status || "").toLowerCase().includes("final");
+              const isLive = isGameLive(g);
+              const showScore = isFinal || isLive;
+              const statusLabel = getGameStatusLabel(g);
+              const doubleheaderLabel = getDoubleheaderLabel(g);
+              const awayWon = isFinal && g.away_team_score != null && g.home_team_score != null && g.away_team_score > g.home_team_score;
+              const homeWon = isFinal && g.away_team_score != null && g.home_team_score != null && g.home_team_score > g.away_team_score;
               return (
                 <button
                   key={g.game_id}
@@ -101,23 +142,51 @@ export function GameFilterDropdown({
                   <div className="flex-1 min-w-0 space-y-0.5">
                     {/* Away team row */}
                     <div className="flex items-center gap-1.5">
-                      <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
-                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.away_team_tricode}</span>
-                      <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.away_probable_pitcher)}</span>
-                      {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.away_team_score}</span>}
+                      <img src={`/team-logos/mlb/${g.away_team_tricode.toUpperCase()}.svg`} className={cn("w-4 h-4 object-contain shrink-0", isFinal && !awayWon && "opacity-60")} alt="" />
+                      <span className={cn(
+                        "w-8 text-[11px] font-bold",
+                        awayWon ? "text-emerald-600 dark:text-emerald-300" : isFinal ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                      )}>
+                        {g.away_team_tricode}
+                      </span>
+                      <span className={cn("truncate text-[10px]", isFinal && !awayWon ? "text-neutral-600/70 dark:text-neutral-600" : "text-neutral-500")}>{lastNameOnly(g.away_probable_pitcher)}</span>
+                      {showScore && <span className={cn(
+                        "ml-auto text-[11px] font-bold tabular-nums shrink-0",
+                        awayWon ? "text-emerald-600 dark:text-emerald-300" : isFinal ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                      )}>{g.away_team_score ?? "-"}</span>}
                     </div>
                     {/* Home team row */}
                     <div className="flex items-center gap-1.5">
-                      <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" />
-                      <span className="text-[11px] font-bold text-neutral-900 dark:text-white w-8">{g.home_team_tricode}</span>
-                      <span className="text-[10px] text-neutral-500 truncate">{lastNameOnly(g.home_probable_pitcher)}</span>
-                      {isFinal && <span className="ml-auto text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums shrink-0">{g.home_team_score}</span>}
+                      <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className={cn("w-4 h-4 object-contain shrink-0", isFinal && !homeWon && "opacity-60")} alt="" />
+                      <span className={cn(
+                        "w-8 text-[11px] font-bold",
+                        homeWon ? "text-emerald-600 dark:text-emerald-300" : isFinal ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                      )}>
+                        {g.home_team_tricode}
+                      </span>
+                      <span className={cn("truncate text-[10px]", isFinal && !homeWon ? "text-neutral-600/70 dark:text-neutral-600" : "text-neutral-500")}>{lastNameOnly(g.home_probable_pitcher)}</span>
+                      {showScore && <span className={cn(
+                        "ml-auto text-[11px] font-bold tabular-nums shrink-0",
+                        homeWon ? "text-emerald-600 dark:text-emerald-300" : isFinal ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                      )}>{g.home_team_score ?? "-"}</span>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
-                    {!isFinal && (
-                      <span className="text-[10px] text-neutral-500 tabular-nums whitespace-nowrap">{g.game_status}</span>
+                    {doubleheaderLabel && (
+                      <span className="rounded bg-neutral-200/80 px-1 py-0.5 text-[8px] font-black leading-none text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                        {doubleheaderLabel}
+                      </span>
                     )}
+                    <span className={cn(
+                      "text-[10px] tabular-nums whitespace-nowrap",
+                      isLive
+                        ? "font-bold text-emerald-600 dark:text-emerald-400"
+                        : isFinal
+                        ? "font-semibold text-neutral-600 dark:text-neutral-300"
+                        : "text-neutral-500"
+                    )}>
+                      {statusLabel}
+                    </span>
                     {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
                   </div>
                 </button>
