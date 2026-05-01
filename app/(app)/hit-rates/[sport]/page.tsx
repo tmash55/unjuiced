@@ -55,6 +55,7 @@ const SPORT_CONFIG: Record<
       { value: "player_runs_scored", label: "Runs" },
       { value: "player_rbi", label: "RBIs" },
       { value: "player_total_bases", label: "Total Bases" },
+      { value: "player_hits__runs__rbis", label: "H+R+RBI" },
       { value: "pitcher_strikeouts", label: "Pitcher Strikeouts" },
     ],
   },
@@ -86,7 +87,6 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     notFound();
   }
   const sportConfig = SPORT_CONFIG[sport];
-
   const router = useRouter();
 
   // Detect mobile viewport
@@ -266,10 +266,6 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
   }, [effectiveDesktopGameIds, allGames]);
   
-  // Player drill-down state
-  const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
-  const [preferredMarket, setPreferredMarket] = useState<string | null>(null);
-  
   // Table scroll ref
   const tableScrollRef = useRef<HTMLDivElement>(null);
   
@@ -330,7 +326,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Pagination state - progressive loading
   const [hasLoadedBackground, setHasLoadedBackground] = useState(false);
 
-  const isInDrilldown = selectedPlayer !== null;
+  const isInDrilldown = false;
   
   // Effective state based on viewport
   const effectiveSearch = isMobile ? debouncedMobileSearch : debouncedSearch;
@@ -431,7 +427,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       params.set("date", profileDate);
     }
     router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
-  }, [router, sport, saveFilterState, effectiveDate, apiPrimaryDate]);
+  }, [apiPrimaryDate, effectiveDate, router, saveFilterState, sport]);
 
   // Pre-compute normalized selected game IDs
   const normalizedSelectedGameIds = useMemo(() => 
@@ -549,10 +545,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
 
       {/* Hit Rate Table - with Games Filter passed as additional filter */}
-      <GatedHitRateTable 
+      <GatedHitRateTable
         sport={sport}
-        rows={paginatedRows} 
-        loading={showLoadingState} 
+        rows={paginatedRows}
+        loading={showLoadingState}
         error={error?.message}
         onRowClick={handleTableRowClick}
         hasMore={hasMoreRows}

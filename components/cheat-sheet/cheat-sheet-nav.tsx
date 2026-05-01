@@ -123,7 +123,6 @@ const MLB_TABS: CheatSheetTab[] = [
     shortLabel: "Hit Rates",
     icon: IconChartBarPopular,
     href: "/hit-rates/mlb",
-    comingSoon: true,
   },
 ];
 

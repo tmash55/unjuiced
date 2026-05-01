@@ -39,6 +39,7 @@ import {
   LineChart,
 } from "lucide-react";
 import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -341,9 +342,58 @@ const PROP_MARKET_TO_ODDS_MARKET: Record<string, string> = {
   pitcher_k: "player_strikeouts",
   pitcher_h: "player_hits_allowed",
   pitcher_er: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
   h_r_rbi: "player_hits__runs__rbis",
 };
 
+const PROP_MARKET_TO_QUICK_VIEW_MARKET: Record<string, string> = {
+  hr: "player_home_runs",
+  hits: "player_hits",
+  tb: "player_total_bases",
+  rbi: "player_rbi",
+  h_r_rbi: "player_hits__runs__rbis",
+  pitcher_k: "pitcher_strikeouts",
+  pitcher_h: "pitcher_hits_allowed",
+  pitcher_er: "pitcher_earned_runs",
+  pitcher_outs: "pitcher_outs",
+  pitcher_outs_recorded: "pitcher_outs",
+};
+
+type PropCenterQuickViewPlayer = {
+  mlb_player_id: number;
+  odds_player_id?: string | null;
+  player_name: string;
+  market: string;
+  event_id?: string;
+  line?: number;
+  gameContext?: {
+    gameDate: string | null;
+    gameDatetime: string | null;
+    gameStatus: string | null;
+    homeAway: "H" | "A" | null;
+    opponentTeamAbbr: string | null;
+    opposingPitcherName: string | null;
+  };
+  odds?: {
+    over?: {
+      price: number;
+      line: number;
+      book?: string;
+      mobileLink?: string | null;
+    };
+  };
+  liveBookOffers?: Array<{
+    side: "over" | "under";
+    book: string;
+    price: number;
+    line?: number | null;
+    url?: string | null;
+    mobileUrl?: string | null;
+    mobileLink?: string | null;
+    decimal?: number | null;
+  }>;
+};
 
 // ── Grade System ─────────────────────────────────────────────────────────────
 
@@ -616,6 +666,102 @@ function getBookEntriesForLine(player: PropScorePlayer): PropBookEntry[] {
       if (!acc.some(([key]) => parseBookKey(key) === realBook)) acc.push(entry);
       return acc;
     }, []);
+}
+
+function getQuickViewMarket(player: PropScorePlayer, marketConfig: MarketConfig): { market: string; line?: number } {
+  const mappedMarket = PROP_MARKET_TO_QUICK_VIEW_MARKET[marketConfig.key];
+  if (mappedMarket) {
+    return {
+      market: mappedMarket,
+      line: player.line ?? undefined,
+    };
+  }
+
+  return {
+    market: player.player_type === "pitcher" ? "pitcher_strikeouts" : "player_hits",
+  };
+}
+
+function buildPropCenterQuickViewPlayer(
+  player: PropScorePlayer,
+  marketConfig: MarketConfig,
+  game?: MlbGame
+): PropCenterQuickViewPlayer {
+  const quickViewMarket = getQuickViewMarket(player, marketConfig);
+  const playerTeam = player.team_abbr?.toUpperCase();
+  const isHomeTeam = !!game && playerTeam === game.home_team_tricode.toUpperCase();
+  const isAwayTeam = !!game && playerTeam === game.away_team_tricode.toUpperCase();
+  const opposingPitcherName = game
+    ? isHomeTeam
+      ? game.away_probable_pitcher
+      : game.home_probable_pitcher
+    : null;
+  const matchingBookEntry = player.best_odds_book
+    ? getBookEntriesForLine(player).find(([bookKey]) => parseBookKey(bookKey) === parseBookKey(player.best_odds_book!))
+    : null;
+  const oddsEntry = matchingBookEntry?.[1];
+
+  return {
+    mlb_player_id: player.player_id,
+    odds_player_id: player.odds_player_id ?? null,
+    player_name: player.player_name,
+    market: quickViewMarket.market,
+    event_id: game?.odds_game_id || undefined,
+    line: quickViewMarket.line,
+    gameContext:
+      game && (isHomeTeam || isAwayTeam)
+        ? {
+            gameDate: game.game_date,
+            gameDatetime: game.game_datetime,
+            gameStatus: game.game_status,
+            homeAway: isHomeTeam ? "H" : "A",
+            opponentTeamAbbr: isHomeTeam ? game.away_team_tricode : game.home_team_tricode,
+            opposingPitcherName,
+          }
+        : undefined,
+    odds:
+      quickViewMarket.line != null && player.best_odds != null
+        ? {
+            over: {
+              price: player.best_odds,
+              line: quickViewMarket.line,
+              book: player.best_odds_book ? parseBookKey(player.best_odds_book) : undefined,
+              mobileLink: oddsEntry?.mobile_link || oddsEntry?.link || player.best_odds_mobile_link || player.best_odds_link || null,
+            },
+          }
+        : undefined,
+    liveBookOffers:
+      quickViewMarket.line != null
+        ? getBookEntriesForLine(player).flatMap(([bookKey, data]) => {
+            const book = parseBookKey(bookKey);
+            const line = data?.line ?? quickViewMarket.line ?? null;
+            const offers: NonNullable<PropCenterQuickViewPlayer["liveBookOffers"]> = [];
+            if (data?.over != null) {
+              offers.push({
+                side: "over",
+                book,
+                price: data.over,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+              });
+            }
+            if (data?.under != null) {
+              offers.push({
+                side: "under",
+                book,
+                price: data.under,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+              });
+            }
+            return offers;
+          })
+        : undefined,
+  };
 }
 
 function buildPropCenterLineHistoryContext(
@@ -1743,6 +1889,7 @@ function MobileCard({
   game,
   lineHistoryAccess,
   onLineHistoryClick,
+  onPlayerQuickView,
 }: {
   player: PropScorePlayer;
   rank: number;
@@ -1752,6 +1899,7 @@ function MobileCard({
   game?: MlbGame;
   lineHistoryAccess?: LineHistoryAccessState;
   onLineHistoryClick?: () => void;
+  onPlayerQuickView?: (player: PropScorePlayer, marketConfig: MarketConfig, game?: MlbGame) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const config = getGradeConfig(player.grade);
@@ -1790,7 +1938,17 @@ function MobileCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <Image src={`/team-logos/mlb/${player.team_abbr.toUpperCase()}.svg`} alt="" width={14} height={14} className="shrink-0" />
-            <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">{player.player_name}</span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onPlayerQuickView?.(player, marketConfig, game);
+              }}
+              className="min-w-0 truncate text-left text-sm font-bold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+            >
+              {player.player_name}
+            </button>
             <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", config.bg, config.color)}>{player.grade}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
@@ -2023,6 +2181,7 @@ export function MlbPropCommandCenter() {
   const [selectedGame, setSelectedGame] = useState<string>("all");
   const [selectedLine, setSelectedLine] = useState<number | null>(null); // null = use consensus
   const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
+  const [quickViewPlayer, setQuickViewPlayer] = useState<PropCenterQuickViewPlayer | null>(null);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -2266,6 +2425,10 @@ export function MlbPropCommandCenter() {
     setLineHistoryContext(context);
   }, [lineHistoryAccess.isLoading]);
 
+  const handleOpenQuickView = useCallback((player: PropScorePlayer, config: MarketConfig, game?: MlbGame) => {
+    setQuickViewPlayer(buildPropCenterQuickViewPlayer(player, config, game));
+  }, []);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
@@ -2462,6 +2625,7 @@ export function MlbPropCommandCenter() {
                   game={g}
                   lineHistoryAccess={lineHistoryAccess}
                   onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, g)}
+                  onPlayerQuickView={handleOpenQuickView}
                 />
               );
             })}
@@ -2579,7 +2743,17 @@ export function MlbPropCommandCenter() {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <Image src={`/team-logos/mlb/${player.team_abbr.toUpperCase()}.svg`} alt="" width={12} height={12} className="shrink-0" />
-                                    <span className="font-bold text-neutral-900 dark:text-white truncate text-xs">{player.player_name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        handleOpenQuickView(player, marketConfig, game);
+                                      }}
+                                      className="min-w-0 truncate text-left text-xs font-bold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+                                    >
+                                      {player.player_name}
+                                    </button>
                                     {player.batting_order && (
                                       <Tooltip content={`Batting ${player.batting_order}${player.batting_order <= 3 ? " — top of order, more ABs" : player.batting_order <= 5 ? " — middle order, RBI spot" : player.batting_order <= 7 ? " — lower order" : " — bottom of order, fewer ABs"}`} side="top">
                                         <span className={cn(
@@ -2860,6 +3034,25 @@ export function MlbPropCommandCenter() {
         }}
         context={lineHistoryContext}
       />
+      {quickViewPlayer && (
+        <PlayerQuickViewModal
+          sport="mlb"
+          mlb_player_id={quickViewPlayer.mlb_player_id}
+          odds_player_id={quickViewPlayer.odds_player_id ?? undefined}
+          player_name={quickViewPlayer.player_name}
+          initial_market={quickViewPlayer.market}
+          initial_line={quickViewPlayer.line}
+          event_id={quickViewPlayer.event_id}
+          odds={quickViewPlayer.odds}
+          liveBookOffers={quickViewPlayer.liveBookOffers}
+          gameContext={quickViewPlayer.gameContext}
+          showFullProfileLink={false}
+          open={!!quickViewPlayer}
+          onOpenChange={(open) => {
+            if (!open) setQuickViewPlayer(null);
+          }}
+        />
+      )}
     </div>
   );
 }

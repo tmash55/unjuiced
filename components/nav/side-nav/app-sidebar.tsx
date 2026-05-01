@@ -147,7 +147,7 @@ const mlbLink: NavItem = {
     { label: "NRFI", href: "/cheatsheets/mlb/nrfi" },
     { label: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
     { label: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
-    { label: "Hit Rates", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
+    { label: "Hit Rates", href: "/hit-rates/mlb" },
   ],
 }
 

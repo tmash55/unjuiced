@@ -195,7 +195,11 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
 }
 
 // Transform RPC response to frontend format
-function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null) {
+function transformProfile(
+  row: any,
+  bestOdds: BestOddsData | null,
+  eventStartTime: string | null
+) {
   const startTime =
     eventStartTime ||
     row.start_time ||
@@ -411,6 +415,7 @@ export async function GET(request: Request) {
   const datesToFetch = date ? [date] : [todayET, tomorrowET];
   
   try {
+    const supabase = createServerSupabaseClient();
     let allData: any[] = [];
     let cacheHit = false;
     
@@ -433,7 +438,6 @@ export async function GET(request: Request) {
     
     // Cache miss - fetch from Supabase using FAST RPC
     if (!cacheHit) {
-      const supabase = createServerSupabaseClient();
       const dbStartTime = Date.now();
       
       // Call the new optimized RPC function (v3 includes sel_key for Redis lookup)

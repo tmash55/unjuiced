@@ -93,14 +93,21 @@ export interface BoxScoreGame {
   mlbRbi?: number;
   mlbTotalBases?: number;
   mlbPitcherStrikeouts?: number;
+  mlbPitcherOuts?: number;
   mlbAtBats?: number;
   mlbPlateAppearances?: number;
   mlbWalks?: number;
+  mlbStrikeOuts?: number;
+  mlbBattingAvg?: number | null;
+  mlbObp?: number | null;
+  mlbSlg?: number | null;
   mlbInningsPitched?: number;
   mlbHitsAllowed?: number;
   mlbEarnedRuns?: number;
   mlbEraGame?: number;
   mlbWhipGame?: number;
+  mlbGameDatetime?: string | null;
+  mlbDayNight?: "D" | "N" | null;
 }
 
 export interface PlayerBoxScoresResponse {

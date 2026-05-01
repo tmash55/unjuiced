@@ -13,6 +13,8 @@ const MARKET_TO_ODDS: Record<string, string> = {
   pitcher_k: "player_strikeouts",
   pitcher_h: "player_hits_allowed",
   pitcher_er: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
   h_r_rbi: "player_hits__runs__rbis",
 };
 

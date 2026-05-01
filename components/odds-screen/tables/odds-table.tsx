@@ -52,6 +52,12 @@ import { usePrefetchPlayerByOddsId } from '@/hooks/use-prefetch-player'
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from '@/hooks/use-favorites'
 import { useStateLink } from '@/hooks/use-state-link'
 import { replaceStateInLink } from '@/lib/utils/state-link'
+import {
+  getQuickViewSport,
+  normalizeQuickViewMarket,
+  parseQuickViewPlayerId,
+  type QuickViewSport,
+} from '@/lib/hit-rates/quick-view'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -1411,10 +1417,12 @@ export function OddsTable({
   
   // Player profile modal state
   const [selectedPlayer, setSelectedPlayer] = useState<{
+    sport: QuickViewSport;
     odds_player_id: string;
     player_name: string;
     market: string;
     event_id?: string;
+    line?: number;
     odds?: {
       over?: { price: number; line: number; book?: string; mobileLink?: string | null };
       under?: { price: number; line: number; book?: string; mobileLink?: string | null };
@@ -2303,9 +2311,9 @@ export function OddsTable({
           const showLogos = hasTeamLogos(sport);
           const teamLogoUrl = showLogos && playerTeam ? getTeamLogoUrl(playerTeam) : undefined;
           
-          // For NBA/WNBA player props, make player name clickable
-          const isNBASport = sport === 'nba' || sport === 'wnba';
-          const canShowProfile = isNBASport && type === 'player' && item.entity?.id && item.entity?.name;
+          // For supported player props, make player name clickable
+          const quickViewSport = getQuickViewSport(sport);
+          const canShowProfile = !!quickViewSport && type === 'player' && !!item.entity?.id && !!item.entity?.name;
           
           return (
             <div className="flex items-center gap-1.5 min-w-[120px] sm:min-w-[160px]">
@@ -2319,14 +2327,17 @@ export function OddsTable({
                   {canShowProfile ? (
                     <Tooltip content="View Profile">
                       <button
-                        onMouseEnter={() => prefetchPlayer(item.entity.id)}
+                        onMouseEnter={() => quickViewSport === 'nba' && prefetchPlayer(item.entity.id)}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!quickViewSport) return;
                           setSelectedPlayer({
+                            sport: quickViewSport,
                             odds_player_id: item.entity.id!,
                             player_name: item.entity.name!,
-                            market: typeof market === 'string' ? market : 'player_points',
+                            market: normalizeQuickViewMarket(quickViewSport, typeof market === 'string' ? market : undefined),
                             event_id: item.event?.id,
+                            line: item.odds.best?.over?.line ?? item.odds.best?.under?.line,
                             odds: {
                               over: item.odds.best?.over ? {
                                 price: item.odds.best.over.price,
@@ -3680,13 +3691,17 @@ export function OddsTable({
                         homeTeam={item.event?.homeTeam}
                         awayTeam={item.event?.awayTeam}
                         startTime={item.event?.startTime}
-                        // Callback to view player profile (NBA/WNBA only)
-                        onViewProfile={(sport === 'nba' || sport === 'wnba') && item.entity?.id && item.entity?.name ? () => {
+                        // Callback to view player profile
+                        onViewProfile={getQuickViewSport(sport) && item.entity?.id && item.entity?.name ? () => {
+                          const quickViewSport = getQuickViewSport(sport);
+                          if (!quickViewSport) return;
                           setSelectedPlayer({
+                            sport: quickViewSport,
                             odds_player_id: item.entity.id!,
                             player_name: item.entity.name!,
-                            market: typeof market === 'string' ? market : 'player_points',
+                            market: normalizeQuickViewMarket(quickViewSport, typeof market === 'string' ? market : undefined),
                             event_id: item.event?.id,
+                            line: item.odds.best?.over?.line ?? item.odds.best?.under?.line,
                             odds: {
                               over: item.odds.best?.over ? {
                                 price: item.odds.best.over.price,
@@ -3744,11 +3759,15 @@ export function OddsTable({
         onOpenChange={(open) => {
           if (!open) setSelectedPlayer(null);
         }}
+        sport={selectedPlayer?.sport}
         odds_player_id={selectedPlayer?.odds_player_id}
+        nba_player_id={selectedPlayer?.sport === 'nba' ? parseQuickViewPlayerId(selectedPlayer?.odds_player_id) : undefined}
         player_name={selectedPlayer?.player_name}
         initial_market={selectedPlayer?.market}
+        initial_line={selectedPlayer?.line}
         event_id={selectedPlayer?.event_id}
         odds={selectedPlayer?.odds}
+        showFullProfileLink={selectedPlayer?.sport !== 'mlb'}
       />
     </TooltipProvider>
   )
