@@ -952,7 +952,6 @@ function TbdPitcherCard({ teamPitchers, onChangePitcher }: { teamPitchers?: Team
 
 function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
-  const maxUsage = Math.max(...pitcher.arsenal.map((a) => a.usage_pct), 1);
 
   const vsLHB = pitcher.pitcher_splits?.vs_lhb;
   const vsRHB = pitcher.pitcher_splits?.vs_rhb;
@@ -984,14 +983,17 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
     if (arsenalSplitView === "all" || !pitcher.arsenal_splits) return pitcher.arsenal;
     const splits = arsenalSplitView === "lhb" ? pitcher.arsenal_splits.vs_lhb : pitcher.arsenal_splits.vs_rhb;
     if (!splits || !splits.length) return pitcher.arsenal;
-    console.log(`[arsenal] view=${arsenalSplitView}, splits[0]=`, JSON.stringify(splits[0]));
+    const splitMap = new Map(splits.map((s) => [s.pitch_type, s]));
     // Map splits to PitchArsenalRow-like objects using the overall row as base
     return pitcher.arsenal.map((a) => {
-      const split = splits.find((s: any) => s.pitch_type === a.pitch_type);
-      if (!split) return { ...a, usage_pct: 0, baa: null, slg: null, total_batted_balls: 0 };
+      const split = splitMap.get(a.pitch_type);
+      if (!split) return { ...a, usage_pct: 0, l30_usage_pct: null, baa: null, slg: null, total_batted_balls: 0 };
+      const splitUsage = Number(split.usage_pct);
       return {
         ...a,
-        usage_pct: split.usage_pct,
+        usage_pct: Number.isFinite(splitUsage) ? splitUsage : a.usage_pct,
+        l30_usage_pct: null,
+        avg_speed: split.avg_speed ?? a.avg_speed,
         baa: split.baa,
         slg: split.slg,
         total_batted_balls: split.bbs,
