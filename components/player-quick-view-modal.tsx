@@ -158,6 +158,7 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_blocks_steals": return game.bs;
     case "player_hits": return game.mlbHits ?? 0;
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
+    case "player_runs":
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
     case "player_rbi": return game.mlbRbi ?? 0;
     case "player_rbis": return game.mlbRbi ?? 0;
@@ -257,6 +258,7 @@ const isMlbPitcherMarketKey = (market: string | null | undefined) => !!market &&
 const MLB_BATTER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => !isMlbPitcherMarketKey(market));
 const MLB_PITCHER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => isMlbPitcherMarketKey(market));
 const MLB_LINE_HISTORY_MARKET_ALIASES: Record<string, string> = {
+  player_runs_scored: "player_runs",
   pitcher_strikeouts: "player_strikeouts",
   pitcher_hits_allowed: "player_hits_allowed",
   pitcher_earned_runs: "player_earned_runs",
@@ -284,6 +286,7 @@ const getMlbMarketLineLadder = (market: string, activeLine: number) => {
     case "player_home_runs":
       return buildHalfPointLadder(min, extendTo(2.5));
     case "player_hits":
+    case "player_runs":
     case "player_runs_scored":
     case "player_rbi":
     case "player_rbis":

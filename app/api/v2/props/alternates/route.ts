@@ -207,6 +207,7 @@ function normalizeMarketName(market: string): string {
     "player_rbis": "player_rbis",
     "player_hits__runs__rbis": "player_hits__runs__rbis",
     "player_runs": "player_runs",
+    "player_runs_scored": "player_runs",
     "player_stolen_bases": "player_stolen_bases",
     "player_strikeouts": "player_strikeouts",
     "player_hits_allowed": "player_hits_allowed",
