@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import { usePlayerBoxScores, BoxScoreGame } from "@/hooks/use-player-box-scores";
@@ -40,6 +40,8 @@ import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import { IconPlus } from "@tabler/icons-react";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite } from "@/hooks/use-favorites";
+import { toast } from "sonner";
 
 // Tab type for modal navigation
 type ModalTab = "gamelog" | "splits" | "matchup" | "playstyle" | "correlation";
@@ -64,8 +66,8 @@ interface AlternateLineOdds {
   over?: { price: number; book?: string; mobileLink?: string | null };
   under?: { price: number; book?: string; mobileLink?: string | null };
   books?: Record<string, {
-    over?: { price: number; mobileLink?: string | null; url?: string | null };
-    under?: { price: number; mobileLink?: string | null; url?: string | null };
+    over?: { price: number; mobileLink?: string | null; url?: string | null; sgp?: string | null };
+    under?: { price: number; mobileLink?: string | null; url?: string | null; sgp?: string | null };
   }>;
 }
 
@@ -86,6 +88,9 @@ export interface LiveBookOfferInput {
   decimal?: number | null;
   evPercent?: number | null;
   isSharpRef?: boolean | null;
+  sgp?: string | null;
+  oddId?: string | null;
+  odd_id?: string | null;
 }
 
 interface MlbBookOffer {
@@ -98,6 +103,8 @@ interface MlbBookOffer {
   isBest: boolean;
   evPercent: number | null;
   isSharpRef: boolean;
+  sgp: string | null;
+  oddId: string | null;
 }
 
 interface PlayerQuickViewModalProps {
@@ -258,6 +265,7 @@ const isMlbPitcherMarketKey = (market: string | null | undefined) => !!market &&
 const MLB_BATTER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => !isMlbPitcherMarketKey(market));
 const MLB_PITCHER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => isMlbPitcherMarketKey(market));
 const MLB_LINE_HISTORY_MARKET_ALIASES: Record<string, string> = {
+  player_rbi: "player_rbis",
   player_runs_scored: "player_runs",
   pitcher_strikeouts: "player_strikeouts",
   pitcher_hits_allowed: "player_hits_allowed",
@@ -269,6 +277,11 @@ const MLB_LINE_HISTORY_MARKET_ALIASES: Record<string, string> = {
 };
 
 const getMlbLineHistoryMarket = (market: string) => MLB_LINE_HISTORY_MARKET_ALIASES[market] ?? market;
+
+const parseMlbBookKey = (key: string) => {
+  const idx = key.indexOf("__");
+  return idx >= 0 ? key.slice(0, idx) : key;
+};
 
 const buildHalfPointLadder = (start: number, end: number) => {
   const lines: number[] = [];
@@ -852,6 +865,11 @@ function MlbRightRail({
   onLineChange,
   canOpenLineHistory,
   onOpenLineHistory,
+  isFavoriteSaved,
+  isFavoriteSaving,
+  isFavoriteLoggedIn,
+  canSaveFavorite,
+  onToggleFavorite,
 }: {
   currentMarket: string;
   activeLine: number;
@@ -875,6 +893,11 @@ function MlbRightRail({
   onLineChange: (line: number) => void;
   canOpenLineHistory?: boolean;
   onOpenLineHistory?: () => void;
+  isFavoriteSaved: boolean;
+  isFavoriteSaving: boolean;
+  isFavoriteLoggedIn: boolean;
+  canSaveFavorite: boolean;
+  onToggleFavorite: () => void;
 }) {
   const [bookSort, setBookSort] = useState<{ key: MlbBookSortKey; direction: SortDirection }>({
     key: "over",
@@ -1346,11 +1369,19 @@ function MlbRightRail({
               <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/85 px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-emerald-500 active:scale-[0.99]"
+                  disabled={isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)}
+                  onClick={onToggleFavorite}
+                  className={cn(
+                    "flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition active:scale-[0.99]",
+                    isFavoriteSaved
+                      ? "border-sky-400/45 bg-sky-500/85 hover:bg-sky-500"
+                      : "border-emerald-400/40 bg-emerald-500/85 hover:bg-emerald-500",
+                    (isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)) && "cursor-not-allowed opacity-60"
+                  )}
                 >
-                  Add to Betslip
+                  {isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}
                   <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
-                    <IconPlus className="h-3.5 w-3.5" stroke={2.4} />
+                    {isFavoriteSaved ? <Check className="h-3.5 w-3.5" /> : <IconPlus className="h-3.5 w-3.5" stroke={2.4} />}
                   </span>
                 </button>
               </div>
@@ -1363,11 +1394,19 @@ function MlbRightRail({
               <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/85 px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-emerald-500 active:scale-[0.99]"
+                  disabled={isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)}
+                  onClick={onToggleFavorite}
+                  className={cn(
+                    "flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition active:scale-[0.99]",
+                    isFavoriteSaved
+                      ? "border-sky-400/45 bg-sky-500/85 hover:bg-sky-500"
+                      : "border-emerald-400/40 bg-emerald-500/85 hover:bg-emerald-500",
+                    (isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)) && "cursor-not-allowed opacity-60"
+                  )}
                 >
-                  Add to Betslip
+                  {isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}
                   <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
-                    <IconPlus className="h-3.5 w-3.5" stroke={2.4} />
+                    {isFavoriteSaved ? <Check className="h-3.5 w-3.5" /> : <IconPlus className="h-3.5 w-3.5" stroke={2.4} />}
                   </span>
                 </button>
               </div>
@@ -1479,6 +1518,8 @@ export function PlayerQuickViewModal({
 }: PlayerQuickViewModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
+  const queryClient = useQueryClient();
+  const { toggleFavorite, isFavorited, isLoggedIn, isToggling } = useFavorites();
   const isMlb = sport === "mlb";
   const [lineHistoryDialogOpen, setLineHistoryDialogOpen] = useState(false);
   const [lineHistorySide, setLineHistorySide] = useState<MlbLineHistorySide>("over");
@@ -1692,11 +1733,13 @@ export function PlayerQuickViewModal({
                 price: bookData.over.price,
                 mobileLink: bookData.over.m || bookData.over.u || null,
                 url: bookData.over.u || bookData.over.m || null,
+                sgp: bookData.over.sgp || null,
               } : undefined,
               under: bookData.under ? {
                 price: bookData.under.price,
                 mobileLink: bookData.under.m || bookData.under.u || null,
                 url: bookData.under.u || bookData.under.m || null,
+                sgp: bookData.under.sgp || null,
               } : undefined,
             };
           }
@@ -1843,6 +1886,8 @@ export function PlayerQuickViewModal({
         isBest: false,
         evPercent: offer.evPercent ?? null,
         isSharpRef: Boolean(offer.isSharpRef),
+        sgp: offer.sgp ?? null,
+        oddId: offer.oddId ?? offer.odd_id ?? null,
       })) : [];
 
     const mergeOffers = (base: MlbBookOffer[], supplemental: MlbBookOffer[]) => {
@@ -1851,9 +1896,14 @@ export function PlayerQuickViewModal({
         const key = `${offer.side}:${offer.book}:${offer.line}`;
         const existing = byKey.get(key);
         byKey.set(key, {
+          ...(existing ?? {}),
           ...offer,
           evPercent: offer.evPercent ?? existing?.evPercent ?? null,
           isSharpRef: offer.isSharpRef || existing?.isSharpRef || false,
+          url: offer.url ?? existing?.url ?? null,
+          mobileUrl: offer.mobileUrl ?? existing?.mobileUrl ?? null,
+          sgp: offer.sgp ?? existing?.sgp ?? null,
+          oddId: offer.oddId ?? existing?.oddId ?? null,
         });
       });
       const merged = Array.from(byKey.values());
@@ -1893,6 +1943,8 @@ export function PlayerQuickViewModal({
             isBest: false,
             evPercent: null,
             isSharpRef: false,
+            sgp: sides.over.sgp ?? null,
+            oddId: null,
           });
         }
         if (sides.under && Number.isFinite(sides.under.price)) {
@@ -1906,6 +1958,8 @@ export function PlayerQuickViewModal({
             isBest: false,
             evPercent: null,
             isSharpRef: false,
+            sgp: sides.under.sgp ?? null,
+            oddId: null,
           });
         }
       });
@@ -1924,6 +1978,8 @@ export function PlayerQuickViewModal({
           isBest: true,
           evPercent: null,
           isSharpRef: false,
+          sgp: null,
+          oddId: null,
         });
       }
       if (activeOdds?.under?.book && activeOdds.under.price != null) {
@@ -1937,6 +1993,8 @@ export function PlayerQuickViewModal({
           isBest: true,
           evPercent: null,
           isSharpRef: false,
+          sgp: null,
+          oddId: null,
         });
       }
       return mergeOffers(callerOffers, [...alternateOffers, ...fallback]);
@@ -1955,6 +2013,8 @@ export function PlayerQuickViewModal({
           isBest: false,
           evPercent: null,
           isSharpRef: false,
+          sgp: sides.over.sgp ?? null,
+          oddId: null,
         });
       }
       if (sides.under) {
@@ -1968,6 +2028,8 @@ export function PlayerQuickViewModal({
           isBest: false,
           evPercent: null,
           isSharpRef: false,
+          sgp: sides.under.sgp ?? null,
+          oddId: null,
         });
       }
     });
@@ -2276,6 +2338,172 @@ export function PlayerQuickViewModal({
       currentPricesByBook: Object.fromEntries(candidateOffers.map((offer) => [offer.book, offer.price])),
     };
   }, [activeLine, activeOdds, bookOffers, currentMarket, displayName, displayTeam, event_id, isMlb, lineHistorySide, profile?.eventId, sport]);
+
+  const favoriteParams = useMemo<AddFavoriteParams | null>(() => {
+    if (!isMlb) return null;
+    const contextEventId = event_id || profile?.eventId;
+    const favoriteMarket = getMlbLineHistoryMarket(currentMarket);
+    const favoritePlayerId = odds_player_id || oddsPlayerIdForLookup || (resolvedPlayerId ? String(resolvedPlayerId) : null);
+    const sideOffers = bookOffers
+      .filter((offer) => offer.side === lineHistorySide && Math.abs(offer.line - activeLine) < 0.01)
+      .sort((a, b) => (americanToDecimal(b.price) ?? 0) - (americanToDecimal(a.price) ?? 0));
+
+    if (!contextEventId || !favoriteMarket || !favoritePlayerId || sideOffers.length === 0) return null;
+
+    const booksSnapshot: Record<string, BookSnapshot> = {};
+    for (const offer of sideOffers) {
+      const bookId = parseMlbBookKey(offer.book);
+      const existing = booksSnapshot[bookId];
+      if (existing && (americanToDecimal(existing.price) ?? 0) >= (americanToDecimal(offer.price) ?? 0)) continue;
+      booksSnapshot[bookId] = {
+        price: offer.price,
+        u: offer.url,
+        m: offer.mobileUrl,
+        sgp: offer.sgp,
+        odd_id: offer.oddId,
+      };
+    }
+
+    const bestOffer = sideOffers[0];
+    const homeTeam = nextGame?.homeAway === "H"
+      ? displayTeam
+      : nextGame?.homeAway === "A"
+      ? nextGame.opponentTeamAbbr
+      : null;
+    const awayTeam = nextGame?.homeAway === "A"
+      ? displayTeam
+      : nextGame?.homeAway === "H"
+      ? nextGame.opponentTeamAbbr
+      : null;
+
+    return {
+      type: "player",
+      sport: "mlb",
+      event_id: contextEventId,
+      game_date: nextGame?.gameDate || profile?.gameDate || null,
+      home_team: homeTeam || null,
+      away_team: awayTeam || null,
+      start_time: nextGame?.gameDatetime || profile?.startTime || null,
+      player_id: favoritePlayerId,
+      player_name: displayName,
+      player_team: displayTeam || null,
+      player_position: displayPosition || null,
+      market: favoriteMarket,
+      line: activeLine,
+      side: lineHistorySide,
+      odds_key: `odds:mlb:${contextEventId}:${favoriteMarket}`,
+      odds_selection_id: `${contextEventId}:${favoritePlayerId}:${favoriteMarket}:${activeLine}:${lineHistorySide}`,
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: bestOffer?.price ?? null,
+      best_book_at_save: bestOffer ? parseMlbBookKey(bestOffer.book) : null,
+      source: "quick_view_modal",
+    };
+  }, [
+    activeLine,
+    bookOffers,
+    currentMarket,
+    displayName,
+    displayPosition,
+    displayTeam,
+    event_id,
+    isMlb,
+    lineHistorySide,
+    nextGame,
+    oddsPlayerIdForLookup,
+    odds_player_id,
+    profile?.eventId,
+    profile?.gameDate,
+    profile?.startTime,
+    resolvedPlayerId,
+  ]);
+
+  const isFavoriteSaved = favoriteParams
+    ? isFavorited({
+        event_id: favoriteParams.event_id,
+        type: "player",
+        player_id: favoriteParams.player_id,
+        market: favoriteParams.market,
+        line: favoriteParams.line,
+        side: favoriteParams.side,
+      })
+    : false;
+
+  const handleToggleFavorite = useCallback(() => {
+    if (!isLoggedIn) {
+      toast.error("Sign in to save plays");
+      return;
+    }
+    if (!favoriteParams) {
+      toast.error("No live odds available for this line yet");
+      return;
+    }
+
+    const snapshot = favoriteParams.books_snapshot ?? {};
+    const label = `${displayName} ${favoriteParams.side} ${favoriteParams.line}+ ${formatMarketLabel(currentMarket)}`;
+
+    toggleFavorite(favoriteParams)
+      .then((result) => {
+        if (result?.action === "added") {
+          toast.success("Saved to My Plays", { description: label, duration: 3000 });
+
+          fetch("/api/v2/favorites/enrich-sgp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sport: "mlb",
+              event_id: favoriteParams.event_id,
+              odds_key: favoriteParams.odds_key,
+              player_id: favoriteParams.player_id,
+              market: favoriteParams.market,
+              player_name: favoriteParams.player_name,
+              line: favoriteParams.line,
+              side: favoriteParams.side,
+            }),
+          })
+            .then((response) => {
+              if (!response.ok) throw new Error("enrich failed");
+              return response.json();
+            })
+            .then((data) => {
+              if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
+              const favorite = result.favorite;
+              if (!favorite?.id) return;
+
+              const enriched = { ...snapshot };
+              for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                if (enriched[bookId]) {
+                  enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                }
+              }
+
+              const enrichedFavorite = { ...favorite, books_snapshot: enriched };
+              queryClient.setQueryData<Favorite[]>(
+                ["favorites", favorite.user_id],
+                (old) => old
+                  ? old.map((fav) => (fav?.id === favorite.id ? enrichedFavorite : fav))
+                  : old
+              );
+
+              import("@/libs/supabase/client").then(({ createClient }) => {
+                createClient()
+                  .from("user_favorites")
+                  .update({ books_snapshot: enriched })
+                  .eq("id", favorite.id)
+                  .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["favorites", favorite.user_id] });
+                  });
+              });
+            })
+            .catch(() => {});
+        } else if (result?.action === "removed") {
+          toast("Removed from My Plays", { duration: 2000 });
+        }
+      })
+      .catch(() => {
+        toast.error("Could not update My Plays");
+      });
+  }, [currentMarket, displayName, favoriteParams, isLoggedIn, queryClient, toggleFavorite]);
+
   const {
     data: lineHistoryData,
     isLoading: isLineHistoryLoading,
@@ -2810,6 +3038,11 @@ export function PlayerQuickViewModal({
                     }}
                     canOpenLineHistory={!!lineHistoryContext}
                     onOpenLineHistory={() => setLineHistoryDialogOpen(true)}
+                    isFavoriteSaved={isFavoriteSaved}
+                    isFavoriteSaving={isToggling}
+                    isFavoriteLoggedIn={isLoggedIn}
+                    canSaveFavorite={!!favoriteParams}
+                    onToggleFavorite={handleToggleFavorite}
                   />
                 </div>
               </div>

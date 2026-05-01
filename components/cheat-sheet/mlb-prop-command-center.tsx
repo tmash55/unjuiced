@@ -392,6 +392,8 @@ type PropCenterQuickViewPlayer = {
     mobileUrl?: string | null;
     mobileLink?: string | null;
     decimal?: number | null;
+    sgp?: string | null;
+    oddId?: string | null;
   }>;
 };
 
@@ -745,6 +747,8 @@ function buildPropCenterQuickViewPlayer(
                 url: data.link ?? null,
                 mobileUrl: data.mobile_link ?? null,
                 mobileLink: data.mobile_link ?? data.link ?? null,
+                sgp: data.sgp ?? null,
+                oddId: data.odd_id ?? null,
               });
             }
             if (data?.under != null) {
@@ -756,6 +760,8 @@ function buildPropCenterQuickViewPlayer(
                 url: data.link ?? null,
                 mobileUrl: data.mobile_link ?? null,
                 mobileLink: data.mobile_link ?? data.link ?? null,
+                sgp: data.sgp ?? null,
+                oddId: data.odd_id ?? null,
               });
             }
             return offers;
