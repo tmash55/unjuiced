@@ -493,7 +493,7 @@ export function BoxScoreTable({
         </div>
 
         <div className="overflow-x-auto">
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
                 <tr>
@@ -820,7 +820,7 @@ export function BoxScoreTable({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
           <table className="min-w-full text-xs">
             <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
               <tr>

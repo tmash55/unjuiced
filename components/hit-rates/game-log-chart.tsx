@@ -755,11 +755,12 @@ export function GameLogChart({
   const chartHeight = 200;
   // Adjust bar width based on number of games
   const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 40 : games.length <= 20 ? 30 : 24;
+  const trackWidth = sport === "mlb" ? Math.max(barWidth, 44) : barWidth;
 
   // Shared track sizing for bars/logos/dates so all x-axis elements stay aligned.
   const gapPx = 12; // gap-3
   const contentWidth = games.length > 0
-    ? games.length * barWidth + (games.length - 1) * gapPx
+    ? games.length * trackWidth + (games.length - 1) * gapPx
     : 0;
 
   // Auto-scroll to the right (most recent games) only when overflowing.
@@ -775,7 +776,7 @@ export function GameLogChart({
         el.scrollLeft = 0;
       }
     });
-  }, [games.length, barWidth, gapPx]);
+  }, [games.length, trackWidth, gapPx]);
 
   // Calculate line position as percentage (use displayLine for dragging)
   const linePosition = displayLine !== null ? (displayLine / maxStat) * 100 : null;
@@ -1073,7 +1074,7 @@ export function GameLogChart({
               if (dvpRank === null || dvpRank === undefined) return null;
               
               // X = center of each bar within the content area
-              const x = idx * (barWidth + gapSize) + (barWidth / 2);
+              const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
               
               // Y = rank 1 at bottom (tough), rank 30 at top (weak)
               const yPercent = ((dvpRank - 1) / 29) * 100;
@@ -1135,8 +1136,8 @@ export function GameLogChart({
                 const rank = ranksMap.get(game.opponentAbbr);
                 if (rank === null || rank === undefined) return null;
                 
-                // X = center of each bar within the content area
-                const x = idx * (barWidth + gapSize) + (barWidth / 2);
+                // X = center of each game track within the content area
+                const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
                 
                 // Y = rank 1 at bottom (tough), rank 30 at top (weak/favorable)
                 const yPercent = ((rank - 1) / 29) * 100;
@@ -1383,8 +1384,8 @@ export function GameLogChart({
             return (
               <Tooltip key={game.gameId || idx} content={tooltipContent} side="top">
                 <div
-                  className="relative shrink-0 flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
-                  style={{ width: barWidth, height: chartHeight }}
+                  className="relative shrink-0 flex flex-col items-center justify-end cursor-pointer group pointer-events-auto"
+                  style={{ width: trackWidth, height: chartHeight }}
                 >
                   {/* Bar - Stacked for combo markets, solid for single stat */}
                   {isComboMarket(market) ? (
@@ -1556,28 +1557,6 @@ export function GameLogChart({
                     </span>
                   )}
 
-                  {/* Opponent and location indicator */}
-                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5">
-                    {opponentLogo ? (
-                      <img
-                        src={opponentLogo}
-                        alt={game.opponentAbbr}
-                        className="h-4 w-4 object-contain opacity-65 transition-opacity group-hover:opacity-100"
-                      />
-                    ) : (
-                      <span className="text-[9px] font-bold text-neutral-400">{game.opponentAbbr}</span>
-                    )}
-                    <span
-                      className={cn(
-                        "text-[8px] font-black uppercase leading-none tabular-nums",
-                        game.homeAway === "H"
-                          ? "text-sky-500 dark:text-sky-300"
-                          : "text-neutral-400 dark:text-slate-500"
-                      )}
-                    >
-                      {game.homeAway === "H" ? "vs" : "@"}
-                    </span>
-                  </div>
                 </div>
               </Tooltip>
             );
@@ -1614,17 +1593,35 @@ export function GameLogChart({
         )}
       </div>
 
-      {/* X-Axis - Dates */}
-      <div className="mt-10 flex justify-start gap-3">
-        {games.map((game, idx) => (
-          <div
-            key={game.gameId || idx}
-            className="shrink-0 text-[9px] text-neutral-400 text-center font-medium"
-            style={{ width: barWidth }}
-          >
-            {formatShortDate(game.date)}
-          </div>
-        ))}
+      {/* X-Axis - Matchup labels */}
+      <div className="mt-3 flex justify-start gap-3">
+        {games.map((game, idx) => {
+          const opponentLogo = getTeamLogoUrl(game.opponentAbbr, sport);
+          const locationLabel = game.homeAway === "H" ? "vs" : "@";
+          return (
+            <div
+              key={game.gameId || idx}
+              className="flex shrink-0 flex-col items-center gap-1 text-center"
+              style={{ width: trackWidth }}
+            >
+              {opponentLogo ? (
+                <img
+                  src={opponentLogo}
+                  alt={game.opponentAbbr}
+                  className="h-5 w-5 object-contain opacity-80"
+                />
+              ) : (
+                <span className="h-5 text-[9px] font-bold text-neutral-400">{game.opponentAbbr}</span>
+              )}
+              <span className="font-mono text-[10px] font-semibold leading-none text-neutral-500 tabular-nums dark:text-slate-400">
+                {formatShortDate(game.date)}
+              </span>
+              <span className="max-w-full truncate font-mono text-[9px] font-bold uppercase leading-none tracking-[0.02em] text-neutral-400 dark:text-slate-500">
+                <span className={game.homeAway === "H" ? "text-sky-500 dark:text-sky-300" : ""}>{locationLabel}</span> {game.opponentAbbr}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       </div>{/* end centered track */}

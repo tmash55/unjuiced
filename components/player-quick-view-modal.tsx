@@ -2,6 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
@@ -21,7 +27,7 @@ import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getAllActiveSportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
@@ -31,7 +37,9 @@ import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
-import type { LineHistoryApiResponse, LineHistoryContext } from "@/lib/odds/line-history";
+import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import { IconPlus } from "@tabler/icons-react";
 
 // Tab type for modal navigation
 type ModalTab = "gamelog" | "splits" | "matchup" | "playstyle" | "correlation";
@@ -55,7 +63,17 @@ interface AlternateLineOdds {
   ln: number;
   over?: { price: number; book?: string; mobileLink?: string | null };
   under?: { price: number; book?: string; mobileLink?: string | null };
+  books?: Record<string, {
+    over?: { price: number; mobileLink?: string | null; url?: string | null };
+    under?: { price: number; mobileLink?: string | null; url?: string | null };
+  }>;
 }
+
+const getAlternateLineBookCount = (line: AlternateLineOdds) => {
+  return Object.values(line.books ?? {}).reduce((count, sides) => {
+    return count + Number(Boolean(sides.over)) + Number(Boolean(sides.under));
+  }, 0);
+};
 
 export interface LiveBookOfferInput {
   side: "over" | "under";
@@ -220,11 +238,87 @@ const MLB_FALLBACK_MARKETS = [
   "pitcher_outs",
 ];
 
+const MLB_PITCHER_MARKETS = new Set([
+  "player_strikeouts",
+  "pitcher_strikeouts",
+  "player_hits_allowed",
+  "pitcher_hits_allowed",
+  "player_earned_runs",
+  "pitcher_earned_runs",
+  "player_outs",
+  "pitcher_outs",
+  "pitcher_outs_recorded",
+  "player_walks_allowed",
+  "pitcher_walks",
+  "pitcher_walks_allowed",
+]);
+
+const isMlbPitcherMarketKey = (market: string | null | undefined) => !!market && MLB_PITCHER_MARKETS.has(market);
+const MLB_BATTER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => !isMlbPitcherMarketKey(market));
+const MLB_PITCHER_FALLBACK_MARKETS = MLB_FALLBACK_MARKETS.filter((market) => isMlbPitcherMarketKey(market));
+const MLB_LINE_HISTORY_MARKET_ALIASES: Record<string, string> = {
+  pitcher_strikeouts: "player_strikeouts",
+  pitcher_hits_allowed: "player_hits_allowed",
+  pitcher_earned_runs: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
+  pitcher_walks: "player_walks_allowed",
+  pitcher_walks_allowed: "player_walks_allowed",
+};
+
+const getMlbLineHistoryMarket = (market: string) => MLB_LINE_HISTORY_MARKET_ALIASES[market] ?? market;
+
+const buildHalfPointLadder = (start: number, end: number) => {
+  const lines: number[] = [];
+  for (let line = start; line <= end + 0.001; line += 1) {
+    lines.push(Math.round(line * 10) / 10);
+  }
+  return lines;
+};
+
+const getMlbMarketLineLadder = (market: string, activeLine: number) => {
+  const min = 0.5;
+  const extendTo = (baseMax: number) => Math.max(baseMax, Math.ceil(activeLine) + 1.5);
+
+  switch (market) {
+    case "player_home_runs":
+      return buildHalfPointLadder(min, extendTo(2.5));
+    case "player_hits":
+    case "player_runs_scored":
+    case "player_rbi":
+    case "player_rbis":
+      return buildHalfPointLadder(min, extendTo(4.5));
+    case "player_total_bases":
+    case "player_hits__runs__rbis":
+      return buildHalfPointLadder(min, extendTo(10.5));
+    case "player_strikeouts":
+    case "pitcher_strikeouts":
+      return buildHalfPointLadder(2.5, extendTo(12.5));
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed":
+      return buildHalfPointLadder(2.5, extendTo(10.5));
+    case "player_earned_runs":
+    case "pitcher_earned_runs":
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed":
+      return buildHalfPointLadder(min, extendTo(6.5));
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded":
+      return buildHalfPointLadder(8.5, extendTo(21.5));
+    default:
+      return buildHalfPointLadder(min, extendTo(10.5));
+  }
+};
+
 type GameCountFilter = 5 | 10 | 20 | 30 | "season" | "h2h";
 type MlbHomeAwayFilter = "all" | "H" | "A";
 type MlbDayNightFilter = "all" | "D" | "N";
 type MlbBookSortKey = "book" | "over" | "under";
 type SortDirection = "asc" | "desc";
+type MlbLineHistorySide = "over" | "under";
+const SHARP_LINE_HISTORY_BOOKS = ["pinnacle", "circa"];
 
 const formatAmericanOdds = (price?: number | null) => {
   if (price === null || price === undefined) return "-";
@@ -246,6 +340,64 @@ const formatPctValue = (value: number | null | undefined, digits = 0) => {
   return `${value.toFixed(digits)}%`;
 };
 
+const getSharpLineHistoryRank = (book: { bookId?: string | null; bookName?: string | null }) => {
+  const normalized = `${book.bookId ?? ""} ${book.bookName ?? ""}`.toLowerCase();
+  const rank = SHARP_LINE_HISTORY_BOOKS.findIndex((sharpBook) => normalized.includes(sharpBook));
+  return rank === -1 ? SHARP_LINE_HISTORY_BOOKS.length : rank;
+};
+
+const normalizeLineHistoryBookKey = (value?: string | null) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const getLineHistorySportsbook = (book: { bookId?: string | null; bookName?: string | null }) => {
+  const directMatch = book.bookId ? getSportsbookById(book.bookId) : undefined;
+  if (directMatch) return directMatch;
+
+  const bookId = normalizeLineHistoryBookKey(book.bookId);
+  const bookName = normalizeLineHistoryBookKey(book.bookName);
+  if (!bookId && !bookName) return undefined;
+
+  return getAllActiveSportsbooks().find((sportsbook) => {
+    const sportsbookId = normalizeLineHistoryBookKey(sportsbook.id);
+    const sportsbookName = normalizeLineHistoryBookKey(sportsbook.name);
+    return sportsbookId === bookId || sportsbookId === bookName || sportsbookName === bookId || sportsbookName === bookName;
+  });
+};
+
+const isSameLineHistorySportsbook = (offerBookId: string, historyBook: { bookId?: string | null; bookName?: string | null }) => {
+  const offerSportsbook = getLineHistorySportsbook({ bookId: offerBookId });
+  const historySportsbook = getLineHistorySportsbook(historyBook);
+  if (offerSportsbook && historySportsbook) return offerSportsbook.id === historySportsbook.id;
+
+  const offerBook = normalizeLineHistoryBookKey(offerBookId);
+  const historyBookId = normalizeLineHistoryBookKey(historyBook.bookId);
+  const historyBookName = normalizeLineHistoryBookKey(historyBook.bookName);
+  return offerBook === historyBookId || offerBook === historyBookName;
+};
+
+const syncLineHistoryWithLivePrice = (entries: LineHistoryPoint[], livePrice?: number | null): LineHistoryPoint[] => {
+  if (!Number.isFinite(livePrice ?? NaN)) return entries;
+  const price = livePrice as number;
+  if (entries.length === 0) return [{ price, timestamp: Date.now() }];
+
+  const lastEntry = entries[entries.length - 1];
+  if (lastEntry.price === price) return entries;
+
+  const lastMs = lastEntry.timestamp > 10_000_000_000 ? lastEntry.timestamp : lastEntry.timestamp * 1000;
+  const timestamp = Math.max(Date.now(), lastMs + 1_000);
+  return [...entries, { price, timestamp }];
+};
+
+const sortLineHistoryBookIds = (bookIds: string[]) => {
+  return Array.from(new Set(bookIds.filter(Boolean))).sort((a, b) => {
+    const aRank = getSharpLineHistoryRank({ bookId: a });
+    const bRank = getSharpLineHistoryRank({ bookId: b });
+    if (aRank !== bRank) return aRank - bRank;
+    const aName = getLineHistorySportsbook({ bookId: a })?.name ?? a;
+    const bName = getLineHistorySportsbook({ bookId: b })?.name ?? b;
+    return aName.localeCompare(bName);
+  });
+};
+
 const getOddsLink = (offer: { url?: string | null; mobileUrl?: string | null; mobileLink?: string | null } | null | undefined) => {
   if (!offer) return null;
   return offer.mobileUrl || offer.mobileLink || offer.url || null;
@@ -262,6 +414,29 @@ const formatLineHistoryTime = (timestamp?: number | null) => {
     hour: "numeric",
     minute: "2-digit",
   }).format(parsed);
+};
+
+const normalizeHexColor = (color?: string | null) => {
+  if (!color) return null;
+  const normalized = color.trim();
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : null;
+};
+
+const getColorLuminance = (color?: string | null) => {
+  const hex = normalizeHexColor(color);
+  if (!hex) return null;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const getReadableTeamAccent = (primary?: string | null, secondary?: string | null) => {
+  const primaryHex = normalizeHexColor(primary);
+  const secondaryHex = normalizeHexColor(secondary);
+  const primaryLuminance = getColorLuminance(primaryHex);
+  if (primaryHex && (primaryLuminance === null || primaryLuminance >= 0.22 || !secondaryHex)) return primaryHex;
+  return secondaryHex ?? primaryHex;
 };
 
 function MlbGlassPanel({
@@ -288,27 +463,40 @@ function MlbMetricTile({
   value,
   sub,
   tone = "neutral",
+  accentColor,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "neutral" | "green" | "red" | "amber";
+  accentColor?: string | null;
 }) {
+  const accent = normalizeHexColor(accentColor);
   return (
-    <div className="min-w-0 border-r border-neutral-200/60 px-3 py-3 last:border-r-0 dark:border-neutral-700/35 sm:px-5">
-      <p className="text-[11px] font-medium text-neutral-500 dark:text-slate-400">{label}</p>
+    <div
+      className={cn(
+        "min-w-0 border-r border-neutral-200/60 px-2 py-2 last:border-r-0 dark:border-neutral-700/35 sm:px-5 sm:py-3",
+        accent && "relative overflow-hidden"
+      )}
+      style={accent ? {
+        background: `linear-gradient(135deg, ${accent}24 0%, ${accent}12 48%, transparent 100%)`,
+        boxShadow: `inset 0 1px 0 ${accent}22`,
+      } : undefined}
+    >
+      <p className={cn("truncate text-[9px] font-semibold text-neutral-500 dark:text-slate-400 sm:text-[11px] sm:font-medium", accent && "dark:text-slate-300")}>{label}</p>
       <p
         className={cn(
-          "mt-1 text-2xl font-black leading-none tabular-nums",
-          tone === "green" && "text-emerald-600 dark:text-emerald-400",
-          tone === "red" && "text-red-500 dark:text-red-400",
-          tone === "amber" && "text-amber-600 dark:text-amber-300",
-          tone === "neutral" && "text-neutral-950 dark:text-slate-50"
+          "mt-1 text-lg font-black leading-none tabular-nums sm:text-2xl",
+          !accent && tone === "green" && "text-emerald-600 dark:text-emerald-400",
+          !accent && tone === "red" && "text-red-500 dark:text-red-400",
+          !accent && tone === "amber" && "text-amber-600 dark:text-amber-300",
+          !accent && tone === "neutral" && "text-neutral-950 dark:text-slate-50"
         )}
+        style={accent ? { color: accent } : undefined}
       >
         {value}
       </p>
-      {sub && <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">{sub}</p>}
+      {sub && <p className="mt-1 truncate text-[10px] text-neutral-500 dark:text-slate-400 sm:text-xs">{sub}</p>}
     </div>
   );
 }
@@ -332,19 +520,44 @@ function MlbOddsBlock({
       disabled={!getOddsLink(odds)}
       onClick={onClick}
       className={cn(
-        "flex h-14 min-w-[112px] flex-col justify-center rounded-lg border px-3 text-left shadow-sm transition active:scale-[0.98] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+        "flex h-12 min-w-[112px] flex-col justify-center rounded-lg border px-3 text-left shadow-sm transition active:scale-[0.98] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
         isOver
           ? "border-emerald-500/45 bg-emerald-50/90 text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-500/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
           : "border-red-500/45 bg-red-50/90 text-red-700 hover:bg-red-100/80 dark:border-red-500/60 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/20",
         !getOddsLink(odds) && "cursor-default"
       )}
     >
-      <div className="flex items-center justify-between gap-2 text-[11px] font-black">
+      <div className="flex items-center justify-between gap-2 text-[10px] font-black">
         <span>{label}</span>
         {sb?.image?.light && <img src={sb.image.light} alt={sb.name} className="h-4 w-4 rounded object-contain" />}
       </div>
-      <div className="mt-0.5 text-xl font-black tabular-nums text-neutral-950 dark:text-white">{formatAmericanOdds(odds?.price)}</div>
+      <div className="mt-0.5 text-lg font-black tabular-nums text-neutral-950 dark:text-white">{formatAmericanOdds(odds?.price)}</div>
     </button>
+  );
+}
+
+function MlbSeasonStatsStrip({
+  summary,
+}: {
+  summary: { label: string; stats: Array<{ label: string; value: string; sub?: string; highlight?: boolean }> };
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-neutral-200/70 bg-neutral-50 shadow-sm dark:border-neutral-700/50 dark:bg-neutral-800/35 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="bg-slate-900 px-3 py-1 text-center dark:bg-slate-950">
+        <span className="font-mono text-[10px] font-black uppercase tracking-[0.1em] text-white">{summary.label}</span>
+      </div>
+      <div className="grid grid-cols-4 divide-x divide-neutral-200/70 dark:divide-neutral-700/45">
+        {summary.stats.map((stat) => (
+          <div key={stat.label} className="min-w-0 px-2 py-1.5 text-center">
+            <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">{stat.label}</p>
+            <p className={cn("mt-0.5 text-base font-black leading-none tabular-nums", stat.highlight ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-950 dark:text-white")}>
+              {stat.value}
+            </p>
+            {stat.sub && <p className="mt-0.5 truncate text-[8px] font-medium text-neutral-500 dark:text-slate-500">{stat.sub}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -385,15 +598,27 @@ function MiniLineMovementChart({
 }: {
   points: Array<{ price: number; timestamp: number }>;
 }) {
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const formatRelativeLineTime = (timestamp: number, endTimestamp: number) => {
+    const toMs = (value: number) => (value > 10_000_000_000 ? value : value * 1000);
+    const deltaMs = Math.max(0, toMs(endTimestamp) - toMs(timestamp));
+    const minutes = Math.round(deltaMs / 60_000);
+    if (minutes <= 2) return "Now";
+    if (minutes < 60) return `-${minutes}m`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `-${hours}h`;
+    return `-${Math.round(hours / 24)}d`;
+  };
+
   const chart = useMemo(() => {
     const clean = points
       .filter((point) => Number.isFinite(point.price) && Number.isFinite(point.timestamp))
       .slice(-18);
     if (clean.length < 2) return null;
 
-    const width = 260;
-    const height = 112;
-    const pad = { left: 38, right: 10, top: 10, bottom: 22 };
+    const width = 340;
+    const height = 150;
+    const pad = { left: 46, right: 12, top: 18, bottom: 34 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
     const prices = clean.map((point) => point.price);
@@ -401,16 +626,28 @@ function MiniLineMovementChart({
     const max = Math.max(...prices);
     const range = Math.max(1, max - min);
     const yForPrice = (price: number) => pad.top + plotHeight - ((price - min) / range) * plotHeight;
-    const path = clean
+    const positions = clean.map((point, index) => {
+      const x = pad.left + (clean.length === 1 ? 0 : (index / (clean.length - 1)) * plotWidth);
+      const y = yForPrice(point.price);
+      return { ...point, x, y };
+    });
+    const path = positions
       .map((point, index) => {
-        const x = pad.left + (clean.length === 1 ? 0 : (index / (clean.length - 1)) * plotWidth);
-        const y = yForPrice(point.price);
-        return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+        return `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
       })
       .join(" ");
+    const areaPath = `${path} L ${(pad.left + plotWidth).toFixed(1)} ${(pad.top + plotHeight).toFixed(1)} L ${pad.left.toFixed(1)} ${(pad.top + plotHeight).toFixed(1)} Z`;
     const ticks = Array.from(new Set([max, Math.round((min + max) / 2), min]));
+    const xTickIndexes = Array.from(new Set([
+      0,
+      Math.round((clean.length - 1) * 0.35),
+      Math.round((clean.length - 1) * 0.7),
+      clean.length - 1,
+    ]));
 
     return {
+      areaPath,
+      positions,
       path,
       width,
       height,
@@ -422,13 +659,14 @@ function MiniLineMovementChart({
       low: min,
       high: max,
       ticks,
+      xTicks: xTickIndexes.map((index) => positions[index]).filter(Boolean),
       yForPrice,
     };
   }, [points]);
 
   if (!chart) {
     return (
-      <div className="flex h-[78px] items-center justify-center rounded-md border border-dashed border-neutral-200 text-xs text-neutral-400 dark:border-neutral-700/50 dark:text-slate-500">
+      <div className="flex h-[150px] items-center justify-center rounded-lg border border-dashed border-neutral-200 bg-neutral-50 text-xs text-neutral-400 dark:border-neutral-700/50 dark:bg-[#111820] dark:text-slate-500">
         Not enough movement yet
       </div>
     );
@@ -437,11 +675,37 @@ function MiniLineMovementChart({
   const change = chart.current.price - chart.open.price;
   const strokeClass = change >= 0 ? "stroke-emerald-500" : "stroke-red-500";
   const fillClass = change >= 0 ? "fill-emerald-500" : "fill-red-500";
+  const areaFill = change >= 0 ? "fill-emerald-500/15" : "fill-red-500/15";
+  const changeLabel = `${change >= 0 ? "+" : ""}${change} over window`;
   const currentY = chart.yForPrice(chart.current.price);
+  const hoveredPoint = hoveredPointIndex !== null ? chart.positions[hoveredPointIndex] : null;
+  const tooltipWidth = 104;
+  const tooltipHeight = 44;
+  const tooltipX = hoveredPoint
+    ? Math.min(Math.max(hoveredPoint.x - tooltipWidth / 2, chart.pad.left), chart.width - chart.pad.right - tooltipWidth)
+    : 0;
+  const tooltipY = hoveredPoint
+    ? Math.max(4, hoveredPoint.y - tooltipHeight - 12)
+    : 0;
+  const handleChartPointerMove = (event: React.MouseEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / bounds.width) * chart.width;
+    const nearestIndex = chart.positions.reduce((nearest, point, index) => {
+      const currentDistance = Math.abs(point.x - x);
+      const nearestDistance = Math.abs(chart.positions[nearest].x - x);
+      return currentDistance < nearestDistance ? index : nearest;
+    }, 0);
+    setHoveredPointIndex(nearestIndex);
+  };
 
   return (
-    <div>
-      <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-[112px] w-full overflow-visible">
+    <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-[#111820] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+      <svg
+        viewBox={`0 0 ${chart.width} ${chart.height}`}
+        className="h-[150px] w-full cursor-crosshair overflow-visible"
+        onMouseMove={handleChartPointerMove}
+        onMouseLeave={() => setHoveredPointIndex(null)}
+      >
         {chart.ticks.map((tick) => {
           const y = chart.yForPrice(tick);
           return (
@@ -452,7 +716,6 @@ function MiniLineMovementChart({
                 y1={y}
                 y2={y}
                 className="stroke-neutral-200/70 dark:stroke-neutral-700/40"
-                strokeDasharray="3 4"
               />
               <text x={chart.pad.left - 8} y={y + 3} textAnchor="end" className="fill-neutral-400 font-mono text-[10px] font-semibold dark:fill-slate-500">
                 {formatAmericanOdds(tick)}
@@ -460,11 +723,112 @@ function MiniLineMovementChart({
             </g>
           );
         })}
+        <path d={chart.areaPath} className={areaFill} />
         <path d={chart.path} fill="none" className={strokeClass} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={chart.width - chart.pad.right} cy={currentY} r="3.5" className={fillClass} />
-        <text x={chart.pad.left} y={chart.height - 3} textAnchor="start" className="fill-neutral-400 font-mono text-[10px] font-semibold dark:fill-slate-500">Open</text>
-        <text x={chart.width - chart.pad.right} y={chart.height - 3} textAnchor="end" className="fill-neutral-400 font-mono text-[10px] font-semibold dark:fill-slate-500">Now</text>
+        {chart.positions.map((point, index) => (
+          <g
+            key={`${point.timestamp}-${index}`}
+            tabIndex={0}
+            role="img"
+            aria-label={`${formatAmericanOdds(point.price)} at ${formatLineHistoryTime(point.timestamp)}`}
+            className="outline-none"
+            onFocus={() => setHoveredPointIndex(index)}
+            onBlur={() => setHoveredPointIndex(null)}
+          >
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={hoveredPointIndex === index ? "5.4" : index === chart.positions.length - 1 ? "4.5" : "3.2"}
+              className={cn(fillClass, "stroke-white/80 stroke-[1.5] transition-[r] dark:stroke-[#111820]")}
+            />
+            <circle cx={point.x} cy={point.y} r="10" className="fill-transparent" />
+          </g>
+        ))}
+        <circle cx={chart.width - chart.pad.right} cy={currentY} r="7" className={cn(fillClass, "opacity-15")} />
+        {hoveredPoint && (
+          <g className="pointer-events-none">
+            <line
+              x1={hoveredPoint.x}
+              x2={hoveredPoint.x}
+              y1={chart.pad.top}
+              y2={chart.pad.top + chart.plotHeight}
+              className="stroke-neutral-300 dark:stroke-slate-600"
+              strokeDasharray="3 4"
+            />
+            <rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={tooltipHeight}
+              rx="8"
+              className="fill-white stroke-neutral-200 shadow-sm dark:fill-[#0b1118] dark:stroke-neutral-700"
+            />
+            <text
+              x={tooltipX + 10}
+              y={tooltipY + 18}
+              className="fill-neutral-950 font-mono text-[13px] font-black tabular-nums dark:fill-white"
+            >
+              {formatAmericanOdds(hoveredPoint.price)}
+            </text>
+            <text
+              x={tooltipX + 10}
+              y={tooltipY + 34}
+              className="fill-neutral-500 font-mono text-[9px] font-bold uppercase tracking-[0.06em] dark:fill-slate-400"
+            >
+              {formatLineHistoryTime(hoveredPoint.timestamp)}
+            </text>
+          </g>
+        )}
+        {chart.xTicks.map((point, index) => (
+          <text
+            key={`${point.timestamp}-${index}`}
+            x={point.x}
+            y={chart.height - 12}
+            textAnchor={index === 0 ? "start" : index === chart.xTicks.length - 1 ? "end" : "middle"}
+            className="fill-neutral-400 font-mono text-[10px] font-semibold dark:fill-slate-500"
+          >
+            {formatRelativeLineTime(point.timestamp, chart.current.timestamp)}
+          </text>
+        ))}
       </svg>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-neutral-200/60 pt-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:border-neutral-700/35 dark:text-slate-500">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span>Low {formatAmericanOdds(chart.low)}</span>
+          <span className="text-neutral-900 dark:text-slate-100">Last {formatAmericanOdds(chart.current.price)}</span>
+          <span className={cn(change >= 0 ? "text-emerald-500" : "text-red-500")}>{changeLabel}</span>
+        </div>
+        <span className={cn("inline-flex items-center gap-1", change >= 0 ? "text-emerald-500" : "text-red-500")}>
+          <span className={cn("h-1.5 w-1.5 rounded-full", change >= 0 ? "bg-emerald-500" : "bg-red-500")} />
+          {chart.positions.length} line entries
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyMiniLineMovementChart({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-[#111820] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+      <div className="relative h-[150px] overflow-hidden rounded-md">
+        <div className="absolute inset-x-10 top-8 space-y-7">
+          {[0, 1, 2].map((line) => (
+            <div key={line} className="border-t border-neutral-200/75 dark:border-neutral-700/45" />
+          ))}
+        </div>
+        <div className="absolute inset-x-10 bottom-8 flex items-end justify-between">
+          {[32, 54, 26, 64, 42, 72].map((height, index) => (
+            <div key={index} className="w-1.5 rounded-full bg-neutral-200/80 dark:bg-neutral-700/55" style={{ height }} />
+          ))}
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <p className="max-w-[220px] text-xs leading-relaxed text-neutral-500 dark:text-slate-400">{message}</p>
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-neutral-200/60 pt-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:border-neutral-700/35 dark:text-slate-500">
+        <span>Low -</span>
+        <span>Last -</span>
+        <span>0 line entries</span>
+      </div>
     </div>
   );
 }
@@ -472,7 +836,6 @@ function MiniLineMovementChart({
 function MlbRightRail({
   currentMarket,
   activeLine,
-  activeOdds,
   bookOffers,
   chartStats,
   dynamicHitRates,
@@ -480,10 +843,15 @@ function MlbRightRail({
   lineHistory,
   isLineHistoryLoading,
   lineHistoryError,
+  lineOptions,
+  lineHistorySide,
+  onLineHistorySideChange,
+  onLineChange,
+  canOpenLineHistory,
+  onOpenLineHistory,
 }: {
   currentMarket: string;
   activeLine: number;
-  activeOdds: OddsData | null | undefined;
   bookOffers: MlbBookOffer[];
   chartStats: { avg: number | null; hitRate: number | null; hits: number; total: number };
   dynamicHitRates: { l5: number | null; l10: number | null; l20: number | null; season: number | null; h2h: number | null };
@@ -498,15 +866,76 @@ function MlbRightRail({
   lineHistory: LineHistoryApiResponse | null | undefined;
   isLineHistoryLoading: boolean;
   lineHistoryError: Error | null;
+  lineOptions: number[];
+  lineHistorySide: MlbLineHistorySide;
+  onLineHistorySideChange: (side: MlbLineHistorySide) => void;
+  onLineChange: (line: number) => void;
+  canOpenLineHistory?: boolean;
+  onOpenLineHistory?: () => void;
 }) {
   const [bookSort, setBookSort] = useState<{ key: MlbBookSortKey; direction: SortDirection }>({
     key: "over",
     direction: "desc",
   });
+  const [selectedHistoryBookId, setSelectedHistoryBookId] = useState<string | null>(null);
   const modelPct = dynamicHitRates.season ?? chartStats.hitRate;
-  const implied = getAmericanImpliedProbability(activeOdds?.over?.price);
-  const edge = modelPct !== null && implied !== null ? modelPct - implied * 100 : null;
-  const bestHistoryBook = lineHistory?.books?.find((book) => book.status === "ok" && book.entries.length > 1) ?? null;
+  const currentSideBookOffers = useMemo(() => {
+    return bookOffers.filter((offer) => offer.side === lineHistorySide && Math.abs(offer.line - activeLine) < 0.01);
+  }, [activeLine, bookOffers, lineHistorySide]);
+  const historyBookOptions = useMemo(() => {
+    const byBook = new Map<string, LineHistoryBookData>();
+    const getKey = (book: { bookId?: string | null; bookName?: string | null }) => {
+      const sportsbook = getLineHistorySportsbook(book);
+      return sportsbook?.id ?? normalizeLineHistoryBookKey(book.bookId) ?? normalizeLineHistoryBookKey(book.bookName);
+    };
+
+    (lineHistory?.books ?? []).forEach((book) => {
+      byBook.set(getKey(book), book);
+    });
+
+    currentSideBookOffers.forEach((offer) => {
+      const key = getKey({ bookId: offer.book });
+      const existing = byBook.get(key);
+      if (existing) return;
+      const sportsbook = getLineHistorySportsbook({ bookId: offer.book });
+      byBook.set(key, {
+        bookId: offer.book,
+        bookName: sportsbook?.name ?? offer.book,
+        status: "not_found",
+        message: "No historical odds found for this book.",
+        oddsId: undefined,
+        market: null,
+        selection: null,
+        updated: null,
+        olv: { price: null, timestamp: null },
+        clv: { price: null, timestamp: null },
+        currentPrice: offer.price,
+        entries: [],
+        source: "cache",
+      });
+    });
+
+    return Array.from(byBook.values())
+      .sort((a, b) => {
+        const aRank = getSharpLineHistoryRank(a);
+        const bRank = getSharpLineHistoryRank(b);
+        if (aRank !== bRank) return aRank - bRank;
+        return a.bookName.localeCompare(b.bookName);
+      });
+  }, [currentSideBookOffers, lineHistory]);
+  const selectedHistoryBook = useMemo(() => {
+    return historyBookOptions.find((book) => book.bookId === selectedHistoryBookId) ?? historyBookOptions[0] ?? null;
+  }, [historyBookOptions, selectedHistoryBookId]);
+  useEffect(() => {
+    if (historyBookOptions.length === 0) {
+      if (selectedHistoryBookId !== null) setSelectedHistoryBookId(null);
+      return;
+    }
+
+    if (!selectedHistoryBookId || !historyBookOptions.some((book) => book.bookId === selectedHistoryBookId)) {
+      setSelectedHistoryBookId(historyBookOptions[0].bookId);
+    }
+  }, [historyBookOptions, selectedHistoryBookId]);
   const baseBookRows = useMemo(() => {
     const rows = new Map<string, { book: string; over?: MlbBookOffer; under?: MlbBookOffer }>();
     bookOffers.filter((offer) => Math.abs(offer.line - activeLine) < 0.01).forEach((offer) => {
@@ -566,6 +995,7 @@ function MlbRightRail({
       return { key, direction: key === "book" ? "asc" : "desc" };
     });
   };
+  const selectedLineOption = lineOptions.find((line) => Math.abs(line - activeLine) < 0.01) ?? activeLine;
   const renderBookSortHeader = (key: MlbBookSortKey, label: string, className?: string) => {
     const isActive = bookSort.key === key;
     return (
@@ -589,20 +1019,6 @@ function MlbRightRail({
       </button>
     );
   };
-  const lineMovementStats = useMemo(() => {
-    const entries = bestHistoryBook?.entries ?? [];
-    if (entries.length < 2) return null;
-    const open = entries[0]?.price ?? null;
-    const current = entries.at(-1)?.price ?? bestHistoryBook?.currentPrice ?? null;
-    if (open === null || current === null) return null;
-    const change = current - open;
-    const impliedOpen = getAmericanImpliedProbability(open);
-    const impliedCurrent = getAmericanImpliedProbability(current);
-    const pctChange = impliedOpen !== null && impliedCurrent !== null && impliedOpen > 0
-      ? ((impliedCurrent - impliedOpen) / impliedOpen) * 100
-      : null;
-    return { open, current, change, pctChange };
-  }, [bestHistoryBook]);
   const betNotes = [
     modelPct !== null
       ? `${formatMarketLabel(currentMarket)} has hit in ${modelPct}% of 2026 games at ${activeLine}+.`
@@ -614,10 +1030,24 @@ function MlbRightRail({
       ? `Next matchup is ${nextGame.homeAway === "H" ? "vs" : "@"} ${nextGame.opponentTeamAbbr}.`
       : "Upcoming matchup context is not attached to this row yet.",
   ];
+  const selectedHistorySportsbook = selectedHistoryBook ? getLineHistorySportsbook(selectedHistoryBook) : undefined;
+  const selectedHistoryLiveOffer = useMemo(() => {
+    if (!selectedHistoryBook) return null;
+    return bookOffers.find((offer) => (
+      offer.side === lineHistorySide
+      && Math.abs(offer.line - activeLine) < 0.01
+      && isSameLineHistorySportsbook(offer.book, selectedHistoryBook)
+    )) ?? null;
+  }, [activeLine, bookOffers, lineHistorySide, selectedHistoryBook]);
+  const syncedHistoryEntries = useMemo(() => {
+    return selectedHistoryBook
+      ? syncLineHistoryWithLivePrice(selectedHistoryBook.entries, selectedHistoryLiveOffer?.price ?? selectedHistoryBook.currentPrice)
+      : [];
+  }, [selectedHistoryBook, selectedHistoryLiveOffer?.price]);
 
   return (
-    <aside className="space-y-2.5 lg:sticky lg:top-0">
-      <MlbGlassPanel>
+    <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-hidden">
+      <MlbGlassPanel className="shrink-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Bet Context</h3>
         </div>
@@ -638,7 +1068,7 @@ function MlbRightRail({
         </div>
       </MlbGlassPanel>
 
-      <MlbGlassPanel>
+      <MlbGlassPanel className="flex min-h-[180px] flex-1 flex-col overflow-hidden lg:min-h-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Best Books</h3>
@@ -649,13 +1079,13 @@ function MlbRightRail({
             )}
           </div>
         </div>
-        <div className="px-4 py-3">
-          <div className="grid grid-cols-[minmax(0,1fr)_64px_64px] gap-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_86px_86px] gap-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">
             {renderBookSortHeader("book", "Book", "justify-self-start")}
             {renderBookSortHeader("over", "Over", "justify-self-end")}
             {renderBookSortHeader("under", "Under", "justify-self-end")}
           </div>
-          <div className="mt-2 max-h-[252px] overflow-y-auto pr-0.5 scrollbar-hide">
+          <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5 scrollbar-hide">
             {bookRows.length > 0 ? bookRows.map((row) => {
               const sb = getSportsbookById(row.book);
               const overLink = getOddsLink(row.over);
@@ -666,7 +1096,7 @@ function MlbRightRail({
                 <div
                   key={row.book}
                   className={cn(
-                    "grid grid-cols-[minmax(0,1fr)_64px_64px] items-center gap-2 border-b border-neutral-200/50 px-1 py-2.5 text-sm last:border-b-0 dark:border-neutral-700/25",
+                    "grid min-h-[46px] grid-cols-[minmax(0,1fr)_86px_86px] items-center gap-2 border-b border-neutral-200/50 px-1 py-1.5 text-sm last:border-b-0 dark:border-neutral-700/25",
                     (row.over?.isBest || row.under?.isBest) && "bg-emerald-500/[0.035]"
                   )}
                 >
@@ -677,39 +1107,51 @@ function MlbRightRail({
                   <button
                     type="button"
                     disabled={!overLink}
+                    title={overLink ? `Open ${sb?.name ?? row.book} over odds` : undefined}
                     onClick={() => overLink && window.open(overLink, "_blank", "noopener,noreferrer")}
                     className={cn(
-                      "flex min-w-0 flex-col items-end justify-self-end rounded px-1 py-1 text-right font-mono text-[13px] font-bold tabular-nums transition disabled:cursor-default",
+                      "group relative inline-flex h-8 min-w-[76px] items-center justify-center overflow-hidden rounded-md border text-right font-mono text-[13px] font-bold tabular-nums shadow-sm transition active:scale-[0.98] disabled:cursor-default dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                       row.over?.isBest
-                        ? "text-emerald-600 dark:text-emerald-300"
-                        : "text-neutral-800 hover:bg-neutral-100 dark:text-slate-200 dark:hover:bg-neutral-800/50",
-                      !row.over && "text-neutral-300 dark:text-slate-700"
+                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-300"
+                        : "border-neutral-200/70 bg-white/70 text-neutral-800 hover:border-sky-400/50 hover:bg-sky-50/80 dark:border-neutral-700/50 dark:bg-neutral-900/50 dark:text-slate-200 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10",
+                      !row.over && "border-transparent bg-transparent text-neutral-300 shadow-none dark:text-slate-700"
                     )}
                   >
-                    <span>{row.over ? formatAmericanOdds(row.over.price) : "-"}</span>
+                    <span className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-1 px-2">
+                      {row.over ? formatAmericanOdds(row.over.price) : "-"}
+                      {row.over && overLink && <ExternalLink className="h-2.5 w-2.5 opacity-45 transition group-hover:opacity-80" />}
+                    </span>
                     {overEvPercent !== null && (
-                      <span className="mt-0.5 rounded bg-emerald-500/10 px-1 py-px text-[8px] font-bold leading-none text-emerald-600 dark:text-emerald-300">
-                        +{overEvPercent.toFixed(1)}% EV
-                      </span>
+                      <Tooltip content={`+${overEvPercent.toFixed(1)}% +EV`} contentClassName="px-2.5 py-1.5 text-xs font-bold">
+                        <span className="inline-flex h-full min-w-[38px] items-center justify-center border-l border-emerald-500/25 bg-emerald-500/15 px-1.5 text-[9px] font-black leading-none text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-300/20 dark:bg-emerald-400/15 dark:text-emerald-200 dark:hover:bg-emerald-400/25">
+                          +{overEvPercent.toFixed(1)}%
+                        </span>
+                      </Tooltip>
                     )}
                   </button>
                   <button
                     type="button"
                     disabled={!underLink}
+                    title={underLink ? `Open ${sb?.name ?? row.book} under odds` : undefined}
                     onClick={() => underLink && window.open(underLink, "_blank", "noopener,noreferrer")}
                     className={cn(
-                      "flex min-w-0 flex-col items-end justify-self-end rounded px-1 py-1 text-right font-mono text-[13px] font-bold tabular-nums transition disabled:cursor-default",
+                      "group relative inline-flex h-8 min-w-[76px] items-center justify-center overflow-hidden rounded-md border text-right font-mono text-[13px] font-bold tabular-nums shadow-sm transition active:scale-[0.98] disabled:cursor-default dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                       row.under?.isBest
-                        ? "text-emerald-600 dark:text-emerald-300"
-                        : "text-neutral-800 hover:bg-neutral-100 dark:text-slate-200 dark:hover:bg-neutral-800/50",
-                      !row.under && "text-neutral-300 dark:text-slate-700"
+                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-300"
+                        : "border-neutral-200/70 bg-white/70 text-neutral-800 hover:border-sky-400/50 hover:bg-sky-50/80 dark:border-neutral-700/50 dark:bg-neutral-900/50 dark:text-slate-200 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10",
+                      !row.under && "border-transparent bg-transparent text-neutral-300 shadow-none dark:text-slate-700"
                     )}
                   >
-                    <span>{row.under ? formatAmericanOdds(row.under.price) : "-"}</span>
+                    <span className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-1 px-2">
+                      {row.under ? formatAmericanOdds(row.under.price) : "-"}
+                      {row.under && underLink && <ExternalLink className="h-2.5 w-2.5 opacity-45 transition group-hover:opacity-80" />}
+                    </span>
                     {underEvPercent !== null && (
-                      <span className="mt-0.5 rounded bg-emerald-500/10 px-1 py-px text-[8px] font-bold leading-none text-emerald-600 dark:text-emerald-300">
-                        +{underEvPercent.toFixed(1)}% EV
-                      </span>
+                      <Tooltip content={`+${underEvPercent.toFixed(1)}% +EV`} contentClassName="px-2.5 py-1.5 text-xs font-bold">
+                        <span className="inline-flex h-full min-w-[38px] items-center justify-center border-l border-emerald-500/25 bg-emerald-500/15 px-1.5 text-[9px] font-black leading-none text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-300/20 dark:bg-emerald-400/15 dark:text-emerald-200 dark:hover:bg-emerald-400/25">
+                          +{underEvPercent.toFixed(1)}%
+                        </span>
+                      </Tooltip>
                     )}
                   </button>
                 </div>
@@ -723,94 +1165,213 @@ function MlbRightRail({
         </div>
       </MlbGlassPanel>
 
-      <MlbGlassPanel>
+      <MlbGlassPanel className="shrink-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-          <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Edge</h3>
-        </div>
-        <div className="grid grid-cols-3 divide-x divide-neutral-200/80 px-2 py-3 text-center dark:divide-slate-800/80">
-          <div>
-            <p className="text-[10px] text-neutral-500 dark:text-slate-400">Model</p>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-emerald-400">{formatPctValue(modelPct, 1)}</p>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Line Movement</h3>
+            <button
+              type="button"
+              disabled={!canOpenLineHistory}
+              onClick={onOpenLineHistory}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] transition active:scale-[0.98]",
+                canOpenLineHistory
+                  ? "border-neutral-200/70 text-neutral-600 hover:border-sky-400/60 hover:bg-sky-50 hover:text-sky-700 dark:border-neutral-700/50 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:hover:text-sky-300"
+                  : "cursor-not-allowed border-neutral-200/40 text-neutral-300 dark:border-neutral-800 dark:text-slate-700"
+              )}
+            >
+              Full
+              <ExternalLink className="h-3 w-3" />
+            </button>
           </div>
-          <div>
-            <p className="text-[10px] text-neutral-500 dark:text-slate-400">Implied</p>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-neutral-950 dark:text-white">{implied !== null ? formatPctValue(implied * 100, 1) : "-"}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-500 dark:text-slate-400">Edge</p>
-            <p className={cn("mt-1 font-mono text-xl font-bold tabular-nums", edge !== null && edge >= 0 ? "text-emerald-400" : "text-red-400")}>
-              {edge !== null ? `${edge >= 0 ? "+" : ""}${edge.toFixed(1)}%` : "-"}
-            </p>
-          </div>
-        </div>
-      </MlbGlassPanel>
-
-      <MlbGlassPanel>
-        <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-          <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Line Movement</h3>
         </div>
         <div className="px-4 py-4">
           {isLineHistoryLoading ? (
             <div className="space-y-2">
-              <div className="h-[78px] animate-pulse rounded-md bg-neutral-100 dark:bg-slate-900/70" />
-              <div className="h-8 animate-pulse rounded-md bg-neutral-100 dark:bg-slate-900/70" />
-            </div>
-          ) : bestHistoryBook ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2 border-b border-neutral-200/50 pb-2 dark:border-neutral-700/25">
-                <h4 className="truncate text-xs font-bold text-neutral-800 dark:text-slate-100">
-                  {bestHistoryBook.bookName}
-                </h4>
-                <span className="rounded-md border border-neutral-200/60 px-2 py-1 font-mono text-[10px] font-bold tabular-nums text-neutral-500 dark:border-neutral-700/40 dark:text-slate-400">
-                  Over {activeLine}+
-                </span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
-                <MiniLineMovementChart points={bestHistoryBook.entries} />
-                <div className="grid content-center gap-2 text-xs">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-neutral-400 dark:text-slate-500">Open</span>
-                    <span className="font-mono font-bold tabular-nums text-neutral-900 dark:text-white">{formatAmericanOdds(lineMovementStats?.open)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-neutral-400 dark:text-slate-500">Current</span>
-                    <span className="font-mono font-bold tabular-nums text-neutral-900 dark:text-white">{formatAmericanOdds(lineMovementStats?.current)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-neutral-400 dark:text-slate-500">Change</span>
-                    <span className={cn("font-mono font-bold tabular-nums", (lineMovementStats?.change ?? 0) >= 0 ? "text-emerald-500" : "text-red-500")}>
-                      {lineMovementStats ? `${lineMovementStats.change >= 0 ? "+" : ""}${lineMovementStats.change}` : "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-neutral-400 dark:text-slate-500">% Change</span>
-                    <span className={cn("font-mono font-bold tabular-nums", (lineMovementStats?.pctChange ?? 0) >= 0 ? "text-emerald-500" : "text-red-500")}>
-                      {lineMovementStats?.pctChange !== null && lineMovementStats?.pctChange !== undefined
-                        ? `${lineMovementStats.pctChange >= 0 ? "+" : ""}${lineMovementStats.pctChange.toFixed(1)}%`
-                        : "-"}
-                    </span>
-                  </div>
+              <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-neutral-800/45 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                <div className="h-[150px] animate-pulse rounded-md bg-neutral-200/55 dark:bg-neutral-700/45" />
+                <div className="mt-3 flex items-center justify-between border-t border-neutral-200/60 pt-2 dark:border-neutral-700/35">
+                  <div className="h-3 w-28 animate-pulse rounded bg-neutral-200/70 dark:bg-neutral-700/55" />
+                  <div className="h-3 w-20 animate-pulse rounded bg-neutral-200/70 dark:bg-neutral-700/55" />
                 </div>
               </div>
+            </div>
+          ) : selectedHistoryBook ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-neutral-200/50 pb-2 dark:border-neutral-700/25">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">
+                    Book
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="group flex h-8 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-neutral-200/70 bg-white px-2.5 text-left text-xs font-bold text-neutral-800 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-100 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500 dark:data-[state=open]:border-sky-500"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          {selectedHistorySportsbook?.image?.light && (
+                            <img
+                              src={selectedHistorySportsbook.image.light}
+                              alt=""
+                              className="h-4 w-4 shrink-0 rounded object-contain"
+                            />
+                          )}
+                          <span className="truncate">{selectedHistoryBook.bookName}</span>
+                          {getSharpLineHistoryRank(selectedHistoryBook) < SHARP_LINE_HISTORY_BOOKS.length && (
+                            <span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.06em] text-emerald-600 dark:text-emerald-300">
+                              Sharp
+                            </span>
+                          )}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-data-[state=open]:rotate-180 dark:text-slate-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="max-h-72 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                    >
+                      {historyBookOptions.map((book) => {
+                        const sb = getLineHistorySportsbook(book);
+                        const isSelected = book.bookId === selectedHistoryBook.bookId;
+                        const isSharp = getSharpLineHistoryRank(book) < SHARP_LINE_HISTORY_BOOKS.length;
+                        return (
+                          <DropdownMenuItem
+                            key={book.bookId}
+                            onSelect={() => setSelectedHistoryBookId(book.bookId)}
+                            className={cn(
+                              "flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs font-bold text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
+                              isSelected && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                            )}
+                          >
+                            {sb?.image?.light ? (
+                              <img src={sb.image.light} alt="" className="h-4 w-4 shrink-0 rounded object-contain" />
+                            ) : (
+                              <span className="h-4 w-4 shrink-0 rounded bg-neutral-200 dark:bg-neutral-700" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate">{book.bookName}</span>
+                            {isSharp && (
+                              <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.06em] text-emerald-600 dark:text-emerald-300">
+                                Sharp
+                              </span>
+                            )}
+                            {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="group inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200/70 bg-white px-2.5 font-mono text-[10px] font-bold tabular-nums text-neutral-600 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500"
+                      >
+                        {selectedLineOption}+
+                        <ChevronDown className="h-3 w-3 text-neutral-400 transition group-data-[state=open]:rotate-180 dark:text-slate-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="max-h-64 min-w-24 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                    >
+                      {lineOptions.map((line) => {
+                        const isSelected = Math.abs(line - activeLine) < 0.01;
+                        return (
+                          <DropdownMenuItem
+                            key={line}
+                            onSelect={() => onLineChange(line)}
+                            className={cn(
+                              "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold tabular-nums text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
+                              isSelected && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                            )}
+                          >
+                            {line}+
+                            {isSelected && <Check className="h-3.5 w-3.5 text-sky-500" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Switch line movement side from ${lineHistorySide}`}
+                        className="group inline-flex h-8 w-9 items-center justify-center rounded-md border border-neutral-200/70 bg-white font-mono text-[11px] font-black uppercase text-neutral-600 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500"
+                      >
+                        {lineHistorySide === "over" ? "O" : "U"}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="min-w-24 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                    >
+                      {(["over", "under"] as const).map((side) => (
+                        <DropdownMenuItem
+                          key={side}
+                          onSelect={() => onLineHistorySideChange(side)}
+                          className={cn(
+                            "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.06em] text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
+                            side === lineHistorySide && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                          )}
+                        >
+                          <span><span className="font-black">{side === "over" ? "O" : "U"}</span> {side}</span>
+                          {side === lineHistorySide && <Check className="h-3.5 w-3.5 text-sky-500" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div>
+                {syncedHistoryEntries.length >= 2 ? (
+                  <MiniLineMovementChart points={syncedHistoryEntries} />
+                ) : (
+                  <EmptyMiniLineMovementChart message="No historical odds available for this book, side, and line yet." />
+                )}
+              </div>
               <p className="text-[10px] text-neutral-400 dark:text-slate-500">
-                Updated {formatLineHistoryTime(bestHistoryBook.entries.at(-1)?.timestamp)}
+                {syncedHistoryEntries.length < 2
+                  ? "Try another book, side, or line to view historical movement."
+                  : selectedHistoryLiveOffer
+                  ? `Synced to live Best Books price ${formatAmericanOdds(selectedHistoryLiveOffer.price)}`
+                  : `Updated ${formatLineHistoryTime(selectedHistoryBook.entries.at(-1)?.timestamp)}`}
               </p>
+              <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/85 px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-emerald-500 active:scale-[0.99]"
+                >
+                  Add to Betslip
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
+                    <IconPlus className="h-3.5 w-3.5" stroke={2.4} />
+                  </span>
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-neutral-200 px-3 py-4 text-center text-xs leading-relaxed text-neutral-500 dark:border-neutral-700/50 dark:text-slate-500">
-              {lineHistoryError?.message || "Line movement will appear when historical odds are available for this book."}
+            <div className="space-y-3">
+              <div className="rounded-md border border-dashed border-neutral-200 px-3 py-4 text-center text-xs leading-relaxed text-neutral-500 dark:border-neutral-700/50 dark:text-slate-500">
+                {lineHistoryError?.message || "Line movement will appear when historical odds are available for this book."}
+              </div>
+              <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/85 px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-emerald-500 active:scale-[0.99]"
+                >
+                  Add to Betslip
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
+                    <IconPlus className="h-3.5 w-3.5" stroke={2.4} />
+                  </span>
+                </button>
+              </div>
             </div>
           )}
         </div>
       </MlbGlassPanel>
-
-      <button
-        type="button"
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/80 px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-emerald-500 active:scale-[0.99]"
-      >
-        Add to Betslip
-        <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50 text-base leading-none">+</span>
-      </button>
     </aside>
   );
 }
@@ -916,6 +1477,12 @@ export function PlayerQuickViewModal({
   const scrollRef = useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
   const isMlb = sport === "mlb";
+  const [lineHistoryDialogOpen, setLineHistoryDialogOpen] = useState(false);
+  const [lineHistorySide, setLineHistorySide] = useState<MlbLineHistorySide>("over");
+
+  useEffect(() => {
+    if (!open) setLineHistoryDialogOpen(false);
+  }, [open]);
 
   // Check if user has Hit Rate access for advanced tabs (hit_rate or pro plan)
   const { user } = useAuth();
@@ -938,6 +1505,7 @@ export function PlayerQuickViewModal({
   const mlb_player_id = directMlbPlayerId || lookupData?.player?.mlb_player_id || undefined;
   const resolvedPlayerId = isMlb ? mlb_player_id : nba_player_id;
   const playerInfo = lookupData?.player;
+  const oddsPlayerIdForLookup = odds_player_id || playerInfo?.odds_player_id || null;
 
   // Fetch profiles and box scores in PARALLEL (not sequential)
   // Only fetch when we have a player ID
@@ -958,12 +1526,28 @@ export function PlayerQuickViewModal({
 
   // Profile & market selection
   const hasUpcomingProfile = profiles.length > 0;
+  const isMlbPitcherProfile = useMemo(() => {
+    if (!isMlb) return false;
+    if (isMlbPitcherMarketKey(initial_market)) return true;
+    return profiles.some((p) => p.position === "P" || isMlbPitcherMarketKey(p.market));
+  }, [initial_market, isMlb, profiles]);
   
   // Sort markets by preferred order
   const availableMarkets = useMemo(() => {
-    const fallbackMarkets = isMlb ? MLB_FALLBACK_MARKETS : FALLBACK_MARKETS;
-    const profileMarkets = hasUpcomingProfile ? profiles.map(p => p.market) : fallbackMarkets;
-    const uniqueMarkets = Array.from(new Set([initial_market, ...profileMarkets].filter(Boolean) as string[]));
+    const fallbackMarkets = isMlb
+      ? isMlbPitcherProfile
+        ? MLB_PITCHER_FALLBACK_MARKETS
+        : MLB_BATTER_FALLBACK_MARKETS
+      : FALLBACK_MARKETS;
+    const profileMarkets = hasUpcomingProfile
+      ? profiles
+          .map((p) => p.market)
+          .filter((market) => !isMlb || isMlbPitcherMarketKey(market) === isMlbPitcherProfile)
+      : fallbackMarkets;
+    const safeInitialMarket = initial_market && (!isMlb || isMlbPitcherMarketKey(initial_market) === isMlbPitcherProfile)
+      ? initial_market
+      : null;
+    const uniqueMarkets = Array.from(new Set([safeInitialMarket, ...profileMarkets].filter(Boolean) as string[]));
     // Sort by FALLBACK_MARKETS order (preferred display order)
     return uniqueMarkets.sort((a, b) => {
       const indexA = fallbackMarkets.indexOf(a);
@@ -973,7 +1557,7 @@ export function PlayerQuickViewModal({
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
-  }, [hasUpcomingProfile, profiles, isMlb, initial_market]);
+  }, [hasUpcomingProfile, profiles, isMlb, isMlbPitcherProfile, initial_market]);
   const [selectedMarket, setSelectedMarket] = useState<string | null>(initial_market || null);
   
   // Only sync initial_market on mount or when it changes from parent
@@ -984,24 +1568,27 @@ export function PlayerQuickViewModal({
         setSelectedMarket(initial_market);
       } else {
         // Fallback to player_points if initial market isn't available
-        const preferredDefault = isMlb ? "player_hits" : "player_points";
+        const preferredDefault = isMlb ? (isMlbPitcherProfile ? "pitcher_strikeouts" : "player_hits") : "player_points";
         const fallbackMarket = availableMarkets.includes(preferredDefault) 
           ? preferredDefault 
           : availableMarkets[0];
         setSelectedMarket(fallbackMarket);
       }
     }
-  }, [initial_market, availableMarkets, isMlb]);
+  }, [initial_market, availableMarkets, isMlb, isMlbPitcherProfile]);
   
   // Set default market if none selected
   useEffect(() => {
     if (!selectedMarket && availableMarkets.length > 0) {
       setSelectedMarket(availableMarkets[0]);
+    } else if (selectedMarket && availableMarkets.length > 0 && !availableMarkets.includes(selectedMarket)) {
+      setSelectedMarket(availableMarkets[0]);
     }
   }, [selectedMarket, availableMarkets]);
 
-  const currentMarket = selectedMarket || availableMarkets[0] || (isMlb ? "player_hits" : "player_points");
-  const profile = profiles.find((p) => p.market === currentMarket) || profiles[0];
+  const currentMarket = selectedMarket || availableMarkets[0] || (isMlb ? (isMlbPitcherProfile ? "pitcher_strikeouts" : "player_hits") : "player_points");
+  const currentMarketProfile = profiles.find((p) => p.market === currentMarket) || null;
+  const profile = currentMarketProfile || profiles[0];
   const oddsLookupRows = useMemo(() => {
     return profiles
       .map((p) => ({
@@ -1055,7 +1642,8 @@ export function PlayerQuickViewModal({
   }, [currentMarket, hitRateDate, profile?.playerId, resolvedPlayerId, sport]);
 
   // Fetch alternate lines using React Query for caching
-  const playerKey = player_name?.toLowerCase().replace(/ /g, "_") || "";
+  const normalizedPlayerNameKey = player_name?.toLowerCase().replace(/ /g, "_") || "";
+  const playerKey = oddsPlayerIdForLookup || normalizedPlayerNameKey;
   const { data: alternatesData } = useQuery({
     queryKey: ["modal-alternates", event_id, playerKey, currentMarket],
     queryFn: async () => {
@@ -1078,6 +1666,7 @@ export function PlayerQuickViewModal({
       return allLines.map((line: any) => {
         let bestOver: AlternateLineOdds["over"] = undefined;
         let bestUnder: AlternateLineOdds["under"] = undefined;
+        const books: NonNullable<AlternateLineOdds["books"]> = {};
         
         Object.entries(line.books || {}).forEach(([bookId, bookData]: [string, any]) => {
           if (bookData.over && (!bestOver || bookData.over.price > bestOver.price)) {
@@ -1094,9 +1683,23 @@ export function PlayerQuickViewModal({
               mobileLink: bookData.under.m || bookData.under.u || null,
             };
           }
+          if (bookData.over || bookData.under) {
+            books[bookId] = {
+              over: bookData.over ? {
+                price: bookData.over.price,
+                mobileLink: bookData.over.m || bookData.over.u || null,
+                url: bookData.over.u || bookData.over.m || null,
+              } : undefined,
+              under: bookData.under ? {
+                price: bookData.under.price,
+                mobileLink: bookData.under.m || bookData.under.u || null,
+                url: bookData.under.u || bookData.under.m || null,
+              } : undefined,
+            };
+          }
         });
         
-        return { ln: line.ln, over: bestOver, under: bestUnder };
+        return { ln: line.ln, over: bestOver, under: bestUnder, books };
       }) as AlternateLineOdds[];
     },
     enabled: open && !!event_id && !!playerKey,
@@ -1134,20 +1737,31 @@ export function PlayerQuickViewModal({
       setCustomLine(initial_line);
     }
   }, [initial_line]);
+
+  const externalOddsMarket = initial_market || availableMarkets[0] || null;
+  const canUseExternalOdds = !isMlb || !externalOddsMarket || currentMarket === externalOddsMarket;
   
   const defaultLine = useMemo(() => {
     // Priority: profile line -> odds line -> calculated from box scores
-    if (profile?.line) return profile.line;
-    if (odds?.over?.line) return odds.over.line;
-    if (odds?.under?.line) return odds.under.line;
+    if (currentMarketProfile?.line) return currentMarketProfile.line;
+    if (canUseExternalOdds && odds?.over?.line) return odds.over.line;
+    if (canUseExternalOdds && odds?.under?.line) return odds.under.line;
+    if (alternateLines.length > 0) {
+      const deepestLine = [...alternateLines].sort((a, b) => {
+        const bookDelta = getAlternateLineBookCount(b) - getAlternateLineBookCount(a);
+        if (bookDelta !== 0) return bookDelta;
+        return a.ln - b.ln;
+      })[0];
+      if (deepestLine) return deepestLine.ln;
+    }
     if (modalGames.length === 0) return isMlb ? 1 : 10;
     const recentGames = modalGames.slice(0, 10);
     const avg = recentGames.reduce((sum, g) => sum + getMarketStat(g, currentMarket), 0) / recentGames.length;
     return Math.round(avg * 2) / 2;
-  }, [profile, odds, modalGames, currentMarket, isMlb]);
+  }, [currentMarketProfile, canUseExternalOdds, odds, alternateLines, modalGames, currentMarket, isMlb]);
 
   const activeLine = customLine ?? defaultLine;
-  const activeHitRateOdds = getHitRateOdds(profile?.selKey || profile?.oddsSelectionId || null);
+  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   const activeHitRateLine = useMemo(() => {
     if (!activeHitRateOdds?.allLines?.length) return null;
     const exact = activeHitRateOdds.allLines.find((line) => line.line === activeLine);
@@ -1155,54 +1769,32 @@ export function PlayerQuickViewModal({
     const sorted = [...activeHitRateOdds.allLines].sort((a, b) => Math.abs(a.line - activeLine) - Math.abs(b.line - activeLine));
     return sorted[0] && Math.abs(sorted[0].line - activeLine) <= 1.5 ? sorted[0] : null;
   }, [activeHitRateOdds, activeLine]);
+  const activeAlternateLine = useMemo(() => {
+    if (alternateLines.length === 0) return null;
+    const exact = alternateLines.find((line) => Math.abs(line.ln - activeLine) < 0.01);
+    if (exact) return exact;
+    const closest = [...alternateLines].sort((a, b) => Math.abs(a.ln - activeLine) - Math.abs(b.ln - activeLine))[0];
+    return closest && Math.abs(closest.ln - activeLine) <= 1.5 ? closest : null;
+  }, [activeLine, alternateLines]);
 
   // Compute odds for the current line (from alternates or original odds)
   // Always look up in alternates first since market may have changed
   const activeOdds = useMemo(() => {
-    const targetLine = customLine ?? defaultLine;
-    
-    // First, try to find exact match in alternates for current market
-    const exactMatch = alternateLines.find(alt => alt.ln === targetLine);
-    if (exactMatch) {
+    if (activeAlternateLine) {
       return {
-        over: exactMatch.over ? {
-          price: exactMatch.over.price,
-          line: exactMatch.ln,
-          book: exactMatch.over.book,
-          mobileLink: exactMatch.over.mobileLink,
+        over: activeAlternateLine.over ? {
+          price: activeAlternateLine.over.price,
+          line: activeAlternateLine.ln,
+          book: activeAlternateLine.over.book,
+          mobileLink: activeAlternateLine.over.mobileLink,
         } : undefined,
-        under: exactMatch.under ? {
-          price: exactMatch.under.price,
-          line: exactMatch.ln,
-          book: exactMatch.under.book,
-          mobileLink: exactMatch.under.mobileLink,
+        under: activeAlternateLine.under ? {
+          price: activeAlternateLine.under.price,
+          line: activeAlternateLine.ln,
+          book: activeAlternateLine.under.book,
+          mobileLink: activeAlternateLine.under.mobileLink,
         } : undefined,
       };
-    }
-    
-    // Look for closest line if no exact match
-    if (alternateLines.length > 0) {
-      const sortedByDistance = [...alternateLines].sort((a, b) => 
-        Math.abs(a.ln - targetLine) - Math.abs(b.ln - targetLine)
-      );
-      const closest = sortedByDistance[0];
-      // Only use closest if within 1.5 points
-      if (closest && Math.abs(closest.ln - targetLine) <= 1.5) {
-        return {
-          over: closest.over ? {
-            price: closest.over.price,
-            line: closest.ln,
-            book: closest.over.book,
-            mobileLink: closest.over.mobileLink,
-          } : undefined,
-          under: closest.under ? {
-            price: closest.under.price,
-            line: closest.ln,
-            book: closest.under.book,
-            mobileLink: closest.under.mobileLink,
-          } : undefined,
-        };
-      }
     }
 
     if (activeHitRateLine) {
@@ -1224,7 +1816,7 @@ export function PlayerQuickViewModal({
     
     // Fall back to original odds ONLY if we haven't changed markets
     // (i.e., customLine is null and odds line matches defaultLine)
-    if (customLine === null && odds) {
+    if (customLine === null && odds && canUseExternalOdds) {
       const oddsLine = odds.over?.line ?? odds.under?.line;
       if (oddsLine === defaultLine) {
         return odds;
@@ -1233,10 +1825,10 @@ export function PlayerQuickViewModal({
     
     // No odds available for this market/line
     return null;
-  }, [customLine, defaultLine, odds, alternateLines, activeHitRateLine]);
+  }, [activeAlternateLine, activeHitRateLine, canUseExternalOdds, customLine, defaultLine, odds]);
 
   const bookOffers = useMemo<MlbBookOffer[]>(() => {
-    const callerOffers: MlbBookOffer[] = (liveBookOffers ?? [])
+    const callerOffers: MlbBookOffer[] = canUseExternalOdds ? (liveBookOffers ?? [])
       .filter((offer) => offer.book && Number.isFinite(offer.price))
       .map((offer) => ({
         side: offer.side,
@@ -1248,7 +1840,7 @@ export function PlayerQuickViewModal({
         isBest: false,
         evPercent: offer.evPercent ?? null,
         isSharpRef: Boolean(offer.isSharpRef),
-      }));
+      })) : [];
 
     const mergeOffers = (base: MlbBookOffer[], supplemental: MlbBookOffer[]) => {
       const byKey = new Map<string, MlbBookOffer>();
@@ -1284,6 +1876,38 @@ export function PlayerQuickViewModal({
         });
     };
 
+    const alternateOffers: MlbBookOffer[] = [];
+    if (activeAlternateLine?.books) {
+      Object.entries(activeAlternateLine.books).forEach(([book, sides]) => {
+        if (sides.over && Number.isFinite(sides.over.price)) {
+          alternateOffers.push({
+            side: "over",
+            book,
+            price: sides.over.price,
+            line: activeAlternateLine.ln,
+            url: sides.over.url ?? null,
+            mobileUrl: sides.over.mobileLink ?? null,
+            isBest: false,
+            evPercent: null,
+            isSharpRef: false,
+          });
+        }
+        if (sides.under && Number.isFinite(sides.under.price)) {
+          alternateOffers.push({
+            side: "under",
+            book,
+            price: sides.under.price,
+            line: activeAlternateLine.ln,
+            url: sides.under.url ?? null,
+            mobileUrl: sides.under.mobileLink ?? null,
+            isBest: false,
+            evPercent: null,
+            isSharpRef: false,
+          });
+        }
+      });
+    }
+
     if (!activeHitRateLine?.books) {
       const fallback: MlbBookOffer[] = [];
       if (activeOdds?.over?.book && activeOdds.over.price != null) {
@@ -1312,7 +1936,7 @@ export function PlayerQuickViewModal({
           isSharpRef: false,
         });
       }
-      return mergeOffers(callerOffers, fallback);
+      return mergeOffers(callerOffers, [...alternateOffers, ...fallback]);
     }
 
     const offers: MlbBookOffer[] = [];
@@ -1345,8 +1969,31 @@ export function PlayerQuickViewModal({
       }
     });
 
-    return mergeOffers(callerOffers, offers);
-  }, [activeHitRateLine, activeOdds, activeLine, liveBookOffers]);
+    return mergeOffers(callerOffers, [...alternateOffers, ...offers]);
+  }, [activeAlternateLine, activeHitRateLine, activeOdds, activeLine, canUseExternalOdds, liveBookOffers]);
+
+  const rightRailLineOptions = useMemo(() => {
+    const lines = new Set<number>();
+    const addLine = (line?: number | null) => {
+      if (typeof line === "number" && Number.isFinite(line)) {
+        lines.add(Math.round(line * 10) / 10);
+      }
+    };
+
+    addLine(activeLine);
+    addLine(defaultLine);
+    addLine(profile?.line ?? null);
+    addLine(activeOdds?.over?.line ?? null);
+    addLine(activeOdds?.under?.line ?? null);
+    alternateLines.forEach((line) => addLine(line.ln));
+    activeHitRateOdds?.allLines?.forEach((line) => addLine(line.line));
+    bookOffers.forEach((offer) => addLine(offer.line));
+    if (isMlb) {
+      getMlbMarketLineLadder(currentMarket, activeLine).forEach(addLine);
+    }
+
+    return Array.from(lines).sort((a, b) => a - b);
+  }, [activeHitRateOdds, activeLine, activeOdds, alternateLines, bookOffers, currentMarket, defaultLine, isMlb, profile?.line]);
 
   // Transform activeOdds into GameLogChart format
   const oddsForChart = useMemo(() => {
@@ -1384,7 +2031,7 @@ export function PlayerQuickViewModal({
   const profileOpponentTeamId = profile?.opponentTeamId || null;
   const profileOpponentTeamAbbr = profile?.opponentTeamAbbr || "";
   const profilePlayerName = profile?.playerName || player_name || "";
-  const isMlbPitcher = isMlb && (currentMarket.startsWith("pitcher_") || profilePosition === "P");
+  const isMlbPitcher = isMlb && (isMlbPitcherProfile || isMlbPitcherMarketKey(currentMarket) || profilePosition === "P");
 
   useEffect(() => {
     if (isMlb && (activeTab === "correlation" || activeTab === "matchup" || (isMlbPitcher && activeTab === "playstyle"))) {
@@ -1395,6 +2042,7 @@ export function PlayerQuickViewModal({
   useEffect(() => {
     setCustomLine(null);
     setIsEditingLine(false);
+    setLineHistorySide("over");
     setGameCount(10);
     setMlbHomeAwayFilter("all");
     setMlbDayNightFilter("all");
@@ -1514,18 +2162,28 @@ export function PlayerQuickViewModal({
       (acc, game) => ({
         hits: acc.hits + (game.mlbHits ?? 0),
         totalBases: acc.totalBases + (game.mlbTotalBases ?? 0),
+        homeRuns: acc.homeRuns + (game.mlbHomeRuns ?? 0),
+        rbi: acc.rbi + (game.mlbRbi ?? 0),
         atBats: acc.atBats + (game.mlbAtBats ?? 0),
         plateAppearances: acc.plateAppearances + (game.mlbPlateAppearances ?? 0),
         walks: acc.walks + (game.mlbWalks ?? 0),
       }),
-      { hits: 0, totalBases: 0, atBats: 0, plateAppearances: 0, walks: 0 }
+      { hits: 0, totalBases: 0, homeRuns: 0, rbi: 0, atBats: 0, plateAppearances: 0, walks: 0 }
     );
     const avg = totals.atBats > 0 ? totals.hits / totals.atBats : null;
     const obp = totals.plateAppearances > 0 ? (totals.hits + totals.walks) / totals.plateAppearances : null;
+    const slg = totals.atBats > 0 ? totals.totalBases / totals.atBats : null;
+    const ops = obp !== null && slg !== null ? obp + slg : null;
 
     return {
       label: `${mlbLogSeason ?? new Date().getFullYear()} Season Averages`,
       stats: [
+        { label: "AVG", value: formatMlbHeaderRate(avg), sub: `${n} games`, highlight: true },
+        { label: "HR", value: `${totals.homeRuns}`, sub: "Total" },
+        { label: "RBI", value: `${totals.rbi}`, sub: "Total" },
+        { label: "OPS", value: formatMlbHeaderRate(ops), sub: "Season" },
+      ],
+      modalStats: [
         { label: "H/G", value: formatMlbHeaderDecimal(totals.hits / n), highlight: true },
         { label: "TB/G", value: formatMlbHeaderDecimal(totals.totalBases / n) },
         { label: "AVG", value: formatMlbHeaderRate(avg) },
@@ -1549,7 +2207,7 @@ export function PlayerQuickViewModal({
   }, [isMlb, mlbSeasonSummary, seasonSummary]);
 
   // Only wait for lookup if we don't have a direct ID
-  const isLoading = (needsLookup && isLoadingLookup) || isLoadingProfiles || (isMlb ? isLoadingMlbLogs : isLoadingBoxScores);
+  const isLoading = (needsLookup && isLoadingLookup) || isLoadingProfiles || (isMlb ? isLoadingMlbLogs && modalGames.length === 0 : isLoadingBoxScores);
   // hasData is true if:
   // - We have a direct nba_player_id with profile or box scores, OR
   // - We looked up and found the player with profile or box scores
@@ -1591,29 +2249,30 @@ export function PlayerQuickViewModal({
     || (isMlb && !isMlbPitcher ? "TBD" : formatQuickViewGameStatus(nextGame?.gameStatus, nextGame?.gameDatetime));
   const lineHistoryContext = useMemo<LineHistoryContext | null>(() => {
     const contextEventId = event_id || profile?.eventId;
+    const historyMarket = isMlb ? getMlbLineHistoryMarket(currentMarket) : currentMarket;
     const currentLineOffers = bookOffers.filter((offer) => Math.abs(offer.line - activeLine) < 0.01);
-    const overOffers = currentLineOffers.filter((offer) => offer.side === "over");
-    const candidateOffers = overOffers.length > 0 ? overOffers : currentLineOffers;
-    const allBookIds = Array.from(new Set(candidateOffers.map((offer) => offer.book).filter(Boolean)));
-    if (!isMlb || !contextEventId || !currentMarket || allBookIds.length === 0) return null;
+    const selectedSideOffers = currentLineOffers.filter((offer) => offer.side === lineHistorySide);
+    const candidateOffers = selectedSideOffers.length > 0 ? selectedSideOffers : currentLineOffers;
+    const allBookIds = sortLineHistoryBookIds(candidateOffers.map((offer) => offer.book));
+    if (!isMlb || !contextEventId || !historyMarket || allBookIds.length === 0) return null;
 
     return {
       source: "prop_center",
       sport,
       eventId: contextEventId,
-      market: currentMarket,
+      market: historyMarket,
       marketDisplay: formatMarketLabel(currentMarket),
-      side: overOffers.length > 0 ? "over" : candidateOffers[0]?.side,
+      side: lineHistorySide,
       line: activeLine,
       selectionName: displayName,
       playerName: displayName,
       team: displayTeam || null,
-      bestBookId: activeOdds?.over?.book || candidateOffers[0]?.book || null,
-      compareBookIds: allBookIds.slice(0, 6),
+      bestBookId: activeOdds?.[lineHistorySide]?.book || candidateOffers[0]?.book || null,
+      compareBookIds: allBookIds,
       allBookIds,
       currentPricesByBook: Object.fromEntries(candidateOffers.map((offer) => [offer.book, offer.price])),
     };
-  }, [activeLine, activeOdds?.over?.book, bookOffers, currentMarket, displayName, displayTeam, event_id, isMlb, profile?.eventId, sport]);
+  }, [activeLine, activeOdds, bookOffers, currentMarket, displayName, displayTeam, event_id, isMlb, lineHistorySide, profile?.eventId, sport]);
   const {
     data: lineHistoryData,
     isLoading: isLineHistoryLoading,
@@ -1630,7 +2289,7 @@ export function PlayerQuickViewModal({
     ],
     queryFn: async () => {
       if (!lineHistoryContext) throw new Error("Missing line history context");
-      const books = (lineHistoryContext.compareBookIds?.length ? lineHistoryContext.compareBookIds : lineHistoryContext.allBookIds || []).slice(0, 6);
+      const books = lineHistoryContext.compareBookIds?.length ? lineHistoryContext.compareBookIds : lineHistoryContext.allBookIds || [];
       const response = await fetch("/api/v2/odds/line-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1643,8 +2302,9 @@ export function PlayerQuickViewModal({
     },
     enabled: open && !!lineHistoryContext,
     retry: false,
-    staleTime: 3 * 60_000,
+    staleTime: 30_000,
     gcTime: 10 * 60_000,
+    refetchInterval: open && !!lineHistoryContext ? 30_000 : false,
     refetchOnWindowFocus: false,
   });
   const spraySeason = mlbLogSeason ?? new Date().getFullYear();
@@ -1724,6 +2384,7 @@ export function PlayerQuickViewModal({
     ];
 
     return (
+      <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-full max-w-[96vw] lg:max-w-[1420px] max-h-[94vh] overflow-hidden rounded-xl border border-neutral-200/50 bg-white p-0 text-neutral-950 shadow-2xl ring-1 ring-black/5 dark:border-neutral-700/40 dark:bg-[#050a0f] dark:text-slate-100 dark:ring-white/5">
           {isLoading ? (
@@ -1737,9 +2398,9 @@ export function PlayerQuickViewModal({
               <p className="mt-2 text-sm text-neutral-500 dark:text-slate-400">Unable to load data for this player.</p>
             </div>
           ) : (
-            <div className="flex max-h-[94vh] min-h-[720px] flex-col overflow-hidden bg-neutral-50 dark:bg-[#050a0f]">
-              <div className="shrink-0 border-b border-neutral-200/50 bg-white px-4 py-4 dark:border-neutral-700/35 dark:bg-[#080f16] sm:px-6">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="flex h-[94vh] max-h-[94vh] flex-col overflow-hidden bg-neutral-50 dark:bg-[#050a0f]">
+              <div className="shrink-0 border-b border-neutral-200/50 bg-white px-4 py-3 dark:border-neutral-700/35 dark:bg-[#080f16] sm:px-6 lg:pr-12">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
                   <div className="flex min-w-0 items-start gap-4">
                     <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-neutral-200/50 bg-neutral-100 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                       <PlayerHeadshot
@@ -1760,24 +2421,15 @@ export function PlayerQuickViewModal({
                         {displayPosition && <><span className="text-neutral-300 dark:text-slate-600">•</span><span>{displayPosition}</span></>}
                         {displayJersey && <><span className="text-neutral-300 dark:text-slate-600">•</span><span>#{displayJersey}</span></>}
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-semibold text-neutral-800 dark:text-slate-200">
-                        <span>{displayTeam || "MLB"}</span>
-                        {nextGame?.opponentTeamAbbr && (
-                          <>
-                            <span className="text-neutral-400 dark:text-slate-600">{nextGame.homeAway === "H" ? "vs" : "@"}</span>
-                            <span>{nextGame.opponentTeamAbbr}</span>
-                          </>
-                        )}
-                      </div>
                       {nextGame && (
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-slate-400">
+                        <div className="mt-2 inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1 text-xs text-neutral-600 dark:bg-emerald-400/[0.06] dark:text-slate-300">
                           <span className="inline-flex items-center gap-1.5 font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                             Next
                           </span>
                           {nextGame.opponentTeamAbbr && (
                             <>
-                              <span className="text-neutral-300 dark:text-slate-600">•</span>
+                              <span className="text-neutral-300 dark:text-slate-600">{nextGame.homeAway === "H" ? "vs" : "@"}</span>
                               <span className="inline-flex items-center gap-1.5">
                                 {nextGame.opponentTeamAbbr && (
                                   <img
@@ -1794,7 +2446,7 @@ export function PlayerQuickViewModal({
                           {nextGameDetail && (
                             <>
                               <span className="text-neutral-300 dark:text-slate-600">•</span>
-                              <span>{nextGameDetail}</span>
+                              <span className="truncate">{nextGameDetail}</span>
                             </>
                           )}
                         </div>
@@ -1802,125 +2454,129 @@ export function PlayerQuickViewModal({
                     </div>
                   </div>
 
-                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[132px_132px_112px_112px]">
-                    <div className="relative" ref={marketDropdownRef}>
-                      <button
-                        type="button"
-                        onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
-                        className="flex h-14 w-full flex-col items-start justify-center rounded-lg border border-neutral-200/70 bg-neutral-50 px-3 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50"
-                      >
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-slate-500">Prop</span>
-                        <span className="mt-0.5 flex w-full items-center justify-between gap-2 text-lg font-black leading-tight text-neutral-950 dark:text-white">
-                          {formatMarketLabel(currentMarket)}
-                          <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", isMarketDropdownOpen && "rotate-180")} />
-                        </span>
-                      </button>
-                      {isMarketDropdownOpen && (
-                        <div className="absolute left-0 top-full z-50 mt-2 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1.5 shadow-2xl dark:border-neutral-700/50 dark:bg-[#080f16]">
-                          {availableMarkets.map((m) => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => {
-                                setSelectedMarket(m);
-                                onMarketChange?.(m);
-                                setIsMarketDropdownOpen(false);
-                              }}
-                              className={cn(
-                                "w-full rounded-md px-3 py-2 text-left text-sm font-bold transition",
-                                m === currentMarket ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" : "text-neutral-700 hover:bg-neutral-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                              )}
-                            >
-                              {formatMarketLabel(m)}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditValue(String(activeLine));
-                        setIsEditingLine(true);
-                      }}
-                      className="flex h-14 flex-col items-start justify-center rounded-lg border border-neutral-200/70 bg-neutral-50 px-3 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50"
-                    >
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-slate-500">Line</span>
-                      {isEditingLine ? (
-                        <span className="mt-1 flex items-center gap-2">
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleLineEdit(); }}
-                            onBlur={handleLineEdit}
-                            className="w-20 rounded-md border border-neutral-300 bg-white px-2 py-1 text-lg font-black text-neutral-950 dark:border-slate-600 dark:bg-slate-950 dark:text-white"
-                            autoFocus
-                          />
-                          <Check className="h-4 w-4 text-emerald-300" />
-                        </span>
-                      ) : (
-                        <span className="mt-0.5 flex w-full items-center justify-between gap-2 text-xl font-black text-neutral-950 dark:text-white">
-                          {activeLine}+ <ChevronDown className="h-4 w-4 text-slate-400" />
-                        </span>
-                      )}
-                    </button>
-
-                    <MlbOddsBlock
-                      label="Over"
-                      odds={activeOdds?.over}
-                      tone="over"
-                      onClick={() => activeOdds?.over?.mobileLink && window.open(applyState(activeOdds.over.mobileLink) || activeOdds.over.mobileLink, "_blank", "noopener,noreferrer")}
-                    />
-                    <MlbOddsBlock
-                      label="Under"
-                      odds={activeOdds?.under}
-                      tone="under"
-                      onClick={() => activeOdds?.under?.mobileLink && window.open(applyState(activeOdds.under.mobileLink) || activeOdds.under.mobileLink, "_blank", "noopener,noreferrer")}
-                    />
+                  <div>
+                    {headerSeasonSummary && (
+                      <MlbSeasonStatsStrip summary={headerSeasonSummary} />
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="shrink-0 border-b border-neutral-200/50 bg-white px-4 dark:border-neutral-700/35 dark:bg-[#080f16] sm:px-6">
-                <div className="flex gap-7 overflow-x-auto">
-                  {modalTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    const isDisabled = "disabled" in tab && tab.disabled;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => !isDisabled && setActiveTab(tab.id)}
-                        className={cn(
-                          "relative flex items-center gap-2 py-4 text-sm font-semibold transition",
-                          isDisabled
-                            ? "cursor-not-allowed text-neutral-400 dark:text-slate-600"
-                            : isActive
-                              ? "text-neutral-950 dark:text-white"
-                              : "text-neutral-500 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-200"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{tab.id === "matchup" ? "Pitcher" : tab.id === "playstyle" ? "Batted Ball" : tab.label.replace("Game ", "")}</span>
-                        {"soon" in tab && tab.soon && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[9px] font-black text-neutral-500 dark:bg-slate-700 dark:text-slate-300">SOON</span>}
-                        {isActive && <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-sky-500" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 scrollbar-hide sm:px-6 lg:overflow-hidden">
+                <div className="grid gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+                  <main className="min-w-0 lg:min-h-0">
+                    <MlbGlassPanel className="overflow-visible lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+                      <div className="flex flex-col gap-2 border-b border-neutral-200/50 px-2.5 py-2 dark:border-neutral-700/30 sm:gap-3 sm:px-3 sm:py-2.5 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 gap-5 overflow-x-auto scrollbar-hide sm:gap-7">
+                          {modalTabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            const isDisabled = "disabled" in tab && tab.disabled;
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => !isDisabled && setActiveTab(tab.id)}
+                                className={cn(
+                                  "relative flex h-10 shrink-0 items-center gap-1.5 text-xs font-semibold transition sm:h-11 sm:gap-2 sm:text-sm",
+                                  isDisabled
+                                    ? "cursor-not-allowed text-neutral-400 dark:text-slate-600"
+                                    : isActive
+                                      ? "text-neutral-950 dark:text-white"
+                                      : "text-neutral-500 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-200"
+                                )}
+                              >
+                                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                <span>{tab.id === "matchup" ? "Pitcher" : tab.id === "playstyle" ? "Batted Ball" : tab.label.replace("Game ", "")}</span>
+                                {"soon" in tab && tab.soon && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[9px] font-black text-neutral-500 dark:bg-slate-700 dark:text-slate-300">SOON</span>}
+                                {isActive && <span className="absolute bottom-[-9px] left-0 h-0.5 w-full rounded-full bg-sky-500 sm:bottom-[-11px]" />}
+                              </button>
+                            );
+                          })}
+                        </div>
 
-              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
-                  <main className="min-w-0 space-y-3">
+                        <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-2 xl:w-[360px]">
+                          <div className="relative" ref={marketDropdownRef}>
+                            <button
+                              type="button"
+                              onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
+                              className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50 sm:h-10 sm:px-3"
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-neutral-500 dark:text-slate-500 sm:text-[9px]">Prop</span>
+                                <span className="mt-0.5 block truncate text-xs font-black leading-tight text-neutral-950 dark:text-white sm:text-sm">{formatMarketLabel(currentMarket)}</span>
+                              </span>
+                              <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isMarketDropdownOpen && "rotate-180")} />
+                            </button>
+                            {isMarketDropdownOpen && (
+                              <div className="absolute left-0 top-full z-50 mt-2 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1.5 shadow-2xl dark:border-neutral-700/50 dark:bg-[#080f16]">
+                                {availableMarkets.map((m) => (
+                                  <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedMarket(m);
+                                      onMarketChange?.(m);
+                                      setIsMarketDropdownOpen(false);
+                                    }}
+                                    className={cn(
+                                      "w-full rounded-md px-3 py-2 text-left text-sm font-bold transition",
+                                      m === currentMarket ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" : "text-neutral-700 hover:bg-neutral-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    )}
+                                  >
+                                    {formatMarketLabel(m)}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50 sm:h-10 sm:px-3"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-neutral-500 dark:text-slate-500 sm:text-[9px]">Line</span>
+                                  <span className="mt-0.5 block text-xs font-black leading-tight text-neutral-950 dark:text-white sm:text-sm">{activeLine}+</span>
+                                </span>
+                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="z-[300] max-h-72 min-w-[160px] overflow-y-auto rounded-lg border-neutral-200 bg-white p-1.5 shadow-2xl dark:border-neutral-700/50 dark:bg-[#080f16]"
+                            >
+                              {rightRailLineOptions.map((line) => {
+                                const isSelected = Math.abs(line - activeLine) < 0.01;
+                                return (
+                                  <DropdownMenuItem
+                                    key={line}
+                                    onSelect={() => {
+                                      setCustomLine(line);
+                                      setIsEditingLine(false);
+                                    }}
+                                    className={cn(
+                                      "cursor-pointer rounded-md px-3 py-2 text-sm font-black tabular-nums",
+                                      isSelected
+                                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                        : "text-neutral-700 hover:bg-neutral-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    )}
+                                  >
+                                    {line}+
+                                  </DropdownMenuItem>
+                                );
+                              })}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                      <div className="space-y-2.5 overflow-y-auto p-2.5 scrollbar-hide sm:space-y-3 sm:p-3 lg:min-h-0 lg:flex-1 lg:pr-2">
                     {activeTab === "gamelog" && (
                       <>
-                        <MlbGlassPanel className="grid grid-cols-2 overflow-hidden sm:grid-cols-5">
+                        <MlbGlassPanel className="grid grid-cols-5 overflow-hidden">
                           {hitRateCards.map((card) => {
                             const hits = card.games.filter((game) => getMarketStat(game, currentMarket) >= activeLine).length;
                             const tone = card.isAvg
@@ -1930,6 +2586,9 @@ export function PlayerQuickViewModal({
                               : card.value >= 50
                               ? "green"
                               : "red";
+                            const teamAccentColor = card.isAvg
+                              ? getReadableTeamAccent(profile?.primaryColor, profile?.secondaryColor)
+                              : null;
                             return (
                               <MlbMetricTile
                                 key={card.label}
@@ -1937,6 +2596,7 @@ export function PlayerQuickViewModal({
                                 value={card.isAvg ? (card.value !== null ? card.value.toFixed(2) : "-") : formatPctValue(card.value)}
                                 sub={card.isAvg ? "Per Game" : `${hits} / ${card.games.length}`}
                                 tone={tone}
+                                accentColor={teamAccentColor}
                               />
                             );
                           })}
@@ -2124,12 +2784,13 @@ export function PlayerQuickViewModal({
                         )}
                       </>
                     )}
+                      </div>
+                    </MlbGlassPanel>
                   </main>
 
                   <MlbRightRail
                     currentMarket={currentMarket}
                     activeLine={activeLine}
-                    activeOdds={activeOdds}
                     bookOffers={bookOffers}
                     chartStats={chartStats}
                     dynamicHitRates={dynamicHitRates}
@@ -2137,6 +2798,15 @@ export function PlayerQuickViewModal({
                     lineHistory={lineHistoryData}
                     isLineHistoryLoading={isLineHistoryLoading}
                     lineHistoryError={lineHistoryError}
+                    lineOptions={rightRailLineOptions}
+                    lineHistorySide={lineHistorySide}
+                    onLineHistorySideChange={setLineHistorySide}
+                    onLineChange={(line) => {
+                      setCustomLine(line);
+                      setIsEditingLine(false);
+                    }}
+                    canOpenLineHistory={!!lineHistoryContext}
+                    onOpenLineHistory={() => setLineHistoryDialogOpen(true)}
                   />
                 </div>
               </div>
@@ -2144,6 +2814,14 @@ export function PlayerQuickViewModal({
           )}
         </DialogContent>
       </Dialog>
+      <LineHistoryDialog
+        open={lineHistoryDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setLineHistoryDialogOpen(nextOpen);
+        }}
+        context={lineHistoryContext}
+      />
+      </>
     );
   }
 

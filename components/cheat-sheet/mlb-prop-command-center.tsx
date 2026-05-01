@@ -342,6 +342,8 @@ const PROP_MARKET_TO_ODDS_MARKET: Record<string, string> = {
   pitcher_k: "player_strikeouts",
   pitcher_h: "player_hits_allowed",
   pitcher_er: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
   h_r_rbi: "player_hits__runs__rbis",
 };
 
@@ -352,10 +354,15 @@ const PROP_MARKET_TO_QUICK_VIEW_MARKET: Record<string, string> = {
   rbi: "player_rbi",
   h_r_rbi: "player_hits__runs__rbis",
   pitcher_k: "pitcher_strikeouts",
+  pitcher_h: "pitcher_hits_allowed",
+  pitcher_er: "pitcher_earned_runs",
+  pitcher_outs: "pitcher_outs",
+  pitcher_outs_recorded: "pitcher_outs",
 };
 
 type PropCenterQuickViewPlayer = {
   mlb_player_id: number;
+  odds_player_id?: string | null;
   player_name: string;
   market: string;
   event_id?: string;
@@ -376,6 +383,16 @@ type PropCenterQuickViewPlayer = {
       mobileLink?: string | null;
     };
   };
+  liveBookOffers?: Array<{
+    side: "over" | "under";
+    book: string;
+    price: number;
+    line?: number | null;
+    url?: string | null;
+    mobileUrl?: string | null;
+    mobileLink?: string | null;
+    decimal?: number | null;
+  }>;
 };
 
 // ── Grade System ─────────────────────────────────────────────────────────────
@@ -686,6 +703,7 @@ function buildPropCenterQuickViewPlayer(
 
   return {
     mlb_player_id: player.player_id,
+    odds_player_id: player.odds_player_id ?? null,
     player_name: player.player_name,
     market: quickViewMarket.market,
     event_id: game?.odds_game_id || undefined,
@@ -711,6 +729,37 @@ function buildPropCenterQuickViewPlayer(
               mobileLink: oddsEntry?.mobile_link || oddsEntry?.link || player.best_odds_mobile_link || player.best_odds_link || null,
             },
           }
+        : undefined,
+    liveBookOffers:
+      quickViewMarket.line != null
+        ? getBookEntriesForLine(player).flatMap(([bookKey, data]) => {
+            const book = parseBookKey(bookKey);
+            const line = data?.line ?? quickViewMarket.line ?? null;
+            const offers: NonNullable<PropCenterQuickViewPlayer["liveBookOffers"]> = [];
+            if (data?.over != null) {
+              offers.push({
+                side: "over",
+                book,
+                price: data.over,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+              });
+            }
+            if (data?.under != null) {
+              offers.push({
+                side: "under",
+                book,
+                price: data.under,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+              });
+            }
+            return offers;
+          })
         : undefined,
   };
 }
@@ -2989,11 +3038,13 @@ export function MlbPropCommandCenter() {
         <PlayerQuickViewModal
           sport="mlb"
           mlb_player_id={quickViewPlayer.mlb_player_id}
+          odds_player_id={quickViewPlayer.odds_player_id ?? undefined}
           player_name={quickViewPlayer.player_name}
           initial_market={quickViewPlayer.market}
           initial_line={quickViewPlayer.line}
           event_id={quickViewPlayer.event_id}
           odds={quickViewPlayer.odds}
+          liveBookOffers={quickViewPlayer.liveBookOffers}
           gameContext={quickViewPlayer.gameContext}
           showFullProfileLink={false}
           open={!!quickViewPlayer}

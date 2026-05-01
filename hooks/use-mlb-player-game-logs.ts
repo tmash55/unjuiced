@@ -110,6 +110,7 @@ export function useMlbPlayerGameLogs(options: UseMlbPlayerGameLogsOptions) {
         includePrior,
       }),
     enabled: enabled && typeof playerId === "number" && !!market,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,

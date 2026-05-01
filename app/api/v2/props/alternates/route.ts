@@ -195,6 +195,11 @@ function normalizeMarketName(market: string): string {
     "batter_runs_scored": "player_runs",
     "pitcher_strikeouts": "player_strikeouts",
     "pitcher_hits_allowed": "player_hits_allowed",
+    "pitcher_earned_runs": "player_earned_runs",
+    "pitcher_outs": "player_outs",
+    "pitcher_outs_recorded": "player_outs",
+    "pitcher_walks": "player_walks_allowed",
+    "pitcher_walks_allowed": "player_walks_allowed",
     "player_hits": "player_hits",
     "player_home_runs": "player_home_runs",
     "player_total_bases": "player_total_bases",
@@ -207,6 +212,7 @@ function normalizeMarketName(market: string): string {
     "player_hits_allowed": "player_hits_allowed",
     "player_earned_runs": "player_earned_runs",
     "player_outs": "player_outs",
+    "player_walks_allowed": "player_walks_allowed",
     "player_batting_strikeouts": "player_batting_strikeouts",
 
     // Football passing
