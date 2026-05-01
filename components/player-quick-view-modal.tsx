@@ -2034,10 +2034,10 @@ export function PlayerQuickViewModal({
   const isMlbPitcher = isMlb && (isMlbPitcherProfile || isMlbPitcherMarketKey(currentMarket) || profilePosition === "P");
 
   useEffect(() => {
-    if (isMlb && (activeTab === "correlation" || activeTab === "matchup" || (isMlbPitcher && activeTab === "playstyle"))) {
+    if (isMlb && (activeTab === "correlation" || activeTab === "matchup" || activeTab === "playstyle")) {
       setActiveTab("gamelog");
     }
-  }, [activeTab, isMlb, isMlbPitcher]);
+  }, [activeTab, isMlb]);
 
   useEffect(() => {
     setCustomLine(null);
@@ -2358,7 +2358,7 @@ export function PlayerQuickViewModal({
         { id: "splits" as const, label: "Splits", mobileLabel: "Splits", icon: Users, proOnly: false, disabled: true, soon: true },
         { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true, disabled: true, soon: true },
         ...(!isMlbPitcher
-          ? [{ id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true }]
+          ? [{ id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true, disabled: true, soon: true }]
           : []),
       ]
     : [
