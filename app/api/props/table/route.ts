@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const H_PRIM_PREFIX = "props:"; // props:{sport}:rows:prim
 const Z_ROI_LIVE_PREFIX = "props:"; // props:{sport}:sort:roi:live:{mkt}
@@ -50,9 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Page SIDs from ZSET (simple offset cursor)
-    const zrUnknown = (await (redis as any).zrange(zkey, cursor, cursor + limit - 1, { rev: true })) as unknown;
-    const zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
-    let sids = zrArr.map((x) => String(x));
+    let sids = await zrevrangeCompat(redis as any, zkey, cursor, cursor + limit - 1);
     
     if (process.env.NODE_ENV === 'development') {
       console.log(`[/api/props/table] Retrieved ${sids.length} SIDs from ZSET (cursor: ${cursor}, limit: ${limit})`);
@@ -143,12 +142,12 @@ export async function GET(req: NextRequest) {
     // Keep sids aligned to rows (remove any nulls)
     sids = sids.filter((_, i) => Boolean(rowsParsed[i]));
 
-    const nextCursor = zrArr.length === limit ? String(cursor + limit) : null;
+    const nextCursor = sids.length === limit ? String(cursor + limit) : null;
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`[/api/props/table] 📊 Returning ${rows.length} rows, nextCursor: ${nextCursor || 'null'}`);
-      if (rows.length === 0 && zrArr.length > 0) {
-        console.log(`[/api/props/table] ⚠️  WARNING: ZSET has ${zrArr.length} SIDs but all returned null data`);
+      if (rows.length === 0 && sids.length > 0) {
+        console.log(`[/api/props/table] ⚠️  WARNING: ZSET has ${sids.length} SIDs but all returned null data`);
         console.log(`[/api/props/table] 💡 This means ${H_PRIM} is missing entries for these SIDs`);
       }
       console.log(`[/api/props/table] ✅ Done\n`);

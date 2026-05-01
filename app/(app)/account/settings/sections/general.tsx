@@ -3,8 +3,29 @@
 import { useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { createClient } from "@/libs/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { useUserState } from "@/context/preferences-context";
+
+const US_STATES = [
+  { code: "AL", name: "Alabama" }, { code: "AK", name: "Alaska" }, { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" }, { code: "CA", name: "California" }, { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" }, { code: "DC", name: "Washington DC" }, { code: "DE", name: "Delaware" },
+  { code: "FL", name: "Florida" }, { code: "GA", name: "Georgia" }, { code: "HI", name: "Hawaii" },
+  { code: "ID", name: "Idaho" }, { code: "IL", name: "Illinois" }, { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" }, { code: "KS", name: "Kansas" }, { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" }, { code: "ME", name: "Maine" }, { code: "MD", name: "Maryland" },
+  { code: "MA", name: "Massachusetts" }, { code: "MI", name: "Michigan" }, { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" }, { code: "MO", name: "Missouri" }, { code: "MT", name: "Montana" },
+  { code: "NE", name: "Nebraska" }, { code: "NV", name: "Nevada" }, { code: "NH", name: "New Hampshire" },
+  { code: "NJ", name: "New Jersey" }, { code: "NM", name: "New Mexico" }, { code: "NY", name: "New York" },
+  { code: "NC", name: "North Carolina" }, { code: "ND", name: "North Dakota" }, { code: "OH", name: "Ohio" },
+  { code: "OK", name: "Oklahoma" }, { code: "OR", name: "Oregon" }, { code: "PA", name: "Pennsylvania" },
+  { code: "RI", name: "Rhode Island" }, { code: "SC", name: "South Carolina" }, { code: "SD", name: "South Dakota" },
+  { code: "TN", name: "Tennessee" }, { code: "TX", name: "Texas" }, { code: "UT", name: "Utah" },
+  { code: "VT", name: "Vermont" }, { code: "VA", name: "Virginia" }, { code: "WA", name: "Washington" },
+  { code: "WV", name: "West Virginia" }, { code: "WI", name: "Wisconsin" }, { code: "WY", name: "Wyoming" },
+];
 
 interface GeneralSettingsProps {
   user: User;
@@ -182,6 +203,9 @@ export default function GeneralSettings({ user, profile, setProfile }: GeneralSe
         </div>
       </div>
 
+      {/* Betting State */}
+      <BettingStateSection />
+
       {/* Your Email */}
       <div className="rounded-lg border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mb-4">
@@ -230,6 +254,62 @@ export default function GeneralSettings({ user, profile, setProfile }: GeneralSe
             Avatar customization coming soon
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BettingStateSection() {
+  const { stateCode, setStateCode } = useUserState();
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async (value: string) => {
+    setSaving(true);
+    try {
+      await setStateCode(value);
+      toast.success("Betting state updated");
+    } catch {
+      toast.error("Failed to update state");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-neutral-400" />
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+            Betting State
+          </h2>
+        </div>
+        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+          Your state is used to send you to the correct sportsbook page when you click bet links.
+          Sportsbooks like FanDuel, BetMGM, Caesars, and BetRivers use state-specific URLs.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <select
+          value={stateCode?.toUpperCase() || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={saving}
+          className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-900 transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+        >
+          <option value="">Select your state</option>
+          {US_STATES.map((s) => (
+            <option key={s.code} value={s.code}>
+              {s.name} ({s.code})
+            </option>
+          ))}
+        </select>
+
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          {stateCode
+            ? `Deep links will use ${stateCode.toUpperCase()} for FanDuel, Caesars, BetMGM, and BetRivers.`
+            : "Not set — sportsbook links will use the default state from our odds provider."}
+        </p>
       </div>
     </div>
   );

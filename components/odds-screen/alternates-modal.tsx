@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface AlternateLine {
   ln: number;
@@ -34,6 +35,7 @@ interface AlternatesModalProps {
   eventId?: string;
   onMarketChange?: (market: string) => void;
   onViewProfile?: () => void;
+  alternatesType?: "player" | "game"; // Type of market (affects column labels & market tabs)
   // Additional props for favorites
   homeTeam?: string;
   awayTeam?: string;
@@ -44,6 +46,13 @@ interface AlternatesModalProps {
 type ViewMode = 'over' | 'under' | 'both';
 
 // Player prop markets for each sport
+// Game-level markets (spread, moneyline, total)
+const GAME_MARKETS: { key: string; label: string; shortLabel: string }[] = [
+  { key: 'game_spread', label: 'Spread', shortLabel: 'Spread' },
+  { key: 'game_moneyline', label: 'Moneyline', shortLabel: 'ML' },
+  { key: 'game_total', label: 'Total', shortLabel: 'Total' },
+];
+
 const PLAYER_MARKETS: Record<string, { key: string; label: string; shortLabel: string }[]> = {
   nba: [
     { key: 'player_points', label: 'Points', shortLabel: 'PTS' },
@@ -131,13 +140,16 @@ const PLAYER_MARKETS: Record<string, { key: string; label: string; shortLabel: s
     { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
   ],
   mlb: [
-    { key: 'batter_hits', label: 'Hits', shortLabel: 'H' },
-    { key: 'batter_home_runs', label: 'Home Runs', shortLabel: 'HR' },
-    { key: 'batter_total_bases', label: 'Total Bases', shortLabel: 'TB' },
-    { key: 'batter_rbis', label: 'RBIs', shortLabel: 'RBI' },
-    { key: 'batter_runs_scored', label: 'Runs', shortLabel: 'R' },
-    { key: 'pitcher_strikeouts', label: 'Strikeouts', shortLabel: 'K' },
-    { key: 'pitcher_hits_allowed', label: 'Hits Allowed', shortLabel: 'HA' },
+    { key: 'player_hits', label: 'Hits', shortLabel: 'H' },
+    { key: 'player_home_runs', label: 'Home Runs', shortLabel: 'HR' },
+    { key: 'player_total_bases', label: 'Total Bases', shortLabel: 'TB' },
+    { key: 'player_rbis', label: 'RBIs', shortLabel: 'RBI' },
+    { key: 'player_runs', label: 'Runs', shortLabel: 'R' },
+    { key: 'player_stolen_bases', label: 'Stolen Bases', shortLabel: 'SB' },
+    { key: 'player_strikeouts', label: 'Pitcher Ks', shortLabel: 'K' },
+    { key: 'player_hits_allowed', label: 'Hits Allowed', shortLabel: 'HA' },
+    { key: 'player_earned_runs', label: 'Earned Runs', shortLabel: 'ER' },
+    { key: 'player_outs', label: 'Outs', shortLabel: 'Outs' },
   ],
 };
 
@@ -161,19 +173,23 @@ export function AlternatesModal({
   awayTeam,
   startTime,
   playerPosition,
+  alternatesType = "player",
 }: AlternatesModalProps) {
+  const applyState = useStateLink();
+  const isGame = alternatesType === "game";
+  const isSpreadMarket = market.includes('spread') || market.includes('puck_line') || market.includes('run_line') || market.includes('handicap');
   const [viewMode, setViewMode] = useState<ViewMode>('over');
   const [selectedMarket, setSelectedMarket] = useState(market);
   
   // Favorites functionality
   const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
-  
-  // Helper to build favorite params for an alternate line
-  const buildAlternateFavoriteParams = React.useCallback((
+
+  // Save favorite for an alternate line, then enrich any missing SGP tokens from Redis
+  const saveAlternateFavorite = React.useCallback((
     line: number,
     side: 'over' | 'under',
     alternateData: AlternateLine
-  ): AddFavoriteParams => {
+  ) => {
     // Build books_snapshot from alternate line data
     const booksSnapshot: Record<string, BookSnapshot> = {};
     for (const [bookId, bookOdds] of Object.entries(alternateData.books)) {
@@ -199,8 +215,8 @@ export function AlternatesModal({
       }
     }
 
-    return {
-      type: 'player',
+    const params: AddFavoriteParams = {
+      type: alternatesType === 'game' ? 'game' : 'player',
       sport,
       event_id: eventId || '',
       game_date: startTime?.split('T')[0] || null,
@@ -221,7 +237,51 @@ export function AlternatesModal({
       best_book_at_save: bestBook,
       source: 'alternates_modal',
     };
-  }, [sport, eventId, startTime, homeTeam, awayTeam, playerId, playerName, team, playerPosition, selectedMarket]);
+
+    toggleFavorite(params).then((result) => {
+      // Enrich books missing SGP tokens from Redis
+      if (result?.action === 'added' && eventId) {
+        const enrichBooks = Object.keys(booksSnapshot).filter(b => !booksSnapshot[b].sgp);
+        if (enrichBooks.length > 0) {
+          fetch('/api/v2/favorites/enrich-sgp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sport,
+              event_id: eventId,
+              market: selectedMarket,
+              player_name: playerName || '',
+              line,
+              side,
+              books: enrichBooks,
+            }),
+          })
+            .then(r => { if (!r.ok) throw new Error('enrich failed'); return r.json(); })
+            .then(data => {
+              if (data.sgp_tokens && Object.keys(data.sgp_tokens).length > 0) {
+                const favoriteId = result.favorite?.id;
+                if (favoriteId) {
+                  const enriched = { ...booksSnapshot };
+                  for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                    if (enriched[bookId]) {
+                      enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                    }
+                  }
+                  import('@/libs/supabase/client').then(({ createClient }) => {
+                    createClient()
+                      .from('user_favorites')
+                      .update({ books_snapshot: enriched })
+                      .eq('id', favoriteId)
+                      .then(() => {});
+                  });
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    });
+  }, [sport, eventId, startTime, homeTeam, awayTeam, playerId, playerName, team, playerPosition, selectedMarket, alternatesType, toggleFavorite]);
 
   // Lookup the NBA player ID from the odds player ID (only for NBA/WNBA)
   const { data: playerLookupData, isLoading: isLookingUpPlayer } = usePlayerLookup({
@@ -240,7 +300,20 @@ export function AlternatesModal({
 
   // Get available markets for this sport
   const availableMarkets = React.useMemo(() => {
-    const configured = PLAYER_MARKETS[sport] || [];
+    if (isGame) return GAME_MARKETS;
+    let configured = PLAYER_MARKETS[sport] || [];
+
+    // For MLB, filter to batter or pitcher markets based on the original market
+    if (sport === "mlb" && configured.length > 0) {
+      const pitcherMarkets = new Set(["player_strikeouts", "player_hits_allowed", "player_earned_runs", "player_outs", "pitcher_strikeouts", "pitcher_hits_allowed"]);
+      const isPitcher = pitcherMarkets.has(market);
+      if (isPitcher) {
+        configured = configured.filter(m => pitcherMarkets.has(m.key));
+      } else {
+        configured = configured.filter(m => !pitcherMarkets.has(m.key));
+      }
+    }
+
     if (configured.length > 0) return configured;
 
     // Never default to NBA markets for unsupported sports.
@@ -353,120 +426,87 @@ export function AlternatesModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed inset-4 sm:inset-6 md:inset-8 lg:inset-x-[12%] lg:inset-y-6 z-50 flex flex-col bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-800/50"
+            className="fixed inset-4 sm:inset-6 md:inset-8 lg:inset-x-[10%] lg:inset-y-6 z-50 flex flex-col bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/40"
           >
             {/* Header */}
-            <div className="flex flex-col border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-              <div className="flex items-center justify-between px-6 py-5">
-                <div className="flex items-center gap-5">
-                  {/* Team Logo */}
+            <div className="border-b border-neutral-200/60 dark:border-neutral-800/40">
+              <div className="flex items-center justify-between px-5 py-3.5">
+                <div className="flex items-center gap-3">
                   {team && (
-                    <div className="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0">
-                      <img 
-                        src={getTeamLogoUrl(team, sport)} 
+                    <div className="w-9 h-9 rounded-lg bg-neutral-50 dark:bg-neutral-800/60 flex items-center justify-center overflow-hidden shrink-0">
+                      <img
+                        src={getTeamLogoUrl(team, sport)}
                         alt={team}
-                        className="w-8 h-8 object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
                     </div>
                   )}
                   <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
-                        {playerName}
-                      </h2>
-                      {team && (
-                        <span className="px-2 py-0.5 text-xs font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 rounded text-nowrap">
-                          {team}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-neutral-900 dark:text-white">{playerName}</h2>
+                      {team && <span className="text-[10px] font-bold text-neutral-400">{team}</span>}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                      <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                        {formatMarket(selectedMarket)}
-                      </span>
-                      <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                      <span>Alternate Lines</span>
-                    </div>
+                    <span className="text-[11px] font-medium text-brand">{formatMarket(selectedMarket)}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {/* View Player Profile Button */}
+                <div className="flex items-center gap-2">
                   {showProfileLink && (
                     <a
                       href={`/hit-rates/${sport}/player/${nbaPlayerId}?market=${selectedMarket}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hidden sm:flex items-center gap-2 px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all shadow-sm"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                     >
-                      <User className="w-3.5 h-3.5" />
-                      View Advanced Stats
-                      <ChevronRight className="w-3 h-3 opacity-50" />
+                      <User className="w-3 h-3" />
+                      Stats
                     </a>
                   )}
 
                   {/* View Mode Toggle */}
-                  <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-1">
-                    <button
-                      onClick={() => setViewMode('over')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'over'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      Over
-                    </button>
-                    <button
-                      onClick={() => setViewMode('under')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'under'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      Under
-                    </button>
-                    <button
-                      onClick={() => setViewMode('both')}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        viewMode === 'both'
-                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                      )}
-                    >
-                      Both
-                    </button>
+                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                    {[
+                      { key: 'over' as ViewMode, label: isGame && !market.includes('total') ? (awayTeam || 'Away') : 'Over' },
+                      { key: 'under' as ViewMode, label: isGame && !market.includes('total') ? (homeTeam || 'Home') : 'Under' },
+                      { key: 'both' as ViewMode, label: 'Both' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setViewMode(opt.key)}
+                        className={cn(
+                          "px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all",
+                          viewMode === opt.key
+                            ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                            : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Close Button */}
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Market Tabs */}
-              <div className="px-6 pb-4 overflow-x-auto scrollbar-hide">
-                <div className="flex items-center gap-2 min-w-max">
+              <div className="px-5 pb-2.5 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1 min-w-max">
                   {availableMarkets.map((mk) => (
                     <button
                       key={mk.key}
                       onClick={() => handleMarketChange(mk.key)}
                       className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap border",
+                        "px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap",
                         selectedMarket === mk.key
-                          ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white shadow-sm"
-                          : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                          ? "bg-brand text-white shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/60"
                       )}
                     >
                       {mk.shortLabel}
@@ -481,13 +521,11 @@ export function AlternatesModal({
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-6 h-6">
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-200 dark:border-blue-800" />
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                    <div className="relative w-5 h-5">
+                      <div className="absolute inset-0 rounded-full border-2 border-neutral-200 dark:border-neutral-800" />
+                      <div className="absolute inset-0 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
                     </div>
-                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                      Loading alternate lines...
-                    </span>
+                    <span className="text-sm text-neutral-500">Loading lines...</span>
                   </div>
                 </div>
               ) : error ? (
@@ -500,36 +538,24 @@ export function AlternatesModal({
                 </div>
               ) : (
                 <div className="absolute inset-0 overflow-auto">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
-                        <th className="sticky left-0 z-20 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-left text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-800 min-w-[80px]">
+                      <tr className="bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/40">
+                        <th className="sticky left-0 z-20 bg-white dark:bg-neutral-950 px-4 py-2 text-left text-[10px] font-bold text-neutral-400 uppercase tracking-wider min-w-[60px]">
                           {viewMode === 'both' ? 'Line' : viewMode.toUpperCase()}
                         </th>
-                        {/* Favorite button column header */}
-                        <th className="px-2 py-3 text-center border-b border-neutral-200 dark:border-neutral-800 min-w-[44px]">
-                          <span className="sr-only">Favorite</span>
-                        </th>
+                        <th className="px-1 py-2 text-center min-w-[32px]" />
                         {availableSportsbooks.map((bookId: string) => {
                           const sb = getSportsbookById(bookId);
                           const logoUrl = sb?.image?.square || sb?.image?.light;
                           return (
-                            <th 
-                              key={bookId} 
-                              className="px-2 py-3 text-center border-b border-neutral-200 dark:border-neutral-800 min-w-[72px]"
-                            >
+                            <th key={bookId} className="px-1 py-2 text-center min-w-[60px]">
                               <Tooltip content={sb?.name || bookId}>
                                 <div className="flex items-center justify-center">
                                   {logoUrl ? (
-                                    <img 
-                                      src={logoUrl} 
-                                      alt={sb?.name || bookId} 
-                                      className="h-6 w-auto max-w-[28px] object-contain"
-                                    />
+                                    <img src={logoUrl} alt={sb?.name || bookId} className="h-5 w-5 object-contain" />
                                   ) : (
-                                    <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase">
-                                      {bookId.slice(0, 3)}
-                                    </span>
+                                    <span className="text-[9px] font-bold text-neutral-500 uppercase">{bookId.slice(0, 3)}</span>
                                   )}
                                 </div>
                               </Tooltip>
@@ -544,13 +570,12 @@ export function AlternatesModal({
                         const bestUnder = getBestOddsForLine(alt, 'under');
                         const isPrimaryLine = alt.ln === primaryLine;
 
-                        // Zebra striping matching site style
-                        const rowBg = index % 2 === 0 
-                          ? 'bg-white dark:bg-neutral-900' 
-                          : 'bg-neutral-50/50 dark:bg-neutral-800/30';
-                        const stickyBg = index % 2 === 0 
-                          ? 'bg-white dark:bg-neutral-900' 
-                          : 'bg-neutral-50 dark:bg-neutral-800';
+                        const rowBg = index % 2 === 0
+                          ? 'bg-white dark:bg-neutral-950'
+                          : 'bg-neutral-50/40 dark:bg-neutral-900/40';
+                        const stickyBg = index % 2 === 0
+                          ? 'bg-white dark:bg-neutral-950'
+                          : 'bg-neutral-50 dark:bg-neutral-900';
 
                         return (
                           <React.Fragment key={alt.ln}>
@@ -558,19 +583,19 @@ export function AlternatesModal({
                             {(viewMode === 'over' || viewMode === 'both') && (
                               <tr 
                                 className={cn(
-                                  "border-b border-neutral-100 dark:border-neutral-800/50 transition-colors",
-                                  "hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]",
+                                  "border-b border-neutral-100/60 dark:border-neutral-800/30 transition-colors",
+                                  "hover:bg-neutral-50 dark:hover:bg-neutral-800/20",
                                   !isPrimaryLine && rowBg,
                                   isPrimaryLine && rowBg // Treat primary line same as others
                                 )}
                               >
                                 <td className={cn(
-                                  "sticky left-0 z-[5] px-4 py-2.5 text-sm font-semibold tabular-nums border-r border-neutral-100 dark:border-neutral-800/50",
+                                  "sticky left-0 z-[5] px-4 py-2 text-xs font-semibold tabular-nums border-r border-neutral-100/60 dark:border-neutral-800/30",
                                   cn("text-neutral-700 dark:text-neutral-300", stickyBg)
                                 )}>
                                   <div className="flex items-center gap-1.5">
-                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">o</span>}
-                                    <span>{alt.ln}</span>
+                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">{isGame && !market.includes('total') ? 'A' : 'o'}</span>}
+                                    <span>{isGame && isSpreadMarket ? `+${alt.ln}` : alt.ln}</span>
                                   </div>
                                 </td>
                                 {/* Favorite button for Over */}
@@ -589,8 +614,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;
-                                            const params = buildAlternateFavoriteParams(alt.ln, 'over', alt);
-                                            toggleFavorite(params);
+                                            saveAlternateFavorite(alt.ln, 'over', alt);
                                           }}
                                           disabled={isToggling}
                                           className={cn(
@@ -628,17 +652,17 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (link) {
-                                              window.open(link, '_blank', 'noopener,noreferrer');
+                                              window.open(applyState(link) || link, '_blank', 'noopener,noreferrer');
                                             }
                                           }}
                                           disabled={!link}
                                           className={cn(
-                                            "inline-block px-2.5 py-1.5 text-xs font-semibold tabular-nums rounded-md transition-all",
-                                            link && "cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
+                                            "inline-block px-2 py-1 text-xs font-bold tabular-nums rounded-md transition-all",
+                                            link && "cursor-pointer hover:brightness-110 active:scale-[0.97]",
                                             !link && "cursor-default",
                                             isBest
-                                              ? "[background:color-mix(in_oklab,var(--accent)_15%,var(--card))] [color:var(--accent-strong)] [border:1px_solid_color-mix(in_oklab,var(--accent)_40%,transparent)] dark:[background:color-mix(in_oklab,var(--accent)_20%,var(--card))] dark:[color:var(--accent-weak)]"
-                                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                                              : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/50"
                                           )}
                                         >
                                           {formatOdds(odds.price)}
@@ -654,21 +678,21 @@ export function AlternatesModal({
                             {(viewMode === 'under' || viewMode === 'both') && (
                               <tr 
                                 className={cn(
-                                  "border-b border-neutral-100 dark:border-neutral-800/50 transition-colors",
-                                  "hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]",
+                                  "border-b border-neutral-100/60 dark:border-neutral-800/30 transition-colors",
+                                  "hover:bg-neutral-50 dark:hover:bg-neutral-800/20",
                                   viewMode === 'both' && "bg-neutral-50/30 dark:bg-neutral-800/20",
                                   viewMode === 'under' && rowBg
                                 )}
                               >
                                 <td className={cn(
-                                  "sticky left-0 z-[5] px-4 py-2.5 text-sm font-semibold tabular-nums border-r border-neutral-100 dark:border-neutral-800/50",
+                                  "sticky left-0 z-[5] px-4 py-2 text-xs font-semibold tabular-nums border-r border-neutral-100/60 dark:border-neutral-800/30",
                                   viewMode === 'both' 
                                     ? "text-neutral-500 dark:text-neutral-500 bg-neutral-50/30 dark:bg-neutral-800/20"
                                     : cn("text-neutral-700 dark:text-neutral-300", stickyBg)
                                 )}>
                                   <div className="flex items-center gap-1.5">
-                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">u</span>}
-                                    <span>{alt.ln}</span>
+                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">{isGame && !market.includes('total') ? 'H' : 'u'}</span>}
+                                    <span>{isGame && isSpreadMarket ? `-${alt.ln}` : alt.ln}</span>
                                   </div>
                                 </td>
                                 {/* Favorite button for Under */}
@@ -690,8 +714,7 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;
-                                            const params = buildAlternateFavoriteParams(alt.ln, 'under', alt);
-                                            toggleFavorite(params);
+                                            saveAlternateFavorite(alt.ln, 'under', alt);
                                           }}
                                           disabled={isToggling}
                                           className={cn(
@@ -735,17 +758,17 @@ export function AlternatesModal({
                                         <button
                                           onClick={() => {
                                             if (link) {
-                                              window.open(link, '_blank', 'noopener,noreferrer');
+                                              window.open(applyState(link) || link, '_blank', 'noopener,noreferrer');
                                             }
                                           }}
                                           disabled={!link}
                                           className={cn(
-                                            "inline-block px-2.5 py-1.5 text-xs font-semibold tabular-nums rounded-md transition-all",
-                                            link && "cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
+                                            "inline-block px-2 py-1 text-xs font-bold tabular-nums rounded-md transition-all",
+                                            link && "cursor-pointer hover:brightness-110 active:scale-[0.97]",
                                             !link && "cursor-default",
                                             isBest
-                                              ? "[background:color-mix(in_oklab,var(--accent)_15%,var(--card))] [color:var(--accent-strong)] [border:1px_solid_color-mix(in_oklab,var(--accent)_40%,transparent)] dark:[background:color-mix(in_oklab,var(--accent)_20%,var(--card))] dark:[color:var(--accent-weak)]"
-                                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                                              : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/50"
                                           )}
                                         >
                                           {formatOdds(odds.price)}

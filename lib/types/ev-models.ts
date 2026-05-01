@@ -31,6 +31,8 @@ export interface EvModel {
   
   // Filters
   min_books_reference: number;                  // Minimum reference books needed
+  min_odds: number;
+  max_odds: number;
   
   // State
   is_active: boolean;
@@ -65,6 +67,8 @@ export interface EvModelCreate {
   
   // Filters
   min_books_reference?: number;
+  min_odds?: number;
+  max_odds?: number;
   
   // Metadata
   is_favorite?: boolean;
@@ -90,6 +94,9 @@ export interface EvModelsResponse {
 // Maximum character length for notes field
 export const EV_MODEL_NOTES_MAX_LENGTH = 500;
 export const DEFAULT_MODEL_COLOR = "#0EA5E9";
+export const EV_MODEL_EMPTY_SPORT_MARKET = "__none__";
+export const DEFAULT_EV_MODEL_MIN_ODDS = -500;
+export const DEFAULT_EV_MODEL_MAX_ODDS = 500;
 
 /**
  * Sports available for EV models
@@ -152,6 +159,8 @@ export const EV_MODEL_TEMPLATES = {
     sharp_books: ["pinnacle"],
     book_weights: null,
     min_books_reference: 1,
+    min_odds: DEFAULT_EV_MODEL_MIN_ODDS,
+    max_odds: DEFAULT_EV_MODEL_MAX_ODDS,
   },
   pinnacle_player_props: {
     name: "Pinnacle Player Props",
@@ -162,6 +171,8 @@ export const EV_MODEL_TEMPLATES = {
     sharp_books: ["pinnacle"],
     book_weights: null,
     min_books_reference: 1,
+    min_odds: DEFAULT_EV_MODEL_MIN_ODDS,
+    max_odds: DEFAULT_EV_MODEL_MAX_ODDS,
   },
   sharp_blend: {
     name: "Sharp Blend",
@@ -172,6 +183,8 @@ export const EV_MODEL_TEMPLATES = {
     sharp_books: ["pinnacle", "circa"],
     book_weights: { pinnacle: 70, circa: 30 },
     min_books_reference: 2,
+    min_odds: DEFAULT_EV_MODEL_MIN_ODDS,
+    max_odds: DEFAULT_EV_MODEL_MAX_ODDS,
   },
 } as const;
 
@@ -194,6 +207,16 @@ export function formatEvSportsForStorage(sports: string[]): string {
   return sports.join(",");
 }
 
+export function buildEvModelSportMarketKey(sport: string, market: string): string {
+  return `${sport.toLowerCase()}:${market.toLowerCase()}`;
+}
+
+export function parseEvModelSportMarketKey(value: string): { sport: string; market: string } | null {
+  const [sport, market] = value.toLowerCase().split(":");
+  if (!sport || !market) return null;
+  return { sport, market };
+}
+
 /**
  * Format sharp books for display
  */
@@ -204,6 +227,11 @@ export function formatEvSharpBooks(books: string[]): string {
     return books.map(capitalizeBook).join(", ");
   }
   return `${books.slice(0, 2).map(capitalizeBook).join(", ")} +${books.length - 2} more`;
+}
+
+export function formatEvOddsRange(min: number, max: number): string {
+  const formatOdd = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  return `${formatOdd(min)} to ${formatOdd(max)}`;
 }
 
 /**

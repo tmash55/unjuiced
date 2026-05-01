@@ -103,7 +103,7 @@ interface MobileArbsViewProps {
   added?: Set<string>;
   availableMarkets?: ArbMarketOption[];
   totalBetAmount: number;
-  roundBets?: boolean;
+  roundTo?: number;
   isPro: boolean;
   hasLiveArb?: boolean;
   isLoggedIn: boolean;
@@ -124,7 +124,7 @@ export function MobileArbsView({
   added,
   availableMarkets = [],
   totalBetAmount,
-  roundBets = false,
+  roundTo = 0,
   isPro,
   hasLiveArb = false,
   isLoggedIn,
@@ -349,6 +349,7 @@ export function MobileArbsView({
               key={`${row.eid}-${row.mkt}-${row.ln}-${idx}`}
               row={row}
               totalBetAmount={totalBetAmount}
+              roundTo={roundTo}
               isNew={added?.has(row.eid)}
               hasChange={changes.has(row.eid)}
               onOpenCalculator={() => openCalculator(row)}
@@ -433,6 +434,7 @@ export function MobileArbsView({
           isOpen={calculatorOpen}
           onClose={closeCalculator}
           defaultTotal={totalBetAmount}
+          roundTo={roundTo}
         />
       )}
     </div>

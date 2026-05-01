@@ -134,6 +134,8 @@ export interface UnifiedFilterBarProps {
   onMaxArbChange?: (value: number) => void;
   totalBetAmount?: number;
   onTotalBetAmountChange?: (value: number) => void;
+  roundTo?: number;
+  onRoundToChange?: (value: number) => void;
   selectedMarketTypes?: ("player" | "game")[];
   onMarketTypesChange?: (types: ("player" | "game")[]) => void;
   
@@ -164,6 +166,8 @@ export interface UnifiedFilterBarProps {
   isConnected?: boolean;
   isReconnecting?: boolean;
   hasFailed?: boolean;
+  /** Access gate for auto-refresh control. Defaults to `isPro` if omitted. */
+  hasAutoRefreshAccess?: boolean;
   
   // Reset
   onReset: () => void;
@@ -171,6 +175,8 @@ export interface UnifiedFilterBarProps {
   // UI state
   locked?: boolean;
   isPro?: boolean;
+  /** Elite-only capability gate (custom models). Defaults to `isPro` if omitted. */
+  hasCustomModelsAccess?: boolean;
   /** Elite only - for arbitrage Live mode */
   hasLiveArb?: boolean;
   
@@ -228,6 +234,8 @@ export function UnifiedFilterBar({
   onMaxArbChange,
   totalBetAmount,
   onTotalBetAmountChange,
+  roundTo,
+  onRoundToChange,
   selectedMarketTypes,
   onMarketTypesChange,
   bankroll,
@@ -248,15 +256,19 @@ export function UnifiedFilterBar({
   isConnected,
   isReconnecting,
   hasFailed,
+  hasAutoRefreshAccess,
   onReset,
   locked = false,
   isPro = true,
+  hasCustomModelsAccess,
   hasLiveArb,
   onRefresh,
   isRefreshing,
   className,
 }: UnifiedFilterBarProps) {
   const [showEvModelsModal, setShowEvModelsModal] = React.useState(false);
+  const canUseCustomModels = hasCustomModelsAccess ?? isPro;
+  const canUseAutoRefresh = hasAutoRefreshAccess ?? isPro;
 
   return (
     <div
@@ -329,17 +341,17 @@ export function UnifiedFilterBar({
 
             {/* Auto Refresh Toggle */}
             {onAutoRefreshChange && (
-              <Tooltip content={isPro ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Elite required for auto-refresh"}>
+              <Tooltip content={canUseAutoRefresh ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Elite required for auto-refresh"}>
                 <button
-                  onClick={() => isPro && onAutoRefreshChange(!autoRefresh)}
-                  disabled={!isPro}
+                  onClick={() => canUseAutoRefresh && onAutoRefreshChange(!autoRefresh)}
+                  disabled={!canUseAutoRefresh}
                   className={cn(
                     "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-all",
                     autoRefresh && isConnected && "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800",
                     autoRefresh && isReconnecting && "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800",
                     autoRefresh && hasFailed && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800",
                     !autoRefresh && "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
-                    !isPro && "opacity-50 cursor-not-allowed"
+                    !canUseAutoRefresh && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   <span className={cn(
@@ -463,6 +475,8 @@ export function UnifiedFilterBar({
             onMaxArbChange={onMaxArbChange}
             totalBetAmount={totalBetAmount}
             onTotalBetAmountChange={onTotalBetAmountChange}
+            roundTo={roundTo}
+            onRoundToChange={onRoundToChange}
             selectedMarketTypes={selectedMarketTypes}
             onMarketTypesChange={onMarketTypesChange}
             disabled={locked}
@@ -470,55 +484,68 @@ export function UnifiedFilterBar({
 
           {/* Custom Models Button - Edge Finder (Animated Border) */}
           {tool === "edge-finder" && onManageModels && (
-            <div className="flex items-center gap-1">
-              <Tooltip content="Manage custom models">
-                <div className="relative">
-                  <button
-                    onClick={onManageModels}
-                    disabled={locked}
-                    className={cn(
-                      "group relative inline-flex h-10 w-10 overflow-hidden rounded-xl p-[1.5px] focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(251,191,36,0.4)]",
-                      locked && "opacity-50 cursor-not-allowed"
+            canUseCustomModels ? (
+              <div data-tour="custom-models-btn" className="flex items-center gap-1">
+                <Tooltip content="Manage custom models">
+                  <div className="relative">
+                    <button
+                      onClick={onManageModels}
+                      disabled={locked}
+                      className={cn(
+                        "group relative inline-flex h-10 w-10 overflow-hidden rounded-xl p-[1.5px] focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(251,191,36,0.4)]",
+                        locked && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {/* Animated spinning gradient border */}
+                      <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FBBF24_0%,#F97316_20%,#DC2626_40%,#F97316_60%,#FBBF24_80%,#FDE68A_100%)]" />
+                      {/* Inner button content */}
+                      <span className="relative inline-flex h-full w-full items-center justify-center rounded-[9px] bg-white dark:bg-neutral-900 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
+                        <Layers className="w-5 h-5" />
+                      </span>
+                    </button>
+                    {activePresets && activePresets.length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white z-10 shadow-md ring-2 ring-white dark:ring-neutral-900">
+                        {activePresets.length}
+                      </span>
                     )}
-                  >
-                    {/* Animated spinning gradient border */}
-                    <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FBBF24_0%,#F97316_20%,#DC2626_40%,#F97316_60%,#FBBF24_80%,#FDE68A_100%)]" />
-                    {/* Inner button content */}
-                    <span className="relative inline-flex h-full w-full items-center justify-center rounded-[9px] bg-white dark:bg-neutral-900 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
-                      <Layers className="w-5 h-5" />
-                    </span>
-                  </button>
-                  {activePresets && activePresets.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white z-10 shadow-md ring-2 ring-white dark:ring-neutral-900">
-                      {activePresets.length}
-                    </span>
-                  )}
-                </div>
-              </Tooltip>
-              
-              {/* X button to exit custom mode */}
-              {activePresets && activePresets.length > 0 && onClearPresets && (
-                <Tooltip content="Exit custom mode">
-                  <button
-                    onClick={onClearPresets}
-                    disabled={locked}
-                    className={cn(
-                      "flex items-center justify-center h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 dark:hover:text-red-400 border border-neutral-200/80 dark:border-neutral-700/80 transition-all",
-                      locked && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  </div>
                 </Tooltip>
-              )}
-              
-            </div>
+                
+                {/* X button to exit custom mode */}
+                {activePresets && activePresets.length > 0 && onClearPresets && (
+                  <Tooltip content="Exit custom mode">
+                    <button
+                      onClick={onClearPresets}
+                      disabled={locked}
+                      className={cn(
+                        "flex items-center justify-center h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 dark:hover:text-red-400 border border-neutral-200/80 dark:border-neutral-700/80 transition-all",
+                        locked && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                )}
+              </div>
+            ) : (
+              <Tooltip content="Upgrade to Elite to unlock custom models">
+                <button
+                  className="group relative inline-flex h-10 overflow-hidden rounded-xl p-[1.5px] transition-transform hover:scale-105 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]"
+                >
+                  <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FDE68A_0%,#F59E0B_20%,#D97706_40%,#F59E0B_60%,#FDE68A_80%,#FFFBEB_100%)]" />
+                  <span className="relative inline-flex h-full w-full items-center justify-center gap-2 rounded-[9px] bg-white dark:bg-neutral-900 px-3 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span className="text-xs font-semibold">Elite</span>
+                  </span>
+                </button>
+              </Tooltip>
+            )
           )}
 
           {/* Custom EV Models Button - Positive EV (Animated Border) */}
           {tool === "positive-ev" && onManageEvModels && (
-            isPro ? (
-              <div className="flex items-center gap-1">
+            canUseCustomModels ? (
+              <div data-tour="custom-models-btn" className="flex items-center gap-1">
                 <Tooltip content="Manage custom EV models">
                   <div className="relative">
                     <button

@@ -1,121 +1,49 @@
+/**
+ * /api/v2/props/markets — Available markets for sports
+ *
+ * Reads pre-computed `available_markets:{sport}` keys written by the EV worker.
+ * One Redis GET per sport — no scanning, no index reads.
+ *
+ * Supports:
+ *   ?sport=nba           — single sport (backwards compatible)
+ *   ?sports=nba,nfl,nhl  — multi-sport, aggregated response
+ */
+
 export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { getMarketDisplay } from "@/lib/odds/types";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
+
+const commandEndpoint = resolveRedisCommandEndpoint();
+if (!commandEndpoint.url || !commandEndpoint.token) {
+  const reason = commandEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/props/markets] Redis endpoint configuration invalid: ${reason}`);
+}
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url,
+  token: commandEndpoint.token,
+  responseEncoding: false,
 });
 
 const VALID_SPORTS = new Set([
-  "nba",
-  "nfl",
-  "nhl",
-  "mlb",
-  "ncaabaseball",
-  "ncaab",
-  "ncaaf",
-  "wnba",
-  "soccer_epl",
-  "soccer_laliga",
-  "soccer_mls",
-  "soccer_ucl",
-  "soccer_uel",
-  "tennis_atp",
-  "tennis_challenger",
-  "tennis_itf_men",
-  "tennis_itf_women",
-  "tennis_utr_men",
-  "tennis_utr_women",
-  "tennis_wta",
+  "nba", "nfl", "nhl", "mlb", "ncaabaseball",
+  "ncaab", "ncaaf", "wnba",
+  "soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel",
+  "tennis_atp", "tennis_challenger", "tennis_itf_men",
+  "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta",
   "ufc",
 ]);
 
-const SCAN_COUNT = 1000;
-
-/**
- * Scan all keys matching a pattern using SCAN
- */
-async function scanKeys(pattern: string): Promise<string[]> {
-  const results: string[] = [];
-  let cursor = 0;
-
-  do {
-    const [nextCursor, keys] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
-    });
-    cursor = Number(nextCursor);
-    results.push(...keys);
-  } while (cursor !== 0);
-
-  return results;
-}
-
-/**
- * Get active event IDs for a sport
- */
-async function getActiveEventIds(sport: string): Promise<string[]> {
-  const key = `active_events:${sport}`;
-  const members = await redis.smembers(key);
-  return members.map(String);
-}
-
-/**
- * Discover available markets for a sport by scanning odds keys
- */
-async function discoverMarkets(sport: string): Promise<{
-  markets: Array<{
-    key: string;
-    display: string;
-    eventCount: number;
-  }>;
-}> {
-  // Get active events
-  const eventIds = await getActiveEventIds(sport);
-  if (eventIds.length === 0) {
-    return { markets: [] };
-  }
-
-  // Scan for all odds keys
-  const allOddsKeys = await scanKeys(`odds:${sport}:*`);
-  if (allOddsKeys.length === 0) {
-    return { markets: [] };
-  }
-
-  // Extract unique markets and count events per market
-  const marketEventCounts = new Map<string, Set<string>>();
-  const eventIdSet = new Set(eventIds);
-
-  for (const key of allOddsKeys) {
-    // Parse key: odds:sport:eventId:market:book
-    const parts = key.split(":");
-    if (parts.length < 5) continue;
-
-    const eventId = parts[2];
-    const market = parts[3];
-
-    // Only count active events
-    if (!eventIdSet.has(eventId)) continue;
-
-    if (!marketEventCounts.has(market)) {
-      marketEventCounts.set(market, new Set());
-    }
-    marketEventCounts.get(market)!.add(eventId);
-  }
-
-  // Build markets array
-  const markets = Array.from(marketEventCounts.entries())
-    .map(([key, events]) => ({
-      key,
-      display: getMarketDisplay(key),
-      eventCount: events.size,
-    }))
-    .sort((a, b) => b.eventCount - a.eventCount); // Sort by event count
-
-  return { markets };
+// Shape written by the worker at available_markets:{sport}
+interface WorkerMarket {
+  key: string;
+  display: string;
+  eventCount: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -126,11 +54,10 @@ export async function GET(req: NextRequest) {
 
     const startTime = performance.now();
 
-    // Support fetching multiple sports at once (comma-separated)
-    // e.g., /api/v2/props/markets?sports=nba,nfl,nhl
+    // ── Multi-sport mode ──────────────────────────────────────────────────
     if (sportsParam) {
       const requestedSports = sportsParam.split(",").filter(s => VALID_SPORTS.has(s));
-      
+
       if (requestedSports.length === 0) {
         return NextResponse.json(
           { error: "invalid_sports", valid: Array.from(VALID_SPORTS) },
@@ -138,18 +65,24 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // Fetch all sports in parallel
-      const results = await Promise.all(
-        requestedSports.map(async (sport) => {
-          const { markets } = await discoverMarkets(sport);
-          return { sport, markets };
-        })
-      );
+      // Single MGET for all sports — one round-trip
+      const keys = requestedSports.map(s => `available_markets:${s}`);
+      const rawResults = await redis.mget<(string | null)[]>(...keys);
 
-      // Aggregate markets across all sports
+      // Parse and aggregate
       const marketMap = new Map<string, { key: string; display: string; totalEvents: number; sports: string[] }>();
 
-      for (const { sport, markets } of results) {
+      requestedSports.forEach((sport, idx) => {
+        const raw = rawResults[idx];
+        if (!raw) return; // No data for this sport
+
+        let markets: WorkerMarket[];
+        try {
+          markets = typeof raw === "string" ? JSON.parse(raw) : raw;
+        } catch {
+          return;
+        }
+
         for (const market of markets) {
           const existing = marketMap.get(market.key);
           if (existing) {
@@ -160,15 +93,14 @@ export async function GET(req: NextRequest) {
           } else {
             marketMap.set(market.key, {
               key: market.key,
-              display: market.display,
+              display: market.display || getMarketDisplay(market.key),
               totalEvents: market.eventCount,
               sports: [sport],
             });
           }
         }
-      }
+      });
 
-      // Convert to array and sort by total events
       const aggregatedMarkets = Array.from(marketMap.values())
         .sort((a, b) => b.totalEvents - a.totalEvents);
 
@@ -183,19 +115,13 @@ export async function GET(req: NextRequest) {
           sports: requestedSports,
           markets: aggregatedMarkets,
           count: aggregatedMarkets.length,
-          meta: {
-            duration_ms: Math.round(duration),
-          },
+          meta: { duration_ms: Math.round(duration) },
         },
-        {
-          headers: {
-            "Cache-Control": "public, max-age=120, s-maxage=120", // Cache for 2 minutes
-          },
-        }
+        { headers: { "Cache-Control": "public, max-age=120, s-maxage=120" } }
       );
     }
 
-    // Single sport mode (backwards compatible)
+    // ── Single sport mode (backwards compatible) ──────────────────────────
     if (!sportParam || !VALID_SPORTS.has(sportParam)) {
       return NextResponse.json(
         { error: "invalid_sport", valid: Array.from(VALID_SPORTS) },
@@ -203,7 +129,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { markets } = await discoverMarkets(sportParam);
+    const raw = await redis.get<string>(`available_markets:${sportParam}`);
+
+    let markets: WorkerMarket[] = [];
+    if (raw) {
+      try {
+        markets = typeof raw === "string" ? JSON.parse(raw) : raw;
+      } catch {
+        markets = [];
+      }
+    }
 
     const duration = performance.now() - startTime;
 
@@ -216,15 +151,9 @@ export async function GET(req: NextRequest) {
         sport: sportParam,
         markets,
         count: markets.length,
-        meta: {
-          duration_ms: Math.round(duration),
-        },
+        meta: { duration_ms: Math.round(duration) },
       },
-      {
-        headers: {
-          "Cache-Control": "public, max-age=60, s-maxage=60", // Cache for 1 minute
-        },
-      }
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } }
     );
   } catch (error: any) {
     console.error("[v2/props/markets] Error:", error);

@@ -87,6 +87,7 @@ const config = {
         tier: "edge",
         features: [
           { name: "Everything in Sharp" },
+          { name: "Sharp Intel — insider tracking" },
           { name: "Live Arbitrage alerts" },
           { name: "Custom Model builder" },
           { name: "EV-enhanced hit rates" },

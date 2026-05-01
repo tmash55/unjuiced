@@ -114,6 +114,7 @@ interface ExpandableRowWrapperProps {
   eventId?: string; // Event ID for v2 alternates
   market?: string; // Market key for v2 alternates
   playerKey?: string; // Normalized player key for v2 alternates
+  alternatesType?: "player" | "game"; // Type of alternates to fetch
   // Player info for modal
   playerName?: string;
   team?: string;
@@ -153,6 +154,7 @@ export function ExpandableRowWrapper({
   eventId,
   market,
   playerKey,
+  alternatesType,
   playerName,
   team,
   playerPosition,
@@ -190,21 +192,30 @@ export function ExpandableRowWrapper({
     try {
       let url: string;
       
-      if (eventId && targetMarket && playerKey) {
-        const query = new URLSearchParams({ 
+      if (eventId && targetMarket && (playerKey || alternatesType === "game")) {
+        const params: Record<string, string> = { 
           sport, 
           eventId, 
           market: targetMarket, 
-          player: playerKey,
-          ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
-        });
+          ...(playerKey && { player: playerKey }),
+          ...(primaryLine !== undefined && { primaryLine: String(primaryLine) }),
+          ...(alternatesType === "game" && { type: "game" }),
+          ...(alternatesType === "game" && homeTeam && { homeTeam }),
+          ...(alternatesType === "game" && awayTeam && { awayTeam }),
+        };
+        const query = new URLSearchParams(params);
         url = `/api/v2/props/alternates?${query.toString()}`;
       } else {
         const query = new URLSearchParams({ sport, sid });
         url = `/api/props/alternates?${query.toString()}`;
       }
       
-      const response = await fetch(url);
+      // Protect UI from indefinitely pending network calls.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, { signal: controller.signal }).finally(() => {
+        clearTimeout(timeout);
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -223,7 +234,10 @@ export function ExpandableRowWrapper({
       fetchedMarkets.current.add(targetMarket);
     } catch (err: any) {
       console.error("[Alternates] Fetch error:", err);
-      setError(err.message || "Failed to load alternates");
+      const message = err?.name === "AbortError"
+        ? "Timed out loading alternates. Please try again."
+        : (err.message || "Failed to load alternates");
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -300,6 +314,7 @@ export function ExpandableRowWrapper({
         eventId={eventId}
         onMarketChange={handleMarketChange}
         onViewProfile={onViewProfile}
+        alternatesType={alternatesType}
         // Additional props for favorites
         homeTeam={homeTeam}
         awayTeam={awayTeam}

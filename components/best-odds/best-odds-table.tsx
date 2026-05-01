@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const TABLE_SCROLL_KEY = 'edgeFinder_tableScrollTop';
 
@@ -138,6 +139,7 @@ export function BestOddsTable({
   
   // Favorites hook for betslip functionality
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  const applyState = useStateLink();
   
   // Helper to convert deal to favorite params
   // Only includes fields that exist in the user_favorites database table
@@ -161,9 +163,8 @@ export function BestOddsTable({
     const startTime = deal.startTime || (deal as any).game_start;
     const side = deal.side === 'o' ? 'over' : deal.side === 'u' ? 'under' : deal.side;
     
-    // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
-    const playerKey = playerName?.toLowerCase().replace(/\s+/g, '_') || 'game';
-    const oddsKey = `${deal.sport}:${deal.eid}:${deal.mkt}:${playerKey}|${side}|${deal.ln ?? 0}`;
+    // Build market-level odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
+    const oddsKey = `odds:${deal.sport}:${deal.eid}:${deal.mkt}`;
     
     return {
       type: (deal.ent === 'game' ? 'game' : 'player') as 'player' | 'game',
@@ -458,8 +459,9 @@ export function BestOddsTable({
 
   const openLink = (bookId?: string, desktopHref?: string | null, mobileHref?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = chooseBookLink(desktopHref, mobileHref, fallback);
-    if (!target) return;
+    const raw = chooseBookLink(desktopHref, mobileHref, fallback);
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     
     // Save scroll position before opening link (for mobile UX)
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
@@ -1178,4 +1180,3 @@ export function BestOddsTable({
     </div>
   );
 }
-

@@ -1162,7 +1162,7 @@ export function HitRateTable({
                   isBlurred 
                     ? "cursor-default select-none pointer-events-none" 
                     : "cursor-pointer hover:bg-brand/[0.04] dark:hover:bg-brand/10 hover:shadow-[inset_4px_0_0_0_rgba(99,102,241,0.5)]",
-                  isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
+                  // isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
                 )}
               >
                 {/* Player Column: Headshot + Name + Position/Jersey */}

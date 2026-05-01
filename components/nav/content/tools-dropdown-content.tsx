@@ -12,6 +12,7 @@ import {
   IconTable,
   IconFileText,
   IconHeart,
+  IconBulb,
 } from "@tabler/icons-react";
 import Chart from "@/icons/chart";
 import {
@@ -21,7 +22,7 @@ import {
   createHref,
 } from "./shared";
 
-const researchTools = [
+const nbaTools = [
   {
     icon: ({ className }: { className?: string }) => <Chart className={className} />,
     title: "Hit Rates",
@@ -34,17 +35,43 @@ const researchTools = [
     description: "Pre-built game-day research pages",
     href: "/features/cheat-sheets",
   },
+];
+
+const mlbTools = [
   {
-    icon: IconTable,
-    title: "Odds Screen",
-    description: "Compare lines across 20+ books",
-    href: "/features/odds-screen",
+    icon: IconFileText,
+    title: "Slate Insights",
+    description: "Batter vs pitcher matchup breakdowns",
+    href: "/features/slate-insights",
+    badge: "NEW",
   },
   {
-    icon: IconHeart,
-    title: "My Slips",
-    description: "Saved plays and bet tracking",
-    href: "/features/my-slips",
+    icon: IconRocket,
+    title: "HR Command Center",
+    description: "5-layer HR scoring with live odds",
+    href: "/features/hr-command-center",
+    badge: "NEW",
+  },
+  {
+    icon: IconScale,
+    title: "NRFI",
+    description: "No Run First Inning grades & odds",
+    href: "/features/nrfi-analysis",
+    badge: "NEW",
+  },
+  {
+    icon: IconTable,
+    title: "Exit Velocity",
+    description: "Statcast hard-hit leaders",
+    href: "/features/exit-velocity",
+    badge: "NEW",
+  },
+  {
+    icon: IconBulb,
+    title: "Weather Report",
+    description: "Park & weather impact scores",
+    href: "/features/weather-report",
+    free: true,
   },
 ];
 
@@ -67,16 +94,34 @@ const sharpTools = [
     description: "Risk-free opportunities across books",
     href: "/features/arbitrage",
   },
+  {
+    icon: IconBulb,
+    title: "Sharp Intel",
+    description: "Real-time insider signals from prediction markets",
+    href: "/features/sharp-intel",
+  },
+  {
+    icon: IconTable,
+    title: "Odds Screen",
+    description: "Compare lines across 20+ books",
+    href: "/features/odds-screen",
+  },
+  {
+    icon: IconHeart,
+    title: "My Slips",
+    description: "Saved plays and bet tracking",
+    href: "/features/my-slips",
+  },
 ];
 
 export function ToolsDropdownContent({ domain }: { domain: string }) {
   return (
-    <div className="grid w-[1020px] grid-cols-[1fr_1fr_auto] divide-x divide-neutral-200 dark:divide-white/20">
+    <div className="grid w-[1100px] grid-cols-[1fr_1fr_1fr_auto] divide-x divide-neutral-200 dark:divide-white/20">
       {/* Research Column */}
       <div className="flex h-full flex-col p-4 pr-6">
-        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>Research</p>
+        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>NBA Research</p>
         <div className="flex flex-col gap-0.5">
-          {researchTools.map(({ icon: Icon, title, description, href }) => (
+          {nbaTools.map(({ icon: Icon, title, description, href }) => (
             <ContentLinkCard
               key={href}
               className="-mx-2"
@@ -87,6 +132,27 @@ export function ToolsDropdownContent({ domain }: { domain: string }) {
                 </div>
               }
               title={title}
+              description={description}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* MLB Column */}
+      <div className="flex h-full flex-col p-4 pr-6 pl-6">
+        <p className={cn(contentHeadingClassName, "mb-3 ml-2")}>MLB Research</p>
+        <div className="flex flex-col gap-0.5">
+          {mlbTools.map(({ icon: Icon, title, description, href, badge, free }) => (
+            <ContentLinkCard
+              key={href}
+              className="-mx-2"
+              href={createHref(href, domain, getUtmParams({ domain, utm_content: title }))}
+              icon={
+                <div className="shrink-0 rounded-md border border-neutral-200 bg-white/50 p-2.5 dark:border-white/20 dark:bg-white/10">
+                  <Icon className="size-4 text-red-500 transition-colors dark:text-red-400" />
+                </div>
+              }
+              title={`${title}${badge ? ` ${badge}` : ""}${free ? " FREE" : ""}`}
               description={description}
             />
           ))}
@@ -145,7 +211,7 @@ export function ToolsDropdownContent({ domain }: { domain: string }) {
                 Start Free Trial
               </span>
               <p className="mt-1.5 text-xs text-neutral-500 dark:text-white/60">
-                Access all tools free for 3 days.
+                Access all tools free for 7 days.
               </p>
             </div>
           </Link>

@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useStateLink } from "@/hooks/use-state-link"
 
 interface LadderRowProps {
   line: number
@@ -42,6 +43,7 @@ interface LadderRowProps {
 }
 
 export function LadderRow({ line, bestOver, bestUnder, avgOver, avgUnder, allBooks, isEven, onAddToBuilder, sideFilter, nextLineOdds, isBestValue, isPrimaryLine, marketName }: LadderRowProps) {
+  const applyState = useStateLink()
   const [expanded, setExpanded] = useState(false)
   const [showBookPicker, setShowBookPicker] = useState(false)
   const [booksWithBestOdds, setBooksWithBestOdds] = useState<Array<{ book: string; price: number; link?: string | null }>>([])
@@ -289,7 +291,7 @@ export function LadderRow({ line, bestOver, bestUnder, avgOver, avgUnder, allBoo
                 )}
                 <button
                   onClick={() => {
-                    if (bestOdds?.link) window.open(bestOdds.link, '_blank')
+                    if (bestOdds?.link) window.open(applyState(bestOdds.link) || bestOdds.link, '_blank')
                   }}
                   className={cn(
                     "text-sm font-bold transition-all",
@@ -474,7 +476,7 @@ export function LadderRow({ line, bestOver, bestUnder, avgOver, avgUnder, allBoo
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={() => {
-                              if (odds.link) window.open(odds.link, '_blank')
+                              if (odds.link) window.open(applyState(odds.link) || odds.link, '_blank')
                             }}
                             className={cn(
                               "inline-flex items-center rounded-md px-2 py-1 text-xs font-bold transition-all text-white",

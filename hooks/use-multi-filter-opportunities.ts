@@ -2,7 +2,8 @@
  * Hook for fetching opportunities with multiple filter support
  * 
  * HYBRID APPROACH:
- * - Preset Mode: Fetches broader dataset, filters client-side for instant sports/market/odds changes
+ * - Preset Mode: Fetches a league/market-scoped broad dataset, then filters
+ *   user-specific controls client-side for instant odds/search/book changes
  * - Custom Mode: Server-side filtering for custom blend calculations
  * 
  * Handles parallel API calls for multiple active custom filters,
@@ -20,13 +21,20 @@ import {
   type Sport,
   DEFAULT_FILTERS,
   parseOpportunity,
+  formatAmericanOdds,
 } from "@/lib/types/opportunities";
 import { normalizeSportsbookId, getSportsbookById } from "@/lib/data/sportsbooks";
-import { DEFAULT_FILTER_COLOR, type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
+import {
+  DEFAULT_FILTER_COLOR,
+  FILTER_PRESET_EMPTY_SPORT_MARKET,
+  type FilterPreset,
+  parseSports,
+  parseFilterPresetSportMarketKey,
+  getSportIcon,
+} from "@/lib/types/filter-presets";
 import { type BestOddsPrefs } from "@/lib/best-odds-schema";
 import { isMarketSelected } from "@/lib/utils";
 
-// All supported sports for broad fetching in preset mode
 const ALL_SPORTS: Sport[] = [
   "nba",
   "nfl",
@@ -50,6 +58,69 @@ const ALL_SPORTS: Sport[] = [
   "tennis_wta",
   "ufc",
 ];
+
+const LEAGUE_TO_SPORT: Record<string, Sport> = {
+  nba: "nba",
+  nfl: "nfl",
+  ncaaf: "ncaaf",
+  ncaab: "ncaab",
+  nhl: "nhl",
+  mlb: "mlb",
+  ncaabaseball: "ncaabaseball",
+  wnba: "wnba",
+  soccer_epl: "soccer_epl",
+  soccer_laliga: "soccer_laliga",
+  soccer_mls: "soccer_mls",
+  soccer_ucl: "soccer_ucl",
+  soccer_uel: "soccer_uel",
+  tennis_atp: "tennis_atp",
+  tennis_challenger: "tennis_challenger",
+  tennis_itf_men: "tennis_itf_men",
+  tennis_itf_women: "tennis_itf_women",
+  tennis_utr_men: "tennis_utr_men",
+  tennis_utr_women: "tennis_utr_women",
+  tennis_wta: "tennis_wta",
+  ufc: "ufc",
+};
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort();
+}
+
+function normalizeSelectedSports(selectedLeagues: unknown): Sport[] {
+  const selectedSports = toStringArray(selectedLeagues)
+    .map((league) => LEAGUE_TO_SPORT[league.toLowerCase()])
+    .filter((sport): sport is Sport => !!sport);
+
+  if (selectedSports.length === 0) return ALL_SPORTS;
+
+  const uniqueSports = uniqueSorted(selectedSports) as Sport[];
+  return uniqueSports.length === ALL_SPORTS.length ? ALL_SPORTS : uniqueSports;
+}
+
+function buildPresetServerMarketFilter(selectedMarkets: unknown, sports: Sport[]): string[] {
+  const sportSet = new Set(sports);
+  const markets = toStringArray(selectedMarkets)
+    .map((market) => market.toLowerCase())
+    .flatMap((market) => {
+      const [sport, sportMarket] = market.split(":");
+      if (sportMarket) {
+        return sportSet.has(sport as Sport) ? [sportMarket] : [];
+      }
+      return [market];
+    });
+
+  return uniqueSorted(markets);
+}
+
+function buildPresetFetchScopeKey(prefs: BestOddsPrefs): string {
+  const sports = normalizeSelectedSports(prefs.selectedLeagues as unknown);
+  const markets = buildPresetServerMarketFilter(prefs.selectedMarkets as unknown, sports);
+  return JSON.stringify({
+    sports,
+    markets,
+  });
+}
 
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -117,6 +188,71 @@ function toNumberMap(value: unknown): Record<string, number> {
   return out;
 }
 
+function normalizeBlendBookId(book: string): string {
+  const lower = book.toLowerCase().trim();
+  const normalized = normalizeSportsbookId(lower);
+  const aliases: Record<string, string> = {
+    hardrock: "hard-rock",
+    "hard-rock-bet": "hard-rock",
+    hardrockbet: "hard-rock",
+    espnbet: "espn",
+    "espn-bet": "espn",
+    ballybet: "bally-bet",
+    bally_bet: "bally-bet",
+    "bet-rivers": "betrivers",
+    bet_rivers: "betrivers",
+  };
+  return aliases[normalized] ?? aliases[lower] ?? normalized;
+}
+
+function normalizeWeightValue(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw > 1 ? raw / 100 : raw;
+}
+
+function buildBlendFromPreset(
+  sharpBooks: string[],
+  bookWeights: Record<string, number>
+): Array<{ book: string; weight: number }> | null {
+  if (sharpBooks.length === 0) return null;
+
+  const canonicalBooks: string[] = [];
+  const seenBooks = new Set<string>();
+  for (const book of sharpBooks) {
+    const canonical = normalizeBlendBookId(book);
+    if (!canonical || seenBooks.has(canonical)) continue;
+    seenBooks.add(canonical);
+    canonicalBooks.push(canonical);
+  }
+  if (canonicalBooks.length === 0) return null;
+
+  const normalizedWeights = new Map<string, number>();
+  for (const [book, rawWeight] of Object.entries(bookWeights)) {
+    const canonical = normalizeBlendBookId(book);
+    const weight = normalizeWeightValue(rawWeight);
+    if (weight <= 0) continue;
+    normalizedWeights.set(canonical, (normalizedWeights.get(canonical) ?? 0) + weight);
+  }
+
+  let blend: Array<{ book: string; weight: number }> = [];
+  if (normalizedWeights.size > 0) {
+    blend = canonicalBooks
+      .map((book) => ({ book, weight: normalizedWeights.get(book) ?? 0 }))
+      .filter((entry) => entry.weight > 0);
+  }
+
+  // If provided weights don't map cleanly, fall back to equal weighting.
+  if (blend.length === 0 || blend.length < canonicalBooks.length) {
+    const equalWeight = 1 / canonicalBooks.length;
+    blend = canonicalBooks.map((book) => ({ book, weight: equalWeight }));
+  }
+
+  const totalWeight = blend.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) return null;
+
+  return blend.map((entry) => ({ ...entry, weight: entry.weight / totalWeight }));
+}
+
 interface UseMultiFilterOptions {
   /**
    * Global user preferences (books to exclude, min edge, search, etc.)
@@ -173,48 +309,28 @@ interface UseMultiFilterResult {
 
 // Progressive loading configuration
 const INITIAL_BATCH_SIZE = 50; // Show first 50 results fast
-const FULL_BATCH_SIZE = 500; // Then load all in background
+const FULL_BATCH_SIZE = 1500; // Then load larger batch in background
+const PRESET_STALE_TIME_MS = 5_000;
+const CUSTOM_STALE_TIME_MS = 45_000;
 
 /**
  * Build filter configurations from active presets
  * 
  * HYBRID APPROACH for Preset Mode:
- * - Fetches ALL sports, ALL market types with broad odds range
- * - Client-side filtering for sports, markets, odds (instant changes)
- * - Only comparison mode changes trigger new API calls
+ * - Fetches only the selected sports/leagues so server-side top-N does not
+ *   starve a selected league behind higher-edge rows from other sports.
+ * - Sends explicit market selections when possible for the same reason.
+ * - Keeps odds/search/book-exclusion filters client-side for instant changes.
  */
 function buildFilterConfigs(
   prefs: BestOddsPrefs,
   activePresets: FilterPreset[],
   isPro: boolean,
-  limit: number
+  limit: number,
+  phase: "initial" | "full" = "full"
 ): FilterConfig[] {
-  const leagueToSport: Record<string, Sport> = {
-    nba: "nba",
-    nfl: "nfl",
-    ncaaf: "ncaaf",
-    ncaab: "ncaab",
-    nhl: "nhl",
-    mlb: "mlb",
-    ncaabaseball: "ncaabaseball",
-    wnba: "wnba",
-    soccer_epl: "soccer_epl",
-    soccer_laliga: "soccer_laliga",
-    soccer_mls: "soccer_mls",
-    soccer_ucl: "soccer_ucl",
-    soccer_uel: "soccer_uel",
-    tennis_atp: "tennis_atp",
-    tennis_challenger: "tennis_challenger",
-    tennis_itf_men: "tennis_itf_men",
-    tennis_itf_women: "tennis_itf_women",
-    tennis_utr_men: "tennis_utr_men",
-    tennis_utr_women: "tennis_utr_women",
-    tennis_wta: "tennis_wta",
-    ufc: "ufc",
-  };
-
   // If no active presets, use preset mode (single filter from prefs)
-  // HYBRID: Fetch broader data for client-side filtering
+  // HYBRID: Fetch broad odds, but scope sports/markets server-side.
   if (activePresets.length === 0) {
     let preset: string | null = null;
     let filterName: string;
@@ -232,39 +348,40 @@ function buildFilterConfigs(
       filterName = "vs Average";
     }
 
-    // HYBRID: Fetch ALL sports, ALL market types
     // Use user preferences for odds range when set, otherwise use broad fallback
-    const broadLimit = isPro ? Math.max(limit, 500) : Math.max(limit, 100);
+    const broadLimit = isPro
+      ? (phase === "initial" ? Math.max(limit, 500) : Math.max(limit, FULL_BATCH_SIZE))
+      : Math.max(limit, 100);
     
-    // Use user's preferences for odds if set, otherwise use broad defaults
-    const serverMinOdds = prefs.minOdds ?? -10000;
-    const serverMaxOdds = prefs.maxOdds ?? 20000;
-
+    // Always send broad defaults to server — odds range is filtered client-side
+    // This avoids refetching when user changes odds range slider
     const safeMarketLines = toNumberRecord(prefs.marketLines as unknown);
+    const fetchSports = normalizeSelectedSports(prefs.selectedLeagues as unknown);
+    const serverMarkets = buildPresetServerMarketFilter(prefs.selectedMarkets as unknown, fetchSports);
 
     return [{
       filters: {
         ...DEFAULT_FILTERS,
-        sports: ALL_SPORTS, // Fetch ALL sports
+        sports: fetchSports,
         preset,
         blend: null,
         limit: broadLimit, // Larger batch for client-side filtering
         minEdge: 0, // Fetch all edges, filter client-side
-        minOdds: serverMinOdds, // Use user preference or broad fallback
-        maxOdds: serverMaxOdds, // Use user preference or broad fallback
+        minOdds: -10000, // Broad range — client-side filtering narrows
+        maxOdds: 100000, // Broad range — client-side filtering narrows
         searchQuery: "", // Search is client-side
         selectedBooks: [], // Book exclusions are client-side
-        selectedMarkets: [], // Send empty to get ALL markets
-        selectedLeagues: [], // Sport filtering is client-side
+        selectedMarkets: serverMarkets,
+        selectedLeagues: fetchSports,
         marketLines: safeMarketLines, // Market lines stay server-side (specific line filters)
         minBooksPerSide: 2,
         requireFullBlend: false,
-        marketType: "all", // Fetch both player and game, filter client-side
+        marketType: "all",
       },
       metadata: {
         filterId: "default",
         filterName,
-        filterIcon: ALL_SPORTS.join(","),
+        filterIcon: fetchSports.join(","),
         isCustom: false,
         filterColor: null,
       },
@@ -279,35 +396,24 @@ function buildFilterConfigs(
     const presetSports = parseSports(typeof preset.sport === "string" ? preset.sport : "");
     // Convert to lowercase for mapping (handles both "NBA" and "nba")
     const sports = presetSports
-      .map(s => leagueToSport[s.toLowerCase()])
+      .map(s => LEAGUE_TO_SPORT[s.toLowerCase()])
       .filter((s): s is Sport => !!s);
     
     // Build blend from preset's sharp_books and book_weights
     const presetSharpBooks = toStringArray((preset as any).sharp_books);
     const presetBookWeights = toNumberMap((preset as any).book_weights);
-    let blend: Array<{ book: string; weight: number }> | null = null;
-    if (presetSharpBooks.length > 0) {
-      const weights = presetBookWeights;
-      if (weights && Object.keys(weights).length > 0) {
-        blend = presetSharpBooks.map(book => ({
-          book,
-          weight: (weights[book] || 0) / 100,
-        })).filter(b => b.weight > 0);
-        
-        const totalWeight = blend.reduce((sum, b) => sum + b.weight, 0);
-        if (totalWeight > 0) {
-          blend = blend.map(b => ({ ...b, weight: b.weight / totalWeight }));
-        }
-      } else {
-        const weight = 1 / presetSharpBooks.length;
-        blend = presetSharpBooks.map(book => ({ book, weight }));
-      }
-    }
+    const blend = buildBlendFromPreset(presetSharpBooks, presetBookWeights);
 
     // Use preset's custom markets if defined, otherwise use global or empty
     const presetMarkets = toStringArray((preset as any).markets);
+    const parsedCompositeMarkets = presetMarkets
+      .map(parseFilterPresetSportMarketKey)
+      .filter((value): value is { sport: string; market: string } => value !== null);
+    const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
     
-    const validSports = sports.length > 0 ? sports : ["nba"] as Sport[];
+    // Never silently collapse custom presets to just NBA.
+    // If preset sport serialization is malformed/missing, default to all sports.
+    const validSports = sports.length > 0 ? sports : ALL_SPORTS;
     
     // For multi-sport presets, create separate configs per sport for balanced results
     if (validSports.length > 1) {
@@ -317,6 +423,16 @@ function buildFilterConfigs(
       console.log(`[useMultiFilter] Multi-sport preset "${preset.name}" - splitting into ${validSports.length} separate fetches (${perSportLimit} per sport)`);
       
       for (const sport of validSports) {
+        const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === sport);
+        const sportMarkets = sportEntries
+          .map((entry) => entry.market)
+          .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+        const hasSportCustomization = sportEntries.length > 0;
+
+        if (hasSportCustomization && sportMarkets.length === 0) {
+          continue;
+        }
+
         configs.push({
           filters: {
             ...DEFAULT_FILTERS,
@@ -329,12 +445,12 @@ function buildFilterConfigs(
             maxOdds: preset.max_odds ?? 500,
             searchQuery: prefs.searchQuery || "",
             selectedBooks: prefs.selectedBooks || [],
-            selectedMarkets: presetMarkets,
+            selectedMarkets: hasSportCustomization ? sportMarkets : (hasCompositeMarkets ? [] : presetMarkets),
             selectedLeagues: [],
             marketLines: {},
             minBooksPerSide: preset.min_books_reference || 2,
             requireFullBlend: preset.fallback_mode !== "use_fallback",
-            marketType: preset.market_type || "all",
+            marketType: hasCompositeMarkets ? "all" : (preset.market_type || "all"),
           },
           metadata: {
             filterId: preset.id,
@@ -347,6 +463,17 @@ function buildFilterConfigs(
       }
     } else {
       // Single sport - create one config
+      const singleSport = validSports[0];
+      const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === singleSport);
+      const singleSportMarkets = sportEntries
+        .map((entry) => entry.market)
+        .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+      const hasSportCustomization = sportEntries.length > 0;
+
+      if (hasCompositeMarkets && hasSportCustomization && singleSportMarkets.length === 0) {
+        continue;
+      }
+
       console.log(`[useMultiFilter] Building config for preset "${preset.name}":`, {
         sports: validSports,
         presetMarkets: presetMarkets.length > 0 ? presetMarkets : '(all markets)',
@@ -366,12 +493,14 @@ function buildFilterConfigs(
           maxOdds: preset.max_odds ?? 500,
           searchQuery: prefs.searchQuery || "",
           selectedBooks: prefs.selectedBooks || [],
-          selectedMarkets: presetMarkets,
+          selectedMarkets: hasCompositeMarkets
+            ? singleSportMarkets
+            : presetMarkets,
           selectedLeagues: [],
           marketLines: {},
           minBooksPerSide: preset.min_books_reference || 2,
           requireFullBlend: preset.fallback_mode !== "use_fallback",
-          marketType: preset.market_type || "all",
+          marketType: hasCompositeMarkets ? "all" : (preset.market_type || "all"),
         },
         metadata: {
           filterId: preset.id,
@@ -536,9 +665,9 @@ function mergeOpportunities(
 /**
  * Apply global filters (book exclusions, search, etc.)
  * 
- * HYBRID APPROACH: These filters run client-side for instant response
- * - Sports selection
- * - Market type (player/game)
+ * HYBRID APPROACH: These filters run client-side where they are user-specific
+ * or inexpensive to adjust without a network round-trip.
+ * - Sports/markets are also scoped server-side in preset mode to avoid top-N starvation.
  * - Min/max odds
  * - Min edge
  * - Book exclusions
@@ -549,43 +678,81 @@ function applyGlobalFilters(
   prefs: BestOddsPrefs,
   isCustomMode: boolean
 ): Opportunity[] {
-  const leagueToSport: Record<string, string> = {
-    nba: "nba",
-    nfl: "nfl",
-    ncaaf: "ncaaf",
-    ncaab: "ncaab",
-    nhl: "nhl",
-    mlb: "mlb",
-    ncaabaseball: "ncaabaseball",
-    wnba: "wnba",
-    soccer_epl: "soccer_epl",
-    soccer_laliga: "soccer_laliga",
-    soccer_mls: "soccer_mls",
-    soccer_ucl: "soccer_ucl",
-    soccer_uel: "soccer_uel",
-    tennis_atp: "tennis_atp",
-    tennis_challenger: "tennis_challenger",
-    tennis_itf_men: "tennis_itf_men",
-    tennis_itf_women: "tennis_itf_women",
-    tennis_utr_men: "tennis_utr_men",
-    tennis_utr_women: "tennis_utr_women",
-    tennis_wta: "tennis_wta",
-    ufc: "ufc",
-  };
-  
   // Build set of selected sports for fast lookup
   const selectedSports = new Set<string>();
   const selectedLeagues = toStringArray(prefs.selectedLeagues as unknown);
   if (selectedLeagues.length > 0) {
     for (const league of selectedLeagues) {
-      const sport = leagueToSport[league.toLowerCase()];
+      const sport = LEAGUE_TO_SPORT[league.toLowerCase()];
       if (sport) selectedSports.add(sport);
     }
   }
   const selectedBooks = toStringArray(prefs.selectedBooks as unknown);
   const selectedMarkets = toStringArray(prefs.selectedMarkets as unknown);
-  
-  return opportunities.filter((opp) => {
+
+  const remapOpportunityForBookExclusions = (opp: Opportunity): Opportunity | null => {
+    if (selectedBooks.length === 0) return opp;
+
+    const eligibleBooks = (opp.allBooks || [])
+      .filter((book) => !selectedBooks.includes(normalizeSportsbookId(book.book)))
+      .sort((a, b) => {
+        const decimalDiff = b.decimal - a.decimal;
+        if (decimalDiff !== 0) return decimalDiff;
+        return b.price - a.price;
+      });
+
+    const bestEligibleBook = eligibleBooks[0];
+    if (!bestEligibleBook) return null;
+
+    const sharpDecimal = opp.sharpDecimal;
+    const edge = sharpDecimal != null ? bestEligibleBook.decimal - sharpDecimal : null;
+    const edgePct =
+      sharpDecimal != null && sharpDecimal > 0
+        ? ((bestEligibleBook.decimal / sharpDecimal) - 1) * 100
+        : null;
+
+    if (edgePct == null || edgePct <= 0) return null;
+
+    if (normalizeSportsbookId(bestEligibleBook.book) === normalizeSportsbookId(opp.bestBook)) {
+      return opp;
+    }
+
+    const bestImplied = bestEligibleBook.decimal > 0 ? 1 / bestEligibleBook.decimal : null;
+    const trueProbability = opp.trueProbability;
+    const ev = trueProbability != null ? (trueProbability * bestEligibleBook.decimal) - 1 : null;
+    const evPct = ev != null ? ev * 100 : null;
+    const impliedEdge =
+      trueProbability != null && bestImplied != null ? trueProbability - bestImplied : null;
+    const kellyFraction =
+      ev != null && ev > 0 && trueProbability != null && bestEligibleBook.decimal > 1
+        ? Math.max(
+            0,
+            (((bestEligibleBook.decimal - 1) * trueProbability) - (1 - trueProbability)) /
+              (bestEligibleBook.decimal - 1),
+          )
+        : null;
+
+    return {
+      ...opp,
+      bestBook: bestEligibleBook.book,
+      bestPrice: formatAmericanOdds(bestEligibleBook.price),
+      bestDecimal: bestEligibleBook.decimal,
+      bestLink: bestEligibleBook.link ?? null,
+      bestMobileLink: bestEligibleBook.mobileLink ?? null,
+      bestImplied,
+      edge,
+      edgePct,
+      impliedEdge,
+      ev,
+      evPct,
+      kellyFraction,
+    };
+  };
+
+  return opportunities
+    .map(remapOpportunityForBookExclusions)
+    .filter((opp): opp is Opportunity => opp !== null)
+    .filter((opp) => {
     // HYBRID: Sport filter (client-side for preset mode)
     // Only filter if user has selected specific leagues
     if (!isCustomMode && selectedSports.size > 0) {
@@ -613,7 +780,7 @@ function applyGlobalFilters(
     }
     
     // HYBRID: Selected markets filter (client-side)
-    // Empty = all markets selected
+    // Empty = all markets selected; skip in custom mode (custom models define their own markets)
     if (!isCustomMode && selectedMarkets.length > 0) {
       if (!isMarketSelected(selectedMarkets, opp.sport || "", opp.market || "")) {
         return false;
@@ -631,22 +798,6 @@ function applyGlobalFilters(
       if (!matches) return false;
     }
 
-    // Book exclusions (selectedBooks contains EXCLUDED books)
-    // Only filter out if ALL books with the best odds are excluded
-    if (selectedBooks.length > 0) {
-      // Get all books that have the best (same) odds
-      const booksWithBestOdds = (opp.allBooks || []).filter(b => b.decimal === opp.bestDecimal);
-      
-      // Check if at least one book with best odds is NOT excluded
-      const hasSelectedBookWithBestOdds = booksWithBestOdds.some(b => {
-        const normalizedBook = normalizeSportsbookId(b.book);
-        return !selectedBooks.includes(normalizedBook);
-      });
-      
-      // If all books with best odds are excluded, filter out this opportunity
-      if (!hasSelectedBookWithBestOdds) return false;
-    }
-
     // College player props filter
     if (prefs.hideCollegePlayerProps) {
       const isCollege = opp.sport === "ncaaf" || opp.sport === "ncaab";
@@ -662,8 +813,9 @@ function applyGlobalFilters(
  * Main hook for multi-filter opportunities
  * 
  * HYBRID APPROACH:
- * - Preset Mode: Query key only changes on comparison mode change
- *   Sports, markets, odds filtered client-side for instant response
+ * - Preset Mode: Query key changes when server-side fetch scope changes
+ *   (comparison, selected sports/leagues, server-readable markets, market lines).
+ *   Odds/search/book exclusions stay client-side for instant response.
  * - Custom Mode: Query key changes on preset changes (server-side blend calculations)
  */
 export function useMultiFilterOpportunities({
@@ -685,13 +837,31 @@ export function useMultiFilterOpportunities({
 
   // Build filter configs - one for initial fast load, one for full load
   const initialFilterConfigs = useMemo(
-    () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit),
-    [activePresets, isPro, initialLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
+    () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit, "initial"),
+    [
+      activePresets,
+      isPro,
+      initialLimit,
+      prefs.comparisonMode,
+      prefs.comparisonBook,
+      prefs.marketLines,
+      prefs.selectedLeagues,
+      prefs.selectedMarkets,
+    ]
   );
   
   const fullFilterConfigs = useMemo(
-    () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit),
-    [activePresets, isPro, fullLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
+    () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit, "full"),
+    [
+      activePresets,
+      isPro,
+      fullLimit,
+      prefs.comparisonMode,
+      prefs.comparisonBook,
+      prefs.marketLines,
+      prefs.selectedLeagues,
+      prefs.selectedMarkets,
+    ]
   );
   
   // For backwards compatibility, expose the full configs
@@ -700,6 +870,7 @@ export function useMultiFilterOpportunities({
   // Build query keys for both initial and full queries
   const buildQueryKey = useCallback((phase: "initial" | "full") => {
     const configs = phase === "initial" ? initialFilterConfigs : fullFilterConfigs;
+    const phaseLimit = phase === "initial" ? initialLimit : fullLimit;
     if (isCustomMode) {
       return [
         "multi-filter-opportunities",
@@ -718,13 +889,23 @@ export function useMultiFilterOpportunities({
         "preset",
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
+        buildPresetFetchScopeKey(prefs),
         JSON.stringify(prefs.marketLines || {}),
-        prefs.minOdds ?? -10000,
-        prefs.maxOdds ?? 20000,
+        phaseLimit,
+        // minOdds/maxOdds removed from key — server always gets broad range,
+        // client-side filtering in applyGlobalFilters handles user's preference
         isPro,
       ];
     }
-  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, prefs.minOdds, prefs.maxOdds, isPro]);
+  }, [
+    isCustomMode,
+    initialFilterConfigs,
+    fullFilterConfigs,
+    prefs,
+    initialLimit,
+    fullLimit,
+    isPro,
+  ]);
 
   const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
   const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);
@@ -751,10 +932,11 @@ export function useMultiFilterOpportunities({
         timingMs: Math.max(...results.map(r => r.timingMs)),
       };
     },
-    staleTime: isCustomMode ? 45_000 : 30_000,
+    staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: isCustomMode ? true : "always",
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,
@@ -784,10 +966,11 @@ export function useMultiFilterOpportunities({
         timingMs: Math.max(...results.map(r => r.timingMs)),
       };
     },
-    staleTime: isCustomMode ? 45_000 : 30_000,
+    staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: isCustomMode ? true : "always",
     placeholderData: (prev) => prev,
     retry: 3,
     // Only fetch full batch after initial is done (or if not using progressive loading)
@@ -819,9 +1002,10 @@ export function useMultiFilterOpportunities({
   // OPTIMIZATION: Prefetch function for presets on hover
   const prefetchPreset = useCallback(async (preset: FilterPreset) => {
     // Build configs for this preset
-    const presetConfigs = buildFilterConfigs(prefs, [preset], isPro, effectiveLimit);
+    const presetConfigs = buildFilterConfigs(prefs, [preset], isPro, effectiveLimit, "full");
     const presetQueryKey = [
       "multi-filter-opportunities",
+      "full",
       "custom",
       presetConfigs.map(c => JSON.stringify({
         ...c.filters,

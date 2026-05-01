@@ -57,6 +57,7 @@ export interface MultiDevigResult {
  * - ballybet: Bally Bet only (retail book)
  * - betrivers: BetRivers only (retail book)
  * - fanatics: Fanatics only (retail book)
+ * - novig: Novig only (betting exchange)
  * - market_average: Average of all available sharp books (most robust consensus)
  * - custom: User-defined blend of books with weights
  */
@@ -78,6 +79,7 @@ export type SharpPreset =
   | "ballybet"
   | "betrivers"
   | "fanatics"
+  | "novig"
   | "polymarket"
   | "kalshi"
   | "custom";
@@ -292,6 +294,8 @@ export interface PositiveEVResponse {
     minBooksPerSide?: number;
     mode: EVMode;
     timestamp: string;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
   };
 }
 

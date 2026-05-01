@@ -200,7 +200,27 @@ function keyDrivers(row: MlbWeatherReportRow): string[] {
   return drivers.slice(0, 3);
 }
 
-export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
+export function LivingStadiumCard({ row, windOverride }: {
+  row: MlbWeatherReportRow;
+  /** Override wind + weather data (e.g., from hourly forecast timeline) */
+  windOverride?: {
+    windSpeedMph: number;
+    windRelativeDeg: number;
+    windLabel: string;
+    cloudCoverPct?: number | null;
+    precipProbability?: number | null;
+  } | null;
+}) {
+  // Use override if provided, otherwise fall back to row-level data
+  const effectiveRow = windOverride ? {
+    ...row,
+    windSpeedMph: windOverride.windSpeedMph,
+    windRelativeDeg: windOverride.windRelativeDeg,
+    windLabel: windOverride.windLabel,
+    cloudCoverPct: windOverride.cloudCoverPct ?? row.cloudCoverPct,
+    precipProbability: windOverride.precipProbability ?? row.precipProbability,
+  } : row;
+  const _row = effectiveRow;
   const cardId = `living-stadium-${row.gameId}`;
   const outfieldRaw = toPoints(row.stadiumGeometry?.outfieldOuter ?? []);
   const infieldRaw = toPoints(row.stadiumGeometry?.infieldOuter ?? []);
@@ -247,8 +267,8 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const minWallHeight = numericWallHeights.length > 0 ? Math.min(...numericWallHeights) : 0;
   const maxWallHeight = numericWallHeights.length > 0 ? Math.max(...numericWallHeights) : 0;
 
-  const windSpeed = Number(row.windSpeedMph ?? 0);
-  const windVector = polarVector(Number(row.windRelativeDeg ?? 0));
+  const windSpeed = Number(_row.windSpeedMph ?? 0);
+  const windVector = polarVector(Number(_row.windRelativeDeg ?? 0));
   const homePoint =
     normalizedPlate.length > 0
       ? normalizedPlate.reduce(
@@ -354,17 +374,17 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const heatStartY = homeY - windVector.y * 130;
   const heatEndX = homeX + windVector.x * 130;
   const heatEndY = homeY + windVector.y * 130;
-  const windFlowDuration = `${clamp(8.8 - windSpeed * 0.27, 2.2, 8.6)}s`;
-  const windFlowRotationDeg = Number(row.windRelativeDeg ?? 0) - 90;
-  const windShiftPx = 28 + clamp(windSpeed, 0, 24) * 2.2;
-  const windOpacity = clamp(0.3 + windSpeed / 40, 0.35, 0.88);
+  const windFlowDuration = `${clamp(6 - windSpeed * 0.15, 1.8, 5.5)}s`;
+  const windFlowRotationDeg = Number(_row.windRelativeDeg ?? 0) - 90;
+  const windShiftPx = 80 + clamp(windSpeed, 0, 24) * 6;
+  const windOpacity = clamp(0.25 + windSpeed / 35, 0.3, 0.85);
   const windCompassCx = VIEWBOX_WIDTH - 40;
   const windCompassCy = 38;
   const windCompassR = 19;
   const wxIconCx = 40;
   const wxIconCy = 38;
-  const wxCloudCover = row.cloudCoverPct ?? 50;
-  const wxPrecip = row.precipProbability ?? 0;
+  const wxCloudCover = _row.cloudCoverPct ?? 50;
+  const wxPrecip = _row.precipProbability ?? 0;
   const wxIsRainy = wxPrecip > 25;
   const wxIsCloudy = wxCloudCover > 65 && !wxIsRainy;
   const wxIsPartly = wxCloudCover > 30 && !wxIsCloudy && !wxIsRainy;
@@ -483,12 +503,36 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
             <p className="text-[10px] uppercase tracking-[0.1em] font-semibold opacity-70">Edge Signal</p>
             <p className="text-sm font-bold leading-tight">{formatImpactLabel(row.totalImpact)}</p>
           </div>
-          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrImpactScore))}>
-            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR Delta</p>
-            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrImpactScore))}>
-              {formatSigned(row.hrImpactScore, 1)}
+          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrPctDelta ?? row.hrImpactScore))}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR</p>
+            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrPctDelta ?? row.hrImpactScore))}>
+              {row.hrPctDelta != null ? `${row.hrPctDelta > 0 ? "+" : ""}${row.hrPctDelta.toFixed(1)}%` : formatSigned(row.hrImpactScore, 1)}
             </p>
           </div>
+          {row.runsPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.runsPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">Runs</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.runsPctDelta))}>
+                {row.runsPctDelta > 0 ? "+" : ""}{row.runsPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.xbhPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.xbhPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">XBH</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.xbhPctDelta))}>
+                {row.xbhPctDelta > 0 ? "+" : ""}{row.xbhPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.singlesPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.singlesPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">1B</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.singlesPctDelta))}>
+                {row.singlesPctDelta > 0 ? "+" : ""}{row.singlesPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900/60 dark:to-neutral-900">
@@ -509,14 +553,14 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         </div>
       </div>
 
-      <div className="bg-[#080e1a] overflow-hidden rounded-b-xl">
+      <div className="bg-neutral-100 dark:bg-[#080e1a] overflow-hidden rounded-b-xl">
         {/* 2/3 + 1/3 split: field left, park factors right */}
         <div className="grid grid-cols-[2fr_1fr]">
           {/* Left: Stadium field */}
-          <div className="border-r border-white/[0.06]">
-            <div className="px-3 pt-2 pb-1 border-b border-white/[0.06]">
-              <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Field Profile</p>
-              <p className="text-[11px] text-white/55">Outfield distances with wall-height and wind overlay</p>
+          <div className="border-r border-neutral-200/40 dark:border-white/[0.06]">
+            <div className="px-3 pt-2 pb-1 border-b border-neutral-200/40 dark:border-white/[0.06]">
+              <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-neutral-500 dark:text-white/35">Field Profile</p>
+              <p className="text-[11px] text-neutral-400 dark:text-white/55">Outfield distances with wall-height and wind overlay</p>
             </div>
             <svg viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} className="w-full h-[228px] md:h-[268px]">
               <defs>
@@ -537,13 +581,13 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 </linearGradient>
                 <marker
                   id={`${cardId}-particle-tip`}
-                  markerWidth="3"
-                  markerHeight="3"
-                  refX="2.6"
-                  refY="1.5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  refX="4.5"
+                  refY="2.5"
                   orient="auto"
                 >
-                  <path d="M0,0 L3,1.5 L0,3 z" fill="rgba(224, 242, 254, 0.95)" />
+                  <path d="M0,0.5 L5,2.5 L0,4.5 z" className="fill-slate-500/70 dark:fill-sky-200/80" />
                 </marker>
                 <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
@@ -555,28 +599,39 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 </linearGradient>
               </defs>
 
-            <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#080e1a" />
+            <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} className="fill-neutral-100 dark:fill-[#080e1a]" />
             <g clipPath={`url(#${cardId}-clip)`}>
               <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-heat)`} />
 
               <g transform={`rotate(${windFlowRotationDeg} ${VIEWBOX_WIDTH / 2} ${VIEWBOX_HEIGHT / 2})`}>
-                {[...Array(11)].map((_, index) => (
-                  <g key={`wind-particle-row-${index}`} transform={`translate(110 ${50 + index * 18})`}>
-                    <g
-                      className="living-wind-particle"
-                      style={
-                        {
-                          animationDuration: windFlowDuration,
-                          animationDelay: `${index * 0.18}s`,
-                          opacity: windOpacity,
-                          "--wind-shift": `${windShiftPx}px`,
-                        } as CSSProperties
-                      }
-                    >
-                      <line x1={-8} y1={0} x2={8} y2={0} className="living-wind-particle-line" markerEnd={`url(#${cardId}-particle-tip)`} />
+                {[...Array(22)].map((_, index) => {
+                  const row_i = index;
+                  // Organic stagger — 4-column grid with offsets for natural feel
+                  const col = row_i % 4;
+                  const rowGroup = Math.floor(row_i / 4);
+                  const startX = 10 + col * 45 + (rowGroup % 2) * 20;
+                  const startY = 8 + row_i * 8.5;
+                  // Vary particle length: some short dashes, some long streaks
+                  const particleLen = row_i % 5 === 0 ? 6 : row_i % 3 === 0 ? 18 : 12 + (row_i % 4) * 3;
+                  const particleOpacity = row_i % 4 === 0 ? windOpacity * 0.5 : windOpacity;
+                  return (
+                    <g key={`wind-particle-row-${row_i}`} transform={`translate(${startX} ${startY})`}>
+                      <g
+                        className="living-wind-particle"
+                        style={
+                          {
+                            animationDuration: windFlowDuration,
+                            animationDelay: `${row_i * 0.09}s`,
+                            opacity: particleOpacity,
+                            "--wind-shift": `${windShiftPx}px`,
+                          } as CSSProperties
+                        }
+                      >
+                        <line x1={-particleLen} y1={0} x2={particleLen} y2={0} className="living-wind-particle-line" markerEnd={particleLen > 8 ? `url(#${cardId}-particle-tip)` : undefined} />
+                      </g>
                     </g>
-                  </g>
-                ))}
+                  );
+                })}
               </g>
             </g>
 
@@ -615,16 +670,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
 
             {distanceMarkers.map((marker) => (
               <g key={`distance-marker-${marker.section}`}>
-                <line
-                  x1={homeX}
-                  y1={homeY}
-                  x2={marker.lineEndX}
-                  y2={marker.lineEndY}
-                  stroke="rgba(148, 163, 184, 0.28)"
-                  strokeWidth={1}
-                  strokeDasharray="3 4"
-                />
-                <circle cx={marker.lineEndX} cy={marker.lineEndY} r={2.1} fill="rgba(186, 230, 253, 0.8)" />
+                {/* dashed lines and dots removed */}
                 <text
                   x={marker.labelX}
                   y={marker.labelY}
@@ -791,12 +837,12 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 <>
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Park Factors</p>
-                      <p className="text-[10px] text-white/40">Baseline 100</p>
+                      <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-neutral-500 dark:text-white/35">Park Factors</p>
+                      <p className="text-[10px] text-neutral-500 dark:text-white/40">Baseline 100</p>
                     </div>
-                    <span className="text-[10px] text-white/25">2025</span>
+                    <span className="text-[10px] text-neutral-400 dark:text-white/25">2025</span>
                   </div>
-                  <div className="mb-2 flex items-center justify-between text-[9px] uppercase tracking-[0.08em] text-white/25">
+                  <div className="mb-2 flex items-center justify-between text-[9px] uppercase tracking-[0.08em] text-neutral-400 dark:text-white/25">
                     <span>Suppress</span>
                     <span>Boost</span>
                   </div>
@@ -809,8 +855,8 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                       const isOver = dev > 0;
                       return (
                         <div key={key} className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-white/45 w-7 shrink-0 font-semibold">{label}</span>
-                          <div className="relative flex-1 h-2 bg-white/[0.10] rounded-full overflow-hidden">
+                          <span className="text-[10px] text-neutral-500 dark:text-white/45 w-7 shrink-0 font-semibold">{label}</span>
+                          <div className="relative flex-1 h-2 bg-neutral-200 dark:bg-white/[0.10] rounded-full overflow-hidden">
                             <div className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
                             {val != null && (
                               <div
@@ -821,7 +867,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                           </div>
                           <div className="w-[44px] shrink-0 text-right">
                             <p className={cn("text-[11px] font-bold tabular-nums leading-none", factorValueColor(val))}>{val ?? "–"}</p>
-                            <p className={cn("text-[9px] font-semibold tabular-nums leading-none mt-0.5", dev > 0 ? "text-emerald-300/85" : dev < 0 ? "text-red-300/85" : "text-white/35")}>
+                            <p className={cn("text-[9px] font-semibold tabular-nums leading-none mt-0.5", dev > 0 ? "text-emerald-300/85" : dev < 0 ? "text-red-300/85" : "text-neutral-500 dark:text-white/35")}>
                               {deltaLabel}
                             </p>
                           </div>
@@ -835,55 +881,49 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
           </div>
         </div>
 
+
         {/* Full-width weather pills */}
-        <div className="border-t border-white/[0.06]">
+        <div className="border-t border-neutral-200/40 dark:border-white/[0.06]">
           <div className="px-3 pt-2">
-            <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Game Conditions</p>
+            <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-neutral-500 dark:text-white/35">Game Conditions</p>
           </div>
           <div className="px-3 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Temp */}
-            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
-              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+            <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <Thermometer className="h-3 w-3 shrink-0" /> Temp
               </p>
-              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">{formatNumber(row.temperatureF, 0)}°</p>
-              <p className="text-[10px] text-white/50 mt-1.5">
+              <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none tabular-nums">{formatNumber(row.temperatureF, 0)}°</p>
+              <p className="text-[10px] text-neutral-400 dark:text-white/50 mt-1.5">
                 {row.feelsLikeF != null ? `Feels ${formatNumber(row.feelsLikeF, 0)}°` : "\u00A0"}
               </p>
             </div>
-
-            {/* Wind */}
-            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
-              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+            <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <Wind className="h-3 w-3 shrink-0" /> Wind
               </p>
-              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">
-                {formatNumber(row.windSpeedMph, 0)}
-                <span className="text-xs font-medium text-white/50 ml-1">mph</span>
+              <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none tabular-nums">
+                {formatNumber(_row.windSpeedMph, 0)}
+                <span className="text-xs font-medium text-neutral-400 dark:text-white/50 ml-1">mph</span>
               </p>
-              <p className="text-[10px] text-sky-300/70 mt-1.5 truncate">
-                {row.windLabel || (row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0")}
+              <p className="text-[10px] text-sky-700 dark:text-sky-300/70 mt-1.5 truncate">
+                {_row.windLabel || (_row.windGustMph != null ? `gusts ${formatNumber(_row.windGustMph, 0)} mph` : "\u00A0")}
               </p>
             </div>
-
-            {/* Rain */}
-            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
-              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+            <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
                 <CloudRain className="h-3 w-3 shrink-0" /> Rain
               </p>
-              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">
+              <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none tabular-nums">
                 {row.precipProbability != null ? `${Math.round(row.precipProbability)}%` : "—"}
               </p>
-              <p className="text-[10px] text-white/50 mt-1.5">
+              <p className="text-[10px] text-neutral-400 dark:text-white/50 mt-1.5">
                 {row.cloudCoverPct != null ? `${Math.round(row.cloudCoverPct)}% cloud cover` : "\u00A0"}
               </p>
             </div>
-
-            {/* Venue */}
-            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
-              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2">Venue</p>
-              <p className="text-[23px] font-semibold text-white leading-none truncate">{row.roofType || "—"}</p>
-              <p className="text-[10px] text-white/50 mt-1.5">
+            <div className="rounded-lg bg-neutral-200/50 dark:bg-white/[0.05] border border-neutral-300/50 dark:border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-neutral-500 dark:text-white/40 uppercase tracking-[0.08em] font-semibold mb-2">Venue</p>
+              <p className="text-[23px] font-semibold text-neutral-900 dark:text-white leading-none truncate">{row.roofType || "—"}</p>
+              <p className="text-[10px] text-neutral-400 dark:text-white/50 mt-1.5">
                 {row.elevationFt != null ? `${Math.round(row.elevationFt).toLocaleString()} ft elev` : "\u00A0"}
               </p>
             </div>
@@ -892,7 +932,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
 
         {/* Weather alert */}
         {row.weatherAlert && (
-          <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className="border-t border-neutral-200/40 dark:border-white/[0.06] px-4 py-3">
             <div className="flex items-start gap-2 text-xs text-amber-400/90">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400" />
               <span>{row.weatherAlert}</span>
@@ -909,25 +949,29 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         }
 
         .living-wind-particle-line {
-          stroke: rgba(186, 230, 253, 0.7);
-          stroke-width: 1.25;
+          stroke: rgba(51, 65, 85, 0.5);
+          stroke-width: 1.5;
           stroke-linecap: round;
+        }
+
+        :global(.dark) .living-wind-particle-line {
+          stroke: rgba(186, 230, 253, 0.7);
         }
 
         @keyframes living-wind-particle-flow {
           from {
-            transform: translateX(calc(var(--wind-shift, 48px) * -1));
-            opacity: 0.3;
+            transform: translateX(calc(var(--wind-shift, 120px) * -0.5));
+            opacity: 0.15;
           }
-          20% {
-            opacity: 0.85;
+          15% {
+            opacity: 0.7;
           }
-          80% {
-            opacity: 0.9;
+          85% {
+            opacity: 0.75;
           }
           to {
-            transform: translateX(var(--wind-shift, 48px));
-            opacity: 0.25;
+            transform: translateX(calc(var(--wind-shift, 120px) * 0.5));
+            opacity: 0.1;
           }
         }
       `}</style>

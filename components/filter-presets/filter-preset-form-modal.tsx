@@ -28,8 +28,11 @@ import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { 
   DEFAULT_FILTER_COLOR,
+  FILTER_PRESET_EMPTY_SPORT_MARKET,
   PRESET_SPORTS, 
+  buildFilterPresetSportMarketKey,
   parseSports,
+  parseFilterPresetSportMarketKey,
   formatSportsForStorage,
   getEqualWeights,
   type FilterPreset, 
@@ -51,7 +54,7 @@ interface FilterPresetFormModalProps {
 
 // Get all active sportsbooks for reference book selection
 // Priority order for sorting (higher priority = shown first)
-const PRIORITY_BOOKS = ['pinnacle', 'fanduel', 'draftkings', 'caesars', 'betmgm', 'bet365'];
+const PRIORITY_BOOKS = ['pinnacle', 'circa', 'fanduel', 'draftkings', 'caesars', 'betmgm', 'bet365'];
 
 const REFERENCE_BOOKS = sportsbooks
   .filter(book => book.isActive !== false)
@@ -145,6 +148,89 @@ function inferMarketGroup(apiKey: string): string {
   return 'Other';
 }
 
+const GAME_LINE_GROUPS = new Set([
+  'game',
+  'team totals',
+  'first to',
+  'special',
+  'halves',
+  'quarters',
+  '1st half',
+  '2nd half',
+  '1st quarter',
+  '2nd quarter',
+  '3rd quarter',
+  '4th quarter',
+  '1st period',
+  '2nd period',
+  '3rd period',
+  '1st 3 minutes',
+]);
+
+const PLAYER_PROP_GROUPS = new Set([
+  'passing',
+  'rushing',
+  'receiving',
+  'scoring',
+  'defense',
+  'kicking',
+  'combo',
+  'skater',
+  'goalie',
+  'batter',
+  'pitcher',
+  'player',
+  'first basket',
+]);
+
+function isPlayerPropMarket(market: SportMarket): boolean {
+  const key = market.apiKey.toLowerCase();
+  const group = (market.group || '').toLowerCase();
+
+  if (
+    key.includes('player_') ||
+    key.includes('_player_') ||
+    key.includes('batter_') ||
+    key.includes('pitcher_') ||
+    key.includes('passing_') ||
+    key.includes('rushing_') ||
+    key.includes('receiving_') ||
+    key.includes('receptions') ||
+    key.includes('goalscorer') ||
+    key.includes('first_td') ||
+    key.includes('last_td')
+  ) {
+    return true;
+  }
+
+  return PLAYER_PROP_GROUPS.has(group);
+}
+
+function isGameLineMarket(market: SportMarket): boolean {
+  if (isPlayerPropMarket(market)) return false;
+
+  const key = market.apiKey.toLowerCase();
+  const group = (market.group || '').toLowerCase();
+
+  if (GAME_LINE_GROUPS.has(group)) return true;
+
+  return (
+    key.startsWith('game_') ||
+    key.includes('moneyline') ||
+    key.includes('spread') ||
+    key.includes('h2h') ||
+    key.includes('draw_no_bet') ||
+    key.includes('team_total') ||
+    key.includes('home_team_') ||
+    key.includes('away_team_') ||
+    key.includes('total_points') ||
+    key.includes('total_runs') ||
+    key.includes('total_goals') ||
+    key.includes('total_touchdowns') ||
+    key.includes('overtime')
+  );
+}
+
 // Categorize markets into game lines and player props
 function categorizeMarkets(markets: SportMarket[]): { 
   gameLines: SportMarket[], 
@@ -157,19 +243,8 @@ function categorizeMarkets(markets: SportMarket[]): {
   
   markets.forEach(market => {
     const group = market.group || 'Other';
-    
-    // Check if it's a player prop by looking at apiKey
-    const isPlayerProp = market.apiKey.includes('player_') || 
-                         market.apiKey.includes('batter_') || 
-                         market.apiKey.includes('pitcher_') ||
-                         market.apiKey.includes('passing_') ||
-                         market.apiKey.includes('rushing_') ||
-                         market.apiKey.includes('receiving_') ||
-                         market.apiKey.includes('receptions') ||
-                         market.apiKey.includes('first_td') ||
-                         market.apiKey.includes('last_td');
-    
-    if (isPlayerProp) {
+
+    if (!isGameLineMarket(market)) {
       if (!playerProps[group]) playerProps[group] = [];
       playerProps[group].push(market);
     } else {
@@ -340,7 +415,7 @@ export function FilterPresetFormModal({
     ));
     
     let hasCustom = false;
-    const markets: string[] = [];
+    const markets = new Set<string>();
 
     selectedSports.forEach((sportId) => {
       const data = getMarketData(sportId);
@@ -361,21 +436,36 @@ export function FilterPresetFormModal({
         totalPlayerProps: data.playerPropIds.length,
       });
 
-      // If a set exists, it means the user customized this category
-      if (glSet) {
+      const selectedGameLineIds = glSet
+        ? data.gameLineIds.filter(id => glSet.has(id))
+        : data.gameLineIds;
+      const selectedPlayerPropIds = ppSet
+        ? data.playerPropIds.filter(id => ppSet.has(id))
+        : data.playerPropIds;
+
+      if (selectedGameLineIds.length !== data.gameLineIds.length) {
         hasCustom = true;
-        markets.push(...Array.from(glSet));
-        console.log(`[FilterPreset] Adding ${glSet.size} game lines for ${sportId}`);
       }
-      if (ppSet) {
+      if (selectedPlayerPropIds.length !== data.playerPropIds.length) {
         hasCustom = true;
-        markets.push(...Array.from(ppSet));
-        console.log(`[FilterPreset] Adding ${ppSet.size} player props for ${sportId}`);
+      }
+
+      const sportIsCustom =
+        selectedGameLineIds.length !== data.gameLineIds.length ||
+        selectedPlayerPropIds.length !== data.playerPropIds.length;
+
+      if (!sportIsCustom) return;
+
+      selectedGameLineIds.forEach(id => markets.add(buildFilterPresetSportMarketKey(sportId, id)));
+      selectedPlayerPropIds.forEach(id => markets.add(buildFilterPresetSportMarketKey(sportId, id)));
+
+      if (selectedGameLineIds.length === 0 && selectedPlayerPropIds.length === 0) {
+        markets.add(buildFilterPresetSportMarketKey(sportId, FILTER_PRESET_EMPTY_SPORT_MARKET));
       }
     });
 
-    console.log('[FilterPreset] Final payload:', { hasCustom, marketCount: markets.length, markets: markets.slice(0, 10) });
-    return hasCustom ? markets : null;
+    console.log('[FilterPreset] Final payload:', { hasCustom, marketCount: markets.size, markets: Array.from(markets).slice(0, 10) });
+    return hasCustom ? Array.from(markets) : null;
   }, [selectedMarkets, selectedSports, getMarketData]);
 
   // Build selectedMarkets state from an existing preset (for edit mode)
@@ -388,23 +478,53 @@ export function FilterPresetFormModal({
     const next: Record<string, Set<string>> = {};
     const presetMarkets = presetToLoad.markets;
     if (!presetMarkets || presetMarkets.length === 0) {
-      console.log('[FilterPreset] No custom markets in preset - using all markets');
-      return next; // all markets
+      sportsToUse.forEach((sportId) => {
+        const data = getMarketData(sportId);
+        if (presetToLoad.market_type === 'player' && data.gameLineIds.length > 0) {
+          next[`${sportId}:gameLines`] = new Set();
+        }
+        if (presetToLoad.market_type === 'game' && data.playerPropIds.length > 0) {
+          next[`${sportId}:playerProps`] = new Set();
+        }
+      });
+      console.log('[FilterPreset] No custom markets in preset - using market_type restore');
+      return next;
     }
 
-    // Preset has custom markets - we need to reconstruct the selection state
-    sportsToUse.forEach((sportId) => {
-      const data = getMarketData(sportId);
+      const parsedCompositeMarkets = presetMarkets
+        .map(parseFilterPresetSportMarketKey)
+        .filter((value): value is { sport: string; market: string } => value !== null);
+      const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
+
+      // Preset has custom markets - we need to reconstruct the selection state
+      sportsToUse.forEach((sportId) => {
+        const data = getMarketData(sportId);
 
       const glKey = `${sportId}:gameLines`;
       const ppKey = `${sportId}:playerProps`;
       const glSet = new Set<string>();
       const ppSet = new Set<string>();
 
-      presetMarkets.forEach((m) => {
-        if (data.gameLineIds.includes(m)) glSet.add(m);
-        if (data.playerPropIds.includes(m)) ppSet.add(m);
-      });
+      if (hasCompositeMarkets) {
+        const sportMarkets = parsedCompositeMarkets
+          .filter((entry) => entry.sport === sportId)
+          .map((entry) => entry.market)
+          .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+
+        if (sportMarkets.length === 0 && !parsedCompositeMarkets.some((entry) => entry.sport === sportId)) {
+          return;
+        }
+
+        sportMarkets.forEach((m) => {
+          if (data.gameLineIds.includes(m)) glSet.add(m);
+          if (data.playerPropIds.includes(m)) ppSet.add(m);
+        });
+      } else {
+        presetMarkets.forEach((m) => {
+          if (data.gameLineIds.includes(m)) glSet.add(m);
+          if (data.playerPropIds.includes(m)) ppSet.add(m);
+        });
+      }
 
       console.log(`[FilterPreset] Sport ${sportId}:`, {
         glMatched: glSet.size,
@@ -568,24 +688,54 @@ export function FilterPresetFormModal({
       // Load markets inline to avoid dependency issues
       const presetMarkets = preset.markets;
       if (!presetMarkets || presetMarkets.length === 0) {
-        setSelectedMarkets({});
-      } else {
         const next: Record<string, Set<string>> = {};
         const sportsToUse = sports.length ? sports : ["nba"];
         sportsToUse.forEach((sportId) => {
-          const marketKey = getSportMarketKey(sportId);
-          const markets = SPORT_MARKETS[marketKey] || [];
-          const categorized = categorizeMarkets(markets);
+          const data = getMarketData(sportId);
+          if (preset.market_type === 'player' && data.gameLineIds.length > 0) {
+            next[`${sportId}:gameLines`] = new Set();
+          }
+          if (preset.market_type === 'game' && data.playerPropIds.length > 0) {
+            next[`${sportId}:playerProps`] = new Set();
+          }
+        });
+        setSelectedMarkets(next);
+      } else {
+        const next: Record<string, Set<string>> = {};
+        const sportsToUse = sports.length ? sports : ["nba"];
+        const parsedCompositeMarkets = presetMarkets
+          .map(parseFilterPresetSportMarketKey)
+          .filter((value): value is { sport: string; market: string } => value !== null);
+        const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
+
+        sportsToUse.forEach((sportId) => {
+          const categorized = getMarketData(sportId);
           
           const glKey = `${sportId}:gameLines`;
           const ppKey = `${sportId}:playerProps`;
           const glSet = new Set<string>();
           const ppSet = new Set<string>();
 
-          presetMarkets.forEach((m) => {
-            if (categorized.gameLineIds.includes(m)) glSet.add(m);
-            if (categorized.playerPropIds.includes(m)) ppSet.add(m);
-          });
+          if (hasCompositeMarkets) {
+            const sportMarkets = parsedCompositeMarkets
+              .filter((entry) => entry.sport === sportId)
+              .map((entry) => entry.market)
+              .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+
+            if (sportMarkets.length === 0 && !parsedCompositeMarkets.some((entry) => entry.sport === sportId)) {
+              return;
+            }
+
+            sportMarkets.forEach((m) => {
+              if (categorized.gameLineIds.includes(m)) glSet.add(m);
+              if (categorized.playerPropIds.includes(m)) ppSet.add(m);
+            });
+          } else {
+            presetMarkets.forEach((m) => {
+              if (categorized.gameLineIds.includes(m)) glSet.add(m);
+              if (categorized.playerPropIds.includes(m)) ppSet.add(m);
+            });
+          }
 
           if (glSet.size < categorized.gameLineIds.length) {
             next[glKey] = glSet;
@@ -894,6 +1044,7 @@ export function FilterPresetFormModal({
 
     try {
       const marketsPayload = buildSelectedMarketsPayload();
+      const fallbackMode = minBooksRequired < referenceBooks.length ? "use_fallback" : "hide";
       const data: FilterPresetCreate = {
         name: name.trim(),
         color,
@@ -902,7 +1053,7 @@ export function FilterPresetFormModal({
         market_type: getMarketType(),
         sharp_books: referenceBooks,
         book_weights: weights,
-        fallback_mode: "hide",
+        fallback_mode: fallbackMode,
         fallback_weights: null,
         min_books_reference: minBooksRequired,
         min_odds: minOdds,
@@ -915,6 +1066,7 @@ export function FilterPresetFormModal({
       console.log('[FilterPreset] Market count:', marketsPayload?.length ?? 'null (all markets)');
       console.log('[FilterPreset] Sports:', data.sport);
       console.log('[FilterPreset] Market type:', data.market_type);
+      console.log('[FilterPreset] Fallback mode:', data.fallback_mode);
 
       if (isEditing && preset) {
         console.log('[FilterPreset] Updating preset ID:', preset.id);
@@ -939,14 +1091,11 @@ export function FilterPresetFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-2xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl shadow-2xl">
         <form onSubmit={handleSubmit} className="flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh]">
-          {/* Premium gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hidden sm:block" />
-          
           {/* Header */}
-          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 sm:py-5 shrink-0 bg-gradient-to-r from-white via-emerald-50/20 to-teal-50/20 dark:from-neutral-900 dark:via-emerald-950/10 dark:to-teal-950/10">
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 sm:py-5 shrink-0 bg-white dark:bg-neutral-900">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
-                <Layers className="h-5 w-5 text-white" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800">
+                <Layers className="h-5 w-5 text-neutral-700 dark:text-neutral-200" />
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -1021,11 +1170,11 @@ export function FilterPresetFormModal({
                 {/* LEFT COLUMN - Reference Books & Weights */}
                 <div className="space-y-5">
                   {/* Pie Chart & Weights Section */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20 flex items-center justify-center">
-                          <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                          <SlidersHorizontal className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                         </div>
                         <div>
                           <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -1043,7 +1192,7 @@ export function FilterPresetFormModal({
                             setWeights(getEqualWeights(referenceBooks));
                           }}
                           disabled={isLoading}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                         >
                           Equal
                         </button>
@@ -1093,10 +1242,10 @@ export function FilterPresetFormModal({
                   </div>
 
                   {/* Reference Books Section */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 flex items-center justify-center">
-                        <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                        <Filter className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -1159,7 +1308,7 @@ export function FilterPresetFormModal({
                             className={cn(
                               "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all select-none",
                               isSelected
-                                ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700"
+                                ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700"
                                 : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600",
                               isLoading && "opacity-60 cursor-not-allowed"
                             )}
@@ -1170,7 +1319,7 @@ export function FilterPresetFormModal({
                               className={cn(
                                 "h-4 w-4 rounded border flex items-center justify-center shrink-0",
                                 isSelected
-                                  ? "bg-emerald-500 border-emerald-500 text-white"
+                                  ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white text-white dark:text-neutral-900"
                                   : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-transparent"
                               )}
                             >
@@ -1208,7 +1357,7 @@ export function FilterPresetFormModal({
                   {/* Settings Row */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Min Books Required */}
-                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 shadow-sm">
                       <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                         Min Books Required
                       </Label>
@@ -1222,8 +1371,8 @@ export function FilterPresetFormModal({
                             className={cn(
                               "flex-1 h-8 rounded-lg text-xs font-semibold transition-all border",
                               minBooksRequired === n
-                                ? "bg-gradient-to-r from-emerald-500 to-teal-500 border-transparent text-white shadow-sm"
-                                : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-emerald-300 dark:hover:border-emerald-600",
+                                ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white text-white dark:text-neutral-900 shadow-sm"
+                                : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600",
                               n > referenceBooks.length && "opacity-30 cursor-not-allowed"
                             )}
                           >
@@ -1234,7 +1383,7 @@ export function FilterPresetFormModal({
                     </div>
 
                     {/* Odds Range */}
-                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 shadow-sm">
                       <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                         Odds Range
                       </Label>
@@ -1261,10 +1410,10 @@ export function FilterPresetFormModal({
                   </div>
 
                   {/* Sports & Markets */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/10 dark:from-violet-500/20 dark:to-purple-500/20 flex items-center justify-center">
-                      <LayoutGrid className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                    <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                      <LayoutGrid className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                     </div>
                     <div>
                       <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -1357,7 +1506,7 @@ export function FilterPresetFormModal({
                                 disabled={isLoading}
                                 className={cn(
                                   "h-4 w-4 transition-colors",
-                                  isSelected && "border-emerald-500 data-[state=checked]:bg-emerald-500"
+                                  isSelected && "border-neutral-900 dark:border-white data-[state=checked]:bg-neutral-900 dark:data-[state=checked]:bg-white"
                                 )}
                               />
                             </div>
@@ -1366,7 +1515,7 @@ export function FilterPresetFormModal({
                               sport={sport.value} 
                               className={cn(
                                 "w-4 h-4 transition-colors",
-                                isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
+                                isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400"
                               )} 
                             />
                             
@@ -1628,7 +1777,7 @@ export function FilterPresetFormModal({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 sm:flex-none h-12 sm:h-10 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-6 rounded-xl text-sm font-semibold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isEditing ? "Save Changes" : "Create Model"}

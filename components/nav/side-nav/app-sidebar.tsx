@@ -6,12 +6,10 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "motion/react"
 import {
-  IconHome,
   IconScale,
   IconPlus,
   IconRocket,
   IconTable,
-  IconFileText,
   IconStar,
   IconHeart,
   IconSettings,
@@ -29,9 +27,9 @@ import {
   IconHistory,
   IconBuildingBank,
   IconTags,
-  IconTrophy,
+  IconBrandDiscord,
 } from "@tabler/icons-react"
-import Chart from "@/icons/chart"
+import { SportIcon } from "@/components/icons/sport-icons"
 
 import {
   SidebarBody,
@@ -66,6 +64,7 @@ interface NavChildItem {
   comingSoon?: boolean  // 🔨 Under construction - being built
   offSeason?: boolean   // 💤 Sport is in off-season
   badge?: string
+  sectionLabel?: string // Non-clickable divider label (e.g. "sheets")
 }
 
 interface NavItem {
@@ -73,11 +72,13 @@ interface NavItem {
   href: string
   icon: React.ElementType
   children?: NavChildItem[]
+  badge?: string
 }
 
 // Sport sub-items for Odds Screen (active first, then disabled/off-season)
 const oddsScreenSports: NavChildItem[] = [
   // Active
+  { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
@@ -99,72 +100,63 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]
 
-// Sport sub-items for Hit Rates (active first, then disabled)
-const hitRatesSports: NavChildItem[] = [
-  // Active
-  { label: "NBA", href: "/hit-rates/nba" },
-  { label: "MLB", href: "/hit-rates/mlb" },
-  // Under construction
-  { label: "NFL", href: "/hit-rates/nfl", disabled: true, comingSoon: true },
-  { label: "NHL", href: "/hit-rates/nhl", disabled: true, comingSoon: true },
-  { label: "NCAAB", href: "/hit-rates/ncaab", disabled: true, comingSoon: true },
-  { label: "WNBA", href: "/hit-rates/wnba", disabled: true, comingSoon: true },
-  // Off season
-  { label: "NCAAF", href: "/hit-rates/ncaaf", disabled: true, offSeason: true },
-]
-
 // Navigation links - icons will inherit colors from parent
+
+// Sport icon wrappers for NavItem compatibility
+const NbaIcon = ({ className }: { className?: string }) => <SportIcon sport="nba" className={className} />
+const MlbIcon = ({ className }: { className?: string }) => <SportIcon sport="mlb" className={className} />
 
 // Edge Tools - Money-making tools (Arbitrage, EV, Edge Finder)
 const edgeToolsLinks: NavItem[] = [
   { label: "Arbitrage", href: "/arbitrage", icon: IconScale },
   { label: "Positive EV", href: "/positive-ev", icon: IconPlus },
   { label: "Edge Finder", href: "/edge-finder", icon: IconRocket },
+  { label: "Sharp Intel", href: "/sharp-intel", icon: IconBulb, badge: "NEW" },
 ]
 
-// Research - Analysis and research tools
-const researchLinks: NavItem[] = [
-  { 
-    label: "Odds Screen", 
-    href: "/odds", 
-    icon: IconTable,
-    children: oddsScreenSports
-  },
-  { 
-    label: "Hit Rates", 
-    href: "/hit-rates", 
-    icon: Chart,
-    children: hitRatesSports
-  },
-  { 
-    label: "Cheat Sheets", 
-    href: "/cheatsheets", 
-    icon: IconFileText,
-    children: [
-      { label: "NBA • Hit Rates", href: "/cheatsheets/nba/hit-rates" },
-      { label: "NBA • Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
-      { label: "NBA • Injury Impact", href: "/cheatsheets/nba/injury-impact" },
-      { label: "NBA • Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
-      { label: "NBA • Defense vs Position", href: "/cheatsheets/nba/dvp" },
-      { label: "MLB • Weather Report", href: "/cheatsheets/mlb/weather-report" },
-      { label: "MLB • Power Matchups", href: "/cheatsheets/mlb/power-matchups" },
-      { label: "MLB • Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
-      { label: "MLB • Batter vs Pitcher", href: "/cheatsheets/mlb/batter-vs-pitcher" },
-      { label: "MLB • Hit Streaks", href: "/cheatsheets/mlb/hit-streaks" },
-      { label: "MLB • Strikeouts", href: "/cheatsheets/mlb/strikeouts" },
-    ]
-  },
-  {
-    label: "KOTC",
-    href: "/stats/nba/king-of-the-court",
-    icon: IconTrophy,
-  },
-]
+// Sport sections — flat list with divider between Hit Rates and sheets
+const nbaLink: NavItem = {
+  label: "NBA",
+  href: "#nba",
+  icon: NbaIcon,
+  children: [
+    { label: "Hit Rates", href: "/hit-rates/nba" },
+    { label: "sheets", href: "", sectionLabel: "sheets" },
+    { label: "Top Props", href: "/cheatsheets/nba/hit-rates" },
+    { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
+{ label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+    { label: "Triple Double", href: "/cheatsheets/nba/triple-double-sheet" },
+    { label: "Double Double", href: "/cheatsheets/nba/double-double-sheet" },
+    { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
+    { label: "King of the Court", href: "/stats/nba/king-of-the-court" },
+  ],
+}
+
+const mlbLink: NavItem = {
+  label: "MLB",
+  href: "#mlb",
+  icon: MlbIcon,
+  children: [
+    { label: "Game Center", href: "/cheatsheets/mlb/game-center" },
+    { label: "Prop Center", href: "/cheatsheets/mlb/prop-command-center" },
+    { label: "sheets", href: "", sectionLabel: "sheets" },
+    { label: "NRFI", href: "/cheatsheets/mlb/nrfi" },
+    { label: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
+    { label: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
+    { label: "Hit Rates", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
+  ],
+}
+
+const oddsScreenLink: NavItem = {
+  label: "Odds Screen",
+  href: "/odds",
+  icon: IconTable,
+  children: oddsScreenSports,
+}
 
 // Resources - Informational content
 const resourcesLinks: NavItem[] = [
@@ -173,6 +165,7 @@ const resourcesLinks: NavItem[] = [
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
   { label: "My Slips", href: "/my-slips", icon: IconHeart },
+  { label: "Discord", href: "/discord", icon: IconBrandDiscord },
 ]
 
 const accountLinks: NavItem[] = [
@@ -228,7 +221,9 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
   
   const hasChildren = link.children && link.children.length > 0
   const isActive = pathname === link.href || pathname?.startsWith(`${link.href}/`)
-  const isChildActive = hasChildren && link.children?.some(child => pathname === child.href)
+  const isChildActive = hasChildren && link.children?.some(child =>
+    !child.sectionLabel && (pathname === child.href || pathname?.startsWith(`${child.href}/`))
+  )
   const Icon = link.icon
   
   // Check if this item is expanded (controlled by parent)
@@ -334,16 +329,29 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
               className="min-w-[200px] max-h-[70vh] overflow-y-auto p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
             >
               {link.children?.map((child, idx) => {
-                const isChildItemActive = pathname === child.href
+                // Section label divider
+                if (child.sectionLabel) {
+                  return (
+                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5">
+                      <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                        {child.sectionLabel}
+                      </span>
+                      <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
+                    </div>
+                  )
+                }
+
+                const isChildItemActive = pathname === child.href || pathname?.startsWith(`${child.href}/`)
                 const isDisabled = child.disabled
-                
+
                 if (isDisabled) {
-                  const tooltipText = child.offSeason 
-                    ? "Off season" 
-                    : child.comingSoon 
-                      ? "Under construction" 
+                  const tooltipText = child.offSeason
+                    ? "Off season"
+                    : child.comingSoon
+                      ? "Under construction"
                       : ""
-                  
+
                   return (
                     <Tooltip key={idx} delayDuration={0}>
                       <TooltipTrigger asChild>
@@ -371,7 +379,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                     </Tooltip>
                   )
                 }
-                
+
                 return (
                   <DropdownMenuItem key={idx} asChild className="p-0">
                     <Link
@@ -414,16 +422,29 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
               >
                 <div className="ml-4 pl-3 border-l border-neutral-200 dark:border-neutral-700 mt-1 space-y-0.5">
                   {link.children?.map((child, idx) => {
-                    const isChildItemActive = pathname === child.href
+                    // Section label divider
+                    if (child.sectionLabel) {
+                      return (
+                        <div key={idx} className="flex items-center gap-2 py-1.5 px-2">
+                          <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                            {child.sectionLabel}
+                          </span>
+                          <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
+                        </div>
+                      )
+                    }
+
+                    const isChildItemActive = pathname === child.href || pathname?.startsWith(`${child.href}/`)
                     const isDisabled = child.disabled
-                    
+
                     if (isDisabled) {
-                      const tooltipText = child.offSeason 
-                        ? "Off season" 
-                        : child.comingSoon 
-                          ? "Under construction" 
+                      const tooltipText = child.offSeason
+                        ? "Off season"
+                        : child.comingSoon
+                          ? "Under construction"
                           : ""
-                      
+
                       return (
                         <Tooltip key={idx} delayDuration={0}>
                           <TooltipTrigger asChild>
@@ -451,7 +472,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         </Tooltip>
                       )
                     }
-                    
+
                     return (
                       <Link
                         key={idx}
@@ -521,6 +542,11 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           >
             {link.label}
           </motion.span>
+          {link.badge && (
+            <span className="ml-auto text-[9px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-1.5 py-0.5 rounded shrink-0">
+              {link.badge}
+            </span>
+          )}
         </>
       )}
     </Link>
@@ -703,14 +729,14 @@ function StatusCard() {
   }, [isTrial, entitlements?.trial?.trial_ends_at])
   
   const trialTotalDays = React.useMemo(() => {
-    if (!isTrial) return 3
+    if (!isTrial) return 7
     if (entitlements?.trial?.trial_started_at && entitlements?.trial?.trial_ends_at) {
       const start = new Date(entitlements.trial.trial_started_at).getTime()
       const end = new Date(entitlements.trial.trial_ends_at).getTime()
       const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
       return Math.max(1, total)
     }
-    return 3
+    return 7
   }, [isTrial, entitlements?.trial?.trial_started_at, entitlements?.trial?.trial_ends_at])
   const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
   
@@ -1004,9 +1030,9 @@ export function AppSidebar() {
   
   // Auto-expand the parent of the active child on initial load only
   React.useEffect(() => {
-    const allLinks = [...researchLinks, ...resourcesLinks]
-    for (const link of allLinks) {
-      if (link.children?.some(child => pathname === child.href)) {
+    const allExpandableLinks = [nbaLink, mlbLink, oddsScreenLink, ...resourcesLinks]
+    for (const link of allExpandableLinks) {
+      if (link.children?.some(child => !child.sectionLabel && (pathname === child.href || pathname?.startsWith(`${child.href}/`)))) {
         setExpandedHref(link.href)
         break
       }
@@ -1038,20 +1064,20 @@ export function AppSidebar() {
           
           {/* Navigation sections */}
           <div className="flex flex-col gap-6">
-            {/* Edge Tools */}
+            {/* Sharp Tools */}
             <div className="flex flex-col gap-0.5">
-              <SectionLabel>Edge Tools</SectionLabel>
+              <SectionLabel>Sharp Tools</SectionLabel>
               {edgeToolsLinks.map((link, idx) => (
                 <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
               ))}
             </div>
-            
-            {/* Research */}
+
+            {/* Research — Sports + Odds */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Research</SectionLabel>
-              {researchLinks.map((link, idx) => (
-                <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-              ))}
+              <NavLink link={nbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+              <NavLink link={mlbLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+              <NavLink link={oddsScreenLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
             </div>
             
             {/* Resources */}

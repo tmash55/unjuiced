@@ -22,6 +22,65 @@ import type {
 } from "./types";
 import { DEFAULT_DEVIG_METHODS } from "./constants";
 
+const ALL_DEVIG_METHODS: DevigMethod[] = ["power", "multiplicative", "additive", "probit"];
+
+function getMethodOrder(methods?: DevigMethod[]): DevigMethod[] {
+  const source = methods && methods.length > 0 ? methods : ALL_DEVIG_METHODS;
+  return source.filter((method, index) => source.indexOf(method) === index);
+}
+
+export function getSelectedEVCalculations(
+  calculations: Pick<MultiEVCalculation, DevigMethod>,
+  methods?: DevigMethod[]
+): EVCalculation[] {
+  return getMethodOrder(methods)
+    .map((method) => calculations[method])
+    .filter((calculation): calculation is EVCalculation => calculation !== undefined);
+}
+
+export function summarizeMultiEV(
+  calculations: Pick<MultiEVCalculation, DevigMethod>,
+  methods?: DevigMethod[]
+): Pick<MultiEVCalculation, "evWorst" | "evBest" | "evDisplay" | "kellyWorst"> {
+  const selectedCalculations = getSelectedEVCalculations(calculations, methods);
+  if (selectedCalculations.length === 0) {
+    return {
+      evWorst: 0,
+      evBest: 0,
+      evDisplay: 0,
+    };
+  }
+
+  const evValues = selectedCalculations.map((calculation) => calculation.evPercent);
+  const kellyValues = selectedCalculations
+    .map((calculation) => calculation.kellyFraction)
+    .filter((kelly): kelly is number => kelly != null);
+
+  return {
+    evWorst: Math.min(...evValues),
+    evBest: Math.max(...evValues),
+    evDisplay: Math.min(...evValues),
+    kellyWorst: kellyValues.length > 0 ? Math.min(...kellyValues) : undefined,
+  };
+}
+
+export function getPrimaryEVCalculation(
+  calculations: Pick<MultiEVCalculation, DevigMethod>,
+  methods?: DevigMethod[],
+  evCase: "worst" | "best" = "worst"
+): EVCalculation | undefined {
+  const selectedCalculations = getSelectedEVCalculations(calculations, methods);
+  if (selectedCalculations.length === 0) return undefined;
+
+  return selectedCalculations.reduce((best, current) => {
+    if (!best) return current;
+    if (evCase === "best") {
+      return current.evPercent > best.evPercent ? current : best;
+    }
+    return current.evPercent < best.evPercent ? current : best;
+  }, selectedCalculations[0]);
+}
+
 // =============================================================================
 // Odds Conversion Functions
 // =============================================================================
@@ -643,7 +702,8 @@ export function calculateEVDetails(
 export function calculateMultiEV(
   devigResults: MultiDevigResult,
   bookOffer: BookOffer,
-  side: "over" | "under"
+  side: "over" | "under",
+  methods?: DevigMethod[]
 ): MultiEVCalculation {
   const result: MultiEVCalculation = {
     evWorst: Infinity,
@@ -699,22 +759,17 @@ export function calculateMultiEV(
     }
   }
   
-  // Calculate aggregated values
-  if (evValues.length > 0) {
-    result.evWorst = Math.min(...evValues);
-    result.evBest = Math.max(...evValues);
-    result.evDisplay = result.evWorst; // Default to conservative
-  } else {
+  if (evValues.length === 0) {
     result.evWorst = 0;
     result.evBest = 0;
     result.evDisplay = 0;
+    return result;
   }
-  
-  if (kellyValues.length > 0) {
-    result.kellyWorst = Math.min(...kellyValues);
-  }
-  
-  return result;
+
+  return {
+    ...result,
+    ...summarizeMultiEV(result, methods),
+  };
 }
 
 // =============================================================================

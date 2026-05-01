@@ -18,7 +18,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PositiveEVOpportunity, PositiveEVResponse, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { SHARP_PRESETS, DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
-import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
+import {
+  DEFAULT_MODEL_COLOR,
+  EV_MODEL_EMPTY_SPORT_MARKET,
+  type EvModel,
+  parseEvSports,
+  parseEvModelSportMarketKey,
+} from "@/lib/types/ev-models";
 import { useSSE } from "@/hooks/use-sse";
 import { isMarketSelected } from "@/lib/utils";
 
@@ -48,6 +54,8 @@ interface ModelConfig {
     devigMethods: DevigMethod[];
     minEV: number;
     maxEV?: number;
+    minOdds?: number;
+    maxOdds?: number;
     markets: string[] | null;
     marketType: "all" | "player" | "game";
     mode: EVMode;
@@ -136,7 +144,7 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
-        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        markets: null, // Market filtering is client-side only
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,
@@ -158,6 +166,51 @@ function buildModelConfigs(
     const sports = modelSports.length > 0 
       ? modelSports 
       : (prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS);
+    const parsedCompositeMarkets = (model.markets || [])
+      .map(parseEvModelSportMarketKey)
+      .filter((value): value is { sport: string; market: string } => value !== null);
+    const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
+    const perSportLimit = Math.max(1, Math.ceil(limit / activeModels.length / Math.max(1, sports.length)));
+
+    if (hasCompositeMarkets) {
+      sports.forEach((sport) => {
+        const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === sport);
+        const sportMarkets = sportEntries
+          .map((entry) => entry.market)
+          .filter((market) => market !== EV_MODEL_EMPTY_SPORT_MARKET);
+        const hasSportCustomization = sportEntries.length > 0;
+
+        if (hasSportCustomization && sportMarkets.length === 0) {
+          return;
+        }
+
+        configs.push({
+          filters: {
+            sports: [sport],
+            sharpPreset: null,
+            customSharpBooks: model.sharp_books,
+            customBookWeights: model.book_weights,
+            devigMethods: prefs.devigMethods,
+            minEV: prefs.minEv,
+            maxEV: prefs.maxEv,
+            minOdds: model.min_odds ?? -500,
+            maxOdds: model.max_odds ?? 500,
+            markets: hasSportCustomization ? sportMarkets : null,
+            marketType: "all",
+            mode: prefs.mode,
+            minBooksPerSide: model.min_books_reference || prefs.minBooksPerSide,
+            limit: perSportLimit,
+          },
+          metadata: {
+            modelId: model.id,
+            modelName: model.name,
+            isCustom: true,
+            modelColor: model.color || DEFAULT_MODEL_COLOR,
+          },
+        });
+      });
+      continue;
+    }
 
     configs.push({
       filters: {
@@ -168,6 +221,8 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
+        minOdds: model.min_odds ?? -500,
+        maxOdds: model.max_odds ?? 500,
         markets: model.markets,
         marketType: model.market_type,
         mode: prefs.mode,
@@ -221,6 +276,12 @@ function buildQueryParams(config: ModelConfig, isPro: boolean): URLSearchParams 
   if (filters.maxEV) {
     params.set("maxEV", String(filters.maxEV));
   }
+  if (filters.minOdds !== undefined) {
+    params.set("minOdds", String(filters.minOdds));
+  }
+  if (filters.maxOdds !== undefined) {
+    params.set("maxOdds", String(filters.maxOdds));
+  }
   
   if (filters.mode) {
     params.set("mode", filters.mode);
@@ -244,6 +305,7 @@ async function fetchModelOpportunities(
   opportunities: PositiveEVOpportunity[];
   totalFound: number;
   totalReturned: number;
+  meta: PositiveEVResponse["meta"];
   config: ModelConfig;
 }> {
   const params = buildQueryParams(config, isPro);
@@ -251,11 +313,17 @@ async function fetchModelOpportunities(
   
   const response = await fetch(url, { cache: "no-store" });
   
+  const data = (await response.json().catch(() => null)) as PositiveEVResponse | { error?: string; message?: string } | null;
   if (!response.ok) {
-    throw new Error(`Failed to fetch: ${response.statusText}`);
+    const message =
+      (data && "message" in data && typeof data.message === "string" && data.message) ||
+      (data && "error" in data && typeof data.error === "string" && data.error) ||
+      `Failed to fetch: ${response.statusText}`;
+    throw new Error(message);
   }
-  
-  const data: PositiveEVResponse = await response.json();
+  if (!data || !("meta" in data)) {
+    throw new Error("Invalid +EV response");
+  }
   
   // Tag opportunities with model metadata
   const opportunities = (data.opportunities || []).map((opp) => ({
@@ -269,6 +337,7 @@ async function fetchModelOpportunities(
     opportunities,
     totalFound: data.meta?.totalFound || 0,
     totalReturned: data.meta?.returned || 0,
+    meta: data.meta,
     config,
   };
 }
@@ -354,6 +423,8 @@ export interface UseMultiEvModelStreamResult {
     totalFound: number;
     returned: number;
     minBooksPerSide?: number;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
   };
   isCustomMode: boolean;
   activeConfigs: ModelConfig[];
@@ -376,7 +447,13 @@ export function useMultiEvModelStream({
   const [changes, setChanges] = useState<ChangeMap>(new Map());
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [stale, setStale] = useState<Set<string>>(new Set());
-  const [meta, setMeta] = useState<{ totalFound: number; returned: number; minBooksPerSide?: number }>({ 
+  const [meta, setMeta] = useState<{
+    totalFound: number;
+    returned: number;
+    minBooksPerSide?: number;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
+  }>({ 
     totalFound: 0, 
     returned: 0 
   });
@@ -576,6 +653,8 @@ export function useMultiEvModelStream({
       setMeta({
         totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
         returned: merged.length,
+        emptyReason: results.length === 1 ? results[0].meta.emptyReason : undefined,
+        suggestedSharpPresets: results.length === 1 ? results[0].meta.suggestedSharpPresets : undefined,
       });
       
     } catch (e: any) {

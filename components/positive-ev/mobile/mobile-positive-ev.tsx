@@ -15,6 +15,7 @@ import { MobileEvModelsBar } from "./mobile-ev-models-bar";
 import type { PositiveEVOpportunity, DevigMethod, SharpPreset, EVMode } from "@/lib/ev/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { PositiveEVFilters } from "../positive-ev-filters";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Sort options
 const SORT_OPTIONS = [
@@ -82,6 +83,8 @@ interface MobilePositiveEVProps {
   minEv?: number;
   maxEv?: number | undefined;
   minBooksPerSide?: number;
+  minOdds?: number | null;
+  maxOdds?: number | null;
   minLiquidity?: number;
   onFiltersChange?: (filters: {
     selectedBooks?: string[];
@@ -94,6 +97,8 @@ interface MobilePositiveEVProps {
     maxEv?: number | undefined;
     mode?: EVMode;
     minBooksPerSide?: number;
+    minOdds?: number | null;
+    maxOdds?: number | null;
     minLiquidity?: number;
     showHidden?: boolean;
   }) => void;
@@ -143,6 +148,8 @@ export function MobilePositiveEV({
   minEv = 0,
   maxEv,
   minBooksPerSide = 2,
+  minOdds = null,
+  maxOdds = null,
   minLiquidity = 0,
   onFiltersChange,
   availableSports = [],
@@ -152,6 +159,7 @@ export function MobilePositiveEV({
   isLoggedIn = false,
   hasEliteAccess = false,
 }: MobilePositiveEVProps) {
+  const applyState = useStateLink();
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState("ev_desc");
@@ -167,18 +175,30 @@ export function MobilePositiveEV({
   // Filter and sort opportunities
   const filteredOpportunities = useMemo(() => {
     let filtered = [...opportunities];
-    
+
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(opp => 
+      filtered = filtered.filter(opp =>
         opp.playerName?.toLowerCase().includes(query) ||
         opp.homeTeam?.toLowerCase().includes(query) ||
         opp.awayTeam?.toLowerCase().includes(query) ||
         opp.market?.toLowerCase().includes(query)
       );
     }
-    
+
+    // Min/Max EV filter
+    if (minEv > 0 || (maxEv != null && maxEv < Infinity)) {
+      filtered = filtered.filter(opp => {
+        const ev = evCase === "best"
+          ? (opp.evCalculations?.evBest ?? 0)
+          : (opp.evCalculations?.evWorst ?? 0);
+        if (minEv > 0 && ev < minEv) return false;
+        if (maxEv != null && ev > maxEv) return false;
+        return true;
+      });
+    }
+
     // Sort
     filtered.sort((a, b) => {
       const field = currentSort.field;
@@ -202,7 +222,7 @@ export function MobilePositiveEV({
     });
     
     return filtered;
-  }, [opportunities, searchQuery, currentSort]);
+  }, [opportunities, searchQuery, currentSort, minEv, maxEv, evCase]);
   
   // Visible opportunities
   const visibleOpportunities = useMemo(() => {
@@ -225,9 +245,9 @@ export function MobilePositiveEV({
     // On mobile, prefer the deep link (mobileLink) if available
     const link = opp.book.mobileLink || opp.book.link;
     if (link) {
-      window.open(link, "_blank");
+      window.open(applyState(link) || link, "_blank");
     }
-  }, []);
+  }, [applyState]);
   
   // Format time ago
   const formatTimeAgo = (timestamp: number): string => {
@@ -329,6 +349,8 @@ export function MobilePositiveEV({
                 maxEv={maxEv}
                 mode={mode}
                 minBooksPerSide={minBooksPerSide}
+                minOdds={minOdds ?? null}
+                maxOdds={maxOdds ?? null}
                 minLiquidity={minLiquidity}
                 showHidden={showHidden}
                 hiddenCount={hiddenCount}

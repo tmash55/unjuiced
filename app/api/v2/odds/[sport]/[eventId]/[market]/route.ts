@@ -86,6 +86,39 @@ interface OddsResponse {
   count: number;
 }
 
+let invalidPayloadWarnCount = 0;
+const MAX_INVALID_PAYLOAD_WARNINGS = 8;
+
+function parseRedisJsonObject<T extends object>(
+  value: string | T | null,
+  key: string,
+  context: string
+): T | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidPayloadWarnCount < MAX_INVALID_PAYLOAD_WARNINGS) {
+      invalidPayloadWarnCount += 1;
+      console.warn(`[v2/odds] Skipping non-JSON ${context} payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as T;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidPayloadWarnCount < MAX_INVALID_PAYLOAD_WARNINGS) {
+      invalidPayloadWarnCount += 1;
+      console.warn(`[v2/odds] Skipping invalid JSON ${context} payload for key: ${key}`);
+    }
+    return null;
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sport: string; eventId: string; market: string }> }
@@ -111,11 +144,7 @@ export async function GET(
     // 1. Get event metadata
     const eventKey = getEventKey(sportKey, eventId);
     const eventDataRaw = await redis.get<string | SSEEvent | null>(eventKey);
-    const event: SSEEvent | null = eventDataRaw
-      ? typeof eventDataRaw === "string"
-        ? JSON.parse(eventDataRaw)
-        : eventDataRaw
-      : null;
+    const event = parseRedisJsonObject<SSEEvent>(eventDataRaw, eventKey, "event");
 
     // 2. Get all books for this market
     const oddsPattern = getMarketOddsPattern(sportKey, eventId, market);
@@ -143,8 +172,11 @@ export async function GET(
       const book = key.split(":").pop()!;
       const data = oddsDataRaw[i];
       if (data) {
-        bookSelections[book] = typeof data === "string" ? JSON.parse(data) : data;
-        allBooks.push(book);
+        const parsed = parseRedisJsonObject<SSEBookSelections>(data, key, "odds");
+        if (parsed) {
+          bookSelections[book] = parsed;
+          allBooks.push(book);
+        }
       }
     });
 

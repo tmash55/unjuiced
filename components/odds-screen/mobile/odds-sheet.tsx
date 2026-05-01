@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { OddsScreenItem, OddsScreenEvent, OddsPrice } from "../types/odds-screen-types";
 import { getSportsbookById, getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { useFavorites, AddFavoriteParams, BookSnapshot } from "@/hooks/use-favorites";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface OddsSheetProps {
   item: OddsScreenItem;
@@ -56,6 +57,7 @@ interface BookOdds {
 }
 
 export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }: OddsSheetProps) {
+  const applyState = useStateLink();
   // Favorites hook
   const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
 
@@ -168,7 +170,7 @@ export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }:
     // Prefer mobile link on mobile devices
     const link = book.mobileLink || book.link;
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
   };
 

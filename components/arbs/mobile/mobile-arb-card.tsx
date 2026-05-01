@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup (using legacy `logo` field)
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -15,7 +16,7 @@ interface MobileArbCardProps {
   row: ArbRow;
   id: string;
   totalBetAmount: number;
-  roundBets?: boolean;
+  roundTo?: number;
   isNew?: boolean;
   hasChange?: boolean;
 }
@@ -87,7 +88,8 @@ const calculateBetSizes = (overOdds: number, underOdds: number, total: number) =
   return { over: overStake, under: underStake };
 };
 
-export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNew, hasChange }: MobileArbCardProps) {
+export function MobileArbCard({ row, id, totalBetAmount, roundTo = 0, isNew, hasChange }: MobileArbCardProps) {
+  const applyState = useStateLink();
   const [expanded, setExpanded] = useState(false);
 
   const roiPct = ((row.roi_bps ?? 0) / 100);
@@ -106,15 +108,20 @@ export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNe
   const underStake = customUnder && !isNaN(parseFloat(customUnder)) ? parseFloat(customUnder) : defaultSizes.under;
   
   const formatAmount = (n: number) => {
-    if (roundBets) return `$${Math.round(n)}`;
+    if (roundTo > 0) return `$${Math.round(n / roundTo) * roundTo}`;
     return `$${n.toFixed(2)}`;
   };
 
-  // Calculate profit
+  // Calculate profit (range when rounding active)
   const totalStake = overStake + underStake;
   const overPayout = calculatePayout(overOdds, overStake);
   const underPayout = calculatePayout(underOdds, underStake);
-  const profit = Math.min(overPayout, underPayout) - totalStake;
+  const profitIfOver = overPayout - totalStake;
+  const profitIfUnder = underPayout - totalStake;
+  const profitMin = Math.min(profitIfOver, profitIfUnder);
+  const profitMax = Math.max(profitIfOver, profitIfUnder);
+  const profit = profitMin;
+  const hasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
   
   // Get side labels
   const getSideLabel = (side: "over" | "under") => {
@@ -137,7 +144,8 @@ export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNe
   // Open bet link
   const openBet = (bk?: string, url?: string, mobileUrl?: string | null) => {
     const link = getBookUrl(bk, url, mobileUrl);
-    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    const finalLink = link ? (applyState(link) || link) : link;
+    if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
   };
 
   // Format time
@@ -180,7 +188,7 @@ export function MobileArbCard({ row, id, totalBetAmount, roundBets = false, isNe
               {roiPct.toFixed(2)}%
             </span>
             <span className="text-sm text-neutral-500 dark:text-neutral-400">
-              ~{formatAmount(profit)}
+              {hasRange ? `${formatAmount(profitMin)} – ${formatAmount(profitMax)}` : `~${formatAmount(profit)}`}
             </span>
           </div>
           

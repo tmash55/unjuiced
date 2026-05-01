@@ -9,6 +9,7 @@ export interface SportsbookLink {
 
 export interface SportsbookMeta {
   id: SportsbookId;
+  oddsVendorId?: string;
   name: string;
   sgp: boolean;
   legalStates: string[];
@@ -255,8 +256,8 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/novig_long.png"
     },
     brandColor: "#050505",
-    priority: 1,
-    isActive: false,
+    priority: 7,
+    isActive: true,
     requiresState: false,
     affiliate: true,
     affiliateLink: "https://novig.onelink.me/JHQQ/qh47vqcj"
@@ -511,7 +512,8 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     requiresState: false
   },
   "polymarket": {
-    id: "polymarket",
+    id: "polymarket-us",
+    oddsVendorId: "polymarket-us",
     name: "Polymarket",
     sgp: false,
     legalStates: ["US"],
@@ -546,7 +548,24 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     isActive: true,
     requiresState: false
   },
-  
+  "prizePicks": {
+    id: "prizePicks",
+    name: "PrizePicks",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.prizepicks.com/",
+      mobile: "https://www.prizepicks.com/"
+    },
+    image: {
+      light: "/images/sports-books/prizepicks.png",
+      long: "/images/sports-books/prizepicks_long.png"
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    requiresState: false
+  }
 };
 
 
@@ -570,6 +589,7 @@ export function normalizeSportsbookId(id: string): string {
   // Common variations mapping
   const idMappings: Record<string, string> = {
     'ballybet': 'bally-bet',
+    'bally_bet': 'bally-bet',
     'sportsinteraction': 'sports-interaction',
     'hardrockbet': 'hard-rock',
     'hardrock': 'hard-rock',
@@ -579,12 +599,16 @@ export function normalizeSportsbookId(id: string): string {
     'thescore': 'thescore',
     'betparx': 'betparx',
     'betrivers': 'betrivers',
+    'bet-rivers': 'betrivers',
+    'bet_rivers': 'betrivers',
     'betonline': 'betonline',
     'fanduel-yourway': 'fanduelyourway',
     'fanduel_yourway': 'fanduelyourway',
     // BetMGM Michigan is our preferred BetMGM source (US odds)
     'betmgm-michigan': 'betmgm',
     'betmgm_michigan': 'betmgm',
+    'polymarket-us': 'polymarket',
+    'polymarket_us': 'polymarket',
   };
   
   // Return mapped ID if exists, otherwise return original (lowercase)
@@ -600,6 +624,11 @@ export const EXCLUDED_SPORTSBOOK_KEYS = new Set<string>([
 export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {
   const normalizedId = normalizeSportsbookId(id);
   return SPORTSBOOKS_META[normalizedId];
+}
+
+export function getOddsVendorId(id: SportsbookId): string | undefined {
+  const sportsbook = getSportsbookById(id);
+  return sportsbook?.oddsVendorId || sportsbook?.id;
 }
 
 export function getAllActiveSportsbooks(): SportsbookMeta[] {

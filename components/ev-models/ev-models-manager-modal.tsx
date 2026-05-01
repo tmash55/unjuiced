@@ -15,6 +15,7 @@ import {
   EV_MODEL_TEMPLATES,
   formatEvSharpBooks,
   formatEvMarketType,
+  formatEvOddsRange,
   formatEvSports,
   DEFAULT_MODEL_COLOR,
   type EvModel,
@@ -157,6 +158,8 @@ export function EvModelsManagerModal({
       sharp_books: [...template.sharp_books],
       book_weights: template.book_weights ? { ...template.book_weights } : null,
       min_books_reference: template.min_books_reference,
+      min_odds: template.min_odds,
+      max_odds: template.max_odds,
     };
     
     try {
@@ -203,15 +206,12 @@ export function EvModelsManagerModal({
           showCloseButton={false}
           className="w-full sm:max-w-6xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-none sm:rounded-2xl"
         >
-          {/* Premium gradient accent bar - GREEN theme */}
-          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500" />
-          
           {/* Header */}
-          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 shrink-0 bg-gradient-to-r from-white via-emerald-50/20 to-green-50/20 dark:from-neutral-900 dark:via-emerald-950/10 dark:to-green-950/10">
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 shrink-0 bg-white dark:bg-neutral-900">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/25">
-                  <Layers className="h-5 w-5 text-white" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800">
+                  <Layers className="h-5 w-5 text-neutral-700 dark:text-neutral-200" />
                 </div>
                 <div>
                   <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -235,9 +235,9 @@ export function EvModelsManagerModal({
                       }
                       onModelsChanged?.();
                     }}
-                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-700/50 transition-colors w-full sm:w-auto"
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-colors w-full sm:w-auto"
                   >
-                    <Star filled className="w-4 h-4 text-amber-500" />
+                    <Star filled className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
                     Favorites
                   </button>
                 )}
@@ -249,7 +249,7 @@ export function EvModelsManagerModal({
                     setFormOpen(true);
                     onOpenChange(false);
                   }}
-                  className="flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] w-full sm:w-auto"
+                  className="flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors w-full sm:w-auto"
                 >
                   <Plus className="h-4 w-4" />
                   New Model
@@ -258,7 +258,7 @@ export function EvModelsManagerModal({
                 {/* Close button */}
                 <button
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -270,12 +270,12 @@ export function EvModelsManagerModal({
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* Favorites Section - Always at the top when there are favorites */}
             {models.some(m => m.is_favorite) && (
-              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/30">
                 <div className="p-4 sm:p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
-                        <Star filled className="h-4 w-4 text-white" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                        <Star filled className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-neutral-900 dark:text-white">Favorites</h3>
@@ -295,14 +295,14 @@ export function EvModelsManagerModal({
                         className={cn(
                           "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
                           model.is_active
-                            ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
-                            : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-md"
+                            ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 shadow-sm"
+                            : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-sm"
                         )}
                       >
                         {/* Selection indicator bar */}
                         <div className={cn(
                           "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
-                          model.is_active ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
+                          model.is_active ? "bg-neutral-900 dark:bg-white" : "bg-transparent"
                         )} />
 
                         <div className="flex items-start gap-3 p-4">
@@ -317,13 +317,13 @@ export function EvModelsManagerModal({
                               />
                               <h4 className={cn(
                                 "font-medium truncate transition-colors",
-                                model.is_active ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
+                                "text-neutral-900 dark:text-white"
                               )}>
                                 {model.name}
                               </h4>
                               {model.is_active && (
-                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0">
-                                  <Check className="w-3 h-3 text-white" />
+                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-900 dark:bg-white flex-shrink-0">
+                                  <Check className="w-3 h-3 text-white dark:text-neutral-900" />
                                 </div>
                               )}
                             </div>
@@ -348,14 +348,16 @@ export function EvModelsManagerModal({
                         {/* Stats footer */}
                         <div className={cn(
                           "flex items-center justify-between px-4 py-2.5 border-t text-[11px]",
-                          model.is_active 
-                            ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20" 
+                          model.is_active
+                            ? "border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60"
                             : "border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30"
                         )}>
                           <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
                             <span>{formatEvSharpBooks(model.sharp_books)}</span>
                             <span className="text-neutral-300 dark:text-neutral-600">•</span>
                             <span>{formatEvMarketType(model.market_type)}</span>
+                            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                            <span>{formatEvOddsRange(model.min_odds ?? -500, model.max_odds ?? 500)}</span>
                           </div>
                           {model.sport && (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300">
@@ -384,11 +386,11 @@ export function EvModelsManagerModal({
                         key={key}
                         onClick={() => handleCreateFromTemplate(key)}
                         disabled={isCreating}
-                        className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all text-left group"
+                        className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group"
                       >
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/10 to-green-500/10 flex items-center justify-center group-hover:from-emerald-500/20 group-hover:to-green-500/20">
-                            <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                            <Zap className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                           </div>
                           <span className="text-sm font-semibold text-neutral-900 dark:text-white">
                             {template.name}
@@ -442,14 +444,14 @@ export function EvModelsManagerModal({
                         className={cn(
                           "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
                           model.is_active
-                            ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
-                            : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-md"
+                            ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 shadow-sm"
+                            : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-sm"
                         )}
                       >
                         {/* Selection indicator bar */}
                         <div className={cn(
                           "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
-                          model.is_active ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
+                          model.is_active ? "bg-neutral-900 dark:bg-white" : "bg-transparent"
                         )} />
 
                         <div className="flex items-start gap-3 p-4">
@@ -466,13 +468,13 @@ export function EvModelsManagerModal({
                               />
                               <h4 className={cn(
                                 "font-medium truncate transition-colors",
-                                model.is_active ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
+                                "text-neutral-900 dark:text-white"
                               )}>
                                 {model.name}
                               </h4>
                               {model.is_active && (
-                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0">
-                                  <Check className="w-3 h-3 text-white" />
+                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-900 dark:bg-white flex-shrink-0">
+                                  <Check className="w-3 h-3 text-white dark:text-neutral-900" />
                                 </div>
                               )}
                             </div>
@@ -548,14 +550,16 @@ export function EvModelsManagerModal({
                         {/* Stats footer */}
                         <div className={cn(
                           "flex items-center justify-between px-4 py-2.5 border-t text-[11px]",
-                          model.is_active 
-                            ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20" 
+                          model.is_active
+                            ? "border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60"
                             : "border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30"
                         )}>
                           <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
                             <span>{formatEvSharpBooks(model.sharp_books)}</span>
                             <span className="text-neutral-300 dark:text-neutral-600">•</span>
                             <span>{formatEvMarketType(model.market_type)}</span>
+                            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                            <span>{formatEvOddsRange(model.min_odds ?? -500, model.max_odds ?? 500)}</span>
                           </div>
                           {model.sport && (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300">

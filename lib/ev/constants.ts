@@ -204,6 +204,13 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
     description: "Uses Fanatics as reference. Retail sportsbook.",
     books: [{ bookId: "fanatics", weight: 1.0 }],
   },
+  novig: {
+    id: "novig",
+    name: "Novig",
+    label: "Novig",
+    description: "Uses Novig as reference. Peer-to-peer betting exchange with no-vig pricing.",
+    books: [{ bookId: "novig", weight: 1.0 }],
+  },
   polymarket: {
     id: "polymarket",
     name: "Polymarket",

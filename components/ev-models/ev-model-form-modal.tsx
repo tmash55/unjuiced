@@ -32,6 +32,11 @@ import {
   parseEvSports,
   formatEvSportsForStorage,
   DEFAULT_MODEL_COLOR,
+  DEFAULT_EV_MODEL_MAX_ODDS,
+  DEFAULT_EV_MODEL_MIN_ODDS,
+  EV_MODEL_EMPTY_SPORT_MARKET,
+  buildEvModelSportMarketKey,
+  parseEvModelSportMarketKey,
   type EvModel, 
   type EvModelCreate 
 } from "@/lib/types/ev-models";
@@ -131,6 +136,89 @@ function inferMarketGroup(apiKey: string): string {
   return "Other";
 }
 
+const GAME_LINE_GROUPS = new Set([
+  "game",
+  "team totals",
+  "first to",
+  "special",
+  "halves",
+  "quarters",
+  "1st half",
+  "2nd half",
+  "1st quarter",
+  "2nd quarter",
+  "3rd quarter",
+  "4th quarter",
+  "1st period",
+  "2nd period",
+  "3rd period",
+  "1st 3 minutes",
+]);
+
+const PLAYER_PROP_GROUPS = new Set([
+  "passing",
+  "rushing",
+  "receiving",
+  "scoring",
+  "defense",
+  "kicking",
+  "combo",
+  "skater",
+  "goalie",
+  "batter",
+  "pitcher",
+  "player",
+  "first basket",
+]);
+
+function isPlayerPropMarket(market: SportMarket): boolean {
+  const key = market.apiKey.toLowerCase();
+  const group = (market.group || "").toLowerCase();
+
+  if (
+    key.includes("player_") ||
+    key.includes("_player_") ||
+    key.includes("batter_") ||
+    key.includes("pitcher_") ||
+    key.includes("passing_") ||
+    key.includes("rushing_") ||
+    key.includes("receiving_") ||
+    key.includes("receptions") ||
+    key.includes("goalscorer") ||
+    key.includes("first_td") ||
+    key.includes("last_td")
+  ) {
+    return true;
+  }
+
+  return PLAYER_PROP_GROUPS.has(group);
+}
+
+function isGameLineMarket(market: SportMarket): boolean {
+  if (isPlayerPropMarket(market)) return false;
+
+  const key = market.apiKey.toLowerCase();
+  const group = (market.group || "").toLowerCase();
+
+  if (GAME_LINE_GROUPS.has(group)) return true;
+
+  return (
+    key.startsWith("game_") ||
+    key.includes("moneyline") ||
+    key.includes("spread") ||
+    key.includes("h2h") ||
+    key.includes("draw_no_bet") ||
+    key.includes("team_total") ||
+    key.includes("home_team_") ||
+    key.includes("away_team_") ||
+    key.includes("total_points") ||
+    key.includes("total_runs") ||
+    key.includes("total_goals") ||
+    key.includes("total_touchdowns") ||
+    key.includes("overtime")
+  );
+}
+
 // Categorize markets into game lines and player props
 function categorizeMarkets(markets: SportMarket[]): { 
   gameLines: SportMarket[], 
@@ -143,18 +231,8 @@ function categorizeMarkets(markets: SportMarket[]): {
   
   markets.forEach(market => {
     const group = market.group || "Other";
-    
-    const isPlayerProp = market.apiKey.includes("player_") || 
-                         market.apiKey.includes("batter_") || 
-                         market.apiKey.includes("pitcher_") ||
-                         market.apiKey.includes("passing_") ||
-                         market.apiKey.includes("rushing_") ||
-                         market.apiKey.includes("receiving_") ||
-                         market.apiKey.includes("receptions") ||
-                         market.apiKey.includes("first_td") ||
-                         market.apiKey.includes("last_td");
-    
-    if (isPlayerProp) {
+
+    if (!isGameLineMarket(market)) {
       if (!playerProps[group]) playerProps[group] = [];
       playerProps[group].push(market);
     } else {
@@ -266,6 +344,10 @@ export function EvModelFormModal({
   const [sharpBooks, setSharpBooks] = useState<string[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [minBooksReference, setMinBooksReference] = useState(2);
+  const [minOdds, setMinOdds] = useState(DEFAULT_EV_MODEL_MIN_ODDS);
+  const [maxOdds, setMaxOdds] = useState(DEFAULT_EV_MODEL_MAX_ODDS);
+  const [minOddsStr, setMinOddsStr] = useState(String(DEFAULT_EV_MODEL_MIN_ODDS));
+  const [maxOddsStr, setMaxOddsStr] = useState(String(DEFAULT_EV_MODEL_MAX_ODDS));
   const [error, setError] = useState<string | null>(null);
 
   // Fetch dynamic markets
@@ -301,7 +383,7 @@ export function EvModelFormModal({
   // Build markets payload
   const buildSelectedMarketsPayload = useCallback((): string[] | null => {
     let hasCustom = false;
-    const markets: string[] = [];
+    const markets = new Set<string>();
 
     selectedSports.forEach((sportId) => {
       const data = getMarketData(sportId);
@@ -311,17 +393,35 @@ export function EvModelFormModal({
       const glSet = selectedMarkets[glKey];
       const ppSet = selectedMarkets[ppKey];
 
-      if (glSet) {
+      const selectedGameLineIds = glSet
+        ? data.gameLineIds.filter((id) => glSet.has(id))
+        : data.gameLineIds;
+      const selectedPlayerPropIds = ppSet
+        ? data.playerPropIds.filter((id) => ppSet.has(id))
+        : data.playerPropIds;
+
+      if (selectedGameLineIds.length !== data.gameLineIds.length) {
         hasCustom = true;
-        markets.push(...Array.from(glSet));
       }
-      if (ppSet) {
+      if (selectedPlayerPropIds.length !== data.playerPropIds.length) {
         hasCustom = true;
-        markets.push(...Array.from(ppSet));
+      }
+
+      const sportIsCustom =
+        selectedGameLineIds.length !== data.gameLineIds.length ||
+        selectedPlayerPropIds.length !== data.playerPropIds.length;
+
+      if (!sportIsCustom) return;
+
+      selectedGameLineIds.forEach((id) => markets.add(buildEvModelSportMarketKey(sportId, id)));
+      selectedPlayerPropIds.forEach((id) => markets.add(buildEvModelSportMarketKey(sportId, id)));
+
+      if (selectedGameLineIds.length === 0 && selectedPlayerPropIds.length === 0) {
+        markets.add(buildEvModelSportMarketKey(sportId, EV_MODEL_EMPTY_SPORT_MARKET));
       }
     });
 
-    return hasCustom ? markets : null;
+    return hasCustom ? Array.from(markets) : null;
   }, [selectedMarkets, selectedSports, getMarketData]);
 
   // Check if category is fully selected
@@ -413,30 +513,67 @@ export function EvModelFormModal({
       setSharpBooks(model.sharp_books || []);
       setWeights(model.book_weights || getEvEqualWeights(model.sharp_books || []));
       setMinBooksReference(model.min_books_reference || 2);
+      setMinOdds(model.min_odds ?? DEFAULT_EV_MODEL_MIN_ODDS);
+      setMaxOdds(model.max_odds ?? DEFAULT_EV_MODEL_MAX_ODDS);
+      setMinOddsStr(String(model.min_odds ?? DEFAULT_EV_MODEL_MIN_ODDS));
+      setMaxOddsStr(String(model.max_odds ?? DEFAULT_EV_MODEL_MAX_ODDS));
       setExpandedSports(new Set());
       setExpandedCategories(new Set());
       
       // Load markets
       const presetMarkets = model.markets;
       if (!presetMarkets || presetMarkets.length === 0) {
-        setSelectedMarkets({});
+        const next: Record<string, Set<string>> = {};
+        const sportsToUse = sports.length ? sports : [];
+
+        sportsToUse.forEach((sportId) => {
+          const data = getMarketData(sportId);
+
+          if (model.market_type === "player" && data.gameLineIds.length > 0) {
+            next[`${sportId}:gameLines`] = new Set();
+          }
+
+          if (model.market_type === "game" && data.playerPropIds.length > 0) {
+            next[`${sportId}:playerProps`] = new Set();
+          }
+        });
+
+        setSelectedMarkets(next);
       } else {
         const next: Record<string, Set<string>> = {};
         const sportsToUse = sports.length ? sports : [];
+        const parsedCompositeMarkets = presetMarkets
+          .map(parseEvModelSportMarketKey)
+          .filter((value): value is { sport: string; market: string } => value !== null);
+        const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
+
         sportsToUse.forEach((sportId) => {
-          const marketKey = getSportMarketKey(sportId);
-          const markets = SPORT_MARKETS[marketKey] || [];
-          const categorized = categorizeMarkets(markets);
-          
+          const categorized = getMarketData(sportId);
           const glKey = `${sportId}:gameLines`;
           const ppKey = `${sportId}:playerProps`;
           const glSet = new Set<string>();
           const ppSet = new Set<string>();
 
-          presetMarkets.forEach((m) => {
-            if (categorized.gameLineIds.includes(m)) glSet.add(m);
-            if (categorized.playerPropIds.includes(m)) ppSet.add(m);
-          });
+          if (hasCompositeMarkets) {
+            const sportMarkets = parsedCompositeMarkets
+              .filter((entry) => entry.sport === sportId)
+              .map((entry) => entry.market)
+              .filter((market) => market !== EV_MODEL_EMPTY_SPORT_MARKET);
+
+            if (sportMarkets.length === 0 && !parsedCompositeMarkets.some((entry) => entry.sport === sportId)) {
+              return;
+            }
+
+            sportMarkets.forEach((m) => {
+              if (categorized.gameLineIds.includes(m)) glSet.add(m);
+              if (categorized.playerPropIds.includes(m)) ppSet.add(m);
+            });
+          } else {
+            presetMarkets.forEach((m) => {
+              if (categorized.gameLineIds.includes(m)) glSet.add(m);
+              if (categorized.playerPropIds.includes(m)) ppSet.add(m);
+            });
+          }
 
           if (glSet.size < categorized.gameLineIds.length) next[glKey] = glSet;
           if (ppSet.size < categorized.playerPropIds.length) next[ppKey] = ppSet;
@@ -454,6 +591,10 @@ export function EvModelFormModal({
       setSharpBooks(["pinnacle"]);
       setWeights({ pinnacle: 100 });
       setMinBooksReference(2);
+      setMinOdds(DEFAULT_EV_MODEL_MIN_ODDS);
+      setMaxOdds(DEFAULT_EV_MODEL_MAX_ODDS);
+      setMinOddsStr(String(DEFAULT_EV_MODEL_MIN_ODDS));
+      setMaxOddsStr(String(DEFAULT_EV_MODEL_MAX_ODDS));
     }
     setError(null);
   }, [open, model?.id]);
@@ -702,6 +843,10 @@ export function EvModelFormModal({
       setError(`You need at least ${minBooksReference} sharp books selected`);
       return;
     }
+    if (minOdds > maxOdds) {
+      setError("Minimum odds cannot be greater than maximum odds");
+      return;
+    }
     if (Math.abs(totalWeight - 100) > 0.5) {
       setError("Weights must add up to 100%");
       return;
@@ -719,6 +864,8 @@ export function EvModelFormModal({
         sharp_books: sharpBooks,
         book_weights: sharpBooks.length > 1 ? weights : null,
         min_books_reference: minBooksReference,
+        min_odds: minOdds,
+        max_odds: maxOdds,
       };
 
       if (isEditing && model) {
@@ -740,14 +887,11 @@ export function EvModelFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-2xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl shadow-2xl">
         <form onSubmit={handleSubmit} className="flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh]">
-          {/* Premium gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 hidden sm:block" />
-          
           {/* Header */}
-          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 sm:py-5 shrink-0 bg-gradient-to-r from-white via-sky-50/20 to-blue-50/20 dark:from-neutral-900 dark:via-sky-950/10 dark:to-blue-950/10">
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 sm:py-5 shrink-0 bg-white dark:bg-neutral-900">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/25">
-                <Zap className="h-5 w-5 text-white" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800">
+                <Zap className="h-5 w-5 text-neutral-700 dark:text-neutral-200" />
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -822,11 +966,11 @@ export function EvModelFormModal({
                 {/* LEFT COLUMN - Sharp Books & Weights */}
                 <div className="space-y-5">
                   {/* Pie Chart & Weights */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500/10 to-blue-500/10 flex items-center justify-center">
-                          <SlidersHorizontal className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                        <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                          <SlidersHorizontal className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                         </div>
                         <div>
                           <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -842,7 +986,7 @@ export function EvModelFormModal({
                           type="button"
                           onClick={() => setWeights(getEvEqualWeights(sharpBooks))}
                           disabled={isLoading}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                         >
                           Equal
                         </button>
@@ -890,10 +1034,10 @@ export function EvModelFormModal({
                   </div>
 
                   {/* Sharp Books Selection */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 flex items-center justify-center">
-                        <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                        <Filter className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -954,7 +1098,7 @@ export function EvModelFormModal({
                             className={cn(
                               "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all select-none",
                               isSelected
-                                ? "bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700"
+                                ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700"
                                 : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300",
                               isLoading && "opacity-60 cursor-not-allowed"
                             )}
@@ -963,7 +1107,7 @@ export function EvModelFormModal({
                               className={cn(
                                 "h-4 w-4 rounded border flex items-center justify-center shrink-0",
                                 isSelected
-                                  ? "bg-sky-500 border-sky-500 text-white"
+                                  ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white text-white dark:text-neutral-900"
                                   : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700"
                               )}
                             >
@@ -998,7 +1142,7 @@ export function EvModelFormModal({
                 {/* RIGHT COLUMN - Settings & Sports/Markets */}
                 <div className="space-y-4 lg:flex lg:flex-col lg:h-full">
                   {/* Min Books Required */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 shadow-sm">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 shadow-sm">
                     <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                       Min Books Required
                     </Label>
@@ -1012,8 +1156,8 @@ export function EvModelFormModal({
                           className={cn(
                             "flex-1 h-8 rounded-lg text-xs font-semibold transition-all border",
                             minBooksReference === n
-                              ? "bg-gradient-to-r from-sky-500 to-blue-500 border-transparent text-white shadow-sm"
-                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-sky-300",
+                              ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white text-white dark:text-neutral-900 shadow-sm"
+                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600",
                             n > sharpBooks.length && "opacity-30 cursor-not-allowed"
                           )}
                         >
@@ -1023,11 +1167,92 @@ export function EvModelFormModal({
                     </div>
                   </div>
 
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-4 shadow-sm">
+                    <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      Odds Range
+                    </Label>
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-400">Min</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={minOddsStr}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "" || v === "-" || /^-?\d*$/.test(v)) {
+                              setMinOddsStr(v);
+                              const n = parseInt(v, 10);
+                              if (!isNaN(n)) setMinOdds(n);
+                            }
+                          }}
+                          onBlur={() => {
+                            const n = parseInt(minOddsStr, 10);
+                            if (isNaN(n)) { setMinOddsStr(String(minOdds)); }
+                            else { setMinOdds(n); setMinOddsStr(String(n)); }
+                          }}
+                          disabled={isLoading}
+                          placeholder="e.g. -500"
+                          className="w-full h-9 px-3 text-sm font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-shadow"
+                        />
+                      </div>
+                      <span className="self-end pb-2.5 text-neutral-400 text-xs">to</span>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-400">Max</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={maxOddsStr}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "" || v === "-" || v === "+" || /^[+-]?\d*$/.test(v)) {
+                              setMaxOddsStr(v);
+                              const n = parseInt(v.replace(/^\+/, ""), 10);
+                              if (!isNaN(n)) setMaxOdds(n);
+                            }
+                          }}
+                          onBlur={() => {
+                            const n = parseInt(maxOddsStr.replace(/^\+/, ""), 10);
+                            if (isNaN(n)) { setMaxOddsStr(String(maxOdds)); }
+                            else { setMaxOdds(n); setMaxOddsStr(n >= 0 ? `+${n}` : String(n)); }
+                          }}
+                          disabled={isLoading}
+                          placeholder="e.g. +500"
+                          className="w-full h-9 px-3 text-sm font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-shadow"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {[
+                        { min: -500, max: 500, label: "-500 to +500" },
+                        { min: -300, max: 300, label: "-300 to +300" },
+                        { min: -200, max: 1000, label: "-200 to +1000" },
+                        { min: -110, max: 2000, label: "-110 to +2000" },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => { setMinOdds(p.min); setMaxOdds(p.max); setMinOddsStr(String(p.min)); setMaxOddsStr(`+${p.max}`); }}
+                          disabled={isLoading}
+                          className={cn(
+                            "px-2 py-1 text-[10px] font-medium rounded-md transition-colors",
+                            minOdds === p.min && maxOdds === p.max
+                              ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-neutral-400 mt-2">American odds range for opportunities</p>
+                  </div>
+
                   {/* Sports & Markets */}
-                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto shadow-sm">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/10 flex items-center justify-center">
-                        <LayoutGrid className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                      <div className="w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center">
+                        <LayoutGrid className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -1115,7 +1340,7 @@ export function EvModelFormModal({
                                   disabled={isLoading}
                                   className={cn(
                                     "h-4 w-4 transition-colors",
-                                    isSelected && "border-sky-500 data-[state=checked]:bg-sky-500"
+                                    isSelected && "border-neutral-900 dark:border-white data-[state=checked]:bg-neutral-900 dark:data-[state=checked]:bg-white"
                                   )}
                                 />
                               </div>
@@ -1124,7 +1349,7 @@ export function EvModelFormModal({
                                 sport={sport.value} 
                                 className={cn(
                                   "w-4 h-4 transition-colors",
-                                  isSelected ? "text-sky-600 dark:text-sky-400" : "text-neutral-400"
+                                  isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400"
                                 )} 
                               />
                               
@@ -1403,7 +1628,7 @@ export function EvModelFormModal({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 sm:flex-none h-12 sm:h-10 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-lg shadow-sky-500/25 transition-all hover:shadow-sky-500/40 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-6 rounded-xl text-sm font-semibold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isEditing ? "Save Changes" : "Create Model"}

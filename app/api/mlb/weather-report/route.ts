@@ -73,6 +73,12 @@ function mapRow(row: any) {
     },
     stadiumGeometry: row.stadium_geometry ?? null,
     ballparkFactors: row.ballpark_factors ?? null,
+    hourlyForecast: row.hourly_forecast ?? null,
+    // Calibrated weather impact deltas
+    hrPctDelta: row.hr_pct_delta != null ? Number(row.hr_pct_delta) : null,
+    runsPctDelta: row.runs_pct_delta != null ? Number(row.runs_pct_delta) : null,
+    xbhPctDelta: row.xbh_pct_delta != null ? Number(row.xbh_pct_delta) : null,
+    singlesPctDelta: row.singles_pct_delta != null ? Number(row.singles_pct_delta) : null,
   };
 }
 
@@ -131,7 +137,7 @@ export async function GET(req: NextRequest) {
       if (gameIds.length > 0) {
         const games = await supabase
           .from("mlb_games")
-          .select("game_id, home_name, away_name, home_id, away_id")
+          .select("game_id, home_name, away_name, home_id, away_id, status_detailed_state")
           .in("game_id", gameIds);
 
         if (!games.error && games.data) {
@@ -169,24 +175,36 @@ export async function GET(req: NextRequest) {
             ])
           );
 
-          rawRows = rawRows.map((row: any) => {
-            const game = gamesById.get(row.game_id);
-            if (!game) return row;
+          // Filter out postponed/cancelled games, then enrich with team data
+          const postponedIds = new Set(
+            games.data
+              .filter((g: any) => {
+                const s = (g.status_detailed_state || "").toLowerCase();
+                return s.includes("postponed") || s.includes("cancelled") || s.includes("suspended");
+              })
+              .map((g: any) => g.game_id)
+          );
 
-            return {
-              ...row,
-              home_name: row.home_name ?? game.home_name,
-              away_name: row.away_name ?? game.away_name,
-              home_id: row.home_id ?? game.home_id,
-              away_id: row.away_id ?? game.away_id,
-              home_team_abbr: row.home_team_abbr ?? row.home_team_tricode ?? game.home_team_abbr,
-              away_team_abbr: row.away_team_abbr ?? row.away_team_tricode ?? game.away_team_abbr,
-              home_team_primary_color: row.home_team_primary_color ?? game.home_team_primary_color,
-              home_team_secondary_color: row.home_team_secondary_color ?? game.home_team_secondary_color,
-              away_team_primary_color: row.away_team_primary_color ?? game.away_team_primary_color,
-              away_team_secondary_color: row.away_team_secondary_color ?? game.away_team_secondary_color,
-            };
-          });
+          rawRows = rawRows
+            .filter((row: any) => !postponedIds.has(row.game_id))
+            .map((row: any) => {
+              const game = gamesById.get(row.game_id);
+              if (!game) return row;
+
+              return {
+                ...row,
+                home_name: row.home_name ?? game.home_name,
+                away_name: row.away_name ?? game.away_name,
+                home_id: row.home_id ?? game.home_id,
+                away_id: row.away_id ?? game.away_id,
+                home_team_abbr: row.home_team_abbr ?? row.home_team_tricode ?? game.home_team_abbr,
+                away_team_abbr: row.away_team_abbr ?? row.away_team_tricode ?? game.away_team_abbr,
+                home_team_primary_color: row.home_team_primary_color ?? game.home_team_primary_color,
+                home_team_secondary_color: row.home_team_secondary_color ?? game.home_team_secondary_color,
+                away_team_primary_color: row.away_team_primary_color ?? game.away_team_primary_color,
+                away_team_secondary_color: row.away_team_secondary_color ?? game.away_team_secondary_color,
+              };
+            });
         }
       }
     }

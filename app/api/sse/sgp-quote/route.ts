@@ -9,6 +9,7 @@ import {
   type SgpLeg,
   type SgpBookOdds,
 } from "@/lib/sgp/cache";
+import { fetchSgpQuote } from "@/lib/sgp/quote-service";
 import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
 
 // =============================================================================
@@ -21,48 +22,12 @@ interface SgpQuoteRequest {
   prefetch?: boolean; // If true, just warm cache, don't care about response
 }
 
-interface OddsBlazeResponse {
-  price?: string;
-  links?: {
-    desktop: string;
-    mobile: string;
-  };
-  limits?: {
-    max?: number;
-    min?: number;
-  };
-  error?: string;
-  message?: string;
-}
-
 // =============================================================================
 // CONSTANTS
 // =============================================================================
 
-const ODDSBLAZE_API_KEY = process.env.ODDSBLAZE_API_KEY;
 const TIME_BUDGET_MS = 5000; // Max wait time before returning partial results (5s to allow slower books like Caesars, Bet365)
 const PING_INTERVAL_MS = 15000;
-
-// Map our book IDs to OddsBlaze's expected subdomain IDs
-const ODDSBLAZE_BOOK_ID_MAP: Record<string, string> = {
-  'draftkings': 'draftkings',
-  'fanduel': 'fanduel',
-  'betmgm': 'betmgm',
-  'caesars': 'caesars',
-  'bet365': 'bet365',
-  'betrivers': 'betrivers',
-  'betparx': 'betparx',
-  'pointsbet': 'pointsbet',
-  'espn': 'espnbet',
-  'fanatics': 'fanatics',
-  'fliff': 'fliff',
-  'hard-rock': 'hard-rock',
-  'bally-bet': 'bally-bet',
-  'thescore': 'thescore',
-  'prophetx': 'prophetx',
-  'pinnacle': 'pinnacle',
-  'wynnbet': 'wynnbet',
-};
 
 // Priority order for books (most popular first)
 const BOOK_PRIORITY: string[] = [
@@ -85,10 +50,6 @@ const BOOK_PRIORITY: string[] = [
 const DEFAULT_SGP_BOOKS = Object.entries(SPORTSBOOKS_META)
   .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
   .map(([id]) => id);
-
-function getOddsBlazeBookId(bookId: string): string {
-  return ODDSBLAZE_BOOK_ID_MAP[bookId] || bookId;
-}
 
 // =============================================================================
 // HELPERS
@@ -120,47 +81,11 @@ async function fetchBookOdds(
   bookId: string,
   sgpTokens: string[]
 ): Promise<SgpBookOdds> {
-  if (!ODDSBLAZE_API_KEY) {
-    return { error: "API key not configured" };
-  }
-
-  if (sgpTokens.length < 2) {
-    return { error: "Not enough legs" };
-  }
-
-  try {
-    const oddsBlazeBookId = getOddsBlazeBookId(bookId);
-    const url = `https://${oddsBlazeBookId}.sgp.oddsblaze.com/?key=${ODDSBLAZE_API_KEY}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sgpTokens),
-    });
-
-    if (!response.ok) {
-      return { error: `API error: ${response.status}` };
-    }
-
-    const data: OddsBlazeResponse = await response.json();
-
-    if (data.error || data.message) {
-      return { error: data.error || data.message };
-    }
-
-    if (!data.price) {
-      return { error: "No price available" };
-    }
-
-    return {
-      price: data.price,
-      links: data.links,
-      limits: data.limits,
-    };
-  } catch (error) {
-    console.error(`[SGP SSE] Fetch error for ${bookId}:`, error);
-    return { error: "Failed to fetch" };
-  }
+  const result = await fetchSgpQuote(bookId, sgpTokens, {
+    allowStaleOnRateLimit: true,
+    allowStaleOnLockTimeout: true,
+  });
+  return result.odds;
 }
 
 /**

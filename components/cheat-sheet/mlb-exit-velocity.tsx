@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbExitVelocity } from "@/hooks/use-mlb-exit-velocity";
@@ -30,9 +31,13 @@ import {
   Table,
   ScatterChart as ScatterChartIcon,
   ChevronRight,
+  SlidersHorizontal,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import Chart from "@/icons/chart";
-import { MlbDateNav } from "@/components/cheat-sheet/mlb-date-nav";
+import { SegmentedControl, FilterGroup, FilterDivider, FilterSearch, FilterCount, DateNav } from "@/components/cheat-sheet/sheet-filter-bar";
+import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
+import { useMlbGames } from "@/hooks/use-mlb-games";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -107,6 +112,25 @@ function getHardHitColor(pct: number): string {
   if (pct >= 33) return "text-amber-500 dark:text-amber-400";
   return "text-neutral-500 dark:text-neutral-400";
 }
+
+// Cell background + text for table heatmap (3-tier: elite green, good green, poor red)
+const CELL_ELITE = "bg-emerald-100 dark:bg-emerald-500/40 text-emerald-800 dark:text-white font-bold";
+const CELL_GOOD  = "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300";
+const CELL_POOR  = "bg-red-50 dark:bg-red-500/20 text-red-600 dark:text-red-300";
+
+function cellColor(val: number, elite: number, good: number, poor: number): string {
+  if (val >= elite) return CELL_ELITE;
+  if (val >= good) return CELL_GOOD;
+  if (val < poor) return CELL_POOR;
+  return "";
+}
+
+const getEvCell = (v: number) => cellColor(v, 93, 90, 85);
+const getBarrelCell = (v: number) => cellColor(v, 15, 10, 4);
+const getHardHitCell = (v: number) => cellColor(v, 50, 40, 28);
+const getSlgCell = (v: number) => cellColor(v, 0.550, 0.450, 0.300);
+const getIsoCell = (v: number) => cellColor(v, 0.250, 0.180, 0.100);
+const getSweetSpotCell = (v: number) => cellColor(v, 40, 33, 20);
 
 function getSlgColor(slg: number): string {
   if (slg >= 0.550) return "text-emerald-600 dark:text-emerald-400";
@@ -531,14 +555,17 @@ const SCATTER_LEAGUE_AVG_EV = 88.5;
 function EvScatterPlot({
   leaders,
   isMobile,
+  searchQuery,
 }: {
   leaders: ExitVeloLeader[];
   isMobile: boolean;
+  searchQuery: string;
 }) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [yAxis, setYAxis] = useState<ScatterYAxis>("hard_hit_pct");
   const svgRef = useRef<SVGSVGElement>(null);
+  const detailHeaderRef = useRef<HTMLDivElement>(null);
 
   const yOpt = SCATTER_Y_OPTIONS.find((o) => o.value === yAxis)!;
   const getYVal = useCallback((l: ExitVeloLeader) => l[yAxis], [yAxis]);
@@ -600,33 +627,51 @@ function EvScatterPlot({
     bottomRight: `High EV / Low ${yOpt.shortLabel}`,
   };
 
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const searchActive = trimmedSearch.length > 0;
+  const matchedLeaders = useMemo(() => {
+    if (!searchActive) return leaders;
+    return leaders.filter(
+      (leader) =>
+        leader.player_name.toLowerCase().includes(trimmedSearch) ||
+        leader.team_abbr.toLowerCase().includes(trimmedSearch) ||
+        leader.team_name.toLowerCase().includes(trimmedSearch)
+    );
+  }, [leaders, searchActive, trimmedSearch]);
+  const matchedIds = useMemo(
+    () => new Set(matchedLeaders.map((leader) => leader.player_id)),
+    [matchedLeaders]
+  );
+
   const activeId = hoveredId ?? selectedId;
   const activeLeader = activeId != null ? leaders.find((l) => l.player_id === activeId) : null;
+  const focusLeader = activeLeader ?? (searchActive ? matchedLeaders[0] ?? null : null);
   const selectedLeader = selectedId != null ? leaders.find((l) => l.player_id === selectedId) : null;
-
+  const getDotPresentation = useCallback((leader: ExitVeloLeader) => {
+    const isMatch = !searchActive || matchedIds.has(leader.player_id);
+    return {
+      isMatch,
+      fill: isMatch ? getDotColor(leader) : "#d4d4d8",
+      fillOpacity: isMatch ? 0.78 : 0.28,
+      stroke: isMatch && searchActive ? "rgba(255,255,255,0.9)" : "transparent",
+      strokeWidth: isMatch && searchActive ? 1.25 : 0,
+    };
+  }, [matchedIds, searchActive]);
 
   return (
     <div className="relative">
       {/* Controls row */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Y-Axis:</span>
-        <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-md p-0.5">
-          {SCATTER_Y_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setYAxis(opt.value)}
-              className={cn(
-                "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                yAxis === opt.value
-                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-            >
-              {opt.shortLabel}
-            </button>
-          ))}
-        </div>
-
+      <div className="flex items-end gap-3 mb-3 flex-wrap">
+        <FilterGroup label="Y-Axis">
+          <SegmentedControl
+            value={yAxis}
+            onChange={(v) => setYAxis(v as ScatterYAxis)}
+            options={SCATTER_Y_OPTIONS.map((o) => ({ label: o.shortLabel, value: o.value }))}
+          />
+        </FilterGroup>
+        <p className="ml-auto text-[11px] text-neutral-400 dark:text-neutral-500 pb-1.5 hidden sm:block">
+          {selectedLeader ? "Tap chart background to close" : "Tap a dot for batted-ball detail"}
+        </p>
       </div>
 
       <svg
@@ -668,16 +713,20 @@ function EvScatterPlot({
         <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + plotH} stroke="currentColor" className="text-neutral-200 dark:text-neutral-700" strokeWidth={1} />
 
         {/* X-axis ticks */}
-        {Array.from({ length: Math.min(8, Math.round(maxEV - minEV) + 1) }, (_, i) => {
-          const val = minEV + Math.round((i / 7) * (maxEV - minEV));
-          const x = scaleX(val);
-          return (
-            <g key={`xt-${i}`}>
-              <line x1={x} y1={PAD.top + plotH} x2={x} y2={PAD.top + plotH + 4} stroke="currentColor" className="text-neutral-300 dark:text-neutral-600" strokeWidth={1} />
-              <text x={x} y={PAD.top + plotH + 16} textAnchor="middle" className="fill-neutral-400 dark:fill-neutral-500" fontSize={10}>{val}</text>
-            </g>
-          );
-        })}
+        {(() => {
+          const desiredCount = isMobile ? 5 : 8;
+          const tickCount = Math.min(desiredCount, Math.round(maxEV - minEV) + 1);
+          return Array.from({ length: tickCount }, (_, i) => {
+            const val = minEV + Math.round((i / Math.max(1, tickCount - 1)) * (maxEV - minEV));
+            const x = scaleX(val);
+            return (
+              <g key={`xt-${i}`}>
+                <line x1={x} y1={PAD.top + plotH} x2={x} y2={PAD.top + plotH + 4} stroke="currentColor" className="text-neutral-300 dark:text-neutral-600" strokeWidth={1} />
+                <text x={x} y={PAD.top + plotH + 16} textAnchor="middle" className="fill-neutral-400 dark:fill-neutral-500" fontSize={isMobile ? 11 : 10}>{val}</text>
+              </g>
+            );
+          });
+        })()}
         <text x={PAD.left + plotW / 2} y={H - 4} textAnchor="middle" className="fill-neutral-500 dark:fill-neutral-400" fontSize={11} fontWeight={600}>Avg Exit Velocity (mph)</text>
 
         {/* Y-axis ticks */}
@@ -699,7 +748,7 @@ function EvScatterPlot({
           const cy = scaleY(getYVal(l));
           const r = getDotRadius(l.home_runs);
           const isActive = activeId === l.player_id;
-          const isSelected = selectedId === l.player_id;
+          const dot = getDotPresentation(l);
           if (isActive) return null; // Render active dot last (on top)
 
           return (
@@ -708,26 +757,26 @@ function EvScatterPlot({
               cx={cx}
               cy={cy}
               r={r}
-              fill={getDotColor(l)}
-              fillOpacity={0.7}
-              stroke="transparent"
-              strokeWidth={0}
-              className="cursor-pointer"
+              fill={dot.fill}
+              fillOpacity={dot.fillOpacity}
+              stroke={dot.stroke}
+              strokeWidth={dot.strokeWidth}
+              className="cursor-pointer touch-manipulation"
               onMouseEnter={() => setHoveredId(l.player_id)}
               onClick={(e) => { e.stopPropagation(); setSelectedId(selectedId === l.player_id ? null : l.player_id); }}
-              onTouchStart={() => setSelectedId(selectedId === l.player_id ? null : l.player_id)}
             />
           );
         })}
         {/* Active dot rendered last = on top */}
-        {activeLeader && (() => {
-          const l = activeLeader;
+        {focusLeader && (() => {
+          const l = focusLeader;
           const cx = scaleX(l.avg_exit_velo);
           const cy = scaleY(getYVal(l));
           const r = getDotRadius(l.home_runs);
+          const dot = getDotPresentation(l);
           return (
             <g>
-              <circle cx={cx} cy={cy} r={r + 3} fill={getDotColor(l)} fillOpacity={0.95} stroke="white" strokeWidth={2.5} className="cursor-pointer"
+              <circle cx={cx} cy={cy} r={r + 3} fill={dot.fill} fillOpacity={searchActive && !dot.isMatch ? 0.4 : 0.95} stroke="white" strokeWidth={2.5} className="cursor-pointer"
                 onMouseEnter={() => setHoveredId(l.player_id)}
                 onClick={(e) => { e.stopPropagation(); setSelectedId(selectedId === l.player_id ? null : l.player_id); }}
               />
@@ -739,71 +788,130 @@ function EvScatterPlot({
         })()}
       </svg>
 
-      {/* Tooltip card */}
-      {activeLeader && (
-        <div className="absolute top-4 right-4 z-20 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-lg p-3 min-w-[200px] max-w-[260px]">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: activeLeader.primary_color || "#6b7280" }}>
-              <img src={getMlbHeadshotUrl(activeLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-neutral-900 dark:text-white">{activeLeader.player_name}</p>
-              <p className="text-[11px] text-neutral-500">{activeLeader.team_abbr} &bull; {activeLeader.position}</p>
+      {/* Tooltip — only on hover or search-focus; hidden once a dot is selected (detail panel below takes over) */}
+      {(() => {
+        const hoveredLeader = hoveredId != null ? leaders.find((l) => l.player_id === hoveredId) ?? null : null;
+        const tooltipLeader = hoveredLeader ?? (searchActive && selectedId == null ? matchedLeaders[0] ?? null : null);
+        if (!tooltipLeader) return null;
+        const dotX = scaleX(tooltipLeader.avg_exit_velo);
+        const dotY = scaleY(getYVal(tooltipLeader));
+        const tooltipW = 220;
+        const flipX = dotX + tooltipW + 20 > W;
+        const flipY = dotY < 120;
+        const tx = flipX ? dotX - tooltipW - 12 : dotX + 16;
+        const ty = flipY ? dotY + 8 : dotY - 8;
+        return (
+          <div
+            className="absolute z-20 pointer-events-none"
+            style={{ left: tx, top: ty, width: tooltipW, transform: flipY ? "none" : "translateY(-100%)" }}
+          >
+            <div className="bg-white/95 dark:bg-neutral-800/95 backdrop-blur-sm border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg" style={{ background: tooltipLeader.primary_color || "#6b7280" }}>
+                  <img src={getMlbHeadshotUrl(tooltipLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-neutral-900 dark:text-white">{tooltipLeader.player_name}</p>
+                  <p className="text-[10px] text-neutral-500">{tooltipLeader.team_abbr} &bull; {tooltipLeader.position}</p>
+                </div>
+              </div>
+              {searchActive && !hoveredLeader && (
+                <p className="mb-2 text-[10px] font-medium text-brand">
+                  Search focus
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                <div className="flex justify-between"><span className="text-neutral-500">EV</span><span className={cn("font-bold tabular-nums", getEvColor(tooltipLeader.avg_exit_velo))}>{tooltipLeader.avg_exit_velo.toFixed(1)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">BRL%</span><span className={cn("font-bold tabular-nums", getBarrelColor(tooltipLeader.barrel_pct))}>{tooltipLeader.barrel_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(tooltipLeader.hard_hit_pct))}>{tooltipLeader.hard_hit_pct.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(tooltipLeader.xslg))}>{tooltipLeader.xslg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(tooltipLeader.actual_slg))}>{tooltipLeader.actual_slg.toFixed(3)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", tooltipLeader.home_runs > 0 ? "text-[#22C55E]" : "")}>{tooltipLeader.home_runs}</span></div>
+              </div>
+              <p className="text-[9px] text-neutral-400 mt-1.5 text-center">Tap dot for detail</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div className="flex justify-between"><span className="text-neutral-500">Avg EV</span><span className={cn("font-bold tabular-nums", getEvColor(activeLeader.avg_exit_velo))}>{activeLeader.avg_exit_velo.toFixed(1)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">Barrel%</span><span className={cn("font-bold tabular-nums", getBarrelColor(activeLeader.barrel_pct))}>{activeLeader.barrel_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">HH%</span><span className={cn("font-bold tabular-nums", getHardHitColor(activeLeader.hard_hit_pct))}>{activeLeader.hard_hit_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">SS%</span><span className="font-bold tabular-nums">{activeLeader.sweet_spot_pct.toFixed(1)}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">xSLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.xslg))}>{activeLeader.xslg.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">SLG</span><span className={cn("font-bold tabular-nums", getSlgColor(activeLeader.actual_slg))}>{activeLeader.actual_slg.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">HR</span><span className={cn("font-bold tabular-nums", activeLeader.home_runs > 0 ? "text-emerald-500" : "")}>{activeLeader.home_runs}</span></div>
-            <div className="flex justify-between"><span className="text-neutral-500">Avg LA</span><span className="font-bold tabular-nums">{activeLeader.avg_launch_angle.toFixed(1)}&deg;</span></div>
-          </div>
-          {!selectedId && (
-            <p className="text-[10px] text-neutral-400 mt-2 text-center">Click dot to see batted balls</p>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Selected player batted ball detail */}
-      {selectedLeader && (
-        <div className="mt-3 border border-brand/20 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
-          <div className="px-4 py-2 border-b border-neutral-100 dark:border-neutral-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md" style={{ background: selectedLeader.primary_color || "#6b7280" }}>
-                <img src={getMlbHeadshotUrl(selectedLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
+      <AnimatePresence initial={false}>
+        {selectedLeader && (
+          <motion.div
+            key={selectedLeader.player_id}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.6 }}
+            onAnimationComplete={(def) => {
+              if (!isMobile) return;
+              if (typeof def === "object" && def && "opacity" in def && (def as { opacity?: number }).opacity === 1 && detailHeaderRef.current) {
+                const rect = detailHeaderRef.current.getBoundingClientRect();
+                const viewportH = window.innerHeight || document.documentElement.clientHeight;
+                if (rect.top < 0 || rect.bottom > viewportH) {
+                  detailHeaderRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                }
+              }
+            }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden bg-white dark:bg-neutral-900 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.35)]">
+              <div ref={detailHeaderRef} className="px-3 md:px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800/40 flex items-center justify-between gap-2 bg-neutral-50/50 dark:bg-neutral-800/30">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/10" style={{ background: selectedLeader.primary_color || "#6b7280" }}>
+                    <img src={getMlbHeadshotUrl(selectedLeader.player_id, "small")} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">{selectedLeader.player_name}</p>
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                      {selectedLeader.team_abbr}
+                      <span className="mx-1.5 text-neutral-300 dark:text-neutral-600">&bull;</span>
+                      <span className="tabular-nums">{(selectedLeader.recent_batted_balls ?? []).length}</span> batted balls
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <span className="text-xs font-bold text-neutral-900 dark:text-white">{selectedLeader.player_name}</span>
-              <span className="text-[10px] text-neutral-400">Last {(selectedLeader.recent_batted_balls ?? []).length} Batted Balls</span>
+              <BattedBallExpansion balls={(selectedLeader.recent_batted_balls ?? [])} isMobile={isMobile} />
             </div>
-            <button onClick={() => setSelectedId(null)} className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-              <X className="w-3.5 h-3.5 text-neutral-400" />
-            </button>
-          </div>
-          <BattedBallExpansion balls={(selectedLeader.recent_batted_balls ?? [])} isMobile={isMobile} />
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-neutral-500">
+      <div className="flex items-center justify-center gap-5 mt-3 text-[10px] text-neutral-500">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-neutral-400" /> Dot size = HR count
+          <span className="inline-block w-2 h-2 rounded-full bg-neutral-400" /> Size = HR
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" /> Color = xSLG
+          <span className="inline-block w-2 h-2 rounded-full bg-[#22C55E]" /> Color = xSLG
         </span>
-        <span>Click dot for detail</span>
       </div>
     </div>
   );
 }
 
+// ── Game Filter Dropdown (matches prop center style) ─────────────────────────
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbExitVelocity() {
-  const [selectedDate, setSelectedDate] = useState(getETDate(0));
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate(0));
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [sampleSize, setSampleSize] = useState(15);
   const [pitcherHand, setPitcherHand] = useState<string>("");
   const [pitchType, setPitchType] = useState<string>("");
@@ -813,6 +921,17 @@ export function MlbExitVelocity() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<"table" | "scatter">("table");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
+  const [season, setSeason] = useState<number | undefined>(2026);
+  const [selectedGame, setSelectedGame] = useState<string>("all");
+  const [minBBs, setMinBBs] = useState<number>(0);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const mobileActiveFilterCount =
+    (season !== 2026 ? 1 : 0) +
+    (sampleSize !== 15 ? 1 : 0) +
+    (minBBs > 0 ? 1 : 0) +
+    (pitcherHand !== "" ? 1 : 0) +
+    (matchupSplit ? 1 : 0);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -825,6 +944,7 @@ export function MlbExitVelocity() {
     pitcherHand: pitcherHand || undefined,
     pitchType: pitchType || undefined,
     matchupSplit,
+    season,
   });
 
   const resolvedDate = meta?.date ?? selectedDate;
@@ -832,17 +952,33 @@ export function MlbExitVelocity() {
 
   const hasActiveFilters = pitcherHand !== "" || pitchType !== "" || matchupSplit;
 
-  // Filter by search
+  // Fetch games for the game filter dropdown (same source as prop center)
+  const { games: allGamesRaw } = useMlbGames();
+  const allGames = useMemo(() => {
+    return allGamesRaw.filter((g) => g.game_date === selectedDate);
+  }, [allGamesRaw, selectedDate]);
+
+  React.useEffect(() => { setSelectedGame("all"); }, [selectedDate]);
+
   const filteredLeaders = useMemo(() => {
-    if (!searchQuery.trim()) return leaders;
-    const q = searchQuery.toLowerCase();
-    return leaders.filter(
-      (l) =>
-        l.player_name.toLowerCase().includes(q) ||
-        l.team_abbr.toLowerCase().includes(q) ||
-        l.team_name.toLowerCase().includes(q)
-    );
-  }, [leaders, searchQuery]);
+    let result = leaders;
+    if (selectedGame !== "all") {
+      result = result.filter((l) => l.game_id === selectedGame);
+    }
+    if (minBBs > 0) {
+      result = result.filter((l) => (l.total_batted_balls ?? 0) >= minBBs);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (l) =>
+          l.player_name.toLowerCase().includes(q) ||
+          l.team_abbr.toLowerCase().includes(q) ||
+          l.team_name.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [leaders, searchQuery, selectedGame, minBBs]);
 
   // Sort
   const sortedLeaders = useMemo(() => {
@@ -891,226 +1027,367 @@ export function MlbExitVelocity() {
   return (
     <div className="space-y-3">
       {/* ── Filter Bar ─────────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-        {/* Primary row */}
-        <div className="px-4 py-2.5 flex flex-wrap items-center gap-3">
-          {/* Sample size */}
-          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-md p-0.5">
-            {SAMPLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSampleSize(opt.value)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                  sampleSize === opt.value
-                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+      <div data-tour="ev-filter-bar" className="relative z-20">
+        <div className="rounded-xl bg-neutral-50/80 dark:bg-neutral-950/40 border border-neutral-200/60 dark:border-neutral-800/60 overflow-visible">
 
-          {/* Divider */}
-          <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-          {/* Pitcher hand */}
-          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-md p-0.5">
-            {(["", "L", "R"] as const).map((hand) => (
-              <button
-                key={hand}
-                onClick={() => setPitcherHand(hand)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                  pitcherHand === hand
-                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                )}
-              >
-                {hand === "" ? "All" : hand === "L" ? "vs LHP" : "vs RHP"}
-              </button>
-            ))}
-          </div>
-
-          {/* Matchup split toggle */}
-          <Tooltip content="Show each batter's splits vs the hand of their opposing pitcher today" side="bottom">
-            <button
-              onClick={() => {
-                setMatchupSplit(!matchupSplit);
-                if (!matchupSplit) setPitcherHand(""); // Clear global hand filter when using matchup split
-              }}
-              className={cn(
-                "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-help",
-                matchupSplit
-                  ? "bg-brand/10 text-brand border border-brand/30"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-              )}
-            >
-              vs Matchup
-            </button>
-          </Tooltip>
-
-          {/* Divider */}
-          <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-          {/* Pitch type */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors outline-none">
-              {pitchType ? (PITCH_TYPE_LABELS[pitchType] ?? pitchType) : "All Pitches"}
-              <ChevronDown className="h-3 w-3 text-neutral-400" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[140px] p-1">
-              <DropdownMenuItem
-                onClick={() => setPitchType("")}
-                className={cn("text-xs", !pitchType && "font-semibold text-brand")}
-              >
-                All Pitches
-              </DropdownMenuItem>
-              {(meta?.available_pitch_types ?? []).map((pt) => (
-                <DropdownMenuItem
-                  key={pt}
-                  onClick={() => setPitchType(pt)}
-                  className={cn("text-xs", pitchType === pt && "font-semibold text-brand")}
-                >
-                  {PITCH_TYPE_LABELS[pt] ?? pt}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Divider */}
-          <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-          {/* Date */}
-          <MlbDateNav selectedDate={selectedDate} onDateChange={setSelectedDate} />
-
-          {/* Divider */}
-          <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />
-
-          {/* View toggle */}
-          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-md p-0.5">
-            <button
-              onClick={() => setViewMode("table")}
-              className={cn(
-                "p-1.5 rounded-md transition-all",
-                viewMode === "table"
-                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-              title="Table view"
-            >
-              <Table className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode("scatter")}
-              className={cn(
-                "p-1.5 rounded-md transition-all",
-                viewMode === "scatter"
-                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-              title="Scatter plot: EV vs Barrel Rate"
-            >
-              <ScatterChartIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-40 pl-7 pr-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 text-xs placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/30 transition-all text-neutral-700 dark:text-neutral-300"
-            />
-          </div>
-
-          {/* Clear filters */}
-          {hasActiveFilters && (
-            <button
-              onClick={() => { setPitcherHand(""); setPitchType(""); setMatchupSplit(false); }}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              title="Reset filters"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+          {/* ── Row 1: Desktop — all filter controls ── */}
+          {!isMobile && (
+            <div className="flex items-end gap-x-5 gap-y-3 px-4 py-3 flex-wrap">
+              <FilterGroup label="Season">
+                <SegmentedControl
+                  value={season ? String(season) : "all"}
+                  onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
+                  options={[
+                    { label: "All", value: "all" },
+                    { label: "2025", value: "2025" },
+                    { label: "2026", value: "2026" },
+                  ]}
+                />
+              </FilterGroup>
+              <FilterGroup label="Sample">
+                <SegmentedControl
+                  value={String(sampleSize)}
+                  onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
+                  options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+                />
+              </FilterGroup>
+              <FilterGroup label="Min Batted Balls">
+                <SegmentedControl
+                  value={String(minBBs)}
+                  onChange={(v) => setMinBBs(Number(v))}
+                  options={[
+                    { label: "All", value: "0" },
+                    { label: "5+", value: "5" },
+                    { label: "10+", value: "10" },
+                    { label: "15+", value: "15" },
+                  ]}
+                />
+              </FilterGroup>
+              <FilterGroup label="Matchup">
+                <SegmentedControl
+                  value={pitcherHand}
+                  onChange={setPitcherHand}
+                  options={[
+                    { label: "All", value: "" },
+                    { label: "vs LHP", value: "L" },
+                    { label: "vs RHP", value: "R" },
+                  ]}
+                />
+                <Tooltip content="Show each batter's splits vs the hand of their opposing pitcher today" side="bottom">
+                  <button
+                    onClick={() => {
+                      setMatchupSplit(!matchupSplit);
+                      if (!matchupSplit) setPitcherHand("");
+                    }}
+                    className={cn(
+                      "px-2.5 py-1.5 md:py-1 rounded-lg text-xs font-semibold transition-all cursor-help",
+                      matchupSplit
+                        ? "bg-brand/10 text-brand border border-brand/30"
+                        : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                    )}
+                  >
+                    vs Matchup
+                  </button>
+                </Tooltip>
+              </FilterGroup>
+              <FilterGroup label="Pitch Type">
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/30 rounded-lg px-2.5 py-1.5 md:py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors outline-none">
+                    {pitchType ? (PITCH_TYPE_LABELS[pitchType] ?? pitchType) : "All Pitches"}
+                    <ChevronDown className="h-3 w-3 text-neutral-400" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[140px] p-1">
+                    <DropdownMenuItem
+                      onClick={() => setPitchType("")}
+                      className={cn("text-xs", !pitchType && "font-semibold text-brand")}
+                    >
+                      All Pitches
+                    </DropdownMenuItem>
+                    {(meta?.available_pitch_types ?? []).map((pt) => (
+                      <DropdownMenuItem
+                        key={pt}
+                        onClick={() => setPitchType(pt)}
+                        className={cn("text-xs", pitchType === pt && "font-semibold text-brand")}
+                      >
+                        {PITCH_TYPE_LABELS[pt] ?? pt}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </FilterGroup>
+            </div>
           )}
 
-          {/* Result count */}
-          <div className="text-xs text-neutral-500">
-            <span className="font-bold text-neutral-900 dark:text-white">{leaders.length}</span> players
-          </div>
-        </div>
+          {/* ── Divider between rows — desktop ── */}
+          {!isMobile && <div className="border-t border-neutral-200/40 dark:border-neutral-800/30" />}
 
-        {/* Active filter pills + fallback date */}
-        {(hasActiveFilters || isFallbackDate) && !isLoading && (
-          <div className="px-4 py-2 flex flex-wrap items-center gap-2 border-t border-neutral-200/40 dark:border-neutral-700/20 bg-neutral-50/50 dark:bg-neutral-800/20">
-            {matchupSplit && (
-              <button
-                onClick={() => setMatchupSplit(false)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                vs Matchup Splits
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {pitcherHand && (
-              <button
-                onClick={() => setPitcherHand("")}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                {pitcherHand === "L" ? "vs LHP" : "vs RHP"}
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {pitchType && (
-              <button
-                onClick={() => setPitchType("")}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-semibold hover:bg-brand/20 transition-colors"
-              >
-                {PITCH_TYPE_LABELS[pitchType] ?? pitchType}
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
+          {/* ── Row 2: Desktop — DateNav + game dropdown + spacer + search/count ── */}
+          {!isMobile && (
+            <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+              <DateNav
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+              />
+              {allGames.length > 1 && (
+                <>
+                  <FilterDivider />
+                  <GameFilterDropdown
+                    games={allGames}
+                    selectedGame={selectedGame}
+                    onSelect={setSelectedGame}
+                  />
+                </>
+              )}
+              <div className="flex-1 min-w-0" />
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={cn(
+                      "p-1.5 rounded-md transition-all",
+                      viewMode === "table"
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                    title="Table view"
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("scatter")}
+                    className={cn(
+                      "p-1.5 rounded-md transition-all",
+                      viewMode === "scatter"
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                    title="Scatter plot: EV vs Barrel Rate"
+                  >
+                    <ScatterChartIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => { setPitcherHand(""); setPitchType(""); setMatchupSplit(false); }}
+                    className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    title="Reset filters"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
+                <FilterCount count={filteredLeaders.length} label="players" />
+              </div>
+            </div>
+          )}
+
+          {/* ── Mobile layout ── */}
+          {isMobile && (
+            <div className="px-3 py-2.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <DateNav
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === "table"
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Table view"
+                    >
+                      <Table className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("scatter")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === "scatter"
+                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                      title="Scatter plot"
+                    >
+                      <ScatterChartIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <FilterCount count={filteredLeaders.length} label="players" />
+                </div>
+              </div>
+              {allGames.length > 1 && (
+                <GameFilterDropdown
+                  games={allGames}
+                  selectedGame={selectedGame}
+                  onSelect={setSelectedGame}
+                />
+              )}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." className="w-full" />
+                </div>
+                <button
+                  onClick={() => setMobileFiltersOpen((v) => !v)}
+                  aria-expanded={mobileFiltersOpen}
+                  aria-controls="ev-mobile-filters-panel"
+                  className={cn(
+                    "relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 border",
+                    mobileFiltersOpen || mobileActiveFilterCount > 0
+                      ? "bg-brand/10 text-brand border-brand/30"
+                      : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700/40"
+                  )}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={2} />
+                  <span>Filters</span>
+                  {mobileActiveFilterCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-brand text-white text-[10px] font-bold leading-none tabular-nums">
+                      {mobileActiveFilterCount}
+                    </span>
+                  )}
+                  <ChevronDown
+                    className={cn(
+                      "w-3 h-3 transition-transform duration-200",
+                      mobileFiltersOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+              </div>
+              <AnimatePresence initial={false}>
+                {mobileFiltersOpen && (
+                  <motion.div
+                    key="ev-mobile-filters-panel"
+                    id="ev-mobile-filters-panel"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.6 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-0.5 space-y-2.5">
+                      <div className="flex items-end gap-2 w-full">
+                        <FilterGroup label="Season" className="flex-1">
+                          <SegmentedControl
+                            fullWidth
+                            value={season ? String(season) : "all"}
+                            onChange={(v) => setSeason(v === "all" ? undefined : Number(v))}
+                            options={[
+                              { label: "All", value: "all" },
+                              { label: "2025", value: "2025" },
+                              { label: "2026", value: "2026" },
+                            ]}
+                          />
+                        </FilterGroup>
+                        <FilterGroup label="Matchup">
+                          <SegmentedControl
+                            value={pitcherHand}
+                            onChange={setPitcherHand}
+                            options={[
+                              { label: "All", value: "" },
+                              { label: "LHP", value: "L" },
+                              { label: "RHP", value: "R" },
+                            ]}
+                          />
+                        </FilterGroup>
+                      </div>
+                      <FilterGroup label="Sample" className="w-full">
+                        <SegmentedControl
+                          fullWidth
+                          value={String(sampleSize)}
+                          onChange={(v) => setSampleSize(Number(v) as 10 | 15 | 25 | 50)}
+                          options={SAMPLE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+                        />
+                      </FilterGroup>
+                      <FilterGroup label="Min Batted Balls" className="w-full">
+                        <SegmentedControl
+                          fullWidth
+                          value={String(minBBs)}
+                          onChange={(v) => setMinBBs(Number(v))}
+                          options={[
+                            { label: "All", value: "0" },
+                            { label: "5+", value: "5" },
+                            { label: "10+", value: "10" },
+                            { label: "15+", value: "15" },
+                          ]}
+                        />
+                      </FilterGroup>
+                      <div className="flex items-center gap-2 w-full">
+                        <button
+                          onClick={() => {
+                            setMatchupSplit(!matchupSplit);
+                            if (!matchupSplit) setPitcherHand("");
+                          }}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                            matchupSplit
+                              ? "bg-brand/10 text-brand border border-brand/30"
+                              : "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500"
+                          )}
+                        >
+                          vs Matchup
+                        </button>
+                        {mobileActiveFilterCount > 0 && (
+                          <button
+                            onClick={() => {
+                              setSeason(2026);
+                              setSampleSize(15);
+                              setMinBBs(0);
+                              setPitcherHand("");
+                              setPitchType("");
+                              setMatchupSplit(false);
+                            }}
+                            className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 bg-neutral-100/60 dark:bg-neutral-800/40 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* ── Legend row — desktop only ── */}
+          <div className="hidden md:flex px-4 py-1.5 items-center gap-4 border-t border-neutral-200/40 dark:border-neutral-800/30 bg-neutral-50/40 dark:bg-neutral-800/10 text-[10px] text-neutral-400">
+            <span className="font-medium text-neutral-500">EV:</span>
+            <span><strong className="text-emerald-600 dark:text-emerald-400">93+</strong> Elite</span>
+            <span><strong className="text-green-600 dark:text-green-400">90+</strong> Strong</span>
+            <span><strong className="text-amber-500">88+</strong> Above Avg</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" />LD</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500/70" />FB</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" />GB</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span>HH% = 95+ mph</span>
+            <span>SS% = 8-32&deg; LA</span>
+            <span className="text-neutral-300 dark:text-neutral-600">|</span>
+            <span>+Diff = unlucky</span>
+            <span>-Diff = lucky</span>
             {isFallbackDate && (
-              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                No data for {formatLongDate(selectedDate)} — showing <strong>{formatLongDate(resolvedDate)}</strong>
-              </span>
+              <>
+                <span className="text-neutral-300 dark:text-neutral-600">|</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Showing {formatLongDate(resolvedDate)}
+                </span>
+              </>
             )}
           </div>
-        )}
 
-        {/* Legend row */}
-        <div className="px-4 py-1.5 flex items-center gap-4 border-t border-neutral-200/40 dark:border-neutral-700/20 bg-neutral-50/50 dark:bg-neutral-800/20 text-[10px] text-neutral-400">
-          <span className="font-medium text-neutral-500">EV:</span>
-          <span><strong className="text-emerald-600 dark:text-emerald-400">93+</strong> Elite</span>
-          <span><strong className="text-green-600 dark:text-green-400">90+</strong> Strong</span>
-          <span><strong className="text-amber-500">88+</strong> Above Avg</span>
-          <span className="text-neutral-300 dark:text-neutral-600">|</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" />LD</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500/70" />FB</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" />GB</span>
-          <span className="text-neutral-300 dark:text-neutral-600">|</span>
-          <span>HH% = 95+ mph</span>
-          <span>SS% = 8-32&deg; LA</span>
-          <span className="text-neutral-300 dark:text-neutral-600">|</span>
-          <span>+Diff = unlucky</span>
-          <span>-Diff = lucky</span>
         </div>
       </div>
 
       {/* ── Table / Cards / Scatter ────────────────────────────────────── */}
-      <div className="relative">
+      <div data-tour="ev-table" className="relative">
         {viewMode === "scatter" && !isLoading && sortedLeaders.length > 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden p-4">
             <div className="max-w-5xl mx-auto">
-              <EvScatterPlot leaders={displayLeaders} isMobile={!!isMobile} />
+              <EvScatterPlot leaders={leaders} isMobile={!!isMobile} searchQuery={searchQuery} />
             </div>
           </div>
         ) : isMobile && !isLoading && sortedLeaders.length > 0 ? (
@@ -1345,9 +1622,9 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Avg EV */}
-                          <td className="px-3 py-2.5">
+                          <td className={cn("px-3 py-2.5", getEvCell(leader.avg_exit_velo))}>
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className={cn("text-sm font-bold tabular-nums", getEvColor(leader.avg_exit_velo))}>
+                              <span className={cn("text-sm font-bold tabular-nums", !getEvCell(leader.avg_exit_velo) && getEvColor(leader.avg_exit_velo))}>
                                 {leader.avg_exit_velo.toFixed(1)}
                               </span>
                               <EvMeter value={leader.avg_exit_velo} />
@@ -1358,16 +1635,16 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Max EV */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold tabular-nums", getEvColor(leader.max_exit_velo))}>
+                          <td className={cn("px-3 py-2.5 text-center", getEvCell(leader.max_exit_velo))}>
+                            <span className={cn("text-sm font-semibold tabular-nums", !getEvCell(leader.max_exit_velo) && getEvColor(leader.max_exit_velo))}>
                               {leader.max_exit_velo.toFixed(1)}
                             </span>
                           </td>
 
                           {/* Barrel % */}
-                          <td className="px-3 py-2.5 text-center">
+                          <td className={cn("px-3 py-2.5 text-center", getBarrelCell(leader.barrel_pct))}>
                             <div className="flex flex-col items-center">
-                              <span className={cn("text-sm font-bold tabular-nums", getBarrelColor(leader.barrel_pct))}>
+                              <span className={cn("text-sm font-bold tabular-nums", !getBarrelCell(leader.barrel_pct) && getBarrelColor(leader.barrel_pct))}>
                                 {leader.barrel_pct.toFixed(1)}%
                               </span>
                               <span className="text-[10px] text-neutral-400 tabular-nums">{leader.barrels} brl</span>
@@ -1375,17 +1652,17 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* Hard Hit % */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-bold tabular-nums", getHardHitColor(leader.hard_hit_pct))}>
+                          <td className={cn("px-3 py-2.5 text-center", getHardHitCell(leader.hard_hit_pct))}>
+                            <span className={cn("text-sm font-bold tabular-nums", !getHardHitCell(leader.hard_hit_pct) && getHardHitColor(leader.hard_hit_pct))}>
                               {leader.hard_hit_pct.toFixed(1)}%
                             </span>
                           </td>
 
                           {/* Sweet Spot % */}
-                          <td className="px-3 py-2.5 text-center">
+                          <td className={cn("px-3 py-2.5 text-center", getSweetSpotCell(leader.sweet_spot_pct))}>
                             <span className={cn(
                               "text-sm font-semibold tabular-nums",
-                              leader.sweet_spot_pct >= 40 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
+                              !getSweetSpotCell(leader.sweet_spot_pct) && (leader.sweet_spot_pct >= 40 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400")
                             )}>
                               {leader.sweet_spot_pct.toFixed(1)}%
                             </span>
@@ -1399,15 +1676,15 @@ export function MlbExitVelocity() {
                           </td>
 
                           {/* xSLG */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-bold tabular-nums", getSlgColor(leader.xslg))}>
+                          <td className={cn("px-3 py-2.5 text-center", getSlgCell(leader.xslg))}>
+                            <span className={cn("text-sm font-bold tabular-nums", !getSlgCell(leader.xslg) && getSlgColor(leader.xslg))}>
                               {leader.xslg.toFixed(3)}
                             </span>
                           </td>
 
                           {/* Actual SLG */}
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold tabular-nums", getSlgColor(leader.actual_slg))}>
+                          <td className={cn("px-3 py-2.5 text-center", getSlgCell(leader.actual_slg))}>
+                            <span className={cn("text-sm font-semibold tabular-nums", !getSlgCell(leader.actual_slg) && getSlgColor(leader.actual_slg))}>
                               {leader.actual_slg.toFixed(3)}
                             </span>
                           </td>

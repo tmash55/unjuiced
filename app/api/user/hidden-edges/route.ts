@@ -1,23 +1,36 @@
 import { createClient } from "@/libs/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// GET - Fetch all hidden edge keys for the current user
+// GET - Fetch all hidden edge keys for the current user (optionally scoped by tool)
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const tool = req.nextUrl.searchParams.get("tool");
+
     // Fetch hidden edges, excluding expired ones
-    const { data, error } = await supabase
+    let query = supabase
       .from("user_hidden_edges")
       .select("edge_key, event_date, auto_unhide_at")
       .eq("user_id", user.id)
       .or(`auto_unhide_at.is.null,auto_unhide_at.gt.${new Date().toISOString()}`);
+
+    if (tool) {
+      // For edge-finder, also include legacy rows (tool = NULL)
+      if (tool === "edge-finder") {
+        query = query.or(`tool.eq.${tool},tool.is.null`);
+      } else {
+        query = query.eq("tool", tool);
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[GET /api/user/hidden-edges] Error:", error);
@@ -26,10 +39,10 @@ export async function GET(req: NextRequest) {
 
     // Return just the edge keys for filtering
     const edgeKeys = data?.map(item => item.edge_key) || [];
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       hiddenEdges: edgeKeys,
-      count: edgeKeys.length 
+      count: edgeKeys.length
     });
   } catch (error) {
     console.error("[GET /api/user/hidden-edges] Unexpected error:", error);
@@ -49,13 +62,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { 
-      edgeKey, 
-      eventId, 
-      eventDate, 
-      sport, 
-      playerName, 
-      market, 
+    const {
+      edgeKey,
+      tool,
+      eventId,
+      eventDate,
+      sport,
+      playerName,
+      market,
       line,
       autoUnhideHours = 24 // Default: auto-unhide after 24 hours
     } = body;
@@ -75,6 +89,7 @@ export async function POST(req: NextRequest) {
       .upsert({
         user_id: user.id,
         edge_key: edgeKey,
+        tool: tool || null,
         event_id: eventId || null,
         event_date: eventDate || null,
         sport: sport || null,
@@ -104,30 +119,38 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE - Clear all hidden edges for the user
+// DELETE - Clear hidden edges for the user (optionally scoped by tool)
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = await createClient();
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { error } = await supabase
+    const tool = req.nextUrl.searchParams.get("tool");
+
+    let query = supabase
       .from("user_hidden_edges")
       .delete()
       .eq("user_id", user.id);
+
+    if (tool) {
+      query = query.eq("tool", tool);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error("[DELETE /api/user/hidden-edges] Error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "All hidden edges cleared" 
+    return NextResponse.json({
+      success: true,
+      message: tool ? `Hidden edges cleared for ${tool}` : "All hidden edges cleared"
     });
   } catch (error) {
     console.error("[DELETE /api/user/hidden-edges] Unexpected error:", error);

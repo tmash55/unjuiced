@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSSE } from "@/hooks/use-sse";
 import type { Favorite, RefreshedOdds, RefreshOddsResponse, BookSnapshot } from "@/hooks/use-favorites";
+import { getFavoriteOddsMarketKey } from "@/lib/odds/types";
 
 // =============================================================================
 // Types
@@ -37,7 +38,7 @@ export type FavoriteChangesMap = Map<string, FavoriteChange>;
 // Full refreshed data for a favorite
 export interface RefreshedFavoriteData {
   best: { price: number; book: string; link: string | null; sgp: string | null } | null;
-  allBooks: Record<string, { price: number; link: string | null; sgp: string | null }>;
+  allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }>;
   isAvailable: boolean;
 }
 
@@ -103,7 +104,8 @@ function getSportsFromFavorites(favorites: Favorite[]): string[] {
 function getOddsKeysFromFavorites(favorites: Favorite[]): Set<string> {
   const keys = new Set<string>();
   for (const fav of favorites) {
-    if (fav.odds_key) keys.add(fav.odds_key);
+    const oddsKey = getFavoriteOddsMarketKey(fav.sport, fav.event_id, fav.market) ?? fav.odds_key;
+    if (oddsKey) keys.add(oddsKey);
   }
   return keys;
 }
@@ -176,12 +178,13 @@ export function useFavoritesStream({
     for (const item of response.refreshed || []) {
       // Build refreshed data
       if (item.is_available && item.all_books?.length > 0) {
-        const allBooks: Record<string, { price: number; link: string | null; sgp: string | null }> = {};
+        const allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }> = {};
         for (const bookOdds of item.all_books) {
           allBooks[bookOdds.book] = {
             price: bookOdds.price,
             link: bookOdds.link,
             sgp: bookOdds.sgp,
+            oddId: bookOdds.odd_id,
           };
         }
         

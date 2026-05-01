@@ -2,6 +2,7 @@
 
 import React from "react"
 import { cn } from "@/lib/utils"
+import { SportIcon } from "@/components/icons/sport-icons"
 
 /**
  * AppPageLayout - Consistent layout for all authenticated app pages
@@ -45,11 +46,42 @@ import { cn } from "@/lib/utils"
  * ```
  */
 
+// Sport theme colors for header gradients
+// Uses desaturated, warm tones per taste-skill: no neon, no oversaturation
+const SPORT_THEMES: Record<string, { from: string; via: string; badge: string; label: string }> = {
+  nba: {
+    from: "rgb(234 88 12 / 0.12)",   // orange-600
+    via: "rgb(251 191 36 / 0.04)",    // amber-400
+    badge: "text-orange-600 dark:text-orange-400 bg-orange-500/10 dark:bg-orange-500/15 border-orange-500/20 dark:border-orange-400/20",
+    label: "NBA",
+  },
+  mlb: {
+    from: "rgb(220 38 38 / 0.12)",    // red-600
+    via: "rgb(244 63 94 / 0.04)",     // rose-500
+    badge: "text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-500/15 border-red-500/20 dark:border-red-400/20",
+    label: "MLB",
+  },
+  nhl: {
+    from: "rgb(37 99 235 / 0.12)",    // blue-600
+    via: "rgb(56 189 248 / 0.04)",    // sky-400
+    badge: "text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/15 border-blue-500/20 dark:border-blue-400/20",
+    label: "NHL",
+  },
+  nfl: {
+    from: "rgb(5 150 105 / 0.12)",    // emerald-600
+    via: "rgb(52 211 153 / 0.04)",    // emerald-400
+    badge: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/20 dark:border-emerald-400/20",
+    label: "NFL",
+  },
+}
+
 interface AppPageLayoutProps {
   /** Page title - required */
   title: string
   /** Optional subtitle/description */
   subtitle?: string
+  /** Optional sport context — adds gradient accent and sport badge to header */
+  sport?: string
   /** Optional stats/metrics row between header and context bar */
   statsBar?: React.ReactNode
   /** Optional right-side actions in the header (buttons, toggles, etc.) */
@@ -78,6 +110,7 @@ const maxWidthClasses = {
 export function AppPageLayout({
   title,
   subtitle,
+  sport,
   statsBar,
   headerActions,
   contextBar,
@@ -87,17 +120,35 @@ export function AppPageLayout({
   contentClassName,
   maxWidth = "full",
 }: AppPageLayoutProps) {
+  const sportTheme = sport ? SPORT_THEMES[sport.toLowerCase()] : null
+
   return (
     <div className={cn("mx-auto px-3 sm:px-4 lg:px-6 py-5", maxWidthClasses[maxWidth], className)}>
-      {/* Page Header */}
-      <div className="mb-5">
-        <div className="flex items-start justify-between gap-4">
+      {/* Page Header + Context Bar — wrapped in sport gradient */}
+      <div
+        className="-mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 -mt-5 pt-5 relative"
+        style={sportTheme ? {
+          background: `radial-gradient(ellipse 80% 70% at 0% 0%, ${sportTheme.from}, ${sportTheme.via}, transparent)`,
+        } : undefined}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-3 sm:mb-5">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white sm:text-3xl">
+            {/* Sport badge */}
+            {sportTheme && (
+              <div className={cn(
+                "inline-flex items-center gap-1.5 mb-1.5 sm:mb-2.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider",
+                sportTheme.badge
+              )}>
+                <SportIcon sport={sport!} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                {sportTheme.label}
+              </div>
+            )}
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-white sm:text-2xl md:text-3xl">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-base max-w-3xl">
+              <p className="hidden sm:block mt-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-base max-w-3xl">
                 {subtitle}
               </p>
             )}
@@ -108,21 +159,21 @@ export function AppPageLayout({
             </div>
           )}
         </div>
+
+        {/* Optional Stats Bar */}
+        {statsBar && (
+          <div className="mb-4">
+            {statsBar}
+          </div>
+        )}
+
+        {/* Context Bar (filters, tabs, etc.) */}
+        {contextBar && (
+          <div className={cn("mb-4", stickyContextBar && "sticky top-0 z-30 pb-2")}>
+            {contextBar}
+          </div>
+        )}
       </div>
-
-      {/* Optional Stats Bar */}
-      {statsBar && (
-        <div className="mb-4">
-          {statsBar}
-        </div>
-      )}
-
-      {/* Context Bar (filters, tabs, etc.) */}
-      {contextBar && (
-        <div className={cn("mb-4", stickyContextBar && "sticky top-14 z-30 bg-white dark:bg-neutral-950 pb-2")}>
-          {contextBar}
-        </div>
-      )}
 
       {/* Primary Content Area */}
       <div className={contentClassName}>

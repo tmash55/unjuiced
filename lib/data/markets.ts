@@ -583,9 +583,67 @@ export interface SportMarket {
 
   // Baseball markets (new Redis format)
   const BASEBALL_MARKETS: SportMarket[] = [
+    // Game lines
     { value: "Moneyline", label: "Moneyline", apiKey: "game_moneyline", group: "Game", period: "full" },
-    { value: "Run Line", label: "Run Line", apiKey: "game_run_line", group: "Game", period: "full" },
-    { value: "Total Runs", label: "Total Runs", apiKey: "game_total_runs", group: "Game", period: "full" },
+    { value: "Run Line", label: "Run Line", apiKey: "run_line", group: "Game", period: "full" },
+    { value: "Total Runs", label: "Total Runs", apiKey: "total_runs", group: "Game", period: "full" },
+    { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3_way", group: "Game", period: "full" },
+    { value: "Home Team Total", label: "Home Team Total", apiKey: "team_total_home_team", group: "Game", period: "full" },
+    { value: "Away Team Total", label: "Away Team Total", apiKey: "team_total_away_team", group: "Game", period: "full" },
+    { value: "Team Total Runs", label: "Team Total Runs", apiKey: "team_total_runs", group: "Game", period: "full" },
+    { value: "Extra Innings", label: "Extra Innings?", apiKey: "extra_innings", group: "Game", period: "full", singleLine: true },
+    { value: "First Team to Score", label: "First Team to Score", apiKey: "first_team_to_score", group: "Game", period: "full", singleLine: true },
+    { value: "Second Team to Score", label: "Second Team to Score", apiKey: "second_team_to_score", group: "Game", period: "full", singleLine: true },
+
+    // 1st Inning (NRFI)
+    { value: "1st Inning ML", label: "1st Inning ML", apiKey: "1st_inning_moneyline", group: "1st Inning", period: "full" },
+    { value: "1st Inning Run Line", label: "1st Inning Run Line", apiKey: "1st_inning_run_line", group: "1st Inning", period: "full" },
+    { value: "1st Inning Total", label: "1st Inning Total", apiKey: "1st_inning_total_runs", group: "1st Inning", period: "full" },
+    { value: "1st Inning 3-Way", label: "1st Inning 3-Way", apiKey: "1st_inning_moneyline_3_way", group: "1st Inning", period: "full" },
+
+    // First 5 Innings
+    { value: "F5 Moneyline", label: "F5 Moneyline", apiKey: "1st_5_innings_moneyline", group: "First 5", period: "full" },
+    { value: "F5 Run Line", label: "F5 Run Line", apiKey: "1st_5_innings_run_line", group: "First 5", period: "full" },
+    { value: "F5 Total Runs", label: "F5 Total Runs", apiKey: "1st_5_innings_total_runs", group: "First 5", period: "full" },
+    { value: "F5 3-Way", label: "F5 3-Way", apiKey: "1st_5_innings_moneyline_3_way", group: "First 5", period: "full" },
+    { value: "F5 Home Total", label: "F5 Home Total", apiKey: "1st_5_innings_home_team_total_runs", group: "First 5", period: "full" },
+    { value: "F5 Away Total", label: "F5 Away Total", apiKey: "1st_5_innings_away_team_total_runs", group: "First 5", period: "full" },
+
+    // Inning Props (Caesars etc.)
+    { value: "F2 3-Way", label: "F2 Innings 3-Way", apiKey: "1st_2_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F3 3-Way", label: "F3 Innings 3-Way", apiKey: "1st_3_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F3 Run Line", label: "F3 Innings Run Line", apiKey: "1st_3_innings_run_line", group: "Inning Props", period: "full" },
+    { value: "F4 3-Way", label: "F4 Innings 3-Way", apiKey: "1st_4_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F6 3-Way", label: "F6 Innings 3-Way", apiKey: "1st_6_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F7 3-Way", label: "F7 Innings 3-Way", apiKey: "1st_7_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "F8 3-Way", label: "F8 Innings 3-Way", apiKey: "1st_8_innings_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "2nd Inning 3-Way", label: "2nd Inning 3-Way", apiKey: "2nd_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "3rd Inning 3-Way", label: "3rd Inning 3-Way", apiKey: "3rd_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "4th Inning 3-Way", label: "4th Inning 3-Way", apiKey: "4th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "5th Inning 3-Way", label: "5th Inning 3-Way", apiKey: "5th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "6th Inning 3-Way", label: "6th Inning 3-Way", apiKey: "6th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "7th Inning 3-Way", label: "7th Inning 3-Way", apiKey: "7th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+    { value: "8th Inning 3-Way", label: "8th Inning 3-Way", apiKey: "8th_inning_moneyline_3_way", group: "Inning Props", period: "full" },
+
+    // Batter props
+    { value: "Hits", label: "Hits", apiKey: "player_hits", group: "Batter", period: "full" },
+    { value: "Home Runs", label: "Home Runs", apiKey: "player_home_runs", group: "Batter", period: "full" },
+    { value: "Total Bases", label: "Total Bases", apiKey: "player_total_bases", group: "Batter", period: "full" },
+    { value: "RBIs", label: "RBIs", apiKey: "player_rbis", group: "Batter", period: "full" },
+    { value: "Runs", label: "Runs Scored", apiKey: "player_runs", group: "Batter", period: "full" },
+    { value: "Stolen Bases", label: "Stolen Bases", apiKey: "player_stolen_bases", group: "Batter", period: "full" },
+    { value: "Singles", label: "Singles", apiKey: "player_singles", group: "Batter", period: "full" },
+    { value: "Doubles", label: "Doubles", apiKey: "player_doubles", group: "Batter", period: "full" },
+    { value: "Triples", label: "Triples", apiKey: "player_triples", group: "Batter", period: "full" },
+    { value: "Hits+Runs+RBIs", label: "Hits+Runs+RBIs", apiKey: "player_hits__runs__rbis", group: "Batter", period: "full" },
+    { value: "Batting Strikeouts", label: "Batting Strikeouts", apiKey: "player_batting_strikeouts", group: "Batter", period: "full" },
+
+    // Pitcher props
+    { value: "Strikeouts", label: "Strikeouts", apiKey: "player_strikeouts", group: "Pitcher", period: "full" },
+    { value: "Hits Allowed", label: "Hits Allowed", apiKey: "player_hits_allowed", group: "Pitcher", period: "full" },
+    { value: "Walks Allowed", label: "Walks Allowed", apiKey: "player_walks_allowed", group: "Pitcher", period: "full" },
+    { value: "Earned Runs", label: "Earned Runs", apiKey: "player_earned_runs", group: "Pitcher", period: "full" },
+    { value: "Outs", label: "Outs Recorded", apiKey: "player_outs", group: "Pitcher", period: "full" },
   ];
 
   // Tennis markets (union of currently active ATP/WTA/ITF/UTR feeds)
@@ -1576,10 +1634,27 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_pp_points': 'PPP',
       'player_saves': 'SV',
       'player_blocked_shots': 'BS',
-      'player_hits': 'HIT',
+      'player_hits': 'H',
       'player_plus_minus': '+/-',
       'player_goals_against': 'GA',
       'player_shutout': 'SO',
+      // MLB Batter
+      'player_home_runs': 'HR',
+      'player_total_bases': 'TB',
+      'player_rbis': 'RBI',
+      'player_runs': 'R',
+      'player_stolen_bases': 'SB',
+      'player_singles': '1B',
+      'player_doubles': '2B',
+      'player_triples': '3B',
+      'player_hits__runs__rbis': 'H+R+RBI',
+      'player_batting_strikeouts': 'SO',
+      // MLB Pitcher
+      'player_strikeouts': 'K',
+      'player_hits_allowed': 'HA',
+      'player_walks_allowed': 'BB',
+      'player_earned_runs': 'ER',
+      'player_outs': 'OUT',
       'player_first_goal': '1G',
       'player_last_goal': 'LG',
       
@@ -1623,12 +1698,26 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'receiving_yards': 'REC YDS',
       'receptions': 'REC',
       
-      // Baseball
+      // Baseball — batter_ prefix (legacy Redis keys)
       'batter_home_runs': 'HR',
-      'batter_hits': 'H',
+      'batter_hits': 'Hits',
       'batter_total_bases': 'TB',
       'batter_rbis': 'RBI',
-      'pitcher_strikeouts': 'K',
+      'batter_runs_scored': 'Runs',
+      'batter_stolen_bases': 'SB',
+      'batter_hits_runs_rbis': 'H+R+RBI',
+      'batter_singles': '1B',
+      'batter_doubles': '2B',
+      'batter_triples': '3B',
+      'batter_strikeouts': 'Batter Ks',
+      'pitcher_strikeouts': 'Ks',
+      'pitcher_earned_runs': 'ER',
+      'pitcher_hits_allowed': 'Hits Allowed',
+      'pitcher_walks_allowed': 'Walks',
+      'pitcher_outs': 'Outs',
+      'game_total_runs': 'Total Runs',
+      'total_runs': 'Total Runs',
+      'run_line': 'Run Line',
       
       // First Basket / First Scorer
       'first_basket': '1st 🏀',
@@ -1871,6 +1960,23 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_hits': 'Hits',
       'player_plus_minus': 'Plus/Minus',
       'player_shutout': 'Shutout',
+      // MLB Batter
+      'player_home_runs': 'Home Runs',
+      'player_total_bases': 'Total Bases',
+      'player_rbis': 'RBIs',
+      'player_runs': 'Runs Scored',
+      'player_stolen_bases': 'Stolen Bases',
+      'player_singles': 'Singles',
+      'player_doubles': 'Doubles',
+      'player_triples': 'Triples',
+      'player_hits__runs__rbis': 'Hits + Runs + RBIs',
+      'player_batting_strikeouts': 'Batting Strikeouts',
+      // MLB Pitcher
+      'player_strikeouts': 'Strikeouts',
+      'player_hits_allowed': 'Hits Allowed',
+      'player_walks_allowed': 'Walks Allowed',
+      'player_earned_runs': 'Earned Runs',
+      'player_outs': 'Outs Recorded',
       
       // Goalscorer markets
       'player_first_goal': 'First Goal',

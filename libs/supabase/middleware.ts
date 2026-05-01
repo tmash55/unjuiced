@@ -104,6 +104,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith(prefix)
   );
   const isApiRoute = pathname.startsWith('/api/');
+  const isAnalyticsProxyRoute =
+    pathname.startsWith('/ingest') || pathname.startsWith('/_proxy/');
   const isAuthCallbackRoute = pathname === '/auth/callback';
   const hasAuthCallbackParams =
     searchParams.has('code') ||
@@ -113,8 +115,8 @@ export async function updateSession(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request });
 
-  // Skip middleware for API routes
-  if (isApiRoute) {
+  // Skip middleware for API routes and analytics proxies
+  if (isApiRoute || isAnalyticsProxyRoute) {
     return supabaseResponse;
   }
 

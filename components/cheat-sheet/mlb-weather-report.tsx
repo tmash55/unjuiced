@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ArrowUpDown, Check, ChevronDown } from "lucide-react";
-import { MlbDateNav } from "@/components/cheat-sheet/mlb-date-nav";
+import { SheetFilterBar, FilterCount, SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
 import { cn } from "@/lib/utils";
 import { useMlbWeatherReport } from "@/hooks/use-mlb-weather-report";
@@ -118,24 +119,25 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
   const awayAbbr = row.awayTeamAbbr || "Away";
   const homeAbbr = row.homeTeamAbbr || "Home";
   const time = getETTime(row.gameDatetime);
-  const temp = row.temperatureF != null ? `${Math.round(row.temperatureF)}°F` : "--";
-  const wind = windSummary(row);
-
-  const awayColor = row.awayTeamPrimaryColor ?? "#64748b";
-  const homeColor = row.homeTeamPrimaryColor ?? "#64748b";
+  const temp = row.temperatureF != null ? Math.round(row.temperatureF) : null;
+  const precip = row.precipProbability != null ? Math.round(row.precipProbability) : null;
+  const windSpeed = row.windSpeedMph != null ? Math.round(row.windSpeedMph) : null;
+  const isRoof = row.roofType === "retractable" || row.roofType === "dome";
+  const hasStarted = row.gameDatetime ? new Date(row.gameDatetime).getTime() <= Date.now() : false;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-3 py-2.5 border-l-[3px] transition-all duration-150",
+        "w-full text-left px-3 py-3 transition-all duration-150",
+        hasStarted && !selected && "opacity-40",
         selected
-          ? "border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/[0.06]"
-          : "border-l-transparent hover:bg-neutral-50 dark:hover:bg-neutral-800/40 hover:border-l-neutral-300 dark:hover:border-l-neutral-600"
+          ? "bg-brand/5 dark:bg-brand/10"
+          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
       )}
     >
-      <div className="flex items-center gap-2.5">
-        {/* Score badge */}
+      {/* Row 1: Score + Matchup + Time */}
+      <div className="flex items-center gap-2.5 mb-1.5">
         <span
           className="shrink-0 inline-flex items-center justify-center text-[11px] font-bold tabular-nums rounded-md px-1.5 py-0.5 min-w-[28px]"
           style={{ color: badgeColor, backgroundColor: `${badgeColor}14`, border: `1px solid ${badgeColor}30` }}
@@ -143,61 +145,85 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
           {score}
         </span>
 
-        {/* Matchup with logos */}
-        <div className="flex items-center gap-1 shrink-0">
-          {row.awayTeamAbbr ? (
-            <div
-              className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${awayColor}18`, border: `1px solid ${awayColor}30` }}
-            >
-              <img
-                src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
-                alt={awayAbbr}
-                className="h-4 w-4 object-contain"
-              />
-            </div>
-          ) : (
-            <span className="text-[11px] font-semibold text-neutral-900 dark:text-white">{awayAbbr}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {row.awayTeamAbbr && (
+            <img
+              src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
+              alt={awayAbbr}
+              className="h-4 w-4 object-contain shrink-0"
+            />
           )}
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">@</span>
-          {row.homeTeamAbbr ? (
-            <div
-              className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${homeColor}18`, border: `1px solid ${homeColor}30` }}
-            >
-              <img
-                src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
-                alt={homeAbbr}
-                className="h-4 w-4 object-contain"
-              />
-            </div>
-          ) : (
-            <span className="text-[11px] font-semibold text-neutral-900 dark:text-white">{homeAbbr}</span>
+          <span className="font-semibold text-xs text-neutral-900 dark:text-white">
+            {awayAbbr} @ {homeAbbr}
+          </span>
+          {row.homeTeamAbbr && (
+            <img
+              src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
+              alt={homeAbbr}
+              className="h-4 w-4 object-contain shrink-0"
+            />
           )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          {/* Team names + high impact */}
-          <div className="flex items-center gap-1">
-            <span className="font-semibold text-[12px] text-neutral-900 dark:text-white truncate">
-              {awayAbbr} @ {homeAbbr}
-            </span>
-            {score >= 70 && (
-              <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">⚡</span>
-            )}
-          </div>
-
-          {/* Venue + time */}
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
-            {row.venueName ?? "Unknown"} · {time} ET
-          </p>
-
-          {/* Weather summary */}
-          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
-            {temp} · {wind}
-          </p>
-        </div>
+        <span className={cn(
+          "ml-auto text-[10px] tabular-nums shrink-0",
+          hasStarted
+            ? "text-amber-500 dark:text-amber-400 font-semibold"
+            : "text-neutral-400 dark:text-neutral-500"
+        )}>
+          {hasStarted ? "Started" : time}
+        </span>
       </div>
+
+      {/* Row 2: Venue */}
+      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate mb-2 pl-[38px]">
+        {row.venueName ?? "Unknown"}
+        {isRoof && <span className="ml-1 text-[9px] font-medium text-sky-500">ROOF</span>}
+      </p>
+
+      {/* Row 3: Weather conditions */}
+      <div className="flex items-center gap-2.5 pl-[38px] mb-1.5">
+        {temp != null && (
+          <span className={cn("text-[10px] font-semibold tabular-nums", temp >= 80 ? "text-amber-500" : temp <= 55 ? "text-sky-500" : "text-neutral-600 dark:text-neutral-400")}>
+            {temp}°F
+          </span>
+        )}
+        {windSpeed != null && windSpeed > 0 && (
+          <span className="text-[10px] font-semibold tabular-nums text-neutral-600 dark:text-neutral-400">
+            {windSpeed}mph {row.windLabel ? (row.windLabel.toLowerCase().includes("out") ? "↗" : row.windLabel.toLowerCase().includes("in") ? "↙" : row.windLabel.toLowerCase().includes("cross") ? "→" : "") : ""}
+          </span>
+        )}
+        {isRoof && <span className="text-[9px] font-bold text-sky-500 uppercase">Roof</span>}
+        {precip != null && precip >= 20 && (
+          <span className="text-[10px] font-semibold text-sky-500 tabular-nums">
+            {precip}% 💧
+          </span>
+        )}
+      </div>
+
+      {/* Row 4: Weather impact deltas — Ballpark Pal style */}
+      {(row.hrPctDelta != null || row.runsPctDelta != null) && (
+        <div className="flex items-center gap-1.5 pl-[38px]">
+          {[
+            { label: "HR", val: row.hrPctDelta },
+            { label: "XBH", val: row.xbhPctDelta },
+            { label: "1B", val: row.singlesPctDelta },
+            { label: "R", val: row.runsPctDelta },
+          ].filter((d) => d.val != null).map((d) => (
+            <span
+              key={d.label}
+              className={cn(
+                "text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded",
+                d.val! > 2 ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" :
+                d.val! < -2 ? "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400" :
+                "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+              )}
+            >
+              {d.label} {d.val! > 0 ? "+" : ""}{d.val}%
+            </span>
+          ))}
+        </div>
+      )}
     </button>
   );
 }
@@ -205,7 +231,16 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function MlbWeatherReport() {
-  const [selectedDate, setSelectedDate] = useState(getETDate(0));
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate(0));
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [sortKey, setSortKey] = useState<SortKey>("envScore");
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
   const { rows, isLoading, error, isFetching } = useMlbWeatherReport(selectedDate);
@@ -246,58 +281,28 @@ export function MlbWeatherReport() {
 
   return (
     <div className="space-y-3">
-      {/* Controls bar — date nav + sort + stats */}
-      <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 px-4 py-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <MlbDateNav
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-            />
-            <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60 shrink-0" />
-            <span className="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums font-mono">
-              {sortedRows.length} game{sortedRows.length !== 1 ? "s" : ""}
-            </span>
+      {/* Controls bar */}
+      <div data-tour="weather-filter">
+      <SheetFilterBar
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        right={
+          <>
             {highImpactCount > 0 && (
-              <>
-                <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800/60 shrink-0" />
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {highImpactCount} high-impact
-                </span>
-              </>
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {highImpactCount} high-impact
+              </span>
             )}
-          </div>
-
-          {/* Sort dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all",
-                  "bg-neutral-100 dark:bg-neutral-800/60 text-neutral-700 dark:text-neutral-300",
-                  "border border-neutral-200 dark:border-neutral-700/30",
-                  "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
-                )}
-              >
-                <ArrowUpDown className="h-3 w-3 text-neutral-400" />
-                <span>{activeSortLabel}</span>
-                <ChevronDown className="h-3 w-3 text-neutral-400" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {SORT_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.key}
-                  onClick={() => setSortKey(opt.key)}
-                  className="flex items-center justify-between"
-                >
-                  <span>{opt.label}</span>
-                  {sortKey === opt.key && <Check className="h-3.5 w-3.5 text-emerald-500" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            <FilterCount count={sortedRows.length} label={sortedRows.length === 1 ? "game" : "games"} />
+          </>
+        }
+      >
+        <SegmentedControl
+          value={sortKey}
+          onChange={setSortKey}
+          options={SORT_OPTIONS.map((o) => ({ label: o.label, value: o.key }))}
+        />
+      </SheetFilterBar>
       </div>
 
       {/* Loading/Error states */}
@@ -319,16 +324,22 @@ export function MlbWeatherReport() {
           {/* Two-panel layout */}
           <div className="flex flex-col xl:flex-row gap-3">
             {/* Left panel: Game list */}
-            <div className="xl:w-[35%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 flex flex-col overflow-hidden">
-              {/* List header */}
-              <div className="px-3 py-2.5 border-b border-neutral-200/60 dark:border-neutral-700/30">
+            <div data-tour="weather-game-list" className="xl:w-[35%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 flex flex-col overflow-hidden">
+              {/* List header with date + game count */}
+              <div className="px-3 py-2.5 border-b border-neutral-200/60 dark:border-neutral-700/30 flex items-center justify-between">
                 <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 dark:text-neutral-500">
                   {formatLongDate(selectedDate)}
                 </p>
+                <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                  <span>{sortedRows.length} games</span>
+                  {highImpactCount > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{highImpactCount} high-impact</span>
+                  )}
+                </div>
               </div>
 
               {/* Scrollable game list */}
-              <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)] max-h-[360px] divide-y divide-neutral-100 dark:divide-neutral-800/30">
+              <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)] max-h-[320px] sm:max-h-[420px] divide-y divide-neutral-100 dark:divide-neutral-800/30">
                 {sortedRows.map((row) => (
                   <GameRow
                     key={row.gameId}
@@ -338,20 +349,10 @@ export function MlbWeatherReport() {
                   />
                 ))}
               </div>
-
-              {/* Footer */}
-              <div className="px-3 py-2 border-t border-neutral-200/60 dark:border-neutral-700/30 mt-auto">
-                <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                  {sortedRows.length} game{sortedRows.length !== 1 ? "s" : ""} today
-                  {highImpactCount > 0 && (
-                    <span className="text-emerald-600 dark:text-emerald-400 ml-1.5">· {highImpactCount} high-impact</span>
-                  )}
-                </p>
-              </div>
             </div>
 
             {/* Right panel: Detail */}
-            <div className="xl:w-[65%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+            <div data-tour="weather-detail" className="xl:w-[65%] w-full rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
               <div className="overflow-y-auto xl:max-h-[calc(100vh-280px)]">
                 {selectedRow ? (
                   <HREnvironmentDetail row={selectedRow} date={selectedDate} />

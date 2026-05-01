@@ -4,6 +4,7 @@ import React from 'react'
 import { X, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getSportsbookById } from '@/lib/data/sportsbooks'
+import { useStateLink } from "@/hooks/use-state-link"
 
 export interface LadderSelection {
   line: number
@@ -23,6 +24,7 @@ interface LadderBuilderPanelProps {
 }
 
 export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, market }: LadderBuilderPanelProps) {
+  const applyState = useStateLink()
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [totalBankroll, setTotalBankroll] = React.useState<string>('100')
   const [betSizingStrategy, setBetSizingStrategy] = React.useState<'equal' | 'value'>('equal')
@@ -119,7 +121,7 @@ export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, 
       
       if (selection.link) {
         console.log(`[LadderBuilder] Opening link for ${selection.book}:`, selection.link)
-        window.open(selection.link, '_blank')
+        window.open(applyState(selection.link) || selection.link, '_blank')
       } else {
         console.warn(`[LadderBuilder] No link available for selection ${idx + 1}`)
       }

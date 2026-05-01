@@ -5,6 +5,7 @@ import { isArbFreshForMode } from "@/lib/arb-freshness";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/plans-server";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const H_ROWS = "arbs:rows";
 const Z_ROI = "arbs:sort:roi";
@@ -64,9 +65,7 @@ export async function GET(req: NextRequest) {
         ids = pairs.slice(cursor, cursor + fetchLimit).map((p) => p[0]);
       }
     } else {
-      const zrUnknown = (await (redis as any).zrange(Z, cursor, cursor + fetchLimit - 1, { rev: true })) as unknown;
-      const zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
-      ids = zrArr.map((x) => String(x));
+      ids = await zrevrangeCompat(redis as any, Z, cursor, cursor + fetchLimit - 1);
     }
 
     const rawUnknown = ids.length ? ((await (redis as any).hmget(H_ROWS, ...ids)) as unknown) : [];
@@ -86,39 +85,51 @@ export async function GET(req: NextRequest) {
       return null;
     };
     const rowsParsed = rawArr.map(parseRow);
-    let rows: ArbRow[] = rowsParsed.filter(Boolean) as ArbRow[];
-    const missingIds: string[] = rowsParsed.reduce<string[]>((acc, r, i) => {
-      if (!r) acc.push(ids[i]);
-      return acc;
-    }, []);
-    const preFreshCount = rows.length;
-    rows = rows.filter((row) => isArbFreshForMode(row, mode, Date.now()));
-    const staleFilteredCount = preFreshCount - rows.length;
+
+    // Keep ids and rows parallel: zip them together, then filter as pairs
+    let pairs: Array<{ id: string; row: ArbRow }> = [];
+    const missingIds: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const row = rowsParsed[i];
+      if (row) {
+        pairs.push({ id: ids[i], row });
+      } else {
+        missingIds.push(ids[i]);
+      }
+    }
+
+    const preFreshCount = pairs.length;
+    pairs = pairs.filter((p) => isArbFreshForMode(p.row, mode, Date.now()));
+    const staleFilteredCount = preFreshCount - pairs.length;
 
     // Apply plan-based restrictions
     let filteredCount = 0;
     if (userPlan === 'free' || userPlan === 'anonymous') {
-      const originalCount = rows.length;
-      rows = rows.filter((row) => {
-        const roiPercent = (row.roi_bps ?? 0) / 100;
-        const isLive = row.ev?.live === true;
+      const originalCount = pairs.length;
+      pairs = pairs.filter((p) => {
+        const roiPercent = (p.row.roi_bps ?? 0) / 100;
+        const isLive = p.row.ev?.live === true;
         return roiPercent <= 1.0 && !isLive;
       });
-      filteredCount = originalCount - rows.length;
-      if (rows.length > limit) rows = rows.slice(0, limit);
+      filteredCount = originalCount - pairs.length;
+      if (pairs.length > limit) pairs = pairs.slice(0, limit);
     } else if (userPlan === 'sharp' && !planLimits.hasLiveArb) {
       // Sharp: pregame only (no live arbs)
-      const originalCount = rows.length;
-      rows = rows.filter((row) => row.ev?.live !== true);
-      filteredCount = originalCount - rows.length;
-      if (rows.length > limit) rows = rows.slice(0, limit);
+      const originalCount = pairs.length;
+      pairs = pairs.filter((p) => p.row.ev?.live !== true);
+      filteredCount = originalCount - pairs.length;
+      if (pairs.length > limit) pairs = pairs.slice(0, limit);
     }
 
-    const body: Record<string, any> = { 
-      format: ROWS_FORMAT, 
-      v: serverV, 
-      mode, 
-      ids, 
+    // Extract parallel arrays for response
+    const finalIds = pairs.map((p) => p.id);
+    const rows = pairs.map((p) => p.row);
+
+    const body: Record<string, any> = {
+      format: ROWS_FORMAT,
+      v: serverV,
+      mode,
+      ids: finalIds,
       rows,
       // Include plan info in response
       plan: userPlan,

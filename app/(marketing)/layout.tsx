@@ -1,5 +1,6 @@
 import { PublicNav } from "@/components/nav/public-navbar";
 import { Footer } from "@/components/footer";
+import { SharpIntelBanner } from "@/components/sharp-intel-banner";
 import { ReactNode } from "react";
 
 /**
@@ -9,6 +10,7 @@ import { ReactNode } from "react";
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
     <main className="h-full bg-white antialiased dark:bg-black">
+      <SharpIntelBanner />
       <PublicNav />
       {children}
       <Footer />

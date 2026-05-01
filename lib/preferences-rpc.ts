@@ -52,6 +52,7 @@ export interface UserPreferences {
   arbitrage_max_arb?: number;
   arbitrage_total_bet_amount?: number;
   arbitrage_search_query?: string;
+  arbitrage_round_to?: number;
   arbitrage_min_liquidity?: number;
   
   ev_selected_books?: string[];
@@ -94,6 +95,20 @@ export interface UserPreferences {
   
   // Model templates preference
   hide_model_templates?: boolean;
+
+  // Sharp Signals preferences
+  signal_followed_wallets?: string[];
+  signal_sport_filters?: string[] | null;
+  signal_excluded_sports?: string[] | null;
+  signal_tier_filters?: string[] | null;
+  signal_min_stake?: number;
+  signal_sort_by?: string;
+  signal_show_resolved?: boolean;
+  signal_timeframe?: string;
+  signal_alert_enabled?: boolean;
+  signal_alert_min_stake?: number;
+  signal_alert_sports?: string[] | null;
+  signal_alert_wallets?: string[] | null;
   
   // Positive EV Tool preferences
   positive_ev_selected_books?: string[];
@@ -174,6 +189,7 @@ export class PreferencesRPC {
       arbitrage_max_arb: data?.arbitrage_max_arb ?? 20,
       arbitrage_total_bet_amount: typeof data?.arbitrage_total_bet_amount === 'number' ? data!.arbitrage_total_bet_amount : (data?.arbitrage_total_bet_amount ? Number(data?.arbitrage_total_bet_amount) : undefined),
       arbitrage_search_query: data?.arbitrage_search_query || "",
+      arbitrage_round_to: typeof data?.arbitrage_round_to === 'number' ? data.arbitrage_round_to : (data?.arbitrage_round_to ? Number(data.arbitrage_round_to) : 0),
       arbitrage_min_liquidity: typeof data?.arbitrage_min_liquidity === 'number' ? data.arbitrage_min_liquidity : (data?.arbitrage_min_liquidity ? Number(data?.arbitrage_min_liquidity) : 50),
       
       ev_selected_books: data?.ev_selected_books || [],

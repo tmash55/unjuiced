@@ -3,8 +3,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/libs/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
+import { getFavoriteOddsMarketKey } from "@/lib/odds/types";
 
 // Shared tracking of manually deleted favorites across hook instances
 const manuallyDeletedByUserId = new Map<string, Set<string>>();
@@ -30,6 +31,7 @@ export interface BookSnapshot {
   u?: string | null;       // Desktop bet link (short key for storage)
   m?: string | null;       // Mobile deep link (short key for storage)
   sgp?: string | null;     // SGP token for same-game parlay API calls
+  odd_id?: string | null;  // Vendor odds id for exact line-history lookups
 }
 
 /**
@@ -48,6 +50,7 @@ export interface RefreshedOdds {
     decimal: number;
     link: string | null;
     sgp: string | null;
+    odd_id?: string | null;
   }>;
   is_available: boolean;
   line: number | null;
@@ -263,32 +266,23 @@ export function useFavorites() {
   // ─────────────────────────────────────────────────────────────────────────
   // Create a Set of favorite keys for fast lookup
   // ─────────────────────────────────────────────────────────────────────────
-  const favoriteKeys = new Set(
-    favorites.map((f) =>
-      createFavoriteKey({
+  const { favoriteKeys, favoritesByKey } = useMemo(() => {
+    const keys = new Set<string>();
+    const byKey = new Map<string, Favorite>();
+    for (const f of favorites) {
+      const key = createFavoriteKey({
         event_id: f.event_id,
         type: f.type,
         player_id: f.player_id,
         market: f.market,
         line: f.line,
         side: f.side,
-      })
-    )
-  );
-  
-  // Create a map from key to favorite for quick lookup
-  const favoritesByKey = new Map<string, Favorite>();
-  favorites.forEach((f) => {
-    const key = createFavoriteKey({
-      event_id: f.event_id,
-      type: f.type,
-      player_id: f.player_id,
-      market: f.market,
-      line: f.line,
-      side: f.side,
-    });
-    favoritesByKey.set(key, f);
-  });
+      });
+      keys.add(key);
+      byKey.set(key, f);
+    }
+    return { favoriteKeys: keys, favoritesByKey: byKey };
+  }, [favorites]);
   
   // ─────────────────────────────────────────────────────────────────────────
   // MUTATION: Add a favorite
@@ -552,7 +546,10 @@ export function useFavorites() {
         body: JSON.stringify({
           favorites: toRefresh.map(f => ({
             id: f.id,
-            odds_key: f.odds_key,
+            sport: f.sport,
+            event_id: f.event_id,
+            market: f.market,
+            odds_key: getFavoriteOddsMarketKey(f.sport, f.event_id, f.market) ?? f.odds_key,
             player_name: f.player_name,
             line: f.line,
             side: f.side,
@@ -571,7 +568,7 @@ export function useFavorites() {
   // ─────────────────────────────────────────────────────────────────────────
   // HELPER: Check if a specific item is favorited
   // ─────────────────────────────────────────────────────────────────────────
-  const isFavorited = (params: {
+  const isFavorited = useCallback((params: {
     event_id: string;
     type: "player" | "game";
     player_id?: string | null;
@@ -581,12 +578,12 @@ export function useFavorites() {
   }): boolean => {
     const key = createFavoriteKey(params);
     return favoriteKeys.has(key);
-  };
-  
+  }, [favoriteKeys]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // HELPER: Get a favorite by key
   // ─────────────────────────────────────────────────────────────────────────
-  const getFavorite = (params: {
+  const getFavorite = useCallback((params: {
     event_id: string;
     type: "player" | "game";
     player_id?: string | null;
@@ -596,7 +593,7 @@ export function useFavorites() {
   }): Favorite | undefined => {
     const key = createFavoriteKey(params);
     return favoritesByKey.get(key);
-  };
+  }, [favoritesByKey]);
   
   return {
     // Data
@@ -656,4 +653,3 @@ export function useFavoriteButton(params: {
     },
   };
 }
-

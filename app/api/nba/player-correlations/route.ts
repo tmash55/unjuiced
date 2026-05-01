@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
       return err?.code === "57014" || msg.includes("statement timeout");
     };
 
-    // Use v5 only, with adaptive retry on DB timeout.
+    // Use v6 only, with adaptive retry on DB timeout.
     const attempts: Array<{ lastNGames: number | null; gameLogLimit: number; label: string }> =
       lastNGames === null
         ? [
@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < attempts.length; i++) {
       const attempt = attempts[i];
-      const v5Result = await supabase.rpc("get_player_correlations_v5", {
+      const v6Result = await supabase.rpc("get_player_correlations_v6", {
         p_player_id: playerId,
         p_market: market,
         p_line: line,
@@ -377,8 +377,8 @@ export async function POST(req: NextRequest) {
         p_game_log_limit: attempt.gameLogLimit,
       });
 
-      rpcResult = v5Result.data;
-      error = v5Result.error;
+      rpcResult = v6Result.data;
+      error = v6Result.error;
 
       if (!error) {
         fallbackApplied =

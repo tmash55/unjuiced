@@ -6,7 +6,7 @@ import { z } from "zod";
 const QuerySchema = z.object({
   playerId: z.coerce.number().int().positive(),
   season: z.string().nullish().transform(v => v ?? "2025-26"),
-  limit: z.coerce.number().int().min(1).max(100).nullish().transform(v => v ?? 50),
+  limit: z.coerce.number().int().min(1).max(150).nullish().transform(v => v ?? 100),
 });
 
 // RPC response structure

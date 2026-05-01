@@ -5,6 +5,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/compute-triple-double-sheet",
+      "schedule": "*/2 * * * *"
+    },
+    {
       "path": "/api/cron/expire-favorites",
       "schedule": "* * * * *"
     },

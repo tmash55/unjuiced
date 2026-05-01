@@ -46,7 +46,7 @@ export default function OddsPage({ params }: OddsPageProps) {
   }, [sport]);
   
   // Sports without player props - force to game type
-  const sportsWithoutPlayerProps = ['mlb', 'wnba', 'ncaabaseball', 'tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta', 'ufc'];
+  const sportsWithoutPlayerProps = ['wnba', 'ncaabaseball', 'tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta', 'ufc'];
   const hasPlayerProps = !sportsWithoutPlayerProps.includes(sport.toLowerCase());
   
   // Get search params or defaults

@@ -32,18 +32,20 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type EdgeFinderSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
+import { EdgeFinderTour, EdgeFinderTourTrigger } from "@/components/opportunities/sharp-tools-tours";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { useIsPro } from "@/hooks/use-entitlements";
+import { useIsPro, useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { useIsMobileOrTablet } from "@/hooks/use-media-query";
+import { useSSE } from "@/hooks/use-sse";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
-import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
 
@@ -72,6 +74,9 @@ const AVAILABLE_LEAGUES = [
   "ufc",
 ];
 const FREE_EDGE_ROW_LIMIT = 7; // Number of rows free users can see
+const DEFAULT_PRO_EDGE_LIMIT = 250;
+const MAX_PRO_EDGE_LIMIT = 1500;
+const EDGE_LIMIT_INCREMENT = 250;
 
 /**
  * Format timestamp as relative time (e.g., "5s ago", "2m ago")
@@ -101,6 +106,7 @@ function mapPresetToComparisonMode(preset: string): { mode: BestOddsPrefs['compa
 export default function EdgeFinderPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
+  const { hasAccess: hasElite } = useHasEliteAccess();
   const isLoggedIn = !!user;
   const isMobile = useIsMobileOrTablet(); // Show card view on phones & tablets (< 1280px)
   const stablePlanRef = useRef(isPro);
@@ -137,6 +143,7 @@ export default function EdgeFinderPage() {
     return FALLBACK_MARKETS.map((market) => ({
       key: market,
       label: formatMarketLabel(market),
+      sports: FALLBACK_MARKET_SPORTS[market],
     }));
   }, [marketsData?.aggregatedMarkets]);
   const availableMarkets = useMemo(
@@ -179,10 +186,10 @@ export default function EdgeFinderPage() {
     unhideEdge, 
     isHidden,
     clearAllHidden 
-  } = useHiddenEdges();
+  } = useHiddenEdges("edge-finder");
 
-  // Result limit (default 200 for Pro, 50 for free)
-  const [limit, setLimit] = useState(200);
+  // Result limit (default 250 for Pro, 50 for free)
+  const [limit, setLimit] = useState(DEFAULT_PRO_EDGE_LIMIT);
 
   // Profit boost % (for sportsbook promotions like "30% profit boost")
   const [boostPercent, setBoostPercent] = useState(0);
@@ -205,13 +212,13 @@ export default function EdgeFinderPage() {
 
   // Reset limit when plan changes
   useEffect(() => {
-    setLimit(effectiveIsPro ? 200 : 50);
+    setLimit(effectiveIsPro ? DEFAULT_PRO_EDGE_LIMIT : 50);
   }, [effectiveIsPro]);
 
   // When user searches, fetch full set for coverage; otherwise use default
   useEffect(() => {
     const hasSearch = (searchLocal || "").trim().length > 0;
-    setLimit(hasSearch ? 500 : (effectiveIsPro ? 200 : 50));
+    setLimit(hasSearch ? 500 : (effectiveIsPro ? DEFAULT_PRO_EDGE_LIMIT : 50));
   }, [searchLocal, effectiveIsPro]);
 
   // Debounce search updates to prefs
@@ -224,15 +231,30 @@ export default function EdgeFinderPage() {
     return () => clearTimeout(timer);
   }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
+  // ===== AUTO-REFRESH via SSE =====
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const FLASH_MS = 6000; // How long highlights stay visible
+  const [lastKnownDataUpdatedAt, setLastKnownDataUpdatedAt] = useState<number | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Disable auto-refresh if user loses pro access
+  useEffect(() => {
+    if (!effectiveIsPro) setAutoRefresh(false);
+  }, [effectiveIsPro]);
+
+  // Streaming state for row highlights
+  const [streamAdded, setStreamAdded] = useState<Set<string>>(new Set());
+  const [streamChanges, setStreamChanges] = useState<Map<string, { edge?: "up" | "down"; price?: "up" | "down" }>>(new Map());
+  const prevOppsRef = useRef<Map<string, { edgePct: number; bestPrice: string }>>(new Map());
+
   // ===== DATA SOURCE =====
-  // Manual refresh only - SSE streaming removed until backend optimization
-  
   const {
     opportunities,
+    totalAfterFilters,
     activeFilters,
     isCustomMode,
     isLoading,
-    isFetching,
+    isFetching: rawIsFetching,
     error,
     refetch,
     prefetchPreset,
@@ -250,6 +272,119 @@ export default function EdgeFinderPage() {
     limit,
     enabled: !planLoading && !prefsLoading && !presetsLoading,
   });
+
+  // When auto-refresh is on, suppress isFetching to avoid "Updating..." subtitle and spinner
+  const isFetching = autoRefresh ? false : rawIsFetching;
+  const freshnessUpdatedAt = dataUpdatedAt ?? lastKnownDataUpdatedAt;
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastKnownDataUpdatedAt(dataUpdatedAt);
+    }
+  }, [dataUpdatedAt]);
+
+  // Detect new/changed rows when opportunities update during auto-refresh
+  useEffect(() => {
+    if (!autoRefresh || opportunities.length === 0) return;
+
+    const prev = prevOppsRef.current;
+    const newAdded: string[] = [];
+    const newChanges = new Map<string, { edge?: "up" | "down"; price?: "up" | "down" }>();
+
+    for (const opp of opportunities) {
+      const was = prev.get(opp.id);
+      if (!was) {
+        // New row
+        if (prev.size > 0) newAdded.push(opp.id); // Only highlight after initial load
+      } else {
+        // Check for edge change
+        const change: { edge?: "up" | "down"; price?: "up" | "down" } = {};
+        const curEdge = opp.edgePct ?? 0;
+        const prevEdge = was.edgePct ?? 0;
+        if (curEdge > prevEdge) change.edge = "up";
+        else if (curEdge < prevEdge) change.edge = "down";
+        if (opp.bestPrice !== was.bestPrice) {
+          const cur = parseInt(opp.bestPrice?.replace("+", "") || "0", 10);
+          const old = parseInt(was.bestPrice?.replace("+", "") || "0", 10);
+          if (cur > old) change.price = "up";
+          else if (cur < old) change.price = "down";
+        }
+        if (change.edge || change.price) newChanges.set(opp.id, change);
+      }
+    }
+
+    // Update prev snapshot
+    const nextPrev = new Map<string, { edgePct: number; bestPrice: string }>();
+    for (const opp of opportunities) {
+      nextPrev.set(opp.id, { edgePct: opp.edgePct ?? 0, bestPrice: opp.bestPrice || "" });
+    }
+    prevOppsRef.current = nextPrev;
+
+    // Apply highlights
+    if (newAdded.length > 0) {
+      setStreamAdded(p => {
+        const next = new Set(p);
+        for (const id of newAdded) next.add(id);
+        return next;
+      });
+      setTimeout(() => {
+        setStreamAdded(p => {
+          const next = new Set(p);
+          for (const id of newAdded) next.delete(id);
+          return next;
+        });
+      }, FLASH_MS);
+    }
+    if (newChanges.size > 0) {
+      setStreamChanges(p => {
+        const next = new Map(p);
+        for (const [id, c] of newChanges) next.set(id, c);
+        return next;
+      });
+      setTimeout(() => {
+        setStreamChanges(p => {
+          const next = new Map(p);
+          for (const [id] of newChanges) next.delete(id);
+          return next;
+        });
+      }, FLASH_MS);
+    }
+  }, [opportunities, autoRefresh]);
+
+  // SSE connection for auto-refresh: subscribe to odds updates for active leagues
+  const sseUrl = useMemo(() => {
+    if (!autoRefresh || !effectiveIsPro) return "";
+    const leagues = prefs.selectedLeagues?.length ? prefs.selectedLeagues : AVAILABLE_LEAGUES;
+    return `/api/v2/sse/props?sports=${leagues.join(",")}`;
+  }, [autoRefresh, effectiveIsPro, prefs.selectedLeagues]);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+
+  const handleSSEMessage = useCallback(() => {
+    // Debounce: coalesce rapid odds updates into a single refetch
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      refetchRef.current();
+    }, 1500);
+  }, []);
+
+  const {
+    isConnected: sseConnected,
+    isReconnecting: sseReconnecting,
+    hasFailed: sseFailed,
+  } = useSSE(sseUrl, {
+    enabled: autoRefresh && effectiveIsPro && !!sseUrl,
+    onMessage: handleSSEMessage,
+  });
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // Apply hidden edges filter and min liquidity filter (must be done client-side due to user-specific state)
   // Note: Pinning of expanded rows is handled internally by OpportunitiesTable
@@ -289,11 +424,42 @@ export default function EdgeFinderPage() {
     ? 0
     : Math.max(0, filteredOpportunities.length - FREE_EDGE_ROW_LIMIT);
 
+  useEffect(() => {
+    if (!effectiveIsPro) return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        if (isLoading || isFetching || isLoadingMore) return;
+        if (limit >= MAX_PRO_EDGE_LIMIT) return;
+
+        setLimit((prev) => Math.min(prev + EDGE_LIMIT_INCREMENT, MAX_PRO_EDGE_LIMIT));
+      },
+      {
+        rootMargin: "400px 0px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [effectiveIsPro, isLoading, isFetching, isLoadingMore, limit]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   };
+
+  const handleRequestMoreResults = useCallback(() => {
+    if (!effectiveIsPro) return;
+    if (isLoading || isFetching || isLoadingMore) return;
+    if (limit >= MAX_PRO_EDGE_LIMIT) return;
+
+    setLimit((prev) => Math.min(prev + EDGE_LIMIT_INCREMENT, MAX_PRO_EDGE_LIMIT));
+  }, [effectiveIsPro, isLoading, isFetching, isLoadingMore, limit]);
 
   // Handler for filters changes from UnifiedFilters
   const handleFiltersChange = useCallback((filters: FilterChangeEvent) => {
@@ -398,6 +564,7 @@ export default function EdgeFinderPage() {
       <>
         <MobileEdgeFinder
           opportunities={displayOpportunities}
+          totalAvailableCount={totalAfterFilters}
           isLoading={isLoading}
           isFetching={isFetching || refreshing}
           error={error}
@@ -428,6 +595,7 @@ export default function EdgeFinderPage() {
           bankroll={evPrefs.bankroll}
           kellyPercent={evPrefs.kellyPercent || 25}
           isPro={effectiveIsPro}
+          hasAutoRefreshAccess={hasElite}
           activePresets={activePresets}
           isCustomMode={isCustomMode}
           dataUpdatedAt={dataUpdatedAt ?? undefined}
@@ -442,6 +610,7 @@ export default function EdgeFinderPage() {
           onBoostChange={setBoostPercent}
           onBankrollChange={handleBankrollChange}
           onKellyPercentChange={handleKellyPercentChange}
+          onRequestMoreResults={handleRequestMoreResults}
           onLineHistoryClick={handleOpenLineHistory}
         />
         
@@ -496,9 +665,9 @@ export default function EdgeFinderPage() {
         </div>
       )}
       {/* Freshness Indicator */}
-      {dataUpdatedAt && !isLoading && !isLoadingMore && (
+      {freshnessUpdatedAt && !isLoadingMore && (
         <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-          <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+          <span>Updated {formatTimeAgo(freshnessUpdatedAt)}</span>
           {isFetching && (
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
           )}
@@ -511,11 +680,10 @@ export default function EdgeFinderPage() {
   const contextBar = (
     <>
       {/* Timestamp indicator - above filter bar */}
-      {headerActions && (
-        <div className="flex justify-end mb-2">
-          {headerActions}
-        </div>
-      )}
+      <div className="flex justify-end mb-2 min-h-4">
+        {headerActions}
+      </div>
+      <div data-tour="edge-filter-bar">
       <UnifiedFilterBar
         tool="edge-finder"
         className="mb-6"
@@ -581,9 +749,16 @@ export default function EdgeFinderPage() {
         activePresets={activePresets}
         onManageModels={() => setShowPresetManager(true)}
         onClearPresets={deactivateAllPresets}
-        // Refresh
+        // Auto refresh
+        autoRefresh={autoRefresh}
+        onAutoRefreshChange={setAutoRefresh}
+        isConnected={sseConnected}
+        isReconnecting={sseReconnecting}
+        hasFailed={sseFailed}
+        hasAutoRefreshAccess={hasElite}
+        // Refresh — don't spin during auto-refresh background fetches
         onRefresh={refetch}
-        isRefreshing={isFetching}
+        isRefreshing={!autoRefresh && isFetching}
         // Reset
         onReset={() => {
           updatePrefs({
@@ -603,7 +778,9 @@ export default function EdgeFinderPage() {
         // UI state
         locked={locked}
         isPro={effectiveIsPro}
+        hasCustomModelsAccess={hasElite}
       />
+      </div>
     </>
   );
 
@@ -614,7 +791,9 @@ export default function EdgeFinderPage() {
       subtitle={subtitle}
       contextBar={contextBar}
       stickyContextBar={true}
+      headerActions={<EdgeFinderTourTrigger />}
     >
+
       {/* Error */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
@@ -623,7 +802,7 @@ export default function EdgeFinderPage() {
       )}
 
       {/* Results Table */}
-      <div className="rounded-2xl">
+      <div data-tour="edge-table" className="rounded-2xl">
           <OpportunitiesTable
             opportunities={displayOpportunities}
             isLoading={isLoading}
@@ -637,8 +816,8 @@ export default function EdgeFinderPage() {
             onPlayerClick={setSelectedPlayer}
             comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
             comparisonLabel={
-              isCustomMode 
-                ? undefined 
+              isCustomMode
+                ? undefined
                 : prefs.comparisonMode === "book" && prefs.comparisonBook
                   ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
                   : undefined
@@ -649,6 +828,10 @@ export default function EdgeFinderPage() {
             kellyPercent={evPrefs.kellyPercent || 25}
             boostPercent={boostPercent}
             onLineHistoryClick={handleOpenLineHistory}
+            // Streaming highlights for auto-refresh
+            autoRefresh={autoRefresh}
+            streamAdded={streamAdded}
+            streamChanges={streamChanges}
           />
       </div>
 
@@ -681,16 +864,12 @@ export default function EdgeFinderPage() {
         </div>
       )}
 
-      {/* Load more button - pro only */}
-      {effectiveIsPro && limit < 500 && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => setLimit(500)}
-            className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
-            disabled={isLoading || isFetching}
-          >
-            Load more results
-          </button>
+      {effectiveIsPro && limit < MAX_PRO_EDGE_LIMIT && (
+        <div ref={loadMoreSentinelRef} className="mt-4 flex justify-center py-3">
+          <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span>{isLoadingMore || isFetching ? "Loading more edges..." : "More edges load as you scroll"}</span>
+          </div>
         </div>
       )}
 
@@ -799,6 +978,7 @@ export default function EdgeFinderPage() {
         onOpenChange={setShowPresetForm}
         onSuccess={() => refetch()}
       />
+      <EdgeFinderTour />
     </AppPageLayout>
   );
 }

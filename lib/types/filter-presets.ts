@@ -55,6 +55,7 @@ export interface FilterPresetCreate {
 // Maximum character length for notes field
 export const NOTES_MAX_LENGTH = 500;
 export const DEFAULT_FILTER_COLOR = "#0EA5E9";
+export const FILTER_PRESET_EMPTY_SPORT_MARKET = "__none__";
 
 export interface FilterPresetUpdate extends Partial<FilterPresetCreate> {
   is_active?: boolean;
@@ -117,12 +118,44 @@ export const SHARP_BOOK_PRESETS = {
 // Always returns lowercase sport IDs for consistent matching
 export function parseSports(sport: string): string[] {
   if (!sport) return [];
-  return sport.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const raw = sport.trim();
+  if (!raw) return [];
+
+  // Backwards/forwards compatibility:
+  // Some records may store sports as a JSON array string (e.g. '["nba","nfl"]').
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((s) => String(s).trim().toLowerCase())
+          .filter(Boolean);
+      }
+    } catch {
+      // Fall through to delimiter parsing.
+    }
+  }
+
+  // Support comma-separated values while being tolerant of wrapped quotes/brackets.
+  return raw
+    .split(",")
+    .map((s) => s.trim().replace(/^[\s"'[\](){}]+|[\s"'[\](){}]+$/g, "").toLowerCase())
+    .filter(Boolean);
 }
 
 // Helper to format sports for storage
 export function formatSportsForStorage(sports: string[]): string {
   return sports.join(',');
+}
+
+export function buildFilterPresetSportMarketKey(sport: string, market: string): string {
+  return `${sport.toLowerCase()}:${market.toLowerCase()}`;
+}
+
+export function parseFilterPresetSportMarketKey(value: string): { sport: string; market: string } | null {
+  const [sport, market] = value.toLowerCase().split(":");
+  if (!sport || !market) return null;
+  return { sport, market };
 }
 
 // Helper to get sport label

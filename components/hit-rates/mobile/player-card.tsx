@@ -239,6 +239,7 @@ export function PlayerCard({
     market: profile.market,
     playerId: playerKey,
     line: profile.line ?? null,
+    includeSgp: true,
     enabled: !!profile.eventId && !!profile.market && !!playerKey && profile.line !== null && !isBlurred,
   });
 
@@ -257,7 +258,7 @@ export function PlayerCard({
 
   const favoriteParams: AddFavoriteParams | null = (() => {
     if (isBlurred) return null;
-    const eventId = profile.gameId ?? profile.eventId;
+    const eventId = profile.eventId ?? profile.gameId;
     if (!eventId) return null;
 
     const lineValue = profile.line ?? null;
@@ -266,16 +267,31 @@ export function PlayerCard({
       : profile.oddsSelectionId ?? null;
     const oddsKey = profile.eventId ? `odds:${sport}:${profile.eventId}:${profile.market}` : null;
     const bestOver = displayBestOver;
-    const booksSnapshot = bestOver?.book && bestOver?.price !== undefined
-      ? {
-          [bestOver.book]: {
-            price: bestOver.price,
-            u: bestOver.url ?? null,
-            m: bestOver.mobileUrl ?? null,
-            sgp: null,
-          },
-        }
-      : null;
+    let booksSnapshot: AddFavoriteParams["books_snapshot"] = null;
+    if (oddsLineData?.books?.length) {
+      const snapshot: NonNullable<AddFavoriteParams["books_snapshot"]> = {};
+      for (const book of oddsLineData.books) {
+        if (book.over === null) continue;
+        snapshot[book.book] = {
+          price: book.over,
+          u: book.link_over || null,
+          m: book.link_over || null,
+          sgp: book.sgp_over || null,
+        };
+      }
+      if (Object.keys(snapshot).length > 0) {
+        booksSnapshot = snapshot;
+      }
+    } else if (bestOver?.book && bestOver?.price !== undefined) {
+      booksSnapshot = {
+        [bestOver.book]: {
+          price: bestOver.price,
+          u: bestOver.url ?? null,
+          m: bestOver.mobileUrl ?? null,
+          sgp: null,
+        },
+      };
+    }
 
     return {
       type: "player",
@@ -317,6 +333,15 @@ export function PlayerCard({
     if (!isLoggedIn || !favoriteParams) return;
     setIsFavoriteToggling(true);
     try {
+      console.info("[hit-rates card favorite] toggle", {
+        player: favoriteParams.player_name,
+        market: favoriteParams.market,
+        eventId: favoriteParams.event_id,
+        profileEventId: profile.eventId,
+        profileGameId: profile.gameId,
+        books: Object.keys(favoriteParams.books_snapshot ?? {}).length,
+        sgpBooks: Object.values(favoriteParams.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+      });
       await toggleFavorite(favoriteParams);
     } finally {
       setIsFavoriteToggling(false);

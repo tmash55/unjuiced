@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Settings, Eye, EyeOff, ChevronRight, DollarSign, Percent } from "lucide-react";
+import { Settings, Eye, EyeOff, ChevronRight, DollarSign, Percent, MapPin } from "lucide-react";
+import { useUserState } from "@/context/preferences-context";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/tooltip";
 import {
@@ -125,9 +126,11 @@ interface GlobalSettingsDropdownProps {
   onMaxArbChange?: (value: number) => void;
   totalBetAmount?: number;
   onTotalBetAmountChange?: (value: number) => void;
+  roundTo?: number;
+  onRoundToChange?: (value: number) => void;
   selectedMarketTypes?: ("player" | "game")[];
   onMarketTypesChange?: (types: ("player" | "game")[]) => void;
-  
+
   disabled?: boolean;
 }
 
@@ -163,6 +166,8 @@ export function GlobalSettingsDropdown({
   onMaxArbChange,
   totalBetAmount,
   onTotalBetAmountChange,
+  roundTo,
+  onRoundToChange,
   selectedMarketTypes,
   onMarketTypesChange,
   disabled = false,
@@ -558,6 +563,39 @@ export function GlobalSettingsDropdown({
                     </div>
                   )}
 
+                  {/* Round Bets */}
+                  {onRoundToChange && (
+                    <div>
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1.5">
+                        Round Bets
+                      </label>
+                      <div className="flex gap-1">
+                        {[
+                          { value: 0, label: "Off" },
+                          { value: 1, label: "$1" },
+                          { value: 5, label: "$5" },
+                          { value: 10, label: "$10" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => onRoundToChange(opt.value)}
+                            className={cn(
+                              "flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors",
+                              (roundTo ?? 0) === opt.value
+                                ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-1">
+                        Avoids flagged bets with odd decimal amounts
+                      </p>
+                    </div>
+                  )}
+
                   {/* Market Types */}
                   {onMarketTypesChange && (
                     <div>
@@ -609,8 +647,8 @@ export function GlobalSettingsDropdown({
             </div>
           )}
 
-          {/* Odds Range (Edge Finder only) */}
-          {tool === "edge-finder" && (onMinOddsChange || onMaxOddsChange) && (
+          {/* Odds Range */}
+          {(tool === "edge-finder" || tool === "positive-ev") && (onMinOddsChange || onMaxOddsChange) && (
             <div className="border-b border-neutral-200 dark:border-neutral-700">
               <button
                 onClick={() => toggleSection("odds")}
@@ -912,7 +950,43 @@ export function GlobalSettingsDropdown({
             </div>
           </div>
         </div>
+
+        {/* State selector for sportsbook deep links */}
+        <StateSelector />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM",
+  "NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA",
+  "WV","WI","WY"
+];
+
+function StateSelector() {
+  const { stateCode, setStateCode } = useUserState();
+
+  return (
+    <div className="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <MapPin className="w-3 h-3 text-neutral-400" />
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Your State</span>
+        </div>
+        <select
+          value={stateCode?.toUpperCase() || ""}
+          onChange={(e) => setStateCode(e.target.value)}
+          className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 cursor-pointer"
+        >
+          <option value="">Not set</option>
+          {US_STATES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      <p className="text-[9px] text-neutral-400 mt-1">Used for sportsbook deep links</p>
+    </div>
   );
 }

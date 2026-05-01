@@ -20,11 +20,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { createClient } from "@/libs/supabase/server";
-import { SSEBookSelections, SSESelection, normalizePlayerName } from "@/lib/odds/types";
+import {
+  SSEBookSelections,
+  SSESelection,
+  getMarketOddsPattern,
+  normalizeFavoriteOddsKey,
+  normalizePlayerName,
+} from "@/lib/odds/types";
 
 interface FavoriteInput {
   id: string;
-  odds_key: string;
+  sport?: string | null;
+  event_id?: string | null;
+  market?: string | null;
+  odds_key?: string | null;
   player_name: string;
   line: number | null;
   side: string;
@@ -36,6 +45,7 @@ interface BookOdds {
   decimal: number;
   link: string | null;
   sgp: string | null;
+  odd_id: string | null;
 }
 
 interface RefreshedOdds {
@@ -70,10 +80,16 @@ export async function POST(request: NextRequest) {
     // Group favorites by odds_key (market) to batch Redis calls
     const byOddsKey = new Map<string, FavoriteInput[]>();
     for (const fav of favorites) {
-      if (!fav.odds_key) continue;
-      const existing = byOddsKey.get(fav.odds_key) || [];
+      const oddsKey = normalizeFavoriteOddsKey({
+        oddsKey: fav.odds_key,
+        sport: fav.sport,
+        eventId: fav.event_id,
+        market: fav.market,
+      });
+      if (!oddsKey) continue;
+      const existing = byOddsKey.get(oddsKey) || [];
       existing.push(fav);
-      byOddsKey.set(fav.odds_key, existing);
+      byOddsKey.set(oddsKey, existing);
     }
 
     const results: RefreshedOdds[] = [];
@@ -81,7 +97,12 @@ export async function POST(request: NextRequest) {
     // Process each unique odds_key
     for (const [oddsKey, favs] of byOddsKey) {
       // Get all book keys for this market
-      const bookPattern = `${oddsKey}:*`;
+      const oddsKeyParts = oddsKey.split(":");
+      const bookPattern = getMarketOddsPattern(
+        oddsKeyParts[1],
+        oddsKeyParts[2],
+        oddsKeyParts[3]
+      );
       const bookKeys = await scanKeys(bookPattern);
 
       if (bookKeys.length === 0) {
@@ -147,6 +168,7 @@ export async function POST(request: NextRequest) {
               decimal: sel.price_decimal,
               link: sel.link || null,
               sgp: sel.sgp || null,
+              odd_id: sel.odd_id || null,
             });
           }
         }

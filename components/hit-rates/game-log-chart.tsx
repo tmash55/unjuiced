@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { GripVertical, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -82,13 +83,14 @@ function MiniOddsButton({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+  const applyState = useStateLink();
+
   // Detect mobile
   const isMobile = useMemo(() => {
     if (typeof navigator === "undefined") return false;
     return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   }, []);
-  
+
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -99,14 +101,14 @@ function MiniOddsButton({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  
+
   const isOver = type === "over";
   const hasMultiple = allBooks.length > 1;
-  
+
   // Memoize book logo/name lookups
   const bestLogo = useMemo(() => getBookLogo(best.book), [best.book]);
   const bestName = useMemo(() => getBookName(best.book), [best.book]);
-  
+
   // Get link for a book
   const getBookLink = useCallback((book: BookOddsData): string | null => {
     const fallback = getBookFallbackUrl(book.book);
@@ -115,15 +117,15 @@ function MiniOddsButton({
     }
     return book.url || book.mobileUrl || fallback;
   }, [isMobile]);
-  
+
   const handleClick = useCallback((e: React.MouseEvent, book?: BookOddsData) => {
     e.stopPropagation();
     const target = book || best;
     const link = getBookLink(target);
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
-  }, [best, getBookLink]);
+  }, [best, getBookLink, applyState]);
   
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

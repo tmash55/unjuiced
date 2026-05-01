@@ -12,6 +12,7 @@ import { useNbaGames } from "@/hooks/use-nba-games";
 import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
+import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 
 const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
@@ -539,6 +540,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     <AppPageLayout
       title={sportConfig.title}
       subtitle={sportConfig.subtitle}
+      sport={sport}
+      contextBar={<CheatSheetNav sport={sport} currentSheet="hit-rates" />}
+      stickyContextBar
       headerActions={<GlossaryButton onClick={() => setShowGlossary(true)} />}
     >
       {/* Glossary Modal */}

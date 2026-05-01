@@ -10,6 +10,7 @@ const QuerySchema = z.object({
   batterWindow: z.enum(WINDOW_VALUES).optional().default("season"),
   pitcherWindow: z.enum(WINDOW_VALUES).optional().default("season"),
   season: z.coerce.number().int().min(2000).max(3000).optional(),
+  pitchType: z.string().min(1).max(10).optional(),
 });
 
 export type HotZoneWindow = (typeof WINDOW_VALUES)[number];
@@ -307,6 +308,7 @@ export async function GET(req: NextRequest) {
       batterWindow: searchParams.get("batterWindow") ?? undefined,
       pitcherWindow: searchParams.get("pitcherWindow") ?? undefined,
       season: searchParams.get("season") ?? undefined,
+      pitchType: searchParams.get("pitchType") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -316,7 +318,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { batterId, pitcherId, batterWindow, pitcherWindow, season } = parsed.data;
+    const { batterId, pitcherId, batterWindow, pitcherWindow, season, pitchType } = parsed.data;
     const supabase = createServerSupabaseClient();
 
     const requestedSeason = season ?? getCurrentEtYear();
@@ -330,15 +332,19 @@ export async function GET(req: NextRequest) {
     let bestCandidate: { season: number; response: MlbHotZoneMatchupResponse; score: number } | null = null;
 
     for (const candidateSeason of seasonCandidates) {
-      const { data, error } = await supabase.rpc("get_mlb_hot_zone_matchup", {
+      const rpcParams: Record<string, unknown> = {
         p_batter_id: batterId,
         p_pitcher_id: pitcherId ?? null,
         p_batter_window: batterWindow,
         p_pitcher_window: pitcherWindow,
         p_season: candidateSeason,
-      });
+        p_pitch_type: pitchType ?? null,
+      };
+
+      const { data, error } = await supabase.rpc("get_mlb_hot_zone_matchup", rpcParams as any);
 
       if (error) {
+        console.error("[hot-zone-matchup] RPC error:", error.message, "params:", JSON.stringify(rpcParams));
         return NextResponse.json(
           { error: "Failed to fetch MLB hot zone matchup", details: error.message },
           { status: 500, headers: { "Cache-Control": "no-store" } }

@@ -3,11 +3,50 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { SSESelection, SSEBookSelections } from "@/lib/odds/types";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = resolveRedisCommandEndpoint();
+if (!commandEndpoint.url || !commandEndpoint.token) {
+  const reason = commandEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/props/alternates] Redis endpoint configuration invalid: ${reason}`);
+}
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url,
+  token: commandEndpoint.token,
 });
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 const VALID_SPORTS = new Set([
   "nba",
@@ -34,6 +73,17 @@ const VALID_SPORTS = new Set([
 ]);
 
 const SCAN_COUNT = 500;
+const MAX_SCAN_ITERATIONS = 200;
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
+
+// Known sportsbook key variants for direct lookup (scan-free path)
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
+  "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
+  "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  "betmgm", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
+];
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -47,7 +97,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     // FanDuel YourWay - matches sportsbooks.ts ID
@@ -61,6 +115,31 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
 }
 
 // Books to exclude (regional variants)
@@ -107,6 +186,26 @@ function normalizeMarketName(market: string): string {
     "player_ra": "player_ra",
     "player_rebounds_assists": "player_ra",
     
+    // Baseball player props (legacy batter_/pitcher_ keys → player_ keys)
+    "batter_hits": "player_hits",
+    "batter_home_runs": "player_home_runs",
+    "batter_total_bases": "player_total_bases",
+    "batter_rbis": "player_rbis",
+    "batter_runs_scored": "player_runs",
+    "pitcher_strikeouts": "player_strikeouts",
+    "pitcher_hits_allowed": "player_hits_allowed",
+    "player_hits": "player_hits",
+    "player_home_runs": "player_home_runs",
+    "player_total_bases": "player_total_bases",
+    "player_rbis": "player_rbis",
+    "player_runs": "player_runs",
+    "player_stolen_bases": "player_stolen_bases",
+    "player_strikeouts": "player_strikeouts",
+    "player_hits_allowed": "player_hits_allowed",
+    "player_earned_runs": "player_earned_runs",
+    "player_outs": "player_outs",
+    "player_batting_strikeouts": "player_batting_strikeouts",
+
     // Football passing
     "passing_yards": "player_passing_yards",
     "player_passing_yards": "player_passing_yards",
@@ -159,17 +258,72 @@ function normalizeMarketName(market: string): string {
 async function scanKeys(pattern: string): Promise<string[]> {
   const results: string[] = [];
   let cursor = 0;
+  let iterations = 0;
+  const seenCursors = new Set<number>();
 
   do {
+    iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[v2/props/alternates] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const [nextCursor, keys] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
     });
     cursor = Number(nextCursor);
     results.push(...keys);
+
+    if (iterations >= MAX_SCAN_ITERATIONS) {
+      console.warn(`[v2/props/alternates] Hit scan limit for ${pattern}, got ${results.length} keys`);
+      break;
+    }
   } while (cursor !== 0);
 
   return results;
+}
+
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return { market: member.slice(0, sep), book: member.slice(sep + 1) };
+}
+
+async function getOddsKeysForAlternates(
+  sport: string,
+  eventId: string,
+  market: string
+): Promise<string[]> {
+  const keys: string[] = [];
+
+  // 1) Preferred path: consumer-maintained event index
+  const indexMembers = (await redis.smembers(`odds_idx:${sport}:${eventId}`)).map(String);
+  for (const member of indexMembers) {
+    const parsed = parseOddsIndexMember(member);
+    if (!parsed) continue;
+    if (parsed.market !== market) continue;
+    for (const candidate of getBookKeyCandidates(parsed.book)) {
+      keys.push(`odds:${sport}:${eventId}:${market}:${candidate}`);
+    }
+  }
+
+  // 2) Deterministic fallback: direct known-book probes
+  for (const book of KNOWN_BOOKS) {
+    keys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+  }
+
+  const unique = [...new Set(keys)];
+  if (unique.length > 0) return unique;
+
+  // 3) Last resort scan (opt-in only)
+  if (ENABLE_ODDS_SCAN_FALLBACK) {
+    const pattern = `odds:${sport}:${eventId}:${market}:*`;
+    return scanKeys(pattern);
+  }
+
+  return [];
 }
 
 interface AlternateLine {
@@ -220,9 +374,8 @@ async function buildAlternates(
   position: string | null;
   primary_ln: number | null;
 }> {
-  // Get all book keys for this event/market
-  const pattern = `odds:${sport}:${eventId}:${market}:*`;
-  const oddsKeys = await scanKeys(pattern);
+  // Get book keys for this event/market (index-first, no scan by default)
+  const oddsKeys = await getOddsKeysForAlternates(sport, eventId, market);
 
   if (oddsKeys.length === 0) {
     return { lines: [], player: null, team: null, position: null, primary_ln: null };
@@ -246,7 +399,8 @@ async function buildAlternates(
     const data = oddsDataRaw[i];
     if (!data) return;
 
-    const selections: SSEBookSelections = typeof data === "string" ? JSON.parse(data) : data;
+    const selections = parseBookSelectionsValue(data, key);
+    if (!selections) return;
     const rawBook = key.split(":").pop()!;
     
     // Skip excluded books (Canada, regional variants)
@@ -380,6 +534,189 @@ async function buildAlternates(
   };
 }
 
+/**
+ * Build alternate lines for game markets (spread, moneyline, total).
+ * Pairs away team → over slot, home team → under slot at each line value.
+ * For spreads, lines are grouped by absolute value (e.g., ±5.5 → one row at 5.5).
+ */
+async function buildGameAlternates(
+  sport: string,
+  eventId: string,
+  market: string,
+  homeTeam: string,
+  awayTeam: string,
+  primaryLine?: number
+): Promise<{
+  lines: AlternateLine[];
+  player: string | null;
+  team: string | null;
+  position: string | null;
+  primary_ln: number | null;
+}> {
+  const oddsKeys = await getOddsKeysForAlternates(sport, eventId, market);
+  if (oddsKeys.length === 0) {
+    return { lines: [], player: null, team: null, position: null, primary_ln: null };
+  }
+
+  const oddsDataRaw = await redis.mget<(SSEBookSelections | string | null)[]>(...oddsKeys);
+
+  const isSpread = market.includes("spread") || market.includes("puck_line") || market.includes("run_line") || market.includes("handicap");
+  const isTotal = market.includes("total");
+
+  // For spreads: group by absolute line, away=over(+line), home=under(-line)
+  // For totals: group by line, over=over, under=under
+  // For moneyline: single line (0), away=over, home=under
+  const lineMap = new Map<number, Map<string, { over?: SSESelection; under?: SSESelection }>>();
+  let foundPrimaryLine: number | null = null;
+  let awayDisplay: string | null = null;
+  let homeDisplay: string | null = null;
+
+  oddsKeys.forEach((key, i) => {
+    const data = oddsDataRaw[i];
+    if (!data) return;
+    const selections = parseBookSelectionsValue(data, key);
+    if (!selections) return;
+    const rawBook = key.split(":").pop()!;
+    if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) return;
+    const book = normalizeBookId(rawBook);
+
+    for (const [selKey, sel] of Object.entries(selections)) {
+      const parts = selKey.split("|");
+      if (parts.length !== 3) continue;
+      const [rawName, side, lineStr] = parts;
+      const line = parseFloat(lineStr);
+      if (isNaN(line)) continue;
+
+      const nameNorm = rawName.toLowerCase().replace(/ /g, "_");
+
+      let mappedSide: "over" | "under" | null = null;
+      let displayLine = line;
+
+      if (isTotal) {
+        // For totals, use standard over/under
+        if (side === "over" || side === "o") mappedSide = "over";
+        else if (side === "under" || side === "u") mappedSide = "under";
+      } else {
+        // For spread/moneyline: identify team
+        const isAway = nameNorm.includes(awayTeam) || awayTeam.includes(nameNorm) ||
+                        nameNorm.split("_").pop() === awayTeam.split("_").pop();
+        const isHome = nameNorm.includes(homeTeam) || homeTeam.includes(nameNorm) ||
+                        nameNorm.split("_").pop() === homeTeam.split("_").pop();
+
+        if (isAway && !isHome) {
+          mappedSide = "over";
+          if (!awayDisplay && sel.player) awayDisplay = sel.player;
+        } else if (isHome && !isAway) {
+          mappedSide = "under";
+          if (!homeDisplay && sel.player) homeDisplay = sel.player;
+        } else {
+          continue;
+        }
+
+        // For spreads, use the line as-is (away gets positive, home gets negative)
+        // The display line is the absolute value for grouping
+        if (isSpread) {
+          displayLine = Math.abs(line);
+        }
+      }
+
+      if (!mappedSide) continue;
+
+      // Track primary line
+      if (sel.main && !foundPrimaryLine) {
+        foundPrimaryLine = isSpread ? Math.abs(line) : line;
+      }
+
+      if (!lineMap.has(displayLine)) {
+        lineMap.set(displayLine, new Map());
+      }
+      const bookMap = lineMap.get(displayLine)!;
+      if (!bookMap.has(book)) {
+        bookMap.set(book, {});
+      }
+      const bookData = bookMap.get(book)!;
+
+      // For spreads, only keep the correct directional line per side
+      // away (over) should have positive or correct line, home (under) should have negative
+      if (mappedSide === "over") {
+        // For away team, prefer positive line (receiving points)
+        if (isSpread && bookData.over) {
+          // Already have an entry — keep the one with odds closest to -110
+          const existingOdds = Math.abs(parseInt(String(bookData.over.price).replace("+", ""), 10) || 0);
+          const newOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
+          if (Math.abs(newOdds - 110) >= Math.abs(existingOdds - 110)) continue;
+        }
+        bookData.over = sel;
+      } else {
+        if (isSpread && bookData.under) {
+          const existingOdds = Math.abs(parseInt(String(bookData.under.price).replace("+", ""), 10) || 0);
+          const newOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
+          if (Math.abs(newOdds - 110) >= Math.abs(existingOdds - 110)) continue;
+        }
+        bookData.under = sel;
+      }
+    }
+  });
+
+  // Build response lines
+  const effectivePrimaryLine = primaryLine ?? foundPrimaryLine;
+  const lines: AlternateLine[] = [];
+
+  for (const [lineValue, bookMap] of lineMap) {
+    const books: AlternateLine["books"] = {};
+    let bestOver: { bk: string; price: number } | undefined;
+    let bestUnder: { bk: string; price: number } | undefined;
+
+    for (const [bookId, data] of bookMap) {
+      const bookEntry: any = {};
+
+      if (data.over) {
+        const price = parseInt(data.over.price.replace("+", ""), 10);
+        bookEntry.over = {
+          price,
+          decimal: data.over.price_decimal,
+          u: data.over.link || null,
+          m: data.over.mobile_link || null,
+          sgp: data.over.sgp || null,
+        };
+        if (!bestOver || price > bestOver.price) bestOver = { bk: bookId, price };
+      }
+
+      if (data.under) {
+        const price = parseInt(data.under.price.replace("+", ""), 10);
+        bookEntry.under = {
+          price,
+          decimal: data.under.price_decimal,
+          u: data.under.link || null,
+          m: data.under.mobile_link || null,
+          sgp: data.under.sgp || null,
+        };
+        if (!bestUnder || price > bestUnder.price) bestUnder = { bk: bookId, price };
+      }
+
+      if (bookEntry.over || bookEntry.under) {
+        books[bookId] = bookEntry;
+      }
+    }
+
+    if (Object.keys(books).length > 0) {
+      lines.push({ ln: lineValue, books, best: { over: bestOver, under: bestUnder } });
+    }
+  }
+
+  lines.sort((a, b) => a.ln - b.ln);
+
+  const displayName = awayDisplay && homeDisplay ? `${awayDisplay} @ ${homeDisplay}` : null;
+
+  return {
+    lines,
+    player: displayName,
+    team: null,
+    position: null,
+    primary_ln: effectivePrimaryLine ?? null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -388,6 +725,9 @@ export async function GET(req: NextRequest) {
     const market = searchParams.get("market")?.trim() || "";
     const playerKey = searchParams.get("player")?.trim() || "";
     const primaryLineStr = searchParams.get("primaryLine");
+    const type = searchParams.get("type")?.trim().toLowerCase() || "player";
+    const homeTeam = searchParams.get("homeTeam")?.trim().toLowerCase().replace(/ /g, "_") || "";
+    const awayTeam = searchParams.get("awayTeam")?.trim().toLowerCase().replace(/ /g, "_") || "";
 
     // Validate required params
     if (!sport || !VALID_SPORTS.has(sport)) {
@@ -411,7 +751,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (!playerKey) {
+    if (!playerKey && type !== "game") {
       return NextResponse.json(
         { error: "missing_player" },
         { status: 400, headers: { "Cache-Control": "no-store" } }
@@ -426,13 +766,40 @@ export async function GET(req: NextRequest) {
     const startTime = performance.now();
 
     // Build alternates from new key structure
-    const { lines, player, team, position, primary_ln } = await buildAlternates(
-      sport,
-      eventId,
-      normalizedMarket,
-      playerKey,
-      primaryLine
-    );
+    let lines: AlternateLine[];
+    let player: string | null;
+    let team: string | null;
+    let position: string | null;
+    let primary_ln: number | null;
+
+    if (type === "game") {
+      const result = await buildGameAlternates(
+        sport,
+        eventId,
+        normalizedMarket,
+        homeTeam,
+        awayTeam,
+        primaryLine
+      );
+      lines = result.lines;
+      player = result.player;
+      team = result.team;
+      position = result.position;
+      primary_ln = result.primary_ln;
+    } else {
+      const result = await buildAlternates(
+        sport,
+        eventId,
+        normalizedMarket,
+        playerKey,
+        primaryLine
+      );
+      lines = result.lines;
+      player = result.player;
+      team = result.team;
+      position = result.position;
+      primary_ln = result.primary_ln;
+    }
 
     const duration = performance.now() - startTime;
 

@@ -49,9 +49,10 @@ import { useMultiEvModelStream } from "@/hooks/use-multi-ev-model-stream";
 import type { PositiveEVOpportunity, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
-import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
+import { americanToImpliedProb, impliedProbToAmerican, calculateMultiEV, getPrimaryEVCalculation } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
@@ -64,6 +65,7 @@ import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 
 // Favorites
 import { useFavorites } from "@/hooks/use-favorites";
+import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-books";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -86,10 +88,11 @@ import { MobilePositiveEV } from "@/components/positive-ev/mobile";
 import { X } from "lucide-react";
 import LockIcon from "@/icons/lock";
 import { ButtonLink } from "@/components/button-link";
-import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { usePositiveEvPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
+import { PositiveEVTour, PositiveEVTourTrigger } from "@/components/opportunities/sharp-tools-tours";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
@@ -148,8 +151,8 @@ const EXTREME_EV_WARNING =
 /**
  * Format timestamp as relative time (e.g., "5s ago", "2m ago")
  */
-function formatTimeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+function formatTimeAgo(timestamp: number, nowMs: number = Date.now()): string {
+  const seconds = Math.floor((nowMs - timestamp) / 1000);
   if (seconds < 5) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
@@ -322,7 +325,7 @@ function getTeamLogoUrl(teamName: string, sport: string): string {
  * Check if sport has team logos
  */
 function hasTeamLogos(sportKey: string): boolean {
-  const sportsWithLogos = ["nfl", "nhl", "nba", "ncaaf", "ncaab"];
+  const sportsWithLogos = ["nfl", "nhl", "nba", "ncaaf", "ncaab", "mlb"];
   return sportsWithLogos.includes(sportKey.toLowerCase());
 }
 
@@ -387,6 +390,48 @@ function getBookFallbackUrl(bookId?: string): string | undefined {
   return base;
 }
 
+function remapOpportunityToSelectedBook(
+  opp: PositiveEVOpportunity,
+  selectedBooks: string[],
+  devigMethods: DevigMethod[],
+): PositiveEVOpportunity | null {
+  if (selectedBooks.length === 0) return opp;
+
+  const selectedSet = new Set(selectedBooks.map((book) => normalizeSportsbookId(book)));
+  const candidateBooks = opp.allBooks.filter((book) => selectedSet.has(normalizeSportsbookId(book.bookId)));
+  if (candidateBooks.length === 0) return null;
+
+  const calcSide = opp.side === "under" || opp.side === "no" ? "under" : "over";
+  const rankedCandidates = candidateBooks
+    .map((book) => ({
+      book,
+      evCalculations: calculateMultiEV(opp.devigResults, book, calcSide, devigMethods),
+    }))
+    .filter((candidate) => candidate.evCalculations.evWorst > 0)
+    .sort((a, b) => {
+      const evDiff = b.evCalculations.evWorst - a.evCalculations.evWorst;
+      if (evDiff !== 0) return evDiff;
+      return b.book.priceDecimal - a.book.priceDecimal;
+    });
+
+  if (rankedCandidates.length === 0) return null;
+
+  const bestCandidate = rankedCandidates[0];
+  if (normalizeSportsbookId(opp.book.bookId) === normalizeSportsbookId(bestCandidate.book.bookId)) {
+    return opp;
+  }
+
+  return {
+    ...opp,
+    book: {
+      ...bestCandidate.book,
+      evPercent: bestCandidate.evCalculations.evWorst,
+      isSharpRef: false,
+    },
+    evCalculations: bestCandidate.evCalculations,
+  };
+}
+
 export default function PositiveEVPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
@@ -444,6 +489,7 @@ export default function PositiveEVPage() {
     return FALLBACK_MARKETS.map((market) => ({
       key: market,
       label: formatMarketLabel(market),
+      sports: FALLBACK_MARKET_SPORTS[market],
     }));
   }, [marketsData?.aggregatedMarkets]);
 
@@ -458,10 +504,12 @@ export default function PositiveEVPage() {
 
   // Local UI state
   const [searchQuery, setSearchQuery] = useState("");
-  const [limit, setLimit] = useState(100);
+  const [limit, setLimit] = useState(300);
   const [showMethodInfo, setShowMethodInfo] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
+  const [relativeClockNow, setRelativeClockNow] = useState(() => Date.now());
+  const [lastKnownDataUpdatedAt, setLastKnownDataUpdatedAt] = useState<number | null>(null);
   
   // Sorting state for table columns - default to sorting by EV % descending
   const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>("ev");
@@ -506,6 +554,14 @@ export default function PositiveEVPage() {
       setAutoRefresh(false);
     }
   }, [hasElite]);
+
+  // Keep "Updated Xs ago" labels fresh even when no data rows change.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRelativeClockNow(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Debug logging
   useEffect(() => {
@@ -537,6 +593,12 @@ export default function PositiveEVPage() {
     if (filters.minLiquidity !== undefined) {
       (updates as any).minLiquidity = filters.minLiquidity;
     }
+    if (filters.minOdds !== undefined) {
+      (updates as any).minOdds = filters.minOdds;
+    }
+    if (filters.maxOdds !== undefined) {
+      (updates as any).maxOdds = filters.maxOdds;
+    }
     if (filters.showHidden !== undefined) {
       (updates as any).showHidden = filters.showHidden;
     }
@@ -552,7 +614,7 @@ export default function PositiveEVPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Hidden edges hook
-  const { hideEdge, unhideEdge, isHidden, hiddenCount } = useHiddenEdges();
+  const { hideEdge, unhideEdge, isHidden, hiddenCount } = useHiddenEdges("positive-ev");
   
   // Show hidden opportunities - use preference value
   const showHidden = savedFilters.showHidden;
@@ -583,8 +645,11 @@ export default function PositiveEVPage() {
     selectedMarkets: savedFilters.selectedMarkets,
     mode: savedFilters.mode,
     minBooksPerSide: savedFilters.minBooksPerSide,
+    minOdds: savedFilters.minOdds,
+    maxOdds: savedFilters.maxOdds,
     searchQuery: searchQuery,
   }), [savedFilters, searchQuery]);
+  const requestLimit = effectiveIsPro ? limit : 50;
   
 
   // Multi-model fetch (handles both preset and custom model modes)
@@ -593,6 +658,7 @@ export default function PositiveEVPage() {
     opportunities: standardData,
     totalFound: standardTotalFound,
     totalReturned: standardTotalReturned,
+    meta: standardMeta,
     isLoading: standardIsLoading,
     isFetching: standardIsFetching,
     error: standardError,
@@ -605,7 +671,7 @@ export default function PositiveEVPage() {
     prefs: multiModelPrefs,
     activeModels: activeEvModels,
     isPro: effectiveIsPro,
-    limit,
+    limit: requestLimit,
     enabled: !planLoading && !prefsLoading && !autoRefresh, // Don't fetch if auto-refresh is enabled
   });
 
@@ -631,7 +697,7 @@ export default function PositiveEVPage() {
     prefs: multiModelPrefs,
     activeModels: activeEvModels,
     isPro: effectiveIsPro,
-    limit,
+    limit: requestLimit,
     autoRefresh,
     enabled: !planLoading && !prefsLoading && autoRefresh,
   });
@@ -662,6 +728,9 @@ export default function PositiveEVPage() {
   
   const totalFound = autoRefresh ? streamMeta.totalFound : standardTotalFound;
   const totalReturned = autoRefresh ? streamMeta.returned : standardTotalReturned;
+  const activeMeta = autoRefresh ? streamMeta : standardMeta;
+  const emptyReason = activeMeta?.emptyReason;
+  const suggestedSharpPresets = activeMeta?.suggestedSharpPresets || [];
   
   // Only show loading skeleton when NEITHER source has data (first load only)
   const isLoading = autoRefresh 
@@ -674,6 +743,13 @@ export default function PositiveEVPage() {
   // Use freshRefetch for manual refresh button (bypasses server cache)
   const baseFreshRefetch = autoRefresh ? streamRefresh : standardFreshRefetch;
   const dataUpdatedAt = autoRefresh ? streamLastUpdated : standardDataUpdatedAt;
+  const freshnessUpdatedAt = dataUpdatedAt ?? lastKnownDataUpdatedAt;
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastKnownDataUpdatedAt(dataUpdatedAt);
+    }
+  }, [dataUpdatedAt]);
   
   // Local state for manual refresh spinning
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -732,14 +808,12 @@ export default function PositiveEVPage() {
       filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
     
-    // Filter by selected books (if any books are selected, only show those)
-    // Note: empty selectedBooks array means "show all books"
+    // If books are selected, surface the best selected book within each row
+    // instead of dropping the row when the current best book is deselected.
     if (savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0) {
-      filtered = filtered.filter((opp) => {
-        const bookId = opp.book?.bookId || "";
-        const normalizedBook = normalizeSportsbookId(bookId);
-        return savedFilters.selectedBooks.includes(normalizedBook);
-      });
+      filtered = filtered
+        .map((opp) => remapOpportunityToSelectedBook(opp, savedFilters.selectedBooks, savedFilters.devigMethods as DevigMethod[]))
+        .filter((opp): opp is PositiveEVOpportunity => opp !== null);
     }
     
     // Min liquidity filter - filter out opportunities where best book's max stake is below threshold
@@ -1026,7 +1100,6 @@ export default function PositiveEVPage() {
     
     try {
       const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
-      const oddsSelectionId = `${opp.playerName?.toLowerCase().replace(/\s+/g, "_")}|${opp.side}|${opp.line}`;
       
       // Build books snapshot from allBooks
       const booksSnapshot: Record<string, { price: number; u: string | null; m: string | null; sgp: string | null }> = {};
@@ -1037,6 +1110,16 @@ export default function PositiveEVPage() {
           m: book.mobileLink || null,
           sgp: book.sgp || null,
         };
+      });
+
+      const hydratedBooksSnapshot = await hydrateBooksSnapshotWithLiveSgp({
+        sport: opp.sport,
+        eventId: opp.eventId,
+        market: opp.market,
+        playerName: opp.playerName,
+        line: opp.line,
+        side: opp.side,
+        booksSnapshot,
       });
 
       await toggleFavorite({
@@ -1055,8 +1138,8 @@ export default function PositiveEVPage() {
         line: opp.line,
         side: opp.side,
         odds_key: oddsKey,
-        odds_selection_id: oddsSelectionId,
-        books_snapshot: booksSnapshot,
+        odds_selection_id: opp.id,
+        books_snapshot: hydratedBooksSnapshot,
         best_price_at_save: opp.book.price,
         best_book_at_save: opp.book.bookId,
         source: "positive_ev",
@@ -1066,15 +1149,17 @@ export default function PositiveEVPage() {
     }
   }, [toggleFavorite]);
   
-  // Open bet link (uses mobile link on mobile devices)
+  // Open bet link (uses mobile link on mobile devices, applies user state code)
+  const applyState = useStateLink();
   const openLink = useCallback((bookId?: string, link?: string | null, mobileLink?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = chooseBookLink(link ?? undefined, mobileLink ?? undefined, fallback ?? undefined);
-    if (!target) return;
+    const raw = chooseBookLink(link ?? undefined, mobileLink ?? undefined, fallback ?? undefined);
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     try {
       window.open(target, "_blank", "noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes");
     } catch { void 0; }
-  }, []);
+  }, [applyState]);
 
   const handleOpenLineHistory = useCallback((opp: PositiveEVOpportunity) => {
     const combinedMarket = `${opp.market || ""} ${opp.marketDisplay || ""}`.toLowerCase();
@@ -1191,8 +1276,10 @@ export default function PositiveEVPage() {
           minEv={savedFilters.minEv}
           maxEv={savedFilters.maxEv}
           minBooksPerSide={savedFilters.minBooksPerSide}
+          minOdds={savedFilters.minOdds}
+          maxOdds={savedFilters.maxOdds}
           minLiquidity={savedFilters.minLiquidity ?? 0}
-          onFiltersChange={handleFiltersChange}
+          onFiltersChange={handleFiltersChange as any}
           availableSports={AVAILABLE_SPORTS}
           availableMarkets={availableMarketOptions.map((market) => market.key)}
           marketSportsMap={marketSportsMap}
@@ -1237,31 +1324,39 @@ export default function PositiveEVPage() {
     : `${displayOpportunities.length} of ${sortedOpportunities.length}+ opportunities shown`;
 
   // Header actions - freshness indicator
-  const headerActions = dataUpdatedAt && !isLoading ? (
-    <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-      {autoRefresh && streamConnected && (
+  const headerActions = (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500 transition-opacity",
+        freshnessUpdatedAt ? "opacity-100" : "opacity-0 pointer-events-none"
+      )}
+      aria-hidden={!freshnessUpdatedAt}
+    >
+      {autoRefresh && streamConnected && freshnessUpdatedAt && (
         <>
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
           <span className="text-green-600 dark:text-green-400">Live</span>
           <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
         </>
       )}
-      <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
-      {(isFetching || (autoRefresh && streamIsReconnecting)) && (
+      <span>
+        Updated{" "}
+        {freshnessUpdatedAt ? formatTimeAgo(freshnessUpdatedAt, relativeClockNow) : "—"}
+      </span>
+      {freshnessUpdatedAt && (isFetching || (autoRefresh && streamIsReconnecting)) && (
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       )}
     </div>
-  ) : null;
+  );
 
   // Context bar - filter bar with timestamp above
   const contextBar = (
     <>
       {/* Timestamp indicator - above filter bar */}
-      {headerActions && (
-        <div className="flex justify-end mb-2">
-          {headerActions}
-        </div>
-      )}
+      <div className="flex justify-end mb-2 min-h-4">
+        {headerActions}
+      </div>
+      <div data-tour="ev-filter-bar">
       <UnifiedFilterBar
         tool="positive-ev"
         className=""
@@ -1288,8 +1383,11 @@ export default function PositiveEVPage() {
         sportsbookCounts={(() => {
           const counts: Record<string, number> = {};
           data.forEach((opp) => {
-            const bookId = opp.book.bookId;
-            counts[bookId] = (counts[bookId] || 0) + 1;
+            opp.allBooks.forEach((book) => {
+              if ((book.evPercent ?? Number.NEGATIVE_INFINITY) <= 0) return;
+              const normalizedBookId = normalizeSportsbookId(book.bookId);
+              counts[normalizedBookId] = (counts[normalizedBookId] || 0) + 1;
+            });
           });
           return counts;
         })()}
@@ -1310,6 +1408,10 @@ export default function PositiveEVPage() {
         onMinEvChange={(minEv) => updateSavedFilters({ minEv })}
         maxEv={savedFilters.maxEv}
         onMaxEvChange={(maxEv) => updateSavedFilters({ maxEv })}
+        minOdds={savedFilters.minOdds ?? undefined}
+        onMinOddsChange={(minOdds) => updateSavedFilters({ minOdds } as any)}
+        maxOdds={savedFilters.maxOdds ?? undefined}
+        onMaxOddsChange={(maxOdds) => updateSavedFilters({ maxOdds } as any)}
         minBooksPerSide={savedFilters.minBooksPerSide}
         onMinBooksPerSideChange={(minBooksPerSide) => updateSavedFilters({ minBooksPerSide } as any)}
         minLiquidity={savedFilters.minLiquidity ?? 0}
@@ -1354,6 +1456,7 @@ export default function PositiveEVPage() {
         locked={locked}
         isPro={hasElite}
       />
+      </div>
     </>
   );
 
@@ -1363,7 +1466,9 @@ export default function PositiveEVPage() {
       subtitle={subtitle}
       contextBar={contextBar}
       stickyContextBar={true}
+      headerActions={<PositiveEVTourTrigger />}
     >
+
       {/* Method Info Panel */}
       <AnimatePresence>
         {showMethodInfo && (
@@ -1473,7 +1578,7 @@ export default function PositiveEVPage() {
       )}
 
       {/* Results Table - Premium Design */}
-      <div className="rounded-2xl">
+      <div data-tour="ev-table" className="rounded-2xl">
         <div className="relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-[5]">
@@ -1652,10 +1757,16 @@ export default function PositiveEVPage() {
                       <Zap className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1.5">
-                      No +EV opportunities found
+                      {emptyReason === "no_reference_data"
+                        ? "No +EV plays found for this reference book"
+                        : "No +EV opportunities found"}
                     </h3>
                     <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center max-w-sm">
-                      Try lowering your minimum EV threshold, selecting more sports, or check back later for new opportunities.
+                      {emptyReason === "no_reference_data"
+                        ? `Try switching your sharp reference to ${suggestedSharpPresets
+                            .map((preset) => SHARP_PRESETS[preset]?.label || preset)
+                            .join(" or ")}.`
+                        : "Try lowering your minimum EV threshold, selecting more sports, or check back later for new opportunities."}
                     </p>
                   </div>
                 </td>
@@ -1667,6 +1778,8 @@ export default function PositiveEVPage() {
               // Get base EV based on evCase setting (worst or best)
               // The API returns evWorst, evBest, and evDisplay - we use evCase to select
               const evCase = savedFilters.evCase as "worst" | "best";
+              const activeDevigMethods = (savedFilters.devigMethods as DevigMethod[]) ?? DEFAULT_DEVIG_METHODS;
+              const primaryEvCalculation = getPrimaryEVCalculation(opp.evCalculations, activeDevigMethods, evCase);
               const baseEV = evCase === "best" 
                 ? opp.evCalculations.evBest 
                 : opp.evCalculations.evWorst;
@@ -1674,18 +1787,6 @@ export default function PositiveEVPage() {
               // Calculate boosted EV if boost is active
               const decimalOdds = opp.book.priceDecimal || 
                 (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
-              // Get fair probability from whichever devig method is available
-              const fairProbability = opp.evCalculations.power?.fairProb 
-                || opp.evCalculations.multiplicative?.fairProb 
-                || opp.evCalculations.additive?.fairProb 
-                || opp.evCalculations.probit?.fairProb 
-                || 0;
-              const displayEV = boostPercent > 0 
-                ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent) 
-                : baseEV;
-              
-              const evFormat = formatEVPercent(displayEV);
-              const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               const book = getSportsbookById(opp.book.bookId);
               const isExpanded = expandedRows.has(opp.id);
               const showLogos = hasTeamLogos(opp.sport);
@@ -1712,11 +1813,7 @@ export default function PositiveEVPage() {
               
               // Get fair probability and convert to American odds
               // Check all devig methods in order of preference
-              const fairProb = opp.evCalculations.power?.fairProb 
-                || opp.evCalculations.multiplicative?.fairProb 
-                || opp.evCalculations.additive?.fairProb 
-                || opp.evCalculations.probit?.fairProb 
-                || 0;
+              const fairProb = primaryEvCalculation?.fairProb || 0;
               const fairOdds = fairProbToAmerican(fairProb);
               
               // Get all method EV values for tooltip (apply boost if active)
@@ -1742,21 +1839,30 @@ export default function PositiveEVPage() {
                       : opp.evCalculations.probit.evPercent)
                   : undefined,
               };
-              const evWorst = boostPercent > 0 
-                ? calculateBoostedEV(opp.evCalculations.evWorst, decimalOdds, fairProbability, boostPercent)
-                : opp.evCalculations.evWorst;
-              const evBest = boostPercent > 0 
-                ? calculateBoostedEV(opp.evCalculations.evBest, decimalOdds, fairProbability, boostPercent)
-                : opp.evCalculations.evBest;
+              const activeMethodEntries = activeDevigMethods
+                .map((method) => [method, methodEVs[method]] as const)
+                .filter(([, value]) => value !== undefined);
+              const activeMethodValues = activeMethodEntries
+                .map(([, value]) => value)
+                .filter((value): value is number => value !== undefined);
+              const evWorst = activeMethodValues.length > 0 ? Math.min(...activeMethodValues) : opp.evCalculations.evWorst;
+              const evBest = activeMethodValues.length > 0 ? Math.max(...activeMethodValues) : opp.evCalculations.evBest;
+              const displayEV = evCase === "best" ? evBest : evWorst;
+
+              // Apply min/max EV filter
+              const minEvFilter = savedFilters.minEv ?? 0;
+              const maxEvFilter = savedFilters.maxEv ?? Infinity;
+              if (displayEV < minEvFilter || displayEV > maxEvFilter) {
+                if (!isExpanded) return null; // Keep expanded rows visible
+              }
+
+              const evFormat = formatEVPercent(displayEV);
+              const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               
               // Determine which method gave the displayed EV (worst or best based on evCase)
               const displayMethod = evCase === "best"
-                ? Object.entries(methodEVs)
-                    .filter(([, v]) => v !== undefined)
-                    .sort(([, a], [, b]) => (b || 0) - (a || 0))[0]?.[0] || "power" // Best = highest
-                : Object.entries(methodEVs)
-                    .filter(([, v]) => v !== undefined)
-                    .sort(([, a], [, b]) => (a || 0) - (b || 0))[0]?.[0] || "power"; // Worst = lowest
+                ? activeMethodEntries.sort(([, a], [, b]) => (b || 0) - (a || 0))[0]?.[0] || activeDevigMethods[0] || "power"
+                : activeMethodEntries.sort(([, a], [, b]) => (a || 0) - (b || 0))[0]?.[0] || activeDevigMethods[0] || "power";
               
               // Format game time
               const gameDate = opp.startTime ? new Date(opp.startTime) : null;
@@ -2180,15 +2286,16 @@ export default function PositiveEVPage() {
                     {/* Best Book */}
                     <td className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
-                        // Find all books with the same best EV (ties), filtered by selected books
-                        const bestEV = opp.book.evPercent ?? opp.evCalculations.evWorst;
+                        // Find all books tied at the best PRICE (not EV) so custom models
+                        // still render book logos even when per-book EV metadata differs.
+                        const bestPrice = opp.book.price;
                         const selectedBooksSet = savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0 
                           ? new Set(savedFilters.selectedBooks.map(b => normalizeSportsbookId(b)))
                           : null;
-                        const allTiedBooks = opp.allBooks
-                          .filter(b => {
+                        const tieCandidates = opp.allBooks
+                          .filter((b) => {
                             if (b.isSharpRef) return false;
-                            if (Math.abs((b.evPercent ?? 0) - bestEV) >= 0.01) return false;
+                            if (b.price !== bestPrice) return false;
                             // Filter by selected books if any are selected
                             if (selectedBooksSet) {
                               const normalizedId = normalizeSportsbookId(b.bookId);
@@ -2196,8 +2303,27 @@ export default function PositiveEVPage() {
                             }
                             return true;
                           });
-                        const tiedBooks = allTiedBooks.slice(0, 4); // Max 4 for display
-                        const extraCount = allTiedBooks.length - 4;
+
+                        // De-dupe ties by normalized book ID to avoid duplicate-key issues.
+                        const dedupedTieBooks = Array.from(
+                          new Map(
+                            tieCandidates.map((book) => [normalizeSportsbookId(book.bookId), book])
+                          ).values()
+                        );
+
+                        // If we couldn't resolve ties from allBooks (common in custom mode),
+                        // fall back to the actual best-book payload.
+                        const fallbackBestBook = {
+                          bookId: opp.book.bookId,
+                          bookName: opp.book.bookName,
+                          price: opp.book.price,
+                          priceDecimal: opp.book.priceDecimal,
+                          limits: opp.book.limits ?? null,
+                        };
+
+                        const allDisplayBooks = dedupedTieBooks.length > 0 ? dedupedTieBooks : [fallbackBestBook];
+                        const tiedBooks = allDisplayBooks.slice(0, 4); // Max 4 for display
+                        const extraCount = allDisplayBooks.length - 4;
                         
                         return (
                           <div className={cn("flex items-center justify-center gap-1.5 lg:gap-2", !effectiveIsPro && "blur-[8px] opacity-30 grayscale select-none pointer-events-none")}>
@@ -2294,20 +2420,69 @@ export default function PositiveEVPage() {
                           );
                         }
                         
-                        // Standard preset - show book logo
+                        // Standard preset / average blend
                         const sharpSource = opp.sharpReference.source?.split(" ")[0]?.toLowerCase() || savedFilters.sharpPreset?.toLowerCase();
-                        // Handle blends like "pinnacle_circa" - just show first book's logo
+                        const sharpSourceBooks = [
+                          ...(opp.sharpReference.blendedFrom || []),
+                          ...(opp.sharpReference.source ? [opp.sharpReference.source] : []),
+                        ];
+                        const parsedSharpBookIds = Array.from(
+                          new Set(
+                            sharpSourceBooks
+                              .flatMap((src) => String(src).split(","))
+                              .map((bookId) => normalizeSportsbookId(bookId.trim().toLowerCase()))
+                              .filter((bookId) => !!bookId && bookId !== "market_average" && bookId !== "average")
+                          )
+                        );
+                        const sharpBookEntries = parsedSharpBookIds
+                          .map((bookId) => ({
+                            bookId,
+                            logo: getBookLogo(bookId),
+                            name: getBookName(bookId) || bookId,
+                          }))
+                          .filter((entry) => !!entry.logo);
+                        const visibleSharpBooks = sharpBookEntries.slice(0, 3);
+                        const extraSharpBookCount = Math.max(0, sharpBookEntries.length - 3);
+                        const sharpBooksTooltip = parsedSharpBookIds.length > 0
+                          ? parsedSharpBookIds.map((bookId) => getBookName(bookId) || bookId).join(", ")
+                          : "Market Average";
+
+                        // Handle single-book presets like "pinnacle_circa" (fallback)
                         const sharpBookId = sharpSource?.includes("_") ? sharpSource.split("_")[0] : sharpSource;
                         const sharpLogo = getBookLogo(sharpBookId);
                         const sharpName = getBookName(sharpBookId) || sharpSource?.toUpperCase() || "Sharp";
                         
                         return (
                           <div className="flex items-center justify-center gap-2">
-                            {sharpLogo ? (
+                            {visibleSharpBooks.length > 0 ? (
+                              <div className="flex items-center -space-x-1.5">
+                                {visibleSharpBooks.map((entry, idx) => (
+                                  <Tooltip key={`${entry.bookId}-${idx}`} content={entry.name}>
+                                    <div
+                                      className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md"
+                                      style={{ zIndex: visibleSharpBooks.length - idx }}
+                                    >
+                                      <img
+                                        src={entry.logo!}
+                                        alt={entry.name}
+                                        className="h-6 w-6 object-contain rounded-md bg-white dark:bg-neutral-800"
+                                      />
+                                    </div>
+                                  </Tooltip>
+                                ))}
+                                {extraSharpBookCount > 0 && (
+                                  <Tooltip content={sharpBooksTooltip}>
+                                    <div className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md h-6 w-6 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center">
+                                      <span className="text-[9px] font-bold text-neutral-600 dark:text-neutral-300">+{extraSharpBookCount}</span>
+                                    </div>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            ) : sharpLogo ? (
                               <Tooltip content={sharpName}>
-                                <img 
-                                  src={sharpLogo} 
-                                  alt={sharpName} 
+                                <img
+                                  src={sharpLogo}
+                                  alt={sharpName}
                                   className="h-7 w-7 object-contain rounded-md bg-white dark:bg-neutral-800"
                                 />
                               </Tooltip>
@@ -2871,7 +3046,7 @@ export default function PositiveEVPage() {
                                                       </span>
                                                     </Tooltip>
                                                   )}
-                                                  {overOffer.limits?.max && !isOverSide && (
+                                                  {overOffer.limits?.max && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${overOffer.limits.max >= 1000 ? `${(overOffer.limits.max / 1000).toFixed(0)}k` : overOffer.limits.max}
                                                     </span>
@@ -2915,7 +3090,7 @@ export default function PositiveEVPage() {
                                                       </span>
                                                     </Tooltip>
                                                   )}
-                                                  {underOffer.limits?.max && isOverSide && (
+                                                  {underOffer.limits?.max && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${underOffer.limits.max >= 1000 ? `${(underOffer.limits.max / 1000).toFixed(0)}k` : underOffer.limits.max}
                                                     </span>
@@ -2981,7 +3156,7 @@ export default function PositiveEVPage() {
       </div>
 
       {/* Load More - only for pro users */}
-      {effectiveIsPro && totalReturned >= limit && (
+      {effectiveIsPro && totalReturned >= requestLimit && (
         <div className="flex justify-center mt-4">
           <button
             onClick={() => setLimit((prev) => prev + 100)}
@@ -3082,6 +3257,7 @@ export default function PositiveEVPage() {
         }}
         context={lineHistoryContext}
       />
+      <PositiveEVTour />
     </AppPageLayout>
   );
 }

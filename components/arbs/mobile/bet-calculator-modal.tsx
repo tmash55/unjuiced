@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -13,16 +14,43 @@ const norm = (s?: string) => (s || "").toLowerCase();
 const logo = (id?: string) => SB_MAP.get(norm(id))?.logo;
 const bookName = (id?: string) => SB_MAP.get(norm(id))?.name || (id || "");
 
-const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
-  if (mobileUrl) return mobileUrl;
-  if (directUrl) return directUrl;
+const isMobileDevice = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768;
+};
+
+const getBookFallbackUrl = (bk?: string, applyState?: (url: string | null | undefined) => string | null): string | undefined => {
   if (!bk) return undefined;
-  const sb = SB_MAP.get(norm(bk));
-  if (!sb) return undefined;
-  const base = (sb.affiliate && sb.affiliateLink) ? sb.affiliateLink : (sb.url || undefined);
+
+  const sportsbook = getSportsbookById(bk);
+  if (sportsbook?.links) {
+    const desktopUrl = sportsbook.links.desktop;
+    const mobileUrl = sportsbook.links.mobile;
+
+    if (isMobileDevice() && mobileUrl) return mobileUrl;
+    if (desktopUrl) return applyState?.(desktopUrl) || desktopUrl;
+    if (mobileUrl) return mobileUrl;
+  }
+
+  const legacyBook = SB_MAP.get(norm(bk));
+  if (!legacyBook) return undefined;
+
+  const base = (legacyBook.affiliate && legacyBook.affiliateLink) ? legacyBook.affiliateLink : (legacyBook.url || undefined);
   if (!base) return undefined;
-  if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
-  return base;
+  return applyState?.(base) || base;
+};
+
+const getBookUrl = (
+  bk?: string,
+  directUrl?: string | null,
+  mobileUrl?: string | null,
+  applyState?: (url: string | null | undefined) => string | null
+): string | undefined => {
+  if (isMobileDevice() && mobileUrl) return mobileUrl;
+  if (directUrl) return applyState?.(directUrl) || directUrl;
+  if (mobileUrl) return mobileUrl;
+  return getBookFallbackUrl(bk, applyState);
 };
 
 const formatOdds = (od: number) => (od > 0 ? `+${od}` : String(od));
@@ -69,15 +97,28 @@ const humanizeMarket = (mkt?: string) => {
   return titleCase(s);
 };
 
+/** Round a number to the nearest multiple of `step`. 0 = no rounding (2 decimal places). */
+function roundStake(n: number, step: number): number {
+  if (step <= 0) return Math.round(n * 100) / 100;
+  return Math.round(n / step) * step;
+}
+function formatStake(n: number, step: number): string {
+  if (step <= 0) return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  return String(Math.round(n / step) * step);
+}
+
 interface BetCalculatorModalProps {
   row: ArbRow;  // Snapshot row (captured when modal opened)
   currentRow?: ArbRow | null;  // Current version from live data (for staleness detection)
   isOpen: boolean;
   onClose: () => void;
   defaultTotal: number;
+  roundTo?: number;
 }
 
-export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTotal }: BetCalculatorModalProps) {
+export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTotal, roundTo = 0 }: BetCalculatorModalProps) {
+  const applyState = useStateLink();
+
   // Check if the opportunity is still available by comparing snapshot with current data
   const isStale = useMemo(() => {
     // If no current row, the opportunity was removed
@@ -105,8 +146,8 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   
   const defaultSizes = useMemo(() => calculateBetSizes(overOdds, underOdds, defaultTotal), [overOdds, underOdds, defaultTotal]);
   
-  const [overAmount, setOverAmount] = useState(defaultSizes.over.toFixed(2));
-  const [underAmount, setUnderAmount] = useState(defaultSizes.under.toFixed(2));
+  const [overAmount, setOverAmount] = useState(formatStake(roundStake(defaultSizes.over, roundTo), roundTo));
+  const [underAmount, setUnderAmount] = useState(formatStake(roundStake(defaultSizes.under, roundTo), roundTo));
   
   // Loading states for bet buttons
   const [loadingOver, setLoadingOver] = useState(false);
@@ -120,13 +161,13 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
         Number(row.u?.od || 0),
         defaultTotal
       );
-      setOverAmount(sizes.over.toFixed(2));
-      setUnderAmount(sizes.under.toFixed(2));
+      setOverAmount(formatStake(roundStake(sizes.over, roundTo), roundTo));
+      setUnderAmount(formatStake(roundStake(sizes.under, roundTo), roundTo));
       // Reset loading states
       setLoadingOver(false);
       setLoadingUnder(false);
     }
-  }, [isOpen, row, defaultTotal]);
+  }, [isOpen, row, defaultTotal, roundTo]);
 
   // Calculate values
   const overStake = parseFloat(overAmount) || 0;
@@ -134,8 +175,13 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const totalStake = overStake + underStake;
   const overPayout = calculatePayout(overOdds, overStake);
   const underPayout = calculatePayout(underOdds, underStake);
+  const profitIfOver = overPayout - totalStake;
+  const profitIfUnder = underPayout - totalStake;
+  const profitMin = Math.min(profitIfOver, profitIfUnder);
+  const profitMax = Math.max(profitIfOver, profitIfUnder);
+  const profit = profitMin;
   const guaranteedPayout = Math.min(overPayout, underPayout);
-  const profit = guaranteedPayout - totalStake;
+  const calcHasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
 
   // Handle over amount change
   const handleOverChange = (val: string) => {
@@ -155,16 +201,16 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const handleOverBlur = () => {
     const stake = parseFloat(overAmount);
     if (stake > 0) {
-      const opposite = calculateOppositeStake(stake, overOdds, underOdds);
-      setUnderAmount(opposite.toFixed(2));
+      const opposite = roundStake(calculateOppositeStake(stake, overOdds, underOdds), roundTo);
+      setUnderAmount(formatStake(opposite, roundTo));
     }
   };
 
   const handleUnderBlur = () => {
     const stake = parseFloat(underAmount);
     if (stake > 0) {
-      const opposite = calculateOppositeStake(stake, underOdds, overOdds);
-      setOverAmount(opposite.toFixed(2));
+      const opposite = roundStake(calculateOppositeStake(stake, underOdds, overOdds), roundTo);
+      setOverAmount(formatStake(opposite, roundTo));
     }
   };
 
@@ -172,8 +218,10 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const presets = [50, 100, 200, 500];
   const applyPreset = (total: number) => {
     const sizes = calculateBetSizes(overOdds, underOdds, total);
-    setOverAmount(sizes.over.toFixed(2));
-    setUnderAmount(sizes.under.toFixed(2));
+    const o = roundStake(sizes.over, roundTo);
+    const u = roundStake(sizes.under, roundTo);
+    setOverAmount(formatStake(o, roundTo));
+    setUnderAmount(formatStake(u, roundTo));
   };
 
   // Open bet with loading state
@@ -183,8 +231,8 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
     
     // Brief loading state for feedback
     setTimeout(() => {
-      const link = getBookUrl(bk, url, mobileUrl);
-      if (link) window.open(link, '_blank', 'noopener,noreferrer');
+      const finalLink = getBookUrl(bk, url, mobileUrl, applyState);
+      if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
       // Reset loading after a moment
       setTimeout(() => setLoading(false), 1000);
     }, 150);
@@ -506,7 +554,11 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 "text-base font-bold tabular-nums transition-all duration-150",
                 isStale ? "text-neutral-400 dark:text-neutral-500 line-through" : profit > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
               )}>
-                {profit > 0 ? "+" : ""}${profit.toFixed(2)}
+                {calcHasRange ? (
+                  <>{profit > 0 ? "+" : ""}${profitMin.toFixed(2)} – ${profitMax.toFixed(2)}</>
+                ) : (
+                  <>{profit > 0 ? "+" : ""}${profit.toFixed(2)}</>
+                )}
               </div>
             </div>
           </div>

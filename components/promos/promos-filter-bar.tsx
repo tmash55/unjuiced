@@ -447,9 +447,12 @@ export function PromosFilterBar({
 
         <FiltersBarDivider />
 
-        <FiltersBarSection align="right">
+        <FiltersBarSection
+          align="right"
+          className="w-full min-w-0 gap-2 sm:w-auto sm:justify-end"
+        >
           {/* Search */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
             <input
               ref={searchRef}
@@ -503,13 +506,15 @@ export function PromosFilterBar({
           />
 
           {/* Count + Reset */}
-          <div className="flex items-center gap-2">
+          <div className="ml-auto sm:ml-0 flex items-center gap-2 shrink-0">
             {!isLoading && (
               <span className="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums whitespace-nowrap">
                 <span className="font-bold text-neutral-900 dark:text-white">
                   {totalCount}
-                </span>{" "}
-                promo{totalCount !== 1 ? "s" : ""}
+                </span>
+                <span className="hidden sm:inline">
+                  {" "}promo{totalCount !== 1 ? "s" : ""}
+                </span>
               </span>
             )}
             {activeCount > 0 && (

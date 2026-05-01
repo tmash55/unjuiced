@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const H_ROWS = "arbs:rows";
 const Z_ROI_ALL = "arbs:sort:roi";
@@ -20,25 +21,29 @@ export async function GET(req: NextRequest) {
     const serverV = (await redis.get<number>(V_VER)) ?? 0;
 
     // Prefer pregame; fall back to all if empty
-    let zrUnknown = (await (redis as any).zrange(Z_ROI_PREGAME, 0, limit - 1, { rev: true })) as unknown;
-    let zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
-    if (zrArr.length === 0) {
-      zrUnknown = (await (redis as any).zrange(Z_ROI_ALL, 0, limit - 1, { rev: true })) as unknown;
-      zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
+    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
+    if (ids.length === 0) {
+      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
     }
-    const ids = zrArr.map(String).slice(0, limit);
 
     const rawUnknown = ids.length ? ((await (redis as any).hmget(H_ROWS, ...ids)) as unknown) : [];
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
     if (ids.length && rawArr.length === 0) {
       rawArr = await Promise.all(ids.map((id) => (redis as any).hget(H_ROWS, id)));
     }
-    const rows: ArbRow[] = (rawArr || [])
-      .map((r) => (r ? (typeof r === "string" ? JSON.parse(r) : r) : null))
-      .filter(Boolean) as ArbRow[];
+    // Keep ids and rows parallel
+    const pairs: Array<{ id: string; row: ArbRow }> = [];
+    for (let i = 0; i < ids.length; i++) {
+      const r = rawArr[i];
+      if (!r) continue;
+      const parsed: ArbRow = typeof r === "string" ? JSON.parse(r) : r;
+      if (parsed) pairs.push({ id: ids[i], row: parsed });
+    }
+    const finalIds = pairs.map((p) => p.id);
+    const rows = pairs.map((p) => p.row);
 
     return NextResponse.json(
-      { format: ROWS_FORMAT, v: serverV, ids, rows },
+      { format: ROWS_FORMAT, v: serverV, ids: finalIds, rows },
       { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60" } }
     );
   } catch (e: any) {

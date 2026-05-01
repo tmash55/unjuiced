@@ -2,7 +2,10 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { getCachedData, setCachedData } from "@/lib/redis";
+import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
+import { getCachedData, redis, setCachedData } from "@/lib/redis";
+import { normalizePlayerName, type SSEBookSelections, type SSESelection } from "@/lib/odds/types";
 import type {
   LineHistoryApiRequest,
   LineHistoryApiResponse,
@@ -17,6 +20,30 @@ const HISTORY_CACHE_TTL_SECONDS = 180;
 const HISTORY_NEGATIVE_CACHE_TTL_SECONDS = 90;
 const REQUEST_TIMEOUT_MS = 6000;
 const MAX_ID_ATTEMPTS = 24;
+
+async function assertLineHistoryAccess(): Promise<NextResponse | null> {
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { data: entitlement } = await supabase
+    .from("current_entitlements")
+    .select("current_plan")
+    .eq("user_id", user.id)
+    .single();
+
+  const normalized = normalizePlanName(String(entitlement?.current_plan || "free"));
+  const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+
+  if (!hasSharpAccess(plan)) {
+    return NextResponse.json({ error: "sharp_required" }, { status: 403 });
+  }
+
+  return null;
+}
 
 interface VendorHistorySelection {
   name?: string;
@@ -48,6 +75,53 @@ interface HistoryIdCandidate {
   id: string;
   market: string;
   selection: string;
+}
+
+function parseBookSelections(raw: unknown): SSEBookSelections | null {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as SSEBookSelections;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") return raw as SSEBookSelections;
+  return null;
+}
+
+function selectionMatchesContext(selection: SSESelection, context: LineHistoryContext): boolean {
+  if (!selection.odd_id) return false;
+  if (context.side && selection.side !== context.side) return false;
+  if (context.line != null && selection.line !== context.line) return false;
+
+  const targetPlayer = normalizePlayerName(context.playerName || context.selectionName || "");
+  if (!targetPlayer) return true;
+
+  const selectionPlayer = normalizePlayerName(selection.player || "");
+  if (!selectionPlayer) return false;
+  return selectionPlayer.includes(targetPlayer) || targetPlayer.includes(selectionPlayer);
+}
+
+async function resolveOddIdFromRedis(context: LineHistoryContext, bookId: string): Promise<string | null> {
+  if (!context.sport || !context.eventId || !context.market) return null;
+
+  try {
+    const key = `odds:${context.sport}:${context.eventId}:${context.market}:${bookId}`;
+    const raw = await redis.get<string | SSEBookSelections | null>(key);
+    const selections = parseBookSelections(raw);
+    if (!selections) return null;
+
+    for (const selection of Object.values(selections) as SSESelection[]) {
+      if (selectionMatchesContext(selection, context)) {
+        return selection.odd_id || null;
+      }
+    }
+  } catch (error) {
+    console.warn(`[line-history] Failed to hydrate odd_id for ${bookId}`, error);
+  }
+
+  return null;
 }
 
 const BOOK_NAME_OVERRIDES: Record<string, string[]> = {
@@ -129,6 +203,11 @@ function isTotalMarket(context: LineHistoryContext): boolean {
   );
 }
 
+function isPlayerMarket(context: LineHistoryContext): boolean {
+  const combined = `${context.market || ""} ${context.marketDisplay || ""}`.toLowerCase();
+  return Boolean(context.playerName) || combined.includes("player");
+}
+
 function bookNameCandidates(bookId: string): string[] {
   const metaName = getSportsbookById(bookId)?.name;
   const fromOverrides = BOOK_NAME_OVERRIDES[bookId] || [];
@@ -177,18 +256,12 @@ function marketNameCandidates(context: LineHistoryContext): string[] {
 }
 
 function selectionNameCandidates(context: LineHistoryContext): string[] {
-  const selectionCandidates = new Set<string>();
-  const baseCandidates = [
-    context.selectionName,
-    context.team,
-    context.playerName,
-    context.homeTeam,
-    context.awayTeam,
-  ]
+  const baseCandidates = isPlayerMarket(context)
+    ? [context.selectionName, context.playerName]
+    : [context.selectionName, context.team, context.homeTeam, context.awayTeam, context.playerName];
+  const normalizedBaseCandidates = baseCandidates
     .filter(Boolean)
     .map((value) => normalizeSpace(String(value)));
-
-  baseCandidates.forEach((base) => selectionCandidates.add(base));
 
   const side = context.side || "over";
   const line = context.line ?? null;
@@ -197,31 +270,37 @@ function selectionNameCandidates(context: LineHistoryContext): string[] {
   const sideWord =
     side === "over" ? "Over" : side === "under" ? "Under" : side === "yes" ? "Yes" : side === "no" ? "No" : "";
 
+  const exactCandidates: string[] = [];
+  const broadCandidates: string[] = [];
+
   if (isMoneylineMarket(context)) {
-    baseCandidates.forEach((base) => selectionCandidates.add(base));
+    broadCandidates.push(...normalizedBaseCandidates);
   } else if (isSpreadMarket(context)) {
     if (lineValue) {
-      baseCandidates.forEach((base) => {
-        if (signedLine) selectionCandidates.add(`${base} ${signedLine}`);
-        selectionCandidates.add(`${base} ${lineValue}`);
+      normalizedBaseCandidates.forEach((base) => {
+        if (signedLine) exactCandidates.push(`${base} ${signedLine}`);
+        exactCandidates.push(`${base} ${lineValue}`);
       });
     }
     if (lineValue && (side === "over" || side === "under")) {
-      selectionCandidates.add(`${sideWord} ${lineValue}`);
+      exactCandidates.push(`${sideWord} ${lineValue}`);
     }
+    broadCandidates.push(...normalizedBaseCandidates);
   } else if (isTotalMarket(context)) {
     if (lineValue && sideWord) {
-      selectionCandidates.add(`${sideWord} ${lineValue}`);
-      baseCandidates.forEach((base) => selectionCandidates.add(`${base} ${sideWord} ${lineValue}`));
+      exactCandidates.push(`${sideWord} ${lineValue}`);
+      normalizedBaseCandidates.forEach((base) => exactCandidates.push(`${base} ${sideWord} ${lineValue}`));
     }
+    broadCandidates.push(...normalizedBaseCandidates);
   } else {
     if (lineValue && sideWord) {
-      selectionCandidates.add(`${sideWord} ${lineValue}`);
-      baseCandidates.forEach((base) => selectionCandidates.add(`${base} ${sideWord} ${lineValue}`));
+      exactCandidates.push(`${sideWord} ${lineValue}`);
+      normalizedBaseCandidates.forEach((base) => exactCandidates.push(`${base} ${sideWord} ${lineValue}`));
     }
+    broadCandidates.push(...normalizedBaseCandidates);
   }
 
-  return Array.from(selectionCandidates).filter(Boolean);
+  return Array.from(new Set([...exactCandidates, ...broadCandidates])).filter(Boolean);
 }
 
 function buildHistoryIdCandidates(context: LineHistoryContext, bookId: string): HistoryIdCandidate[] {
@@ -332,7 +411,7 @@ function buildBookHistoryFromVendor(
   };
 }
 
-function buildCacheKey(context: LineHistoryContext, bookId: string): string {
+function buildCacheKey(context: LineHistoryContext, bookId: string, directOddId = ""): string {
   const raw = [
     context.source,
     context.sport,
@@ -347,6 +426,7 @@ function buildCacheKey(context: LineHistoryContext, bookId: string): string {
     context.side || "",
     context.line ?? "",
     bookId,
+    directOddId,
   ]
     .join("|")
     .toLowerCase();
@@ -355,7 +435,8 @@ function buildCacheKey(context: LineHistoryContext, bookId: string): string {
 }
 
 async function fetchBookHistory(context: LineHistoryContext, bookId: string): Promise<LineHistoryBookData> {
-  const cacheKey = buildCacheKey(context, bookId);
+  const directOddId = context.oddIdsByBook?.[bookId] || await resolveOddIdFromRedis(context, bookId) || "";
+  const cacheKey = buildCacheKey(context, bookId, directOddId);
   const cached = await getCachedData<LineHistoryBookData>(cacheKey);
   if (cached) {
     return { ...cached, source: "cache" };
@@ -377,16 +458,19 @@ async function fetchBookHistory(context: LineHistoryContext, bookId: string): Pr
   }
 
   // Try the exact odd_id first if available (most reliable)
-  const directOddId = context.oddIdsByBook?.[bookId];
+  let lastEmptyResult: LineHistoryBookData | null = null;
+
   if (directOddId) {
     console.log(`[line-history] Trying direct odd_id for ${bookId}: ${directOddId}`);
     const payload = await fetchHistoricalById(directOddId);
     if (payload) {
       console.log(`[line-history] Direct odd_id HIT for ${bookId}, entries: ${payload.entries?.length ?? 0}`);
       const result = buildBookHistoryFromVendor(context, bookId, bookName, payload, directOddId);
-      const ttl = result.status === "ok" ? HISTORY_CACHE_TTL_SECONDS : HISTORY_NEGATIVE_CACHE_TTL_SECONDS;
-      await setCachedData(cacheKey, result, ttl);
-      return result;
+      if (result.status === "ok") {
+        await setCachedData(cacheKey, result, HISTORY_CACHE_TTL_SECONDS);
+        return result;
+      }
+      lastEmptyResult = result;
     }
     console.log(`[line-history] Direct odd_id MISS for ${bookId}`);
   }
@@ -399,12 +483,14 @@ async function fetchBookHistory(context: LineHistoryContext, bookId: string): Pr
 
     console.log(`[line-history] Candidate HIT for ${bookId}: ${candidate.id}, entries: ${payload.entries?.length ?? 0}`);
     const result = buildBookHistoryFromVendor(context, bookId, bookName, payload, candidate.id);
-    const ttl = result.status === "ok" ? HISTORY_CACHE_TTL_SECONDS : HISTORY_NEGATIVE_CACHE_TTL_SECONDS;
-    await setCachedData(cacheKey, result, ttl);
-    return result;
+    if (result.status === "ok") {
+      await setCachedData(cacheKey, result, HISTORY_CACHE_TTL_SECONDS);
+      return result;
+    }
+    lastEmptyResult = result;
   }
 
-  const notFound: LineHistoryBookData = {
+  const notFound: LineHistoryBookData = lastEmptyResult || {
     bookId,
     bookName,
     status: "not_found",
@@ -429,6 +515,9 @@ function flipSide(side: string | undefined): string | undefined {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await assertLineHistoryAccess();
+    if (denied) return denied;
+
     const body = (await request.json()) as LineHistoryApiRequest;
     const context = body?.context;
     const books = Array.isArray(body?.books) ? body.books : [];

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
 import { motion, AnimatePresence } from "motion/react";
+import { useStateLink } from "@/hooks/use-state-link";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -21,7 +22,7 @@ interface ArbTableProps {
   changes: Map<string, { roi?: "up" | "down"; o?: "up" | "down"; u?: "up" | "down" }>;
   added?: Set<string>;
   totalBetAmount?: number;
-  roundBets?: boolean;
+  roundTo?: number;
   isPro?: boolean;
 }
 
@@ -33,9 +34,20 @@ interface ArbRowWithId extends ArbRow {
   _isPinned?: boolean;
 }
 
+/** Round a number to the nearest multiple of `step`. 0 = no rounding (2 decimal places). */
+function roundStake(n: number, step: number): number {
+  if (step <= 0) return Math.round(n * 100) / 100;
+  return Math.round(n / step) * step;
+}
+function formatStake(n: number, step: number): string {
+  if (step <= 0) return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  return String(Math.round(n / step) * step);
+}
+
 const columnHelper = createColumnHelper<ArbRowWithId>();
 
-export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundBets = false, isPro = true }: ArbTableProps) {
+export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundTo = 0, isPro = true }: ArbTableProps) {
+  const applyState = useStateLink();
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
   const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
   const [pinnedRowId, setPinnedRowId] = useState<string | null>(null);
@@ -79,10 +91,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   const applyCalculatorToRow = React.useCallback((newOver: number, newUnder: number) => {
     if (!calculatorRowId) return;
-    const overFinal = roundBets ? Math.round(newOver) : Math.round(newOver * 100) / 100;
-    const underFinal = roundBets ? Math.round(newUnder) : Math.round(newUnder * 100) / 100;
-    const overText = roundBets ? String(overFinal) : overFinal.toFixed(2);
-    const underText = roundBets ? String(underFinal) : underFinal.toFixed(2);
+    const overFinal = roundStake(newOver, roundTo);
+    const underFinal = roundStake(newUnder, roundTo);
+    const overText = formatStake(overFinal, roundTo);
+    const underText = formatStake(underFinal, roundTo);
     setCustomWagersBoth(prev => ({
       ...prev,
       [calculatorRowId]: {
@@ -95,7 +107,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       over: overText,
       under: underText,
     });
-  }, [calculatorRowId, roundBets, setCustomWagersBoth]);
+  }, [calculatorRowId, roundTo, setCustomWagersBoth]);
 
   // Utility functions
   const logo = (id?: string) => SB_MAP.get(norm(id))?.logo;
@@ -113,8 +125,9 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   // Get book URL - prioritizes direct/mobile link, falls back to book homepage
   const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
+    if (isMobile() && mobileUrl) return mobileUrl;
+    if (directUrl) return applyState(directUrl) || directUrl;
     if (mobileUrl) return mobileUrl;
-    if (directUrl) return directUrl;
     return getBookFallbackUrl(bk);
   };
 
@@ -208,10 +221,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   const getBestLink = (bookId?: string, desktopUrl?: string | null, mobileUrl?: string | null) => {
     // If on mobile and mobile link exists, use it
     if (isMobile() && mobileUrl) return mobileUrl;
-    
-    // Otherwise use desktop link
-    if (desktopUrl) return desktopUrl;
-    
+
+    // Otherwise use desktop link – apply user-state replacement
+    if (desktopUrl) return applyState(desktopUrl) || desktopUrl;
+
     // Fallback to sportsbook homepage
     return getBookFallbackUrl(bookId);
   };
@@ -314,23 +327,34 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   };
 
   const getBetPlan = (r: ArbRow, rowId: string) => {
+    const overOdds = Number(r.o?.od || 0);
+    const underOdds = Number(r.u?.od || 0);
     const custom = customWagers[rowId];
+    let overStake: number, underStake: number;
+
     if (custom && (custom.over || custom.under)) {
-      const overStake = Math.max(0, parseFloat(custom.over || '0'));
-      const underStake = Math.max(0, parseFloat(custom.under || '0'));
-      const total = overStake + underStake;
-      const profit = calculateProfit(Number(r.o?.od || 0), Number(r.u?.od || 0), overStake, underStake);
-      return { overStake, underStake, total, profit };
+      overStake = Math.max(0, parseFloat(custom.over || '0'));
+      underStake = Math.max(0, parseFloat(custom.under || '0'));
+    } else {
+      const total = totalBetAmount;
+      const overDec = toDecimal(overOdds);
+      const underDec = toDecimal(underOdds);
+      overStake = roundStake((total * underDec) / (overDec + underDec), roundTo);
+      underStake = roundStake(total - overStake, roundTo);
     }
-    const total = totalBetAmount;
-    const overDec = toDecimal(Number(r.o?.od || 0));
-    const underDec = toDecimal(Number(r.u?.od || 0));
-    const overStake = (total * underDec) / (overDec + underDec);
-    const underStake = total - overStake;
-    const overPayout = overStake * overDec;
-    const underPayout = underStake * underDec;
-    const profit = Math.min(overPayout, underPayout) - total;
-    return { overStake, underStake, total, profit };
+
+    const total = overStake + underStake;
+    const overPayout = calculatePayout(overOdds, overStake);
+    const underPayout = calculatePayout(underOdds, underStake);
+    const profitIfOver = overPayout - total;
+    const profitIfUnder = underPayout - total;
+    const profitMin = Math.min(profitIfOver, profitIfUnder);
+    const profitMax = Math.max(profitIfOver, profitIfUnder);
+    // When not rounded, both sides are equal — show single value
+    const profit = profitMin;
+    const hasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
+
+    return { overStake, underStake, total, profit, profitMin, profitMax, hasRange };
   };
 
   // Arb Calculator Modal - allows editing odds and amounts
@@ -356,8 +380,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   }) {
     const [overOdds, setOverOdds] = React.useState(String(defaultOverOdds));
     const [underOdds, setUnderOdds] = React.useState(String(defaultUnderOdds));
-    const [overStake, setOverStake] = React.useState(defaultOverStake.toFixed(2));
-    const [underStake, setUnderStake] = React.useState(defaultUnderStake.toFixed(2));
+    const [overStake, setOverStake] = React.useState(formatStake(defaultOverStake, roundTo));
+    const [underStake, setUnderStake] = React.useState(formatStake(defaultUnderStake, roundTo));
     const [loadingOver, setLoadingOver] = React.useState(false);
     const [loadingUnder, setLoadingUnder] = React.useState(false);
     
@@ -401,39 +425,44 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     
     const overPayout = overOddsNum !== 0 ? calculatePayout(overOddsNum, overStakeNum) : 0;
     const underPayout = underOddsNum !== 0 ? calculatePayout(underOddsNum, underStakeNum) : 0;
+    const profitIfOver = overPayout - totalStake;
+    const profitIfUnder = underPayout - totalStake;
+    const profitMin = Math.min(profitIfOver, profitIfUnder);
+    const profitMax = Math.max(profitIfOver, profitIfUnder);
+    const profit = profitMin;
+    const modalHasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
     const guaranteedPayout = Math.min(overPayout, underPayout);
-    const profit = guaranteedPayout - totalStake;
     const roiPercent = totalStake > 0 ? (profit / totalStake) * 100 : 0;
     
     // Recalculate opposite stake when one side changes
     const recalcFromOver = (newOverStake: number, oOdds: number, uOdds: number) => {
       if (oOdds === 0 || uOdds === 0) return;
-      const opposite = calculateOptimalWager(newOverStake, oOdds, uOdds);
-      setUnderStake(opposite.toFixed(2));
+      const opposite = roundStake(calculateOptimalWager(newOverStake, oOdds, uOdds), roundTo);
+      setUnderStake(formatStake(opposite, roundTo));
     };
-    
+
     const recalcFromUnder = (newUnderStake: number, oOdds: number, uOdds: number) => {
       if (oOdds === 0 || uOdds === 0) return;
-      const opposite = calculateOptimalWager(newUnderStake, uOdds, oOdds);
-      setOverStake(opposite.toFixed(2));
+      const opposite = roundStake(calculateOptimalWager(newUnderStake, uOdds, oOdds), roundTo);
+      setOverStake(formatStake(opposite, roundTo));
     };
-    
+
     // Recalculate stakes when odds change (keeping over stake fixed)
     const handleOverOddsChange = (val: string) => {
       setOverOdds(val);
       const newOverOdds = parseOdds(val);
       if (newOverOdds !== 0 && underOddsNum !== 0 && overStakeNum > 0) {
-        const opposite = calculateOptimalWager(overStakeNum, newOverOdds, underOddsNum);
-        setUnderStake(opposite.toFixed(2));
+        const opposite = roundStake(calculateOptimalWager(overStakeNum, newOverOdds, underOddsNum), roundTo);
+        setUnderStake(formatStake(opposite, roundTo));
       }
     };
-    
+
     const handleUnderOddsChange = (val: string) => {
       setUnderOdds(val);
       const newUnderOdds = parseOdds(val);
       if (overOddsNum !== 0 && newUnderOdds !== 0 && overStakeNum > 0) {
-        const opposite = calculateOptimalWager(overStakeNum, overOddsNum, newUnderOdds);
-        setUnderStake(opposite.toFixed(2));
+        const opposite = roundStake(calculateOptimalWager(overStakeNum, overOddsNum, newUnderOdds), roundTo);
+        setUnderStake(formatStake(opposite, roundTo));
       }
     };
     
@@ -462,10 +491,11 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       if (overOddsNum === 0 || underOddsNum === 0) return;
       const overDec = toDecimal(overOddsNum);
       const underDec = toDecimal(underOddsNum);
-      const newOverStake = (total * underDec) / (overDec + underDec);
-      const newUnderStake = total - newOverStake;
-      setOverStake(newOverStake.toFixed(2));
-      setUnderStake(newUnderStake.toFixed(2));
+      const rawOver = (total * underDec) / (overDec + underDec);
+      const newOverStake = roundStake(rawOver, roundTo);
+      const newUnderStake = roundStake(total - newOverStake, roundTo);
+      setOverStake(formatStake(newOverStake, roundTo));
+      setUnderStake(formatStake(newUnderStake, roundTo));
     };
     
     // Don't render if not open or if we're on the server
@@ -612,19 +642,23 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         </div>
                       </div>
 
-                      {/* Bet Button */}
-                      <button
+                      {/* Bet Button — draggable link */}
+                      <a
+                        href={getBookUrl(row.o?.bk, row.o?.u, row.o?.m) || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        draggable
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           if (!loadingOver) {
                             openBet(row.o?.bk, row.o?.u, row.o?.m, 'over');
                           }
                         }}
-                        disabled={loadingOver}
                         className={cn(
-                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150",
+                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 no-underline cursor-pointer",
                           loadingOver
-                            ? "bg-emerald-700 text-white"
+                            ? "bg-emerald-700 text-white pointer-events-none"
                             : "bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.98]"
                         )}
                       >
@@ -639,7 +673,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                             <ExternalLink className="w-3.5 h-3.5" />
                           </>
                         )}
-                      </button>
+                      </a>
                     </div>
                     
                     {/* Under Side */}
@@ -687,19 +721,23 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         </div>
                       </div>
 
-                      {/* Bet Button */}
-                      <button
+                      {/* Bet Button — draggable link */}
+                      <a
+                        href={getBookUrl(row.u?.bk, row.u?.u, row.u?.m) || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        draggable
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           if (!loadingUnder) {
                             openBet(row.u?.bk, row.u?.u, row.u?.m, 'under');
                           }
                         }}
-                        disabled={loadingUnder}
                         className={cn(
-                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150",
+                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 no-underline cursor-pointer",
                           loadingUnder
-                            ? "bg-emerald-700 text-white"
+                            ? "bg-emerald-700 text-white pointer-events-none"
                             : "bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.98]"
                         )}
                       >
@@ -714,7 +752,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                             <ExternalLink className="w-3.5 h-3.5" />
                           </>
                         )}
-                      </button>
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -743,7 +781,11 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         "text-lg font-bold tabular-nums mt-0.5",
                         profit > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
                       )}>
-                        {profit > 0 ? "+" : ""}{currency(profit)}
+                        {modalHasRange ? (
+                          <>{profit > 0 ? "+" : ""}{currency(profitMin)} – {currency(profitMax)}</>
+                        ) : (
+                          <>{profit > 0 ? "+" : ""}{currency(profit)}</>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -786,7 +828,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   function BetSizeCell({ r, id }: { r: ArbRowWithId; id: string }) {
     const plan = getBetPlan(r, id);
     const formatAmount = (n: number) => {
-      return roundBets ? String(Math.round(n)) : Number.isFinite(n) ? (Math.round(n * 100) / 100).toFixed(2) : '0.00';
+      return formatStake(n, roundTo);
     };
     const [overLocal, setOverLocal] = React.useState<string>(formatAmount(plan.overStake));
     const [underLocal, setUnderLocal] = React.useState<string>(formatAmount(plan.underStake));
@@ -796,7 +838,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       const p = getBetPlan(r, id);
       setOverLocal(formatAmount(p.overStake));
       setUnderLocal(formatAmount(p.underStake));
-    }, [id, roundBets, r]);
+    }, [id, roundTo, r]);
 
     React.useEffect(() => {
       if (!calculatorApplied || calculatorApplied.rowId !== id) return;
@@ -820,14 +862,14 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       const overOdds = Number(r.o?.od || 0);
       const underOdds = Number(r.u?.od || 0);
       const other = calculateOptimalWager(input, overOdds, underOdds);
-      const overFinal = roundBets ? Math.round(input) : Math.round(input * 100) / 100;
-      const underFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+      const overFinal = roundStake(input, roundTo);
+      const underFinal = roundStake(other, roundTo);
       setCustomWagersBoth(prev => ({
         ...prev,
-        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
+        [id]: { over: formatStake(overFinal, roundTo), under: formatStake(underFinal, roundTo) },
       }));
-      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
-      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+      setOverLocal(formatStake(overFinal, roundTo));
+      setUnderLocal(formatStake(underFinal, roundTo));
     };
 
     const commitUnder = (value: string) => {
@@ -846,14 +888,14 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       const overOdds = Number(r.o?.od || 0);
       const underOdds = Number(r.u?.od || 0);
       const other = calculateOptimalWager(input, underOdds, overOdds);
-      const underFinal = roundBets ? Math.round(input) : Math.round(input * 100) / 100;
-      const overFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+      const underFinal = roundStake(input, roundTo);
+      const overFinal = roundStake(other, roundTo);
       setCustomWagersBoth(prev => ({
         ...prev,
-        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
+        [id]: { over: formatStake(overFinal, roundTo), under: formatStake(underFinal, roundTo) },
       }));
-      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
-      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+      setOverLocal(formatStake(overFinal, roundTo));
+      setUnderLocal(formatStake(underFinal, roundTo));
     };
     
     return (
@@ -877,10 +919,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                     const underOdds = Number(r.u?.od || 0);
                     if (isFinite(overOdds) && isFinite(underOdds) && (overOdds !== 0 || underOdds !== 0)) {
                       const other = calculateOptimalWager(n, overOdds, underOdds);
-                      const overFinal = roundBets ? Math.round(n) : Math.round(n * 100) / 100;
-                      const underFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
-                      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
-                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) } }));
+                      const overFinal = roundStake(n, roundTo);
+                      const underFinal = roundStake(other, roundTo);
+                      setUnderLocal(formatStake(underFinal, roundTo));
+                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: formatStake(overFinal, roundTo), under: formatStake(underFinal, roundTo) } }));
                     }
                   }}
                   onBlur={(e) => commitOver(e.target.value)}
@@ -910,10 +952,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                     const underOdds = Number(r.u?.od || 0);
                     if (isFinite(overOdds) && isFinite(underOdds) && (overOdds !== 0 || underOdds !== 0)) {
                       const other = calculateOptimalWager(n, underOdds, overOdds);
-                      const underFinal = roundBets ? Math.round(n) : Math.round(n * 100) / 100;
-                      const overFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
-                      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
-                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) } }));
+                      const underFinal = roundStake(n, roundTo);
+                      const overFinal = roundStake(other, roundTo);
+                      setOverLocal(formatStake(overFinal, roundTo));
+                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: formatStake(overFinal, roundTo), under: formatStake(underFinal, roundTo) } }));
                     }
                   }}
                   onBlur={(e) => commitUnder(e.target.value)}
@@ -1279,7 +1321,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         // Live recompute with custom inputs if present
         const over = custom?.over != null && custom.over !== '' ? Math.max(0, parseFloat(custom.over)) : undefined;
         const under = custom?.under != null && custom.under !== '' ? Math.max(0, parseFloat(custom.under)) : undefined;
-        let profitValue: number;
+        let profitMin: number, profitMax: number, hasRange = false;
         if (over !== undefined || under !== undefined) {
           const overOdds = Number(r.o?.od || 0);
           const underOdds = Number(r.u?.od || 0);
@@ -1288,23 +1330,32 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
           const overPayout = calculatePayout(overOdds, overStake);
           const underPayout = calculatePayout(underOdds, underStake);
           const total = overStake + underStake;
-          profitValue = Math.min(overPayout, underPayout) - total;
+          const pOver = overPayout - total;
+          const pUnder = underPayout - total;
+          profitMin = Math.min(pOver, pUnder);
+          profitMax = Math.max(pOver, pUnder);
+          hasRange = roundTo > 0 && Math.abs(profitMax - profitMin) >= 0.01;
         } else {
           const plan = getBetPlan(r, id);
-          profitValue = plan.profit;
+          profitMin = plan.profitMin;
+          profitMax = plan.profitMax;
+          hasRange = plan.hasRange;
         }
-        const roiPct = ((r.roi_bps || 0) / 100).toFixed(2);
 
         return (
           <div className="text-center">
             <div className="font-bold text-base bg-gradient-to-r from-[var(--accent-strong)] to-[var(--accent)] bg-clip-text text-transparent tabular-nums">
-              {currency(profitValue)}
+              {hasRange ? (
+                <>{currency(profitMin)} – {currency(profitMax)}</>
+              ) : (
+                currency(profitMin)
+              )}
             </div>
           </div>
         );
       },
     }),
-  ], [totalBetAmount, added, changes]);
+  ], [totalBetAmount, roundTo, added, changes]);
 
   // Create table instance with custom sorting that preserves teaser row positions
   const tableProps = useTable({

@@ -9,7 +9,17 @@ import type {
   RecentStart,
 } from "@/lib/nrfi-data";
 import { getLeanLabel, getLeanClasses } from "@/lib/nrfi-data";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { NRFIRecord, StreakBadge } from "./nrfi-record";
+
+function getBookLogo(bookId: string): string | null {
+  const sb = getSportsbookById(bookId);
+  return sb?.image?.light || null;
+}
+function getBookName(bookId: string): string {
+  const sb = getSportsbookById(bookId);
+  return sb?.name || bookId;
+}
 
 function TeamLogo({ abbr, size = 20 }: { abbr: string; size?: number }) {
   return (
@@ -294,20 +304,40 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
       )}
 
       {/* Row 4: Odds + expand cue */}
-      <div className="flex items-center justify-between pt-2 border-t border-neutral-200/40 dark:border-neutral-700/20">
-        <div className="flex items-center gap-3">
-          <span className={cn("font-mono text-lg font-black tabular-nums leading-none", lm.text)}>
-            {lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds}
-          </span>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">
-            {lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI"}
-          </span>
-          <span className="font-mono text-xs text-neutral-400 dark:text-neutral-600 tabular-nums">
-            {lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds}
-          </span>
-        </div>
-        <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
-      </div>
+      {(() => {
+        const primaryOdds = lm.isNrfi || lm.color === "yellow" ? game.bestNrfiOdds : game.bestYrfiOdds;
+        const altOdds = lm.isNrfi || lm.color === "yellow" ? game.bestYrfiOdds : game.bestNrfiOdds;
+        const primarySide = lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI";
+        // Find the book with the best odds for the primary side
+        const bestBook = game.sportsbooks.length > 0
+          ? game.sportsbooks.reduce((best, b) => {
+              const price = primarySide === "NRFI" ? b.nrfiOdds : b.yrfiOdds;
+              const bestPrice = primarySide === "NRFI" ? best.nrfiOdds : best.yrfiOdds;
+              if (price === "-") return best;
+              if (bestPrice === "-") return b;
+              return parseFloat(price) > parseFloat(bestPrice) ? b : best;
+            })
+          : null;
+        const bestLogo = bestBook ? getBookLogo(bestBook.name) : null;
+
+        return (
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-200/40 dark:border-neutral-700/20">
+            <div className="flex items-center gap-2.5">
+              {bestLogo && <img src={bestLogo} alt={bestBook?.name ?? ""} className="h-4 w-auto shrink-0 opacity-70" />}
+              <span className={cn("text-lg font-black tabular-nums leading-none", lm.text)}>
+                {primaryOdds}
+              </span>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">
+                {primarySide}
+              </span>
+              <span className="text-xs text-neutral-400 dark:text-neutral-600 tabular-nums">
+                {altOdds}
+              </span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+          </div>
+        );
+      })()}
     </button>
   );
 }
@@ -515,39 +545,57 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
           <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/50 dark:border-neutral-700/30 overflow-hidden h-full flex flex-col">
 
             {/* Rec / Alt hero */}
-            <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
-              <div
-                className={cn(
-                  "px-5 py-4 flex flex-col gap-1",
-                  lm.isNrfi
-                    ? "bg-emerald-500/5 dark:bg-emerald-500/10"
-                    : lm.isYrfi
-                    ? "bg-red-500/5 dark:bg-red-500/10"
-                    : "bg-amber-500/5 dark:bg-amber-500/10"
-                )}
-              >
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-                  Recommended
-                </span>
-                <span className={cn("text-xs font-bold mt-0.5", lm.text)}>
-                  {lm.isNrfi ? "NRFI" : lm.isYrfi ? "YRFI" : "NRFI"}
-                </span>
-                <span className={cn("text-3xl font-black tabular-nums leading-none mt-0.5", lm.text)}>
-                  {lm.isNrfi ? game.bestNrfiOdds : game.bestYrfiOdds}
-                </span>
+            {lm.isNrfi || lm.isYrfi ? (
+              <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
+                <div
+                  className={cn(
+                    "px-5 py-4 flex flex-col gap-1",
+                    lm.isNrfi ? "bg-emerald-500/5 dark:bg-emerald-500/10" : "bg-red-500/5 dark:bg-red-500/10"
+                  )}
+                >
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    Recommended
+                  </span>
+                  <span className={cn("text-xs font-bold mt-0.5", lm.text)}>
+                    {lm.isNrfi ? "NRFI" : "YRFI"}
+                  </span>
+                  <span className={cn("text-3xl font-black tabular-nums leading-none mt-0.5", lm.text)}>
+                    {lm.isNrfi ? game.bestNrfiOdds : game.bestYrfiOdds}
+                  </span>
+                </div>
+                <div className="px-5 py-4 flex flex-col gap-1 opacity-40">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    Alt side
+                  </span>
+                  <span className="text-xs text-neutral-500 mt-0.5">
+                    {lm.isNrfi ? "YRFI" : "NRFI"}
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-0.5 text-neutral-500">
+                    {lm.isNrfi ? game.bestYrfiOdds : game.bestNrfiOdds}
+                  </span>
+                </div>
               </div>
-              <div className="px-5 py-4 flex flex-col gap-1 opacity-40">
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-                  Alt side
-                </span>
-                <span className="text-xs text-neutral-500 mt-0.5">
-                  {lm.isNrfi ? "YRFI" : "NRFI"}
-                </span>
-                <span className="text-3xl font-black tabular-nums leading-none mt-0.5 text-neutral-500">
-                  {lm.isNrfi ? game.bestYrfiOdds : game.bestNrfiOdds}
-                </span>
+            ) : (
+              /* Neutral — show both sides equally, no recommendation */
+              <div className="grid grid-cols-2 divide-x divide-neutral-200/50 dark:divide-neutral-700/30 border-b border-neutral-200/50 dark:border-neutral-700/30">
+                <div className="px-5 py-4 flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    NRFI
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-1 text-emerald-500">
+                    {game.bestNrfiOdds}
+                  </span>
+                </div>
+                <div className="px-5 py-4 flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                    YRFI
+                  </span>
+                  <span className="text-3xl font-black tabular-nums leading-none mt-1 text-red-400">
+                    {game.bestYrfiOdds}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Sportsbook rows */}
             {game.sportsbooks.length > 0 && (
@@ -559,31 +607,34 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
                   <span className="text-[9px] text-red-500/60 dark:text-red-400/60 uppercase tracking-widest font-semibold w-14 text-right">YRFI</span>
                   <span className="w-14" />
                 </div>
-                {game.sportsbooks.map((book) => (
-                  <div
+                {game.sportsbooks.map((book) => {
+                  const logo = getBookLogo(book.name);
+                  return (
+                  <a
                     key={book.name}
-                    className="flex items-center py-2 px-3 rounded-md hover:bg-neutral-100/80 dark:hover:bg-neutral-800/30 transition-colors"
+                    href={book.link || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center py-2 px-3 rounded-lg hover:bg-neutral-100/80 dark:hover:bg-neutral-800/30 transition-colors"
                   >
-                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 flex-1 min-w-0 truncate">
-                      {book.name}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-14 text-right shrink-0 font-mono">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {logo ? (
+                        <img src={logo} alt={book.name} className="h-4 w-auto shrink-0" />
+                      ) : null}
+                      <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 truncate">
+                        {getBookName(book.name)}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums w-14 text-right shrink-0">
                       {book.nrfiOdds}
                     </span>
-                    <span className="text-xs font-bold text-red-500 dark:text-red-400 tabular-nums w-14 text-right shrink-0 font-mono">
+                    <span className="text-xs font-bold text-red-500 dark:text-red-400 tabular-nums w-14 text-right shrink-0">
                       {book.yrfiOdds}
                     </span>
-                    <div className="w-14 flex justify-end shrink-0">
-                      <a
-                        href={book.link}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-md bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors"
-                      >
-                        Bet
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  </a>
+                  );
+                })}
               </div>
             )}
 

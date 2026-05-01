@@ -68,6 +68,28 @@ export interface MlbWeatherReportRow {
       vsRhb: number | null;
     };
   } | null;
+  hourlyForecast: HourlyForecastEntry[] | null;
+  // Calibrated weather impact deltas (positive = boosts, negative = suppresses)
+  hrPctDelta: number | null;
+  runsPctDelta: number | null;
+  xbhPctDelta: number | null;
+  singlesPctDelta: number | null;
+}
+
+export interface HourlyForecastEntry {
+  hour: number;
+  label: string;
+  inning_estimate: string;
+  temp_f: number | null;
+  feels_like_f?: number | null;
+  wind_speed_mph: number | null;
+  wind_gust_mph?: number | null;
+  wind_label: string | null;
+  wind_relative_deg?: number | null;
+  humidity_pct?: number | null;
+  precip_probability: number | null;
+  cloud_cover_pct?: number | null;
+  hr_impact_score?: number | null;
 }
 
 interface MlbWeatherReportResponse {

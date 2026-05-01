@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { sportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Build sportsbook map for quick lookup (using legacy `logo` field)
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
@@ -61,27 +62,44 @@ const calculatePayout = (odds: number, stake: number): number => {
   return stake * (1 + 100 / Math.abs(odds));
 };
 
+/** Round a number to the nearest multiple of `step`. 0 = no rounding. */
+function roundStake(n: number, step: number): number {
+  if (step <= 0) return Math.round(n * 100) / 100;
+  return Math.round(n / step) * step;
+}
+
 interface CompactArbCardProps {
   row: ArbRow;
   totalBetAmount: number;
+  roundTo?: number;
   isNew?: boolean;
   hasChange?: boolean;
   onOpenCalculator?: () => void;
   onShowWarning?: () => void;
 }
 
-export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCalculator, onShowWarning }: CompactArbCardProps) {
+export function CompactArbCard({ row, totalBetAmount, roundTo = 0, isNew, hasChange, onOpenCalculator, onShowWarning }: CompactArbCardProps) {
+  const applyState = useStateLink();
   const roiPct = ((row.roi_bps ?? 0) / 100);
   const isHighROI = roiPct > 10;
   const overOdds = Number(row.o?.od || 0);
   const underOdds = Number(row.u?.od || 0);
-  
-  const stakes = useMemo(() => calculateBetSizes(overOdds, underOdds, totalBetAmount), [overOdds, underOdds, totalBetAmount]);
-  const profit = useMemo(() => {
+
+  const stakes = useMemo(() => {
+    const raw = calculateBetSizes(overOdds, underOdds, totalBetAmount);
+    return { over: roundStake(raw.over, roundTo), under: roundStake(raw.under, roundTo) };
+  }, [overOdds, underOdds, totalBetAmount, roundTo]);
+  const { profitMin, profitMax, hasRange } = useMemo(() => {
     const overPayout = calculatePayout(overOdds, stakes.over);
     const underPayout = calculatePayout(underOdds, stakes.under);
-    return Math.min(overPayout, underPayout) - (stakes.over + stakes.under);
-  }, [overOdds, underOdds, stakes]);
+    const total = stakes.over + stakes.under;
+    const pO = overPayout - total;
+    const pU = underPayout - total;
+    const min = Math.min(pO, pU);
+    const max = Math.max(pO, pU);
+    return { profitMin: min, profitMax: max, hasRange: roundTo > 0 && Math.abs(max - min) >= 0.01 };
+  }, [overOdds, underOdds, stakes, roundTo]);
+  const profit = profitMin;
 
   const overLogo = logo(row.o?.bk);
   const underLogo = logo(row.u?.bk);
@@ -113,7 +131,8 @@ export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCa
   const openBet = (e: React.MouseEvent, bk?: string, url?: string, mobileUrl?: string | null) => {
     e.stopPropagation();
     const link = getBookUrl(bk, url, mobileUrl);
-    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    const finalLink = link ? (applyState(link) || link) : link;
+    if (finalLink) window.open(finalLink, '_blank', 'noopener,noreferrer');
   };
 
   // Format time - compact
@@ -275,7 +294,9 @@ export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCa
           {/* Center: Profit */}
           <div className="text-center">
             <div className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">Profit</div>
-            <div className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+${profit.toFixed(2)}</div>
+            <div className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {hasRange ? `+$${profitMin.toFixed(2)} – $${profitMax.toFixed(2)}` : `+$${profit.toFixed(2)}`}
+            </div>
           </div>
           
           {/* Right: Split Bets Button */}

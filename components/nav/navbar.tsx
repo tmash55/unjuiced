@@ -21,7 +21,7 @@ import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
-import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer";
+// Betslip FAB replaces the old favorites drawer triggers (rendered at layout level)
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
@@ -262,7 +262,6 @@ export function Nav({
                   <>
                     {user ? (
                       <>
-                        <FavoritesDrawerTrigger />
                         <AccountDropdown user={user} />
                       </>
                     ) : (
@@ -361,26 +360,37 @@ function MobileNav({ domain }: { domain: string }) {
   
   const mobileNavGroups: MobileNavGroup[] = [
     {
-      group: "Cheat Sheets",
+      group: "NBA",
       items: [
-        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
-        { title: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix", badge: "NEW" },
-        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", badge: "NEW" },
-        { title: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
-        { title: "MLB Weather Report", href: "/cheatsheets/mlb/weather-report", badge: "NEW" },
-        { title: "MLB Power Matchups", href: "/cheatsheets/mlb/power-matchups", badge: "SOON" },
-        { title: "MLB Exit Velocity", href: "/cheatsheets/mlb/exit-velocity", badge: "SOON" },
-        { title: "MLB Batter vs Pitcher", href: "/cheatsheets/mlb/batter-vs-pitcher", badge: "SOON" },
-        { title: "MLB Hit Streaks", href: "/cheatsheets/mlb/hit-streaks", badge: "SOON" },
-        { title: "MLB Strikeouts", href: "/cheatsheets/mlb/strikeouts", badge: "SOON" },
-        { title: "Alt Line Matrix", href: "/cheatsheets/nba/alt-hit-matrix", disabled: true },
+        { title: "Hit Rates", href: "/hit-rates/nba" },
+        { title: "Top Props", href: "/cheatsheets/nba/hit-rates" },
+        { title: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
+        { title: "Alt Hit Matrix", href: "/cheatsheets/nba/alt-hit-matrix" },
+        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+        { title: "Triple Double", href: "/cheatsheets/nba/triple-double-sheet" },
+        { title: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
+        { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
       ],
     },
     {
-      group: "NBA Stats",
+      group: "MLB",
       items: [
-        { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
-        { title: "Defense vs Position", href: "/cheatsheets/nba/dvp", badge: "NEW" },
+        { title: "Slate Insights", href: "/cheatsheets/mlb/slate-insights" },
+        { title: "HR Command Center", href: "/cheatsheets/mlb/hr-command-center" },
+        { title: "NRFI", href: "/cheatsheets/mlb/nrfi" },
+        { title: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
+        { title: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
+      ],
+    },
+    {
+      group: "Sharp Tools",
+      items: [
+        { title: "Edge Finder", href: "/edge-finder" },
+        { title: "Positive EV", href: "/positive-ev" },
+        { title: "Arbitrage", href: "/arbitrage" },
+        { title: "Sharp Intel", href: "/sharp-intel" },
+        { title: "Odds Screen", href: "/odds/mlb" },
+        { title: "My Slips", href: "/my-slips" },
       ],
     },
     {
@@ -404,7 +414,7 @@ function MobileNav({ domain }: { domain: string }) {
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
-      {user && <MobileFavoritesDrawerTrigger />}
+      {/* Betslip FAB handles this at layout level */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex size-8 items-center justify-center rounded-md text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800"

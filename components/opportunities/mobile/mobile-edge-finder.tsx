@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { 
-  Search, 
-  ChevronDown, 
+import {
+  Search,
+  ChevronDown,
   ChevronUp,
   RefreshCw,
   X,
@@ -11,8 +11,6 @@ import {
   Filter,
   Zap,
   Check,
-  Wifi,
-  WifiOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileEdgeCard } from "./mobile-edge-card";
@@ -23,6 +21,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import type { FilterPreset } from "@/lib/types/filter-presets";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Sport filter options
 const SPORT_OPTIONS = [
@@ -62,6 +61,7 @@ type ChangeMap = Map<string, RowChange>;
 
 interface MobileEdgeFinderProps {
   opportunities: Opportunity[];
+  totalAvailableCount?: number;
   isLoading?: boolean;
   isFetching?: boolean;
   error?: Error | null;
@@ -74,6 +74,7 @@ interface MobileEdgeFinderProps {
   bankroll?: number;
   kellyPercent?: number;
   isPro?: boolean;
+  hasAutoRefreshAccess?: boolean;
   // Filter presets
   activePresets?: Array<{ id: string; name: string }>;
   isCustomMode?: boolean;
@@ -95,6 +96,7 @@ interface MobileEdgeFinderProps {
   // Kelly settings handlers
   onBankrollChange?: (value: number) => void;
   onKellyPercentChange?: (value: number) => void;
+  onRequestMoreResults?: () => void;
   // Streaming/auto-refresh props
   autoRefresh?: boolean;
   onAutoRefreshChange?: (value: boolean) => void;
@@ -109,6 +111,7 @@ interface MobileEdgeFinderProps {
 
 export function MobileEdgeFinder({
   opportunities,
+  totalAvailableCount = 0,
   isLoading = false,
   isFetching = false,
   error,
@@ -121,6 +124,7 @@ export function MobileEdgeFinder({
   bankroll = 0,
   kellyPercent = 25,
   isPro = false,
+  hasAutoRefreshAccess,
   activePresets = [],
   isCustomMode = false,
   dataUpdatedAt,
@@ -145,7 +149,10 @@ export function MobileEdgeFinder({
   onStreamReconnect,
   onBankrollChange,
   onKellyPercentChange,
+  onRequestMoreResults,
 }: MobileEdgeFinderProps) {
+  const applyState = useStateLink();
+  const canUseAutoRefresh = hasAutoRefreshAccess ?? isPro;
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState("all");
@@ -209,11 +216,27 @@ export function MobileEdgeFinder({
   }, [filteredOpportunities, visibleCount]);
   
   const hasMore = filteredOpportunities.length > visibleCount;
+  const hasMoreServerResults = totalAvailableCount > opportunities.length;
+  const usingLocalMobileFilters = searchQuery.trim().length > 0 || selectedSport !== "all";
+  const resultsCount = usingLocalMobileFilters
+    ? filteredOpportunities.length
+    : Math.max(filteredOpportunities.length, totalAvailableCount);
   
   // Handlers
   const handleLoadMore = useCallback(() => {
-    setVisibleCount(prev => prev + 20);
-  }, []);
+    setVisibleCount((prev) => prev + 20);
+
+    // Desktop increases the server-side limit as you scroll.
+    // Mobile needs to explicitly request the next batch.
+    if (
+      onRequestMoreResults &&
+      !isFetching &&
+      visibleCount + 20 >= opportunities.length &&
+      hasMoreServerResults
+    ) {
+      onRequestMoreResults();
+    }
+  }, [onRequestMoreResults, isFetching, visibleCount, opportunities.length, hasMoreServerResults]);
   
   const handleCardExpand = useCallback((oppId: string) => {
     if (!isPro) return; // Block expansion for free users
@@ -225,9 +248,9 @@ export function MobileEdgeFinder({
     // This opens the sportsbook app directly instead of the website
     const link = opp.bestMobileLink || opp.bestLink;
     if (link) {
-      window.open(link, "_blank");
+      window.open(applyState(link) || link, "_blank");
     }
-  }, []);
+  }, [applyState]);
   
   // Format time ago
   const formatTimeAgo = (timestamp: number): string => {
@@ -363,18 +386,20 @@ export function MobileEdgeFinder({
             </h1>
             {/* Last Updated - Compact */}
             {dataUpdatedAt && (
-              <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 {autoRefresh && streamConnected && (
-                  <span className="text-emerald-500 font-medium">LIVE</span>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
                 )}
-                {formatTimeAgo(dataUpdatedAt)}
-              </span>
+                <span className="text-[10px] text-neutral-400">
+                  {formatTimeAgo(dataUpdatedAt)}
+                </span>
+              </div>
             )}
           </div>
           
           <div className="flex items-center gap-1">
-            {/* Auto-Refresh Toggle - Sharp Feature */}
-            {isPro && onAutoRefreshChange && (
+            {/* Auto-Refresh Toggle */}
+            {canUseAutoRefresh && onAutoRefreshChange && (
               <button
                 onClick={() => {
                   if (autoRefresh && streamFailed && onStreamReconnect) {
@@ -384,33 +409,22 @@ export function MobileEdgeFinder({
                   }
                 }}
                 className={cn(
-                  "p-2 rounded-lg transition-colors flex items-center gap-1",
+                  "flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase transition-all",
                   autoRefresh
                     ? streamFailed
-                      ? "text-red-500"
-                      : streamConnected
-                      ? "text-emerald-500"
-                      : "text-amber-500"
-                    : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                      : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
                 )}
               >
-                {autoRefresh ? (
-                  streamFailed ? (
-                    <WifiOff className="w-4 h-4" />
-                  ) : streamConnected ? (
-                    <>
-                      <Wifi className="w-4 h-4" />
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                    </>
-                  ) : (
-                    <Wifi className="w-4 h-4 animate-pulse" />
-                  )
-                ) : (
-                  <Wifi className="w-4 h-4 opacity-60" />
-                )}
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  autoRefresh && streamConnected && "bg-amber-500",
+                  autoRefresh && !streamConnected && !streamFailed && "bg-amber-500 animate-pulse",
+                  autoRefresh && streamFailed && "bg-red-500",
+                  !autoRefresh && "bg-neutral-400"
+                )} />
+                Auto
               </button>
             )}
             
@@ -562,7 +576,7 @@ export function MobileEdgeFinder({
         {/* Results Count - Minimal */}
         <div className="px-4 py-1.5 bg-neutral-50 dark:bg-neutral-900/50 border-t border-neutral-200/50 dark:border-neutral-800/50">
           <span className="text-[10px] font-medium text-neutral-500">
-            {filteredOpportunities.length} edges found
+            {resultsCount} edges found
           </span>
         </div>
       </div>
@@ -624,7 +638,7 @@ export function MobileEdgeFinder({
                   "transition-colors"
                 )}
               >
-                Load more ({filteredOpportunities.length - visibleCount} remaining)
+                Load more ({Math.max(filteredOpportunities.length - visibleCount, 0)} remaining)
               </button>
             )}
           </>

@@ -28,6 +28,7 @@ import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { toast } from "sonner";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // =============================================================================
 // TYPES
@@ -909,6 +910,8 @@ interface BookOddsDetail {
   under: number | null;
   link_over?: string | null;
   link_under?: string | null;
+  sgp_over?: string | null;
+  sgp_under?: string | null;
 }
 
 interface OddsLineResponse {
@@ -933,6 +936,7 @@ function ThresholdCell({
   awayTeam,
   gameDate,
 }: ThresholdCellProps) {
+  const applyState = useStateLink();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [oddsData, setOddsData] = useState<OddsLineResponse | null>(null);
@@ -987,12 +991,20 @@ function ThresholdCell({
               price: book.over,
               u: book.link_over || null,
               m: null,
-              sgp: null,
+              sgp: book.sgp_over || null,
             };
           }
         });
       }
       
+      console.info("[hit-rate-matrix favorite] toggle", {
+        player: playerName,
+        market,
+        eventId,
+        books: Object.keys(booksSnapshot).length,
+        sgpBooks: Object.values(booksSnapshot).filter((book) => !!book?.sgp).length,
+      });
+
       await toggleFavorite({
         type: "player",
         sport: "nba",
@@ -1070,6 +1082,7 @@ function ThresholdCell({
         player_id: playerUuid,
         line: String(lineToFetch),
       });
+      params.set("include_sgp", "true");
       const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch odds");
       const data: OddsLineResponse = await response.json();
@@ -1102,9 +1115,9 @@ function ThresholdCell({
       ? (book.link_over || getBookFallbackUrl(book.book))
       : (book.link_under || getBookFallbackUrl(book.book));
     if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
+      window.open(applyState(link) || link, "_blank", "noopener,noreferrer");
     }
-  }, []);
+  }, [applyState]);
 
   const sortedBooks = useMemo(() => {
     if (!oddsData?.books) return [];

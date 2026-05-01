@@ -6,6 +6,7 @@ import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import Link from "next/link";
 import { Tooltip } from "@/components/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface BetCardProps {
   player: string;
@@ -81,6 +82,7 @@ export function BetCard({
   isFeatured = false,
   badgeText,
 }: BetCardProps) {
+  const applyState = useStateLink();
   const sportConfig = SPORT_CONFIG[sport.toLowerCase()] || SPORT_CONFIG.nba;
   const bookMeta = getSportsbookById(book);
   const bookName = bookMeta?.name || book;
@@ -304,7 +306,7 @@ export function BetCard({
           {/* Right: Bet Now CTA - Tinted Button */}
           {deepLink ? (
             <a
-              href={deepLink}
+              href={applyState(deepLink) || deepLink}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(

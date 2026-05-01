@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, AlertCircle, Layers } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 interface AlternateLine {
   ln: number; // Line value
@@ -46,6 +47,7 @@ export function AlternateLinesRow({
   isPro = false,
   setShowProGate,
 }: AlternateLinesRowProps) {
+  const applyState = useStateLink();
   const formatOdds = (price: number) => {
     return price > 0 ? `+${price}` : `${price}`;
   };
@@ -233,7 +235,7 @@ export function AlternateLinesRow({
                     <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
                       <button
                         onClick={() => {
-                            window.open(link, '_blank', 'noopener,noreferrer')
+                            window.open(applyState(link) || link, '_blank', 'noopener,noreferrer')
                         }}
                         className="best-line best-line--sm w-full hover:scale-[1.02] active:scale-[0.98] transition-transform"
                       >
@@ -334,7 +336,7 @@ export function AlternateLinesRow({
                   <button
                     onClick={() => {
                       if (link) {
-                        window.open(link, '_blank', 'noopener,noreferrer');
+                        window.open(applyState(link) || link, '_blank', 'noopener,noreferrer');
                       }
                     }}
                     className={cn(

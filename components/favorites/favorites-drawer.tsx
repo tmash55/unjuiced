@@ -11,7 +11,8 @@ import { favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
 import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } from "@/hooks/use-favorites-stream";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
+import { useStateLink } from "@/hooks/use-state-link";
 import { Tooltip } from "@/components/tooltip";
 import {
   Sheet,
@@ -44,7 +45,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { HeartFill } from "@/components/icons/heart-fill";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,19 +159,19 @@ const getBookName = (bookId?: string | null): string => {
   return sb?.name || bookId;
 };
 
-const openBetLink = (snapshot: BookSnapshot | undefined) => {
+const openBetLink = (snapshot: BookSnapshot | undefined, applyStateFn?: ((url: string | null | undefined) => string | null) | null) => {
   if (!snapshot) return;
   const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
   const link = isMobile ? (snapshot.m || snapshot.u) : (snapshot.u || snapshot.m);
-  if (link) window.open(link, "_blank");
+  if (link) window.open((applyStateFn ? applyStateFn(link) : link) || link, "_blank");
 };
 
-const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookId?: string) => {
+const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookId?: string, applyStateFn?: ((url: string | null | undefined) => string | null) | null) => {
   const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
-  
+
   // Try API links first
   let link = links ? (isMobile ? (links.mobile || links.desktop) : (links.desktop || links.mobile)) : null;
-  
+
   // Fallback to sportsbook default links if no API link
   if (!link && bookId) {
     const sportsbook = getSportsbookById(bookId);
@@ -179,9 +179,9 @@ const openSgpLink = (links?: { desktop?: string; mobile?: string } | null, bookI
       link = isMobile ? (sportsbook.links.mobile || sportsbook.links.desktop) : (sportsbook.links.desktop || sportsbook.links.mobile);
     }
   }
-  
+
   if (link) {
-    window.open(link, "_blank", "noopener,noreferrer");
+    window.open((applyStateFn ? applyStateFn(link) : link) || link, "_blank", "noopener,noreferrer");
   }
 };
 
@@ -296,6 +296,77 @@ const getBooksWithSgpSupport = (
   });
   
   return { full, partial };
+};
+
+const classifyBetType = (favorites: Favorite[]): "individual" | "parlay" | "sgp" | "sgp_plus" => {
+  if (favorites.length <= 1) return "individual";
+
+  const eventGroups = new Map<string, number>();
+  favorites.forEach((favorite) => {
+    const eventId = favorite.event_id || "unknown";
+    eventGroups.set(eventId, (eventGroups.get(eventId) || 0) + 1);
+  });
+
+  const groupSizes = Array.from(eventGroups.values());
+  const sgpGroups = groupSizes.filter((size) => size >= 2);
+  const singleLegGroups = groupSizes.filter((size) => size === 1);
+
+  if (eventGroups.size === 1) return "sgp";
+  if (sgpGroups.length >= 1 && (sgpGroups.length >= 2 || singleLegGroups.length >= 1)) {
+    return "sgp_plus";
+  }
+  return "parlay";
+};
+
+const calculateCompareParlayOdds = (
+  favorites: Favorite[],
+  refreshedOddsMap?: Map<string, RefreshedFavoriteOdds | null>
+): Record<string, SgpOddsResult> => {
+  if (favorites.length < 2) return {};
+
+  const books = new Set<string>();
+  favorites.forEach((favorite) => {
+    if (favorite.books_snapshot) {
+      Object.keys(favorite.books_snapshot).forEach((bookId) => books.add(bookId));
+    }
+    const refreshedData = refreshedOddsMap?.get(favorite.id);
+    if (refreshedData?.allBooks) {
+      Object.keys(refreshedData.allBooks).forEach((bookId) => books.add(bookId));
+    }
+  });
+
+  const oddsByBook: Record<string, SgpOddsResult> = {};
+
+  books.forEach((bookId) => {
+    let parlayDecimal = 1;
+    let legsSupported = 0;
+
+    favorites.forEach((favorite) => {
+      const livePrice = refreshedOddsMap?.get(favorite.id)?.allBooks?.[bookId]?.price;
+      const savedPrice = favorite.books_snapshot?.[bookId]?.price;
+      const price = livePrice ?? savedPrice;
+
+      if (!price) return;
+
+      const decimal = price > 0 ? (price / 100) + 1 : (100 / Math.abs(price)) + 1;
+      parlayDecimal *= decimal;
+      legsSupported += 1;
+    });
+
+    if (legsSupported !== favorites.length || parlayDecimal <= 1) return;
+
+    const americanOdds = parlayDecimal >= 2
+      ? Math.round((parlayDecimal - 1) * 100)
+      : Math.round(-100 / (parlayDecimal - 1));
+
+    oddsByBook[bookId] = {
+      price: americanOdds >= 0 ? `+${americanOdds}` : `${americanOdds}`,
+      legsSupported,
+      totalLegs: favorites.length,
+    };
+  });
+
+  return oddsByBook;
 };
 
 // Auto-suggest betslip name based on selected favorites
@@ -462,198 +533,198 @@ interface FavoriteRowProps {
 }
 
 function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedBook, refreshedOdds, priceChange }: FavoriteRowProps) {
+  const applyState = useStateLink();
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   // Use refreshed odds if available, otherwise fall back to saved snapshot
   const savedBestOdds = getBestOdds(favorite.books_snapshot);
-  const bestOdds = refreshedOdds?.best 
+  const bestOdds = refreshedOdds?.best
     ? { bookId: refreshedOdds.best.book, price: refreshedOdds.best.price }
     : savedBestOdds;
-  
+
   // Get effective book odds - prefer refreshed data
   const getEffectiveBookOdds = (): { bookId: string; data: BookSnapshot }[] => {
     if (refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0) {
       return Object.entries(refreshedOdds.allBooks)
-        .map(([bookId, oddsData]) => ({ 
-          bookId, 
-          data: { 
-            price: oddsData.price, 
-            u: oddsData.link, 
+        .map(([bookId, oddsData]) => ({
+          bookId,
+          data: {
+            price: oddsData.price,
+            u: oddsData.link,
             m: null,
             sgp: oddsData.sgp,
-          } as BookSnapshot 
+          } as BookSnapshot
         }))
         .filter(item => item.data.price)
         .sort((a, b) => b.data.price - a.data.price);
     }
     return getSortedBooks(favorite.books_snapshot, 100);
   };
-  
+
   const effectiveBooks = getEffectiveBookOdds();
-  
+
   // Get filtered odds based on selected book (using effective/refreshed data)
   const displayOdds = useMemo(() => {
     if (selectedBook) {
-      // If filtering by book, try refreshed data first
       if (refreshedOdds?.allBooks?.[selectedBook]) {
         const bookData = refreshedOdds.allBooks[selectedBook];
         return { bookId: selectedBook, price: bookData.price };
       }
-      // Fall back to snapshot
       return getBookOdds(favorite.books_snapshot, selectedBook);
     }
-    // Default: best odds
     return bestOdds;
   }, [selectedBook, refreshedOdds, favorite.books_snapshot, bestOdds]);
-  
-  const sortedBooks = effectiveBooks.slice(0, 4);
+
+  const sortedBooks = effectiveBooks.slice(0, 5);
   const totalBooks = effectiveBooks.length;
   const remainingBooks = totalBooks - sortedBooks.length;
-  
-  // Detect if price changed
+
   const priceDirection = priceChange?.priceDirection;
   const hasRefreshedOdds = refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0;
-  
-  // Format display
-  const playerOrTeam = favorite.player_name || favorite.home_team || "Unknown";
-  const marketDisplay = formatMarketLabelShort(favorite.market) || favorite.market;
-  const lineDisplay = favorite.line !== null ? favorite.line : "";
-  const sideDisplay = formatSide(favorite.side);
+
+  // For player props, show player name. For game props, show the correct team based on side.
+  // Moneyline/spread: over=away, under=home. Totals/other: show full matchup.
+  const playerOrTeam = (() => {
+    if (favorite.player_name) return favorite.player_name;
+    if (favorite.type === "game" && favorite.away_team && favorite.home_team) {
+      const isTeamSide = favorite.market?.includes("moneyline") || favorite.market?.includes("spread") || favorite.market?.includes("run_line");
+      if (isTeamSide) {
+        return favorite.side === "over" ? favorite.away_team : favorite.home_team;
+      }
+      return `${favorite.away_team} @ ${favorite.home_team}`;
+    }
+    return favorite.home_team || "Unknown";
+  })();
   const timeLabel = formatFavoriteTime(favorite.start_time || favorite.game_date);
-  
+
+  // Smart market/line/side display
+  const isMoneyline = favorite.market?.includes("moneyline");
+  const isSpread = favorite.market?.includes("spread") || favorite.market?.includes("run_line");
+  const marketLabel = formatMarketLabelShort(favorite.market) || formatMarketLabel(favorite.market) || favorite.market;
+
+  // Build the prop description line
+  const propLine = (() => {
+    if (isMoneyline) return "Moneyline";
+    if (isSpread) {
+      const spreadVal = favorite.line != null ? (favorite.side === "over" ? `+${favorite.line}` : `-${favorite.line}`) : "";
+      return `${spreadVal} Spread`;
+    }
+    // Player/game props: "O 5.5 Strikeouts", "U 8.5 Total"
+    const side = formatSide(favorite.side);
+    const line = favorite.line != null ? favorite.line : "";
+    return `${side} ${line} ${marketLabel}`;
+  })();
+
   return (
-    <div className="border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 group/row">
-      {/* Main row - collapsed state */}
-      <div
-        className={cn(
-          "flex items-start gap-3 px-4 py-3 transition-colors",
-          isExpanded && "bg-neutral-50/60 dark:bg-neutral-800/30"
-        )}
-      >
-        {/* Checkbox */}
-        <div 
-          className="pt-0.5"
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onToggleSelect();
-            }
-          }}
+    <div className={cn(
+      "group/row transition-colors",
+      isSelected ? "bg-brand/5 dark:bg-brand/8" : "hover:bg-neutral-50/80 dark:hover:bg-neutral-800/30"
+    )}>
+      {/* Main row */}
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        {/* Selection indicator */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          className={cn(
+            "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+            isSelected
+              ? "border-brand bg-brand text-white"
+              : "border-neutral-300 dark:border-neutral-600 hover:border-brand/50"
+          )}
         >
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={onToggleSelect}
-            onClick={(e) => e.stopPropagation()}
-            className="h-4 w-4"
-          />
-        </div>
-        
-        {/* Play info */}
-        <div 
-          className="flex-1 min-w-0 cursor-pointer"
+          {isSelected && <Check className="w-3 h-3" />}
+        </button>
+
+        {/* Play info — click to expand */}
+        <button
           onClick={() => setIsExpanded(!isExpanded)}
+          className="flex-1 min-w-0 text-left"
         >
-          <div className="font-medium text-sm text-neutral-900 dark:text-white truncate">
-            {playerOrTeam}
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+              {playerOrTeam}
+            </span>
+            {favorite.player_team && (
+              <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0">{favorite.player_team}</span>
+            )}
           </div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {sideDisplay} {lineDisplay} {marketDisplay}
-            {timeLabel ? ` · ${timeLabel}` : ""}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[11px] font-semibold text-brand">{propLine}</span>
+            {timeLabel && (
+              <>
+                <span className="text-neutral-300 dark:text-neutral-700">·</span>
+                <span className="text-[10px] text-neutral-400">{timeLabel}</span>
+              </>
+            )}
           </div>
-        </div>
-        
-        {/* Odds display - filtered by selected book or best */}
+        </button>
+
+        {/* Odds pill */}
         {displayOdds ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Use refreshed link if available
               const bookData = refreshedOdds?.allBooks?.[displayOdds.bookId];
               if (bookData?.link) {
-                window.open(bookData.link, "_blank");
+                window.open(applyState(bookData.link) || bookData.link, "_blank");
               } else {
-                openBetLink(favorite.books_snapshot?.[displayOdds.bookId]);
+                openBetLink(favorite.books_snapshot?.[displayOdds.bookId], applyState);
               }
             }}
-            className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition-opacity"
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0 transition-all",
+              "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+            )}
           >
-            {getBookLogo(displayOdds.bookId) ? (
-              <img 
-                src={getBookLogo(displayOdds.bookId)!} 
-                alt={getBookName(displayOdds.bookId)} 
+            {getBookLogo(displayOdds.bookId) && (
+              <img
+                src={getBookLogo(displayOdds.bookId)!}
+                alt=""
                 className="h-4 w-4 object-contain"
               />
-            ) : null}
+            )}
             <span className={cn(
-              "text-sm font-semibold transition-colors",
-              // Highlight if this is the best price (even when filtering by book)
+              "text-sm font-bold tabular-nums",
               !selectedBook || displayOdds.price === bestOdds?.price
                 ? "text-emerald-600 dark:text-emerald-400"
                 : "text-neutral-700 dark:text-neutral-300",
-              // Price change flash
-              priceDirection === "up" && "animate-pulse text-emerald-500",
-              priceDirection === "down" && "animate-pulse text-red-500"
+              priceDirection === "up" && "text-emerald-500",
+              priceDirection === "down" && "text-red-500"
             )}>
               {formatOdds(displayOdds.price)}
             </span>
-            {/* Price direction indicator */}
             {priceDirection && (
-              <span className={cn(
-                "text-xs transition-opacity",
-                priceDirection === "up" ? "text-emerald-500" : "text-red-500"
-              )}>
+              <span className={cn("text-[10px] font-bold", priceDirection === "up" ? "text-emerald-500" : "text-red-500")}>
                 {priceDirection === "up" ? "↑" : "↓"}
               </span>
             )}
+            <ExternalLink className="w-2.5 h-2.5 text-neutral-400" />
           </button>
         ) : selectedBook ? (
-          // No odds for selected book - show dash
-          <div className="flex items-center gap-1.5 shrink-0 opacity-50">
-            {getBookLogo(selectedBook) ? (
-              <img 
-                src={getBookLogo(selectedBook)!} 
-                alt={getBookName(selectedBook)} 
-                className="h-4 w-4 object-contain grayscale"
-              />
-            ) : null}
-            <span className="text-sm font-semibold text-neutral-300 dark:text-neutral-600">
-              —
-            </span>
+          <div className="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 shrink-0">
+            <span className="text-sm font-bold text-neutral-300 dark:text-neutral-600">—</span>
           </div>
         ) : null}
-        
-        {/* Expand chevron */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-        >
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </button>
-        
-        {/* Remove button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="-mr-1 p-1.5 rounded-md text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
-          aria-label="Remove play"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+
+        {/* Expand + remove */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1 rounded text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          >
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isExpanded && "rotate-180")} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="p-1 rounded text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 transition-colors opacity-0 group-hover/row:opacity-100"
+            aria-label="Remove play"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
-      
-      {/* Expanded state - other books */}
+
+      {/* Expanded books panel */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -663,69 +734,64 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-3 pl-11">
-              <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-2 space-y-1">
-                <div className="flex items-center justify-between px-2 pt-1">
-                  <span className="text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                    Best available odds
+            <div className="px-4 pb-3 ml-7">
+              <div className="rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800/50">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                    All Books
                   </span>
                   {hasRefreshedOdds && (
-                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400">
+                    <span className="text-[9px] font-bold text-emerald-500 px-1.5 py-0.5 rounded-full bg-emerald-500/10">
                       Live
                     </span>
                   )}
                 </div>
-                {sortedBooks.map(({ bookId, data }) => (
-                  <button
-                    key={bookId}
-                    onClick={() => {
-                      // Use refreshed link if available
-                      const refreshedLink = refreshedOdds?.allBooks?.[bookId]?.link;
-                      if (refreshedLink) {
-                        window.open(refreshedLink, "_blank");
-                      } else {
-                        openBetLink(data);
-                      }
-                    }}
-                    className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {getBookLogo(bookId) ? (
-                        <img 
-                          src={getBookLogo(bookId)!} 
-                          alt={getBookName(bookId)} 
-                          className="h-4 w-4 object-contain"
-                        />
-                      ) : null}
-                      <span className="text-xs text-neutral-600 dark:text-neutral-300">
-                        {getBookName(bookId)}
-                      </span>
-                    </div>
-                    <span className={cn(
-                      "text-xs font-medium",
-                      data.price === bestOdds?.price 
-                        ? "text-emerald-600 dark:text-emerald-400" 
-                        : "text-neutral-600 dark:text-neutral-300"
-                    )}>
-                      {formatOdds(data.price)}
-                    </span>
-                  </button>
-                ))}
-                
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                  {sortedBooks.map(({ bookId, data }) => (
+                    <button
+                      key={bookId}
+                      onClick={() => {
+                        const refreshedLink = refreshedOdds?.allBooks?.[bookId]?.link;
+                        if (refreshedLink) {
+                          window.open(applyState(refreshedLink) || refreshedLink, "_blank");
+                        } else {
+                          openBetLink(data, applyState);
+                        }
+                      }}
+                      className="flex items-center justify-between w-full px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2">
+                        {getBookLogo(bookId) ? (
+                          <img src={getBookLogo(bookId)!} alt="" className="h-4 w-4 object-contain" />
+                        ) : (
+                          <div className="w-4 h-4 rounded bg-neutral-200 dark:bg-neutral-700" />
+                        )}
+                        <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+                          {getBookName(bookId)}
+                        </span>
+                        {data.price === bestOdds?.price && (
+                          <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Best</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn(
+                          "text-xs font-bold tabular-nums",
+                          data.price === bestOdds?.price
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-neutral-600 dark:text-neutral-300"
+                        )}>
+                          {formatOdds(data.price)}
+                        </span>
+                        <ExternalLink className="w-2.5 h-2.5 text-neutral-300 dark:text-neutral-600 group-hover:text-brand transition-colors" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
                 {remainingBooks > 0 && (
-                  <div className="text-[10px] text-neutral-400 dark:text-neutral-500 text-center pt-1">
-                    +{remainingBooks} more book{remainingBooks !== 1 ? "s" : ""}
+                  <div className="text-[10px] text-neutral-400 text-center py-1.5 bg-neutral-50/50 dark:bg-neutral-800/30">
+                    +{remainingBooks} more
                   </div>
                 )}
-                
-                {/* Remove action */}
-                <button
-                  onClick={onRemove}
-                  className="flex items-center justify-center gap-1 w-full mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 text-xs text-red-500 hover:text-red-600 transition-colors"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Remove</span>
-                </button>
               </div>
             </div>
           </motion.div>
@@ -1122,6 +1188,7 @@ function QuickComparePanel({
   onRetry,
   fromCache,
 }: QuickComparePanelProps) {
+  const applyState = useStateLink();
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showLegs, setShowLegs] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1369,7 +1436,7 @@ function QuickComparePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        openSgpLink(links, bookId);
+                        openSgpLink(links, bookId, applyState);
                       }}
                       className={cn(
                         "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors",
@@ -1420,7 +1487,7 @@ function QuickComparePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        openSgpLink(links, bookId);
+                        openSgpLink(links, bookId, applyState);
                       }}
                       className={cn(
                         "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors",
@@ -1718,18 +1785,31 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       toast.error("Select at least 2 plays to compare parlay odds");
       return;
     }
+
+    const betType = classifyBetType(selectedFavorites);
+
+    if (betType === "parlay") {
+      const parlayOdds = calculateCompareParlayOdds(selectedFavorites, refreshedOddsMap);
+      if (Object.keys(parlayOdds).length === 0) {
+        toast.error("No sportsbooks support all selected legs as a parlay");
+        return;
+      }
+      setCompareError(null);
+      setCompareOdds(parlayOdds);
+      return;
+    }
     
     // Use refreshed odds data for live SGP tokens (this finds more books)
     const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
-    
+
     if (booksWithFullSupport.length === 0) {
       toast.error("No sportsbooks support all selected legs as a parlay");
       return;
     }
-    
+
     setIsLoadingCompare(true);
     setCompareError(null);
-    
+
     try {
       // Convert favorites to SGP legs format with live tokens
       const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
@@ -1749,7 +1829,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       }
       
       const data = await response.json();
-      
+
       if (data.error) {
         setCompareError(data.error);
         toast.error(data.error);

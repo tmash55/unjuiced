@@ -13,6 +13,7 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
+import { useStateLink } from "@/hooks/use-state-link";
 
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -324,7 +325,7 @@ const getTeamLogoUrl = (teamName: string, sport: string): string => {
 
 // Check if sport has team logos
 const hasTeamLogos = (sportKey: string): boolean => {
-  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab'];
+  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab', 'mlb'];
   return sportsWithLogos.includes(sportKey.toLowerCase());
 };
 
@@ -463,6 +464,7 @@ export function OpportunitiesTable({
   
   // Favorites hook for betslip functionality
   const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  const applyState = useStateLink();
   
   // Helper to convert opportunity to favorite params
   // Only includes fields that exist in the user_favorites database table
@@ -521,23 +523,14 @@ export function OpportunitiesTable({
     };
   };
   
-  // Handle toggling a favorite
+  // Handle toggling a favorite — optimistic update handles UI instantly
   const handleToggleFavorite = async (opp: Opportunity) => {
     if (!isLoggedIn) return;
-    
-    const key = opp.id;
-    setTogglingRows(prev => new Set(prev).add(key));
-    
+
     try {
       await toggleFavorite(oppToFavoriteParams(opp));
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
-    } finally {
-      setTogglingRows(prev => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
     }
   };
   
@@ -1515,7 +1508,6 @@ export function OpportunitiesTable({
                       e.stopPropagation();
                       handleToggleFavorite(opp);
                     }}
-                    disabled={togglingRows.has(opp.id)}
                     className={cn(
                       "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
                       "hover:scale-110 active:scale-95",
@@ -1524,9 +1516,7 @@ export function OpportunitiesTable({
                         : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                     )}
                   >
-                    {togglingRows.has(opp.id) ? (
-                      <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-400 animate-pulse" />
-                    ) : isOppFavorited(opp) ? (
+                    {isOppFavorited(opp) ? (
                       <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-500" />
                     ) : (
                       <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400 hover:text-red-400" />
@@ -1854,8 +1844,9 @@ export function OpportunitiesTable({
 
   const openLink = (bookId?: string, link?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const target = link || fallback;
-    if (!target) return;
+    const raw = link || fallback;
+    if (!raw) return;
+    const target = applyState(raw) || raw;
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
     try {
       window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
@@ -2190,11 +2181,11 @@ export function OpportunitiesTable({
                     isHiddenRow && "opacity-40",
                     // Streaming states
                     isStale && "opacity-40 line-through",
-                    // New row highlight - ring effect like Positive EV
-                    isNewlyAdded && "ring-2 ring-emerald-400/50 ring-inset bg-emerald-50/50 dark:bg-emerald-900/20",
+                    // New row highlight - amber/orange ring for Edge Finder branding
+                    isNewlyAdded && "ring-2 ring-amber-400/60 ring-inset bg-amber-50/60 dark:bg-amber-900/25",
                     // Edge change highlights
-                    hasChange && change?.edge === "up" && "ring-1 ring-green-400/50 ring-inset",
-                    hasChange && change?.edge === "down" && "ring-1 ring-amber-400/50 ring-inset"
+                    hasChange && change?.edge === "up" && "ring-1 ring-orange-400/50 ring-inset",
+                    hasChange && change?.edge === "down" && "ring-1 ring-red-400/40 ring-inset"
                   )}
                 >
                   {filteredColumnOrder.map(colId => 

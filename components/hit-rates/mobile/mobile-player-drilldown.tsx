@@ -39,6 +39,7 @@ import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
 import { useTeamShotZoneRanks, SHOT_ZONE_KEYS } from "@/hooks/use-team-shot-zone-ranks";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useStateLink } from "@/hooks/use-state-link";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -214,26 +215,27 @@ function MobileOddsLineRow({
   getOddsHitRateColor,
 }: MobileOddsLineRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const applyState = useStateLink();
+
   const handleBookClick = (book: BookOddsEntry, type: "over" | "under", e: React.MouseEvent) => {
     e.stopPropagation();
     const oddsData = type === "over" ? book.over : book.under;
     if (!oddsData) return;
-    
+
     // Prefer mobile URL on mobile devices
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const url = isMobile
       ? (oddsData.mobileUrl || oddsData.m || oddsData.url || oddsData.u)
       : (oddsData.url || oddsData.u || oddsData.mobileUrl || oddsData.m);
-    
+
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
     } else {
       // Fallback to sportsbook homepage
       const sportsbookInfo = getSportsbookById(book.book);
       if (sportsbookInfo?.links?.mobile || sportsbookInfo?.links?.desktop) {
         const fallbackUrl = isMobile ? (sportsbookInfo.links.mobile || sportsbookInfo.links.desktop) : sportsbookInfo.links.desktop;
-        if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        if (fallbackUrl) window.open(applyState(fallbackUrl) || fallbackUrl, "_blank", "noopener,noreferrer");
       }
     }
   };
@@ -306,7 +308,7 @@ function MobileOddsLineRow({
               onClick={(e) => {
                 e.stopPropagation();
                 const url = lineData.bestOver?.mobileUrl || lineData.bestOver?.url;
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
+                if (url) window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 active:scale-95 transition-transform"
             >
@@ -330,7 +332,7 @@ function MobileOddsLineRow({
               onClick={(e) => {
                 e.stopPropagation();
                 const url = lineData.bestUnder?.mobileUrl || lineData.bestUnder?.url;
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
+                if (url) window.open(applyState(url) || url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 active:scale-95 transition-transform"
             >
@@ -1883,11 +1885,12 @@ function OddsBadge({
   mobileUrl?: string | null;
 }) {
   const logo = getBookLogo(book);
-  
+  const applyState = useStateLink();
+
   const handleClick = (e: React.MouseEvent) => {
     if (mobileUrl) {
       e.stopPropagation();
-      window.open(mobileUrl, "_blank");
+      window.open(applyState(mobileUrl) || mobileUrl, "_blank");
     }
   };
   
@@ -3718,7 +3721,8 @@ export function MobilePlayerDrilldown({
 }: MobilePlayerDrilldownProps) {
   // Check if mobile nav menu is open (to hide bottom nav)
   const { isMenuOpen } = useMobileNav();
-  
+  const applyState = useStateLink();
+
   const [selectedMarket, setSelectedMarket] = useState(initialProfile.market);
   const [gameCount, setGameCount] = useState<GameCountFilter>(10);
   const [showMarketPicker, setShowMarketPicker] = useState(false);
@@ -3971,6 +3975,7 @@ export function MobilePlayerDrilldown({
     market: profile.market,
     playerId: profile.selKey, // Player UUID from selKey
     line: currentLine,
+    includeSgp: true,
     enabled: !!profile.eventId && !!profile.market && !!profile.selKey && currentLine !== null,
   });
   
@@ -4175,7 +4180,8 @@ export function MobilePlayerDrilldown({
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
-    if (!profile.gameId) return null;
+    const favoriteEventId = profile.eventId ?? profile.gameId;
+    if (!favoriteEventId) return null;
     
     const activeLine = customLine ?? profile.line;
     const bestOdds = side === "over" ? odds?.bestOver : odds?.bestUnder;
@@ -4234,7 +4240,7 @@ export function MobilePlayerDrilldown({
     return {
       type: "player",
       sport: "nba",
-      event_id: profile.gameId,
+      event_id: favoriteEventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
       away_team: profile.awayTeamName?.split(" ").pop() || null,
@@ -4286,8 +4292,18 @@ export function MobilePlayerDrilldown({
   const handleToggleFavorite = useCallback(async (side: "over" | "under") => {
     const params = buildFavoriteParams(side);
     if (!params) return;
+    console.info("[hit-rates mobile favorite] toggle", {
+      player: params.player_name,
+      market: params.market,
+      side,
+      eventId: params.event_id,
+      profileEventId: profile.eventId,
+      profileGameId: profile.gameId,
+      books: Object.keys(params.books_snapshot ?? {}).length,
+      sgpBooks: Object.values(params.books_snapshot ?? {}).filter((book) => !!book?.sgp).length,
+    });
     await toggleFavorite(params);
-  }, [buildFavoriteParams, toggleFavorite]);
+  }, [buildFavoriteParams, profile.eventId, profile.gameId, toggleFavorite]);
   
   // Process game logs for chart
   const chartGames = useMemo(() => {
@@ -5429,7 +5445,7 @@ export function MobilePlayerDrilldown({
                                     <button
                                       key={`${book}-over`}
                                       type="button"
-                                      onClick={() => bookOdds.over?.mobileUrl && window.open(bookOdds.over.mobileUrl, "_blank", "noopener,noreferrer")}
+                                      onClick={() => bookOdds.over?.mobileUrl && window.open(applyState(bookOdds.over.mobileUrl) || bookOdds.over.mobileUrl, "_blank", "noopener,noreferrer")}
                                       className={cn(
                                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all active:scale-95",
                                         isBest 
@@ -5470,7 +5486,7 @@ export function MobilePlayerDrilldown({
                                     <button
                                       key={`${book}-under`}
                                       type="button"
-                                      onClick={() => bookOdds.under?.mobileUrl && window.open(bookOdds.under.mobileUrl, "_blank", "noopener,noreferrer")}
+                                      onClick={() => bookOdds.under?.mobileUrl && window.open(applyState(bookOdds.under.mobileUrl) || bookOdds.under.mobileUrl, "_blank", "noopener,noreferrer")}
                                       className={cn(
                                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all active:scale-95",
                                         isBest 
@@ -5704,7 +5720,7 @@ export function MobilePlayerDrilldown({
                   >
                     <button
                       type="button"
-                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(applyState(odds.bestOver.mobileUrl) || odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestOver}
                       className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
@@ -5718,7 +5734,7 @@ export function MobilePlayerDrilldown({
                         {odds?.bestOver ? `${odds.bestOver.price > 0 ? "+" : ""}${odds.bestOver.price}` : "—"}
                       </span>
                     </button>
-                    {isLoggedIn && profile.gameId && (
+                    {isLoggedIn && (profile.eventId ?? profile.gameId) && (
                       <button
                         type="button"
                         onClick={() => handleToggleFavorite("over")}
@@ -5750,7 +5766,7 @@ export function MobilePlayerDrilldown({
                   >
                     <button
                       type="button"
-                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(applyState(odds.bestUnder.mobileUrl) || odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestUnder}
                       className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
@@ -5764,7 +5780,7 @@ export function MobilePlayerDrilldown({
                         {odds?.bestUnder ? `${odds.bestUnder.price > 0 ? "+" : ""}${odds.bestUnder.price}` : "—"}
                       </span>
                     </button>
-                    {isLoggedIn && profile.gameId && (
+                    {isLoggedIn && (profile.eventId ?? profile.gameId) && (
                       <button
                         type="button"
                         onClick={() => handleToggleFavorite("under")}
@@ -6678,7 +6694,7 @@ export function MobilePlayerDrilldown({
                     {/* Over */}
                     <button
                       type="button"
-                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(applyState(odds.bestOver.mobileUrl) || odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
                         "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-900/10",
@@ -6708,7 +6724,7 @@ export function MobilePlayerDrilldown({
                     {/* Under */}
                     <button
                       type="button"
-                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(applyState(odds.bestUnder.mobileUrl) || odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
                         "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/30 dark:to-red-900/10",

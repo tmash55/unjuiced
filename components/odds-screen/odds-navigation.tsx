@@ -54,9 +54,10 @@ interface SportConfig {
 // Active sports first, off-season at the bottom
 const SPORTS: SportConfig[] = [
   // Active
+  { id: "mlb", label: "MLB" },
   { id: "nba", label: "NBA" },
-  { id: "ncaab", label: "NCAAB" },
   { id: "nhl", label: "NHL" },
+  { id: "ncaab", label: "NCAAB" },
   { id: "ncaabaseball", label: "NCAA Baseball" },
   { id: "soccer_epl", label: "EPL" },
   { id: "soccer_laliga", label: "LaLiga" },
@@ -72,16 +73,15 @@ const SPORTS: SportConfig[] = [
   { id: "tennis_utr_women", label: "UTR Women" },
   { id: "ufc", label: "UFC" },
   // Off season
-  { id: "mlb", label: "MLB", disabled: true, disabledReason: "Off Season" },
   { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
   { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
 
-const LEADING_SPORT_IDS = ["nba", "ncaab", "nhl", "ncaabaseball"] as const;
+const LEADING_SPORT_IDS = ["mlb", "nba", "nhl", "ncaab", "ncaabaseball"] as const;
 const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
 const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
-const TRAILING_SPORT_IDS = ["ufc", "mlb", "wnba", "ncaaf", "nfl"] as const;
+const TRAILING_SPORT_IDS = ["ufc", "wnba", "ncaaf", "nfl"] as const;
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
 interface MarketTab {
@@ -183,7 +183,16 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
   tennis_utr_women: [],
   tennis_wta: [],
   ufc: [],
-  mlb: [],
+  mlb: [
+    { id: "hits", label: "Hits", apiKey: "player_hits", type: "player" },
+    { id: "hr", label: "HR", apiKey: "player_home_runs", type: "player" },
+    { id: "rbis", label: "RBIs", apiKey: "player_rbis", type: "player" },
+    { id: "runs", label: "Runs", apiKey: "player_runs", type: "player" },
+    { id: "total_bases", label: "Total Bases", apiKey: "player_total_bases", type: "player" },
+    { id: "k", label: "K", apiKey: "player_strikeouts", type: "player" },
+    { id: "hrr", label: "H+R+RBI", apiKey: "player_hits__runs__rbis", type: "player" },
+    { id: "sb", label: "SB", apiKey: "player_stolen_bases", type: "player" },
+  ],
   wnba: [],
 };
 
@@ -336,7 +345,16 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
   tennis_utr_women: [],
   tennis_wta: [],
   ufc: [],
-  mlb: [],
+  mlb: [
+    { id: "doubles", label: "Doubles", apiKey: "player_doubles", type: "player" },
+    { id: "singles", label: "Singles", apiKey: "player_singles", type: "player" },
+    { id: "triples", label: "Triples", apiKey: "player_triples", type: "player" },
+    { id: "batter_k", label: "Batter K", apiKey: "player_batting_strikeouts", type: "player" },
+    { id: "earned_runs", label: "Earned Runs", apiKey: "player_earned_runs", type: "player" },
+    { id: "hits_allowed", label: "Hits Allowed", apiKey: "player_hits_allowed", type: "player" },
+    { id: "walks_allowed", label: "BB Allowed", apiKey: "player_walks_allowed", type: "player" },
+    { id: "outs", label: "Outs", apiKey: "player_outs", type: "player" },
+  ],
   wnba: [],
 };
 
@@ -421,13 +439,17 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
   ],
   mlb: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
-    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
+    { id: "team_total", label: "Team Total", apiKey: "team_total_runs", type: "game" },
+    { id: "f5_ml", label: "F5 ML", apiKey: "1st_5_innings_moneyline", type: "game" },
+    { id: "f5_rl", label: "F5 RL", apiKey: "1st_5_innings_run_line", type: "game" },
+    { id: "f5_total", label: "F5 Total", apiKey: "1st_5_innings_total_runs", type: "game" },
   ],
   ncaabaseball: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
-    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
   ],
   soccer_epl: SOCCER_CORE_PRIMARY_GAME_MARKETS,
   soccer_laliga: SOCCER_CORE_PRIMARY_GAME_MARKETS,
@@ -545,6 +567,21 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "2h_spread", label: "2H Spread", apiKey: "2nd_half_point_spread", type: "game" },
     { id: "total_tds", label: "Total TDs", apiKey: "game_total_touchdowns", type: "game" },
   ],
+  mlb: [
+    { id: "home_total", label: "Home Total", apiKey: "team_total_home_team", type: "game" },
+    { id: "away_total", label: "Away Total", apiKey: "team_total_away_team", type: "game" },
+    { id: "1st_inn_ml", label: "1st Inn ML", apiKey: "1st_inning_moneyline", type: "game" },
+    { id: "1st_inn_total", label: "1st Inn Total", apiKey: "1st_inning_total_runs", type: "game" },
+    { id: "1st_inn_rl", label: "1st Inn RL", apiKey: "1st_inning_run_line", type: "game" },
+    { id: "1st_inn_3way", label: "1st Inn 3-Way", apiKey: "1st_inning_moneyline_3_way", type: "game" },
+    { id: "f5_3way", label: "F5 3-Way", apiKey: "1st_5_innings_moneyline_3_way", type: "game" },
+    { id: "f5_home", label: "F5 Home Total", apiKey: "1st_5_innings_home_team_total_runs", type: "game" },
+    { id: "f5_away", label: "F5 Away Total", apiKey: "1st_5_innings_away_team_total_runs", type: "game" },
+    { id: "ml_3way", label: "ML 3-Way", apiKey: "moneyline_3_way", type: "game" },
+    { id: "extra_innings", label: "Extra Innings", apiKey: "extra_innings", type: "game" },
+    { id: "first_to_score", label: "1st to Score", apiKey: "first_team_to_score", type: "game" },
+    { id: "second_to_score", label: "2nd to Score", apiKey: "second_team_to_score", type: "game" },
+  ],
   ncaabaseball: [],
   soccer_epl: [
     ...SOCCER_CORE_SECONDARY_GAME_MARKETS,
@@ -594,7 +631,6 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "decision_only", label: "Decision Only", apiKey: "moneyline_decision_only", type: "game" },
     { id: "r1_finish", label: "1R Finish", apiKey: "1st_round_moneyline_finish_only", type: "game" },
   ],
-  mlb: [],
   wnba: [],
 };
 

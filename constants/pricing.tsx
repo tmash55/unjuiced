@@ -10,29 +10,29 @@ export enum TierName {
 export const tiers = [
   {
     title: TierName.SCOUT,
-    subtitle: "Hit rate research tools",
-    description: "Perfect for player prop researchers. Full access to hit rate tools including Defense vs Position matchups and trend analysis.",
+    subtitle: "Research tools for NBA & MLB",
+    description: "Full access to NBA hit rates, cheat sheets, and all MLB research tools — Slate Insights, HR Command Center, NRFI, Exit Velocity, and more.",
     monthly: 15,
     yearly: 150,
     ctaText: "Get Started",
     ctaLink: "/register",
     features: [
-      "All hit rate tools",
+      "NBA hit rate tools & cheat sheets",
+      "MLB Slate Insights (BvP matchups)",
+      "MLB HR Command Center",
+      "NRFI analysis with live odds",
+      "Exit Velocity leaders",
+      "Weather Report (free for all)",
       "Defense vs Position matchups",
-      "Hit Rate Matrix cheat sheets",
-      "Injury Impact analysis",
-      "L5, L10, L20, Season stats",
       "Head-to-head matchup data",
-      "Player correlations",
-      "Game log & box scores",
     ],
     productType: "scout" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     title: TierName.SHARP,
     subtitle: "Complete betting toolkit",
-    description: "Level up from research to execution. Get hit rates plus sharp betting tools: Positive EV, Pregame Arbitrage, and Edge Finder.",
+    description: "Level up from research to execution. Get all research tools plus sharp betting tools: Positive EV, Pregame Arbitrage, and Edge Finder.",
     monthly: 40,
     yearly: 400,
     ctaText: "Start Free Trial",
@@ -51,18 +51,19 @@ export const tiers = [
     featured: true,
     badge: "Most Popular",
     productType: "sharp" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     title: TierName.ELITE,
     subtitle: "Every advantage",
-    description: "For serious bettors who want every edge. Everything in Sharp plus Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
+    description: "For serious bettors who want every edge. Everything in Sharp plus Sharp Intel, Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
     monthly: 70,
     yearly: 700,
     ctaText: "Go Elite",
     ctaLink: "/register",
     features: [
       "Everything in Sharp — plus:",
+      "Sharp Intel — real-time insider tracking",
       "Live Arbitrage alerts",
       "Custom Model builder",
       "EV-enhanced hit rates",
@@ -72,15 +73,15 @@ export const tiers = [
     ],
     badge: "Best Value",
     productType: "edge" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
 ];
 
 // Feature comparison table for pricing page
 export const pricingTable = [
-  // Hit Rate Features
+  // ── NBA Research Tools ──
   {
-    title: "Hit Rate Tools",
+    title: "NBA Hit Rate Tools",
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
@@ -96,7 +97,7 @@ export const pricingTable = [
     ],
   },
   {
-    title: "Hit Rate Matrix",
+    title: "Hit Rate Matrix & Cheat Sheets",
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
@@ -119,7 +120,48 @@ export const pricingTable = [
       { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
-  // Sharp Features
+  // ── MLB Research Tools ──
+  {
+    title: "MLB Slate Insights (BvP)",
+    tiers: [
+      { title: TierName.SCOUT, value: <CheckIcon /> },
+      { title: TierName.SHARP, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "HR Command Center",
+    tiers: [
+      { title: TierName.SCOUT, value: <CheckIcon /> },
+      { title: TierName.SHARP, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "NRFI Analysis",
+    tiers: [
+      { title: TierName.SCOUT, value: <CheckIcon /> },
+      { title: TierName.SHARP, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "Exit Velocity Leaders",
+    tiers: [
+      { title: TierName.SCOUT, value: <CheckIcon /> },
+      { title: TierName.SHARP, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "Weather Report",
+    tiers: [
+      { title: TierName.SCOUT, value: "Free" },
+      { title: TierName.SHARP, value: "Free" },
+      { title: TierName.ELITE, value: "Free" },
+    ],
+  },
+  // ── Sharp Betting Tools ──
   {
     title: "Positive EV Scanner",
     tiers: [
@@ -168,7 +210,15 @@ export const pricingTable = [
       { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
-  // Elite Features
+  // ── Elite Features ──
+  {
+    title: "Sharp Intel",
+    tiers: [
+      { title: TierName.SCOUT, value: <CloseIcon /> },
+      { title: TierName.SHARP, value: <CloseIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
+    ],
+  },
   {
     title: "Live Arbitrage",
     tiers: [

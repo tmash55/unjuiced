@@ -42,6 +42,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100, mode = "all" }:
   const maxRetries = 10;
   const [filteredCount, setFilteredCount] = useState<number>(0);
   const [filteredReason, setFilteredReason] = useState<string | undefined>(undefined);
+  const fetchGenRef = useRef(0); // generation counter to discard stale responses
 
   // Fetch total counts from API
   const fetchTotalCounts = useCallback(async () => {
@@ -97,10 +98,12 @@ export function useArbsStream({ pro, live, eventId, limit = 100, mode = "all" }:
 
   // page loader
   const loadPage = useCallback(async (opts?: { reset?: boolean; cursor?: number }) => {
+    const gen = ++fetchGenRef.current; // claim a generation
     const useCur = opts?.cursor !== undefined ? opts.cursor : (opts?.reset ? 0 : cursor);
     setLoading(true);
     try {
       const res = await fetchArbs({ v: 0, limit, cursor: useCur, event_id: eventId, mode });
+      if (gen !== fetchGenRef.current) return; // stale response — a newer fetch is in flight
       if (!("unchanged" in res)) {
         setVersion(res.v);
         setLastUpdated(Date.now());
@@ -119,20 +122,21 @@ export function useArbsStream({ pro, live, eventId, limit = 100, mode = "all" }:
         setFilteredReason(res.filteredReason);
       }
     } catch (e: any) {
+      if (gen !== fetchGenRef.current) return; // stale — don't set error from outdated request
       setError(e.message || "fetch failed");
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
   }, [cursor, limit, eventId, mode]);
 
-  // initial & filter change
+  // Keep a stable ref so the initial-load effect doesn't re-fire when cursor changes
+  const loadPageRef = useRef(loadPage);
+  loadPageRef.current = loadPage;
+
+  // initial & filter change — only re-fire when the query params actually change
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      await loadPage({ reset: true });
-    })();
-    return () => { cancel = true; };
-  }, [eventId, limit, mode, loadPage]);
+    loadPageRef.current({ reset: true });
+  }, [eventId, limit, mode]);
 
   const nextPage = useCallback(async () => {
     const newCursor = cursor + limit;

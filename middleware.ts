@@ -10,12 +10,14 @@ export const config = {
     /*
      * Match all request paths except:
      * - api/public (public API routes)
+     * - ingest (PostHog proxy)
+     * - _proxy (Dub proxy)
      * - _next/static (static files)
      * - _next/image (image optimization)
      * - favicon.ico
      * - static files (svg, png, jpg, jpeg, gif, webp, ico, woff, woff2, ttf, otf)
      * This reduces unnecessary middleware executions by 80-90%
      */
-    "/((?!api/public|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|eot|css|js|map)$).*)",
+    "/((?!api/public|ingest|_proxy|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|eot|css|js|map)$).*)",
   ],
 };

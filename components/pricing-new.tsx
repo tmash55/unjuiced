@@ -65,21 +65,21 @@ const plans: PlanTier[] = [
   },
   {
     name: "Scout",
-    description: "Hit rate research tools",
+    description: "NBA & MLB research tools",
     monthlyPrice: 15,
     yearlyPrice: 150,
     features: [
-      "All hit rate tools",
-      "Injury Impact analysis",
-      "L5, L10, L20, Season stats",
-      "Player correlations",
-      "Head-to-head matchups",
-      "Deep linking to books",
+      "All NBA hit rate tools",
+      "MLB Slate Insights (BvP)",
+      "HR Command Center & NRFI",
+      "Exit Velocity leaders",
+      "Pitch type filtering",
+      "Strike zone heat maps",
     ],
     previousTier: "Free",
     productType: "scout",
     ctaText: "Try for free",
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     name: "Sharp",
@@ -97,7 +97,7 @@ const plans: PlanTier[] = [
     previousTier: "Scout",
     badge: "Most Popular",
     productType: "sharp",
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     name: "Elite",
@@ -105,6 +105,7 @@ const plans: PlanTier[] = [
     monthlyPrice: 70,
     yearlyPrice: 700,
     features: [
+      "Sharp Intel — insider tracking",
       "Live Arbitrage (in-game)",
       "Custom Model builder",
       "Custom EV thresholds",
@@ -115,7 +116,7 @@ const plans: PlanTier[] = [
     previousTier: "Sharp",
     badge: "Best Value",
     productType: "edge",
-    trialDays: 3,
+    trialDays: 7,
   },
 ];
 
@@ -133,17 +134,30 @@ interface FeatureRow {
 
 const featureCategories: { category: string; features: FeatureRow[] }[] = [
   {
-    category: "Hit Rate Tools",
+    category: "NBA Research Tools",
     features: [
       { name: "Dashboard Overview", free: true, scout: true, sharp: true, elite: true },
       { name: "Defense vs Position", free: true, scout: true, sharp: true, elite: true },
-      { name: "Hit Rate Matrix", free: true, scout: true, sharp: true, elite: true },
+      { name: "Hit Rate Matrix & Cheat Sheets", free: true, scout: true, sharp: true, elite: true },
       { name: "My Slips & Betslip", free: true, scout: true, sharp: true, elite: true },
       { name: "Injury Impact Analysis", free: false, scout: true, sharp: true, elite: true },
       { name: "Player Correlations", free: false, scout: true, sharp: true, elite: true },
       { name: "Head-to-Head Matchups", free: false, scout: true, sharp: true, elite: true },
       { name: "Game Logs & Box Scores", free: false, scout: true, sharp: true, elite: true },
       { name: "Deep Linking to Books", free: false, scout: true, sharp: true, elite: true },
+    ],
+  },
+  {
+    category: "MLB Research Tools",
+    features: [
+      { name: "Weather Report", free: true, scout: true, sharp: true, elite: true },
+      { name: "Slate Insights (BvP Matchups)", free: false, scout: true, sharp: true, elite: true },
+      { name: "HR Command Center", free: false, scout: true, sharp: true, elite: true },
+      { name: "NRFI Analysis", free: false, scout: true, sharp: true, elite: true },
+      { name: "Exit Velocity Leaders", free: false, scout: true, sharp: true, elite: true },
+      { name: "Pitch Type Filtering", free: false, scout: true, sharp: true, elite: true },
+      { name: "Strike Zone Heat Maps", free: false, scout: true, sharp: true, elite: true },
+      { name: "HR Odds Across 14+ Books", free: false, scout: true, sharp: true, elite: true },
     ],
   },
   {
@@ -162,6 +176,7 @@ const featureCategories: { category: string; features: FeatureRow[] }[] = [
   {
     category: "Elite Features",
     features: [
+      { name: "Sharp Intel", free: false, scout: false, sharp: false, elite: true },
       { name: "Live Arbitrage (In-Game)", free: false, scout: false, sharp: false, elite: true },
       { name: "Custom Model Builder", free: false, scout: false, sharp: false, elite: true },
       { name: "Custom EV Thresholds", free: false, scout: false, sharp: false, elite: true },
@@ -285,7 +300,7 @@ export const PricingNew = () => {
         {/* Footnote */}
         <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
           {showTrialCTA
-            ? "All paid plans include a 3-day free trial. Yearly billing includes 2 months free."
+            ? "All paid plans include a 7-day free trial. Yearly billing includes 2 months free."
             : "Yearly billing includes 2 months free. Upgrade or downgrade anytime."}
         </p>
 
