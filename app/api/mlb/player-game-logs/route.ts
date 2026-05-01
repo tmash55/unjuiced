@@ -276,11 +276,11 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const parsed = QuerySchema.safeParse({
-      playerId: searchParams.get("playerId"),
-      market: searchParams.get("market"),
-      season: searchParams.get("season"),
-      limit: searchParams.get("limit"),
-      includePrior: searchParams.get("includePrior"),
+      playerId: searchParams.get("playerId") ?? undefined,
+      market: searchParams.get("market") ?? undefined,
+      season: searchParams.get("season") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      includePrior: searchParams.get("includePrior") ?? undefined,
     });
 
     if (!parsed.success) {

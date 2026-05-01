@@ -13,17 +13,21 @@ import { DefensiveAnalysis } from "@/components/hit-rates/defensive-analysis";
 import { PlayTypeAnalysis } from "@/components/hit-rates/play-type-analysis";
 import { ShootingZones } from "@/components/hit-rates/shooting-zones";
 import { PlayerCorrelations } from "@/components/hit-rates/player-correlations";
+import { MlbSprayChart } from "@/components/hit-rates/mlb/mlb-spray-chart";
 import { LoadingState } from "@/components/common/loading-state";
 import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, BarChart3, Users, Target, Zap, Lock, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
+import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import Link from "next/link";
 import { useStateLink } from "@/hooks/use-state-link";
+import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 
 // Tab type for modal navigation
 type ModalTab = "gamelog" | "matchup" | "playstyle" | "correlation";
@@ -52,10 +56,13 @@ interface AlternateLineOdds {
 interface PlayerQuickViewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  sport?: "nba" | "mlb";
   odds_player_id?: string;
   player_name?: string;
   /** Direct NBA player ID - when provided, skips the lookup API call */
   nba_player_id?: number;
+  /** Direct MLB player ID - when provided, skips player-name matching */
+  mlb_player_id?: number;
   initial_market?: string;
   /** Pre-select this line when opening (e.g., from edge finder alternate lines) */
   initial_line?: number;
@@ -96,6 +103,12 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    case "player_hits": return game.mlbHits ?? 0;
+    case "player_home_runs": return game.mlbHomeRuns ?? 0;
+    case "player_runs_scored": return game.mlbRunsScored ?? 0;
+    case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
     default: return game.pts;
   }
 };
@@ -116,14 +129,106 @@ const FALLBACK_MARKETS = [
   "player_turnovers",
 ];
 
+const MLB_FALLBACK_MARKETS = [
+  "player_hits",
+  "player_total_bases",
+  "player_home_runs",
+  "player_runs_scored",
+  "player_rbi",
+  "pitcher_strikeouts",
+];
+
 type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
+
+function MlbQuickMatchupPanel({
+  profile,
+  currentMarket,
+  activeLine,
+  dynamicHitRates,
+}: {
+  profile?: HitRateProfile;
+  currentMarket: string;
+  activeLine: number;
+  dynamicHitRates: { l5: number | null; l10: number | null; l20: number | null; season: number | null; h2h: number | null };
+}) {
+  const stats = [
+    { label: "L5", value: dynamicHitRates.l5, sub: profile?.last5Avg?.toFixed(1) },
+    { label: "L10", value: dynamicHitRates.l10, sub: profile?.last10Avg?.toFixed(1) },
+    { label: "L20", value: dynamicHitRates.l20, sub: profile?.last20Avg?.toFixed(1) },
+    { label: "Season", value: dynamicHitRates.season, sub: profile?.seasonAvg?.toFixed(1) },
+    { label: "H2H", value: dynamicHitRates.h2h, sub: profile?.h2hAvg?.toFixed(1) },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Matchup</p>
+          <div className="mt-3 flex items-center gap-3">
+            {profile?.opponentTeamAbbr && (
+              <img
+                src={getTeamLogoUrl(profile.opponentTeamAbbr, "mlb")}
+                alt={profile.opponentTeamAbbr}
+                className="h-9 w-9 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            <div>
+              <p className="text-lg font-black text-neutral-950 dark:text-white">
+                {profile?.homeAway === "H" ? "vs" : "@"} {profile?.opponentTeamAbbr || "TBD"}
+              </p>
+              <p className="text-xs font-medium text-neutral-500">{profile?.gameStatus || profile?.startTime || "Start TBD"}</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Prop Line</p>
+          <p className="mt-3 text-2xl font-black tabular-nums text-neutral-950 dark:text-white">
+            {activeLine}+ <span className="text-sm font-bold text-neutral-500">{formatMarketLabel(currentMarket)}</span>
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {profile?.bestOdds ? `${profile.bestOdds.book.toUpperCase()} ${profile.bestOdds.price > 0 ? "+" : ""}${profile.bestOdds.price}` : "No live odds attached"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Context</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <span className="text-neutral-500">Hand</span>
+            <span className="text-right font-bold text-neutral-900 dark:text-white">{profile?.battingHand || "-"}</span>
+            <span className="text-neutral-500">Lineup</span>
+            <span className="text-right font-bold text-neutral-900 dark:text-white">{profile?.lineupPosition ? `#${profile.lineupPosition}` : "-"}</span>
+            <span className="text-neutral-500">DvP</span>
+            <span className="text-right font-bold text-neutral-900 dark:text-white">{profile?.matchupRankLabel || (profile?.matchupRank ? `#${profile.matchupRank}` : "-")}</span>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="grid grid-cols-5 gap-2">
+          {stats.map((stat) => (
+            <div key={stat.label} className="rounded-xl bg-neutral-50 p-3 text-center dark:bg-neutral-800/60">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{stat.label}</p>
+              <p className={cn("mt-1 text-lg font-black tabular-nums", getPctColor(stat.value))}>
+                {stat.value !== null ? `${stat.value}%` : "-"}
+              </p>
+              <p className="text-[10px] font-semibold text-neutral-400">{stat.sub ? `${stat.sub} avg` : "no avg"}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PlayerQuickViewModal({
   open,
   onOpenChange,
+  sport = "nba",
   odds_player_id,
   player_name,
   nba_player_id: directNbaPlayerId,
+  mlb_player_id: directMlbPlayerId,
   initial_market,
   initial_line,
   onMarketChange,
@@ -132,6 +237,7 @@ export function PlayerQuickViewModal({
 }: PlayerQuickViewModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
+  const isMlb = sport === "mlb";
 
   // Check if user has Hit Rate access for advanced tabs (hit_rate or pro plan)
   const { user } = useAuth();
@@ -139,7 +245,7 @@ export function PlayerQuickViewModal({
   const isAuthenticated = !!user;
 
   // Data fetching - skip lookup if nba_player_id is provided directly
-  const needsLookup = !directNbaPlayerId && !!(odds_player_id || player_name);
+  const needsLookup = !isMlb && !directNbaPlayerId && !!(odds_player_id || player_name);
   const { data: lookupData, isLoading: isLoadingLookup } = usePlayerLookup({
     odds_player_id,
     player_name,
@@ -148,20 +254,23 @@ export function PlayerQuickViewModal({
 
   // Use direct ID if provided, otherwise use looked up ID
   const nba_player_id = directNbaPlayerId || lookupData?.player?.nba_player_id;
+  const resolvedPlayerId = isMlb ? directMlbPlayerId ?? directNbaPlayerId : nba_player_id;
   const playerInfo = lookupData?.player;
 
   // Fetch profiles and box scores in PARALLEL (not sequential)
   // Only fetch when we have a player ID
   const { rows: profiles, isLoading: isLoadingProfiles } = useHitRateTable({
-    playerId: nba_player_id,
-    enabled: open && !!nba_player_id,
+    sport,
+    playerId: resolvedPlayerId,
+    search: !resolvedPlayerId && isMlb ? player_name : undefined,
+    enabled: open && (!!resolvedPlayerId || (isMlb && !!player_name)),
     limit: 20, // Reduced from 50 - we only need current markets
   });
 
   // Limit box scores to last 25 games for faster loading
   const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
     playerId: nba_player_id || null,
-    enabled: open && !!nba_player_id,
+    enabled: !isMlb && open && !!nba_player_id,
     limit: 25, // Only fetch last 25 games for modal (full drilldown can load more)
   });
 
@@ -170,17 +279,18 @@ export function PlayerQuickViewModal({
   
   // Sort markets by preferred order
   const availableMarkets = useMemo(() => {
-    const profileMarkets = hasUpcomingProfile ? profiles.map(p => p.market) : FALLBACK_MARKETS;
+    const fallbackMarkets = isMlb ? MLB_FALLBACK_MARKETS : FALLBACK_MARKETS;
+    const profileMarkets = hasUpcomingProfile ? profiles.map(p => p.market) : fallbackMarkets;
     // Sort by FALLBACK_MARKETS order (preferred display order)
     return [...profileMarkets].sort((a, b) => {
-      const indexA = FALLBACK_MARKETS.indexOf(a);
-      const indexB = FALLBACK_MARKETS.indexOf(b);
+      const indexA = fallbackMarkets.indexOf(a);
+      const indexB = fallbackMarkets.indexOf(b);
       // If not in FALLBACK_MARKETS, put at end
       if (indexA === -1) return 1;
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
-  }, [hasUpcomingProfile, profiles]);
+  }, [hasUpcomingProfile, profiles, isMlb]);
   const [selectedMarket, setSelectedMarket] = useState<string | null>(initial_market || null);
   
   // Only sync initial_market on mount or when it changes from parent
@@ -191,13 +301,14 @@ export function PlayerQuickViewModal({
         setSelectedMarket(initial_market);
       } else {
         // Fallback to player_points if initial market isn't available
-        const fallbackMarket = availableMarkets.includes("player_points") 
-          ? "player_points" 
+        const preferredDefault = isMlb ? "player_hits" : "player_points";
+        const fallbackMarket = availableMarkets.includes(preferredDefault) 
+          ? preferredDefault 
           : availableMarkets[0];
         setSelectedMarket(fallbackMarket);
       }
     }
-  }, [initial_market, availableMarkets]);
+  }, [initial_market, availableMarkets, isMlb]);
   
   // Set default market if none selected
   useEffect(() => {
@@ -206,8 +317,17 @@ export function PlayerQuickViewModal({
     }
   }, [selectedMarket, availableMarkets]);
 
-  const currentMarket = selectedMarket || availableMarkets[0] || "player_points";
+  const currentMarket = selectedMarket || availableMarkets[0] || (isMlb ? "player_hits" : "player_points");
   const profile = profiles.find((p) => p.market === currentMarket) || profiles[0];
+
+  const { games: mlbGames, isLoading: isLoadingMlbLogs } = useMlbPlayerGameLogs({
+    playerId: isMlb ? resolvedPlayerId ?? profiles[0]?.playerId ?? null : null,
+    market: currentMarket,
+    limit: 40,
+    enabled: isMlb && open && !!(resolvedPlayerId ?? profiles[0]?.playerId),
+  });
+
+  const modalGames = isMlb ? mlbGames : boxScoreGames;
 
   const hitRateDate = useMemo(() => {
     const candidate =
@@ -230,10 +350,11 @@ export function PlayerQuickViewModal({
     if (hitRateDate) {
       params.set("date", hitRateDate);
     }
-    return nba_player_id
-      ? `/hit-rates/nba/player/${nba_player_id}?${params.toString()}`
-      : "/hit-rates/nba";
-  }, [currentMarket, hitRateDate, nba_player_id]);
+    const playerId = profile?.playerId || resolvedPlayerId;
+    return playerId
+      ? `/hit-rates/${sport}/player/${playerId}?${params.toString()}`
+      : `/hit-rates/${sport}`;
+  }, [currentMarket, hitRateDate, profile?.playerId, resolvedPlayerId, sport]);
 
   // Fetch alternate lines using React Query for caching
   const playerKey = player_name?.toLowerCase().replace(/ /g, "_") || "";
@@ -243,7 +364,7 @@ export function PlayerQuickViewModal({
       if (!event_id || !playerKey) return [];
       
       const params = new URLSearchParams({
-        sport: "nba",
+        sport,
         eventId: event_id,
         market: currentMarket,
         player: playerKey,
@@ -321,11 +442,11 @@ export function PlayerQuickViewModal({
     if (profile?.line) return profile.line;
     if (odds?.over?.line) return odds.over.line;
     if (odds?.under?.line) return odds.under.line;
-    if (boxScoreGames.length === 0) return 10;
-    const recentGames = boxScoreGames.slice(0, 10);
+    if (modalGames.length === 0) return isMlb ? 1 : 10;
+    const recentGames = modalGames.slice(0, 10);
     const avg = recentGames.reduce((sum, g) => sum + getMarketStat(g, currentMarket), 0) / recentGames.length;
     return Math.round(avg * 2) / 2;
-  }, [profile, odds, boxScoreGames, currentMarket]);
+  }, [profile, odds, modalGames, currentMarket, isMlb]);
 
   const activeLine = customLine ?? defaultLine;
 
@@ -419,8 +540,14 @@ export function PlayerQuickViewModal({
   // Active tab for modal navigation
   const [activeTab, setActiveTab] = useState<ModalTab>("gamelog");
 
+  useEffect(() => {
+    if (isMlb && activeTab === "correlation") {
+      setActiveTab("gamelog");
+    }
+  }, [activeTab, isMlb]);
+
   // Get profile data for advanced tabs
-  const profilePlayerId = profile?.playerId || nba_player_id;
+  const profilePlayerId = profile?.playerId || resolvedPlayerId;
   const profilePosition = profile?.position || "";
   const profileOpponentTeamId = profile?.opponentTeamId || null;
   const profileOpponentTeamAbbr = profile?.opponentTeamAbbr || "";
@@ -434,10 +561,10 @@ export function PlayerQuickViewModal({
 
   // Sort games by date descending
   const sortedGames = useMemo(() => {
-    return [...boxScoreGames].sort((a, b) => 
+    return [...modalGames].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [boxScoreGames]);
+  }, [modalGames]);
 
   // Filtered games based on count
   const filteredGames = useMemo(() => {
@@ -491,17 +618,34 @@ export function PlayerQuickViewModal({
   }, [filteredGames, currentMarket, activeLine]);
 
   // Only wait for lookup if we don't have a direct ID
-  const isLoading = (needsLookup && isLoadingLookup) || isLoadingProfiles || isLoadingBoxScores;
+  const isLoading = (needsLookup && isLoadingLookup) || isLoadingProfiles || (isMlb ? isLoadingMlbLogs : isLoadingBoxScores);
   // hasData is true if:
   // - We have a direct nba_player_id with profile or box scores, OR
   // - We looked up and found the player with profile or box scores
-  const hasData = (directNbaPlayerId || lookupData?.found) && (hasUpcomingProfile || boxScoreGames.length > 0);
+  const hasData = isMlb
+    ? (!!resolvedPlayerId || profiles.length > 0) && (hasUpcomingProfile || mlbGames.length > 0)
+    : (directNbaPlayerId || lookupData?.found) && (hasUpcomingProfile || boxScoreGames.length > 0);
 
   // Display info - prefer profile data, then lookup data, then passed props
   const displayName = profile?.playerName || playerInfo?.name || player_name || "Unknown Player";
   const displayTeam = profile?.teamAbbr || playerInfo?.team_abbr || "";
   const displayPosition = profile?.position || playerInfo?.depth_chart_pos || playerInfo?.position || "";
   const displayJersey = profile?.jerseyNumber || playerInfo?.jersey_number;
+  const teamLogoSport = isMlb ? "mlb" : "nba";
+  const fullProfilePlayerId = profile?.playerId || resolvedPlayerId;
+  const fullProfileHref = fullHitRateHref;
+  const modalTabs = isMlb
+    ? [
+        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
+        { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
+        { id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true },
+      ]
+    : [
+        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
+        { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
+        { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
+        { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
+      ];
 
   const handleLineEdit = () => {
     const val = parseFloat(editValue);
@@ -562,6 +706,8 @@ export function PlayerQuickViewModal({
                       >
                         <PlayerHeadshot
                           nbaPlayerId={nba_player_id || null}
+                          mlbPlayerId={isMlb ? resolvedPlayerId ?? null : null}
+                          sport={sport}
                           name={displayName}
                           size="small"
                           className="h-full w-full object-cover"
@@ -576,7 +722,7 @@ export function PlayerQuickViewModal({
                           {displayTeam && (
                             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50">
                               <img
-                                src={`/team-logos/nba/${displayTeam.toUpperCase()}.svg`}
+                                src={teamLogoSport === "mlb" ? getTeamLogoUrl(displayTeam, "mlb") : `/team-logos/nba/${displayTeam.toUpperCase()}.svg`}
                                 alt={displayTeam}
                                 className="h-4 w-4 object-contain"
                                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -602,7 +748,7 @@ export function PlayerQuickViewModal({
                               <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">{profile.homeAway === "H" ? "vs" : "@"}</span>
                               {profile.opponentTeamAbbr && (
                                 <img
-                                  src={`/team-logos/nba/${profile.opponentTeamAbbr.toUpperCase()}.svg`}
+                                  src={teamLogoSport === "mlb" ? getTeamLogoUrl(profile.opponentTeamAbbr, "mlb") : `/team-logos/nba/${profile.opponentTeamAbbr.toUpperCase()}.svg`}
                                   alt={profile.opponentTeamAbbr}
                                   className="h-3.5 w-3.5 object-contain"
                                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -957,7 +1103,7 @@ export function PlayerQuickViewModal({
                 <div className="sm:hidden mt-2">
                   {hasAdvancedAccess ? (
                     <Link
-                      href={fullHitRateHref}
+                      href={fullProfileHref}
                       target="_blank"
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                       onClick={() => onOpenChange(false)}
@@ -984,12 +1130,7 @@ export function PlayerQuickViewModal({
                 ═══════════════════════════════════════════════════════════════════ */}
             <div className="shrink-0 px-4 sm:px-6 pt-2.5 pb-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 overflow-hidden">
               <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
-                {[
-                  { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
-                  { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
-                  { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
-                  { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
-                ].map((tab) => {
+                {modalTabs.map((tab) => {
                   const isActive = activeTab === tab.id;
                   const Icon = tab.icon;
                   return (
@@ -1095,6 +1236,7 @@ export function PlayerQuickViewModal({
                         <GameLogChart
                           games={filteredGames}
                           market={currentMarket}
+                          sport={sport}
                           line={activeLine}
                           onLineChange={setCustomLine}
                           odds={oddsForChart}
@@ -1107,12 +1249,14 @@ export function PlayerQuickViewModal({
                   </div>
 
                   {/* Box Score Table */}
-                  {nba_player_id && (
+                  {fullProfilePlayerId && (
                     <div className="overflow-x-auto rounded-xl border border-neutral-200/60 dark:border-neutral-700/60">
                       <BoxScoreTable
-                        playerId={nba_player_id}
+                        sport={sport}
+                        playerId={fullProfilePlayerId}
                         market={currentMarket}
                         currentLine={activeLine}
+                        prefetchedGames={isMlb ? filteredGames : undefined}
                       />
                     </div>
                   )}
@@ -1122,7 +1266,16 @@ export function PlayerQuickViewModal({
               {/* ═══════════════════════════════════════════════════════════════════
                   MATCHUP TAB - Defense vs Position Analysis
                   ═══════════════════════════════════════════════════════════════════ */}
-              {activeTab === "matchup" && (
+              {activeTab === "matchup" && isMlb && (
+                <MlbQuickMatchupPanel
+                  profile={profile}
+                  currentMarket={currentMarket}
+                  activeLine={activeLine}
+                  dynamicHitRates={dynamicHitRates}
+                />
+              )}
+
+              {activeTab === "matchup" && !isMlb && (
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
@@ -1174,7 +1327,17 @@ export function PlayerQuickViewModal({
               {/* ═══════════════════════════════════════════════════════════════════
                   PLAY STYLE TAB - Play Type & Shooting Analysis
                   ═══════════════════════════════════════════════════════════════════ */}
-              {activeTab === "playstyle" && (
+              {activeTab === "playstyle" && isMlb && (
+                <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                  <MlbSprayChart
+                    playerId={fullProfilePlayerId ?? null}
+                    gameId={profile?.gameId ? Number(profile.gameId) : null}
+                    battingHand={profile?.battingHand}
+                  />
+                </div>
+              )}
+
+              {activeTab === "playstyle" && !isMlb && (
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
@@ -1223,7 +1386,7 @@ export function PlayerQuickViewModal({
               {/* ═══════════════════════════════════════════════════════════════════
                   CORRELATION TAB - Teammate Correlations
                   ═══════════════════════════════════════════════════════════════════ */}
-              {activeTab === "correlation" && (
+              {activeTab === "correlation" && !isMlb && (
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
@@ -1275,7 +1438,7 @@ export function PlayerQuickViewModal({
             <div className="shrink-0 px-4 sm:px-5 py-3 border-t border-neutral-200/50 dark:border-neutral-800/50">
               {hasAdvancedAccess ? (
                 <Link
-                  href={fullHitRateHref}
+                  href={fullProfileHref}
                   target="_blank"
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                   onClick={() => onOpenChange(false)}
