@@ -1572,14 +1572,14 @@ export function PlayerQuickViewModal({
       } else {
         // Fallback to player_points if initial market isn't available
         const preferredDefault = isMlb ? (isMlbPitcherProfile ? "pitcher_strikeouts" : "player_hits") : "player_points";
-        const fallbackMarket = availableMarkets.includes(preferredDefault) 
-          ? preferredDefault 
+        const fallbackMarket = availableMarkets.includes(preferredDefault)
+          ? preferredDefault
           : availableMarkets[0];
         setSelectedMarket(fallbackMarket);
       }
     }
   }, [initial_market, availableMarkets, isMlb, isMlbPitcherProfile]);
-  
+
   // Set default market if none selected
   useEffect(() => {
     if (!selectedMarket && availableMarkets.length > 0) {
@@ -2053,7 +2053,7 @@ export function PlayerQuickViewModal({
 
   // Sort games by date descending
   const sortedGames = useMemo(() => {
-    return [...modalGames].sort((a, b) => 
+    return [...modalGames].sort((a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }, [modalGames]);
