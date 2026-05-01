@@ -1648,7 +1648,6 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
   const barWidth = Math.max((pitch.usage_pct / Math.max(maxUsage, 1)) * 100, 2);
   const isHighUsage = pitch.usage_pct >= 25;
   const trend = pitch.usage_trend;
-  const hasL30 = pitch.l30_usage_pct != null;
 
   return (
     <div className="flex items-center gap-3">
@@ -1675,9 +1674,6 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
             />
             <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
               {pitch.usage_pct}%
-              {hasL30 && pitch.l30_usage_pct !== pitch.usage_pct && (
-                <span className="text-neutral-400 ml-0.5">({pitch.l30_usage_pct}% L30)</span>
-              )}
             </span>
           </div>
         </div>
