@@ -1072,7 +1072,7 @@ function MlbRightRail({
   }, [selectedHistoryBook, selectedHistoryLiveOffer?.price]);
 
   return (
-    <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-hidden">
+    <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1 lg:scrollbar-hide">
       <MlbGlassPanel className="shrink-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Bet Context</h3>
@@ -1094,7 +1094,7 @@ function MlbRightRail({
         </div>
       </MlbGlassPanel>
 
-      <MlbGlassPanel className="flex min-h-[180px] flex-1 flex-col overflow-hidden lg:min-h-0">
+      <MlbGlassPanel className="flex min-h-[220px] flex-col overflow-hidden lg:min-h-[220px] lg:basis-[clamp(220px,28vh,360px)] lg:shrink-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Best Books</h3>
