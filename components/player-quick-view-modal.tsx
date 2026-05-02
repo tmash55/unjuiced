@@ -1301,7 +1301,8 @@ function MlbRightRail({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="max-h-64 min-w-24 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                      onWheelCapture={(event) => event.stopPropagation()}
+                      className="max-h-64 min-w-24 overflow-y-auto overscroll-contain rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 scrollbar-hide dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
                     >
                       {lineOptions.map((line) => {
                         const isSelected = Math.abs(line - activeLine) < 0.01;
@@ -2778,7 +2779,8 @@ export function PlayerQuickViewModal({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
                               align="end"
-                              className="z-[300] max-h-72 min-w-[160px] overflow-y-auto rounded-lg border-neutral-200 bg-white p-1.5 shadow-2xl dark:border-neutral-700/50 dark:bg-[#080f16]"
+                              onWheelCapture={(event) => event.stopPropagation()}
+                              className="z-[300] max-h-72 min-w-[160px] overflow-y-auto overscroll-contain rounded-lg border-neutral-200 bg-white p-1.5 shadow-2xl scrollbar-hide dark:border-neutral-700/50 dark:bg-[#080f16]"
                             >
                               {rightRailLineOptions.map((line) => {
                                 const isSelected = Math.abs(line - activeLine) < 0.01;
