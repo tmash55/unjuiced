@@ -23,7 +23,6 @@ import {
   IconSelector,
   IconChevronDown,
   IconZzz,
-  IconHammer,
   IconHistory,
   IconBuildingBank,
   IconTags,
@@ -61,8 +60,8 @@ interface NavChildItem {
   label: string
   href: string
   disabled?: boolean
-  comingSoon?: boolean  // 🔨 Under construction - being built
-  offSeason?: boolean   // 💤 Sport is in off-season
+  comingSoon?: boolean
+  offSeason?: boolean
   badge?: string
   sectionLabel?: string // Non-clickable divider label (e.g. "sheets")
 }
@@ -147,7 +146,7 @@ const mlbLink: NavItem = {
     { label: "NRFI", href: "/cheatsheets/mlb/nrfi" },
     { label: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
     { label: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
-    { label: "Hit Rates", href: "/hit-rates/mlb" },
+    { label: "Hit Rates", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
   ],
 }
 
@@ -349,7 +348,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                   const tooltipText = child.offSeason
                     ? "Off season"
                     : child.comingSoon
-                      ? "Under construction"
+                      ? "Coming soon"
                       : ""
 
                   return (
@@ -360,8 +359,8 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         >
                           <span>{child.label}</span>
                           {child.comingSoon && (
-                            <span className="flex items-center text-amber-500/70 dark:text-amber-400/70 ml-2">
-                              <IconHammer className="w-3.5 h-3.5" />
+                            <span className="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wide text-amber-600 dark:text-amber-300">
+                              SOON
                             </span>
                           )}
                           {child.offSeason && (
@@ -442,7 +441,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                       const tooltipText = child.offSeason
                         ? "Off season"
                         : child.comingSoon
-                          ? "Under construction"
+                          ? "Coming soon"
                           : ""
 
                       return (
@@ -453,8 +452,8 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                             >
                               <span>{child.label}</span>
                               {child.comingSoon && (
-                                <span className="flex items-center text-amber-500/70 dark:text-amber-400/70">
-                                  <IconHammer className="w-3.5 h-3.5" />
+                                <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wide text-amber-600 dark:text-amber-300">
+                                  SOON
                                 </span>
                               )}
                               {child.offSeason && (

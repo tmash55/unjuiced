@@ -16,6 +16,7 @@ import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 
 const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
+const HIDDEN_SPORTS: readonly SupportedSport[] = ["mlb"];
 
 const SPORT_CONFIG: Record<
   SupportedSport,
@@ -83,7 +84,7 @@ const normalizeGameId = (id: string | number | null | undefined): string => {
 export default function HitRatesSportPage({ params }: { params: Promise<{ sport: string }> }) {
   const resolvedParams = use(params);
   const sport = resolvedParams.sport?.toLowerCase() as SupportedSport;
-  if (!SUPPORTED_SPORTS.includes(sport)) {
+  if (!SUPPORTED_SPORTS.includes(sport) || HIDDEN_SPORTS.includes(sport)) {
     notFound();
   }
   const sportConfig = SPORT_CONFIG[sport];

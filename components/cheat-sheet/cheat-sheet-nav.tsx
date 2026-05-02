@@ -123,6 +123,7 @@ const MLB_TABS: CheatSheetTab[] = [
     shortLabel: "Hit Rates",
     icon: IconChartBarPopular,
     href: "/hit-rates/mlb",
+    comingSoon: true,
   },
 ];
 
@@ -281,7 +282,7 @@ function MobileCheatSheetNav({
                 <span className="text-[10px] font-semibold whitespace-nowrap leading-tight">
                   {tab.shortLabel}
                 </span>
-                <span className="text-[8px] text-neutral-400 leading-none">Soon</span>
+                <span className="text-[8px] font-semibold tracking-wide text-neutral-400 leading-none">SOON</span>
               </div>
             );
           }
