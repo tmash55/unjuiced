@@ -3952,7 +3952,7 @@ export function PlayerQuickViewModal({
         { label: "30+", value: launchPct(laEvents.filter((e) => (e.launch_angle ?? 0) >= 30).length), className: "bg-sky-400" },
       ],
       zoneBuckets: (() => {
-        const buckets = zoneOrder.map((zone) => ({
+        const buckets = [...zoneOrder].reverse().map((zone) => ({
           label: MLB_MODAL_ZONE_LABELS[zone] ?? zone,
           value: zonePct(zone),
           className: "bg-teal-600",

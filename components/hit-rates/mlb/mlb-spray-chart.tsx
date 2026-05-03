@@ -1733,7 +1733,7 @@ export function MlbSprayChart({
               Zone Breakdown
             </p>
             <div className="flex rounded-xl overflow-hidden border border-neutral-200/70 dark:border-neutral-700/60 h-8">
-              {zoneSummaries.map((zone) => {
+              {[...zoneSummaries].reverse().map((zone) => {
                 const widthPct = (zone.count / totalZoneCount) * 100;
                 if (widthPct < 1) return null;
                 const heat = getZoneHeatStyle(widthPct / 100, maxZonePct);
