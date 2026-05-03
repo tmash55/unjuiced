@@ -239,31 +239,34 @@ const getProgressBarColor = (value: number | null) => {
   return "bg-red-400";
 };
 
+// Aligned with prop command center / exit velocity tables (see mlb-prop-command-center.tsx:500
+// and mlb-exit-velocity.tsx:115). Drops the dull /18 opacity for amber/orange/red.
 const getHitRateHeatClass = (value: number | null) => {
   if (value === null || value === undefined) {
     return "bg-neutral-50 text-neutral-500 dark:bg-neutral-900/80 dark:text-neutral-500";
   }
   if (value >= 75) {
-    return "bg-[color-mix(in_oklab,var(--accent)_27%,var(--card))] text-[color-mix(in_oklab,var(--accent)_95%,var(--text))]";
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/40 dark:text-white";
   }
   if (value >= 60) {
-    return "bg-[color-mix(in_oklab,var(--accent)_18%,var(--card))] text-[color-mix(in_oklab,var(--accent)_82%,var(--text))]";
+    return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
   }
   if (value >= 50) {
-    return "bg-amber-500/18 text-amber-600 dark:text-amber-300";
+    return "bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200";
   }
   if (value >= 35) {
-    return "bg-orange-500/18 text-orange-600 dark:text-orange-300";
+    return "bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200";
   }
-  return "bg-red-500/18 text-red-600 dark:text-red-300";
+  return "bg-red-100 text-red-800 dark:bg-red-500/40 dark:text-white";
 };
 
 const getHitRateBorderClass = (value: number | null) => {
   if (value === null || value === undefined) return "border-neutral-200/70 dark:border-neutral-800/80";
-  if (value >= 60) return "border-[color-mix(in_oklab,var(--accent)_24%,transparent)]";
-  if (value >= 50) return "border-amber-500/20";
-  if (value >= 35) return "border-orange-500/20";
-  return "border-red-500/20";
+  if (value >= 75) return "border-emerald-500/40";
+  if (value >= 60) return "border-emerald-500/25";
+  if (value >= 50) return "border-amber-500/35";
+  if (value >= 35) return "border-orange-500/35";
+  return "border-red-500/40";
 };
 
 const formatHitRateCount = (value: number | null, sampleSize?: number | null) => {
@@ -359,7 +362,7 @@ const RecentTrendBars = ({
 
   if (sport === "mlb") {
     return (
-      <div className="flex h-20 items-center justify-center rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-3 text-[11px] font-bold text-neutral-400 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+      <div className="flex h-20 items-center justify-center text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-400 dark:text-neutral-500">
         Game logs soon
       </div>
     );
@@ -367,12 +370,21 @@ const RecentTrendBars = ({
 
   if (isLoading) {
     return (
-      <div className="flex h-20 items-end gap-1.5">
-        {Array.from({ length: 10 }).map((_, index) => (
-          <div key={index} className="flex flex-1 items-end">
-            <div className="w-full animate-pulse rounded-sm bg-neutral-200 dark:bg-neutral-800" style={{ height: `${16 + (index % 4) * 7}px` }} />
+      <div className="relative flex h-20 items-stretch gap-2 pl-1">
+        <div className="relative flex h-full flex-1 flex-col justify-end pb-1">
+          <div className="pointer-events-none absolute inset-x-0 bottom-[34px] border-t border-dashed border-neutral-400/30 dark:border-neutral-600/30" />
+          <div className="relative flex w-full items-end justify-between gap-[3px]" style={{ height: 60 }}>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={index} className="flex h-full min-w-0 flex-1 items-end justify-center">
+                <div
+                  className="w-full max-w-[10px] animate-pulse rounded-t-[2px] bg-neutral-200/70 dark:bg-neutral-800/70"
+                  style={{ height: 18 + (index % 4) * 6 }}
+                />
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="w-7 flex-shrink-0" />
       </div>
     );
   }
@@ -380,59 +392,158 @@ const RecentTrendBars = ({
   const chartGames = (games ?? []).slice(0, 10).reverse();
   if (chartGames.length === 0) {
     return (
-      <div className="flex h-20 items-center justify-center rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-3 text-[11px] font-bold text-neutral-400 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+      <div className="flex h-20 items-center justify-center text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-400 dark:text-neutral-500">
         No recent games
       </div>
     );
   }
 
+  const linePresent = row.line !== null && row.line !== undefined;
+  const lineValue = row.line ?? 0;
   const values = chartGames.map((game) => getMarketStatValue(game, row.market));
-  const maxValue = Math.max(row.line ?? 0, ...values, 1);
-  const linePercent = row.line !== null ? Math.min(92, Math.max(10, (row.line / maxValue) * 88)) : null;
+  // Cap the chart top at the 80th percentile (with buffer) so a single career-high game
+  // doesn't shrink every other bar to a sliver. Outliers just clip at the top edge.
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const p80 = sortedValues[Math.floor(sortedValues.length * 0.8)] ?? 1;
+  const chartMax = Math.max(lineValue * 1.35, p80 * 1.15, 1);
+  const chartHeightPx = 60; // available drawable height inside the cell
+  const linePositionPx = linePresent ? Math.min(chartHeightPx - 4, (lineValue / chartMax) * chartHeightPx) : 0;
 
   return (
-    <div className="relative h-20 rounded-lg border border-neutral-200/70 bg-neutral-50/60 px-2 pb-2 pt-3 dark:border-neutral-800/70 dark:bg-neutral-950/55">
-      {linePercent !== null && (
-        <div
-          className="pointer-events-none absolute left-2 right-2 border-t border-dashed border-brand/50"
-          style={{ bottom: `${linePercent}%` }}
-        >
-          <span className="absolute -right-1 -top-2.5 rounded-[4px] border border-brand/25 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))] px-1 text-[9px] font-black tabular-nums text-brand">
+    <div className="relative flex h-20 items-stretch gap-2 pl-1">
+      <div className="relative flex h-full flex-1 flex-col justify-end pb-1">
+        {/* Threshold line at the prop value */}
+        {linePresent && (
+          <div
+            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-neutral-400/60 dark:border-neutral-500/55"
+            style={{ bottom: `calc(${linePositionPx}px + 4px)` }}
+          />
+        )}
+        {/* Bars — all grow from the bottom baseline */}
+        <div className="relative flex w-full items-end justify-between gap-[3px]" style={{ height: chartHeightPx }}>
+          {chartGames.map((game, index) => {
+            const value = values[index];
+            const isHit = value >= lineValue;
+            const barH = Math.min(chartHeightPx, Math.max(3, (value / chartMax) * chartHeightPx));
+            const date = new Date(`${game.date}T00:00:00`);
+            const dateLabel = Number.isNaN(date.getTime())
+              ? game.date
+              : date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            const margin = linePresent ? value - lineValue : null;
+            const marketLabel = formatMarketLabel(row.market);
+
+            return (
+              <Tooltip
+                key={`${game.gameId}-${index}`}
+                side="top"
+                content={
+                  <div className="min-w-[200px] px-3 py-2.5">
+                    {/* Header: date • matchup • result */}
+                    <div className="flex items-center justify-between gap-3 border-b border-neutral-200/70 pb-2 dark:border-neutral-700/70">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                        <span className="tabular-nums">{dateLabel}</span>
+                        <span className="text-neutral-400 dark:text-neutral-500">
+                          {game.homeAway === "H" ? "vs" : "@"}
+                        </span>
+                        <span className="font-black">{game.opponentAbbr || "OPP"}</span>
+                      </div>
+                      {game.result && (
+                        <span
+                          className={cn(
+                            "rounded-sm px-1.5 py-px text-[10px] font-black uppercase tracking-wider tabular-nums",
+                            game.result === "W"
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                              : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                          )}
+                        >
+                          {game.result} {game.teamScore}-{game.opponentScore}
+                        </span>
+                      )}
+                    </div>
+                    {/* Main: stat value + margin vs line */}
+                    <div className="flex items-end justify-between gap-3 pt-2.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span
+                          className={cn(
+                            "text-2xl font-black leading-none tabular-nums",
+                            isHit
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400"
+                          )}
+                        >
+                          {value}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400">
+                          {marketLabel}
+                        </span>
+                      </div>
+                      {margin !== null && (
+                        <div className="flex flex-col items-end leading-tight">
+                          <span
+                            className={cn(
+                              "text-[11px] font-black tabular-nums",
+                              isHit
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-rose-600 dark:text-rose-400"
+                            )}
+                          >
+                            {margin >= 0 ? "+" : ""}
+                            {Number.isInteger(margin) ? margin : margin.toFixed(1)}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                            vs {row.line}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Context: minutes / usage */}
+                    {(game.minutes > 0 || game.usagePct > 0) && (
+                      <div className="mt-2 flex items-center gap-2 border-t border-neutral-200/50 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/50 dark:text-neutral-400">
+                        {game.minutes > 0 && (
+                          <span className="tabular-nums">
+                            {Math.round(game.minutes)} min
+                          </span>
+                        )}
+                        {game.minutes > 0 && game.usagePct > 0 && (
+                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                        )}
+                        {game.usagePct > 0 && (
+                          <span className="tabular-nums">
+                            {game.usagePct.toFixed(1)}% USG
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                }
+              >
+                <div className="group/trend flex h-full min-w-0 flex-1 items-end justify-center">
+                  <div
+                    className={cn(
+                      "w-full max-w-[10px] rounded-t-[2px] transition-all duration-200 group-hover/trend:brightness-115 group-hover/trend:translate-y-[-1px]",
+                      isHit
+                        ? "bg-emerald-500/90 dark:bg-emerald-400/90 shadow-[0_0_0_1px_rgba(16,185,129,0.2)_inset]"
+                        : "bg-rose-500/80 dark:bg-rose-500/80 shadow-[0_0_0_1px_rgba(244,63,94,0.2)_inset]"
+                    )}
+                    style={{ height: barH }}
+                  />
+                </div>
+              </Tooltip>
+            );
+          })}
+        </div>
+      </div>
+      {/* Line value label, vertically centered on the threshold line */}
+      {linePresent && (
+        <div className="relative flex w-7 flex-shrink-0">
+          <span
+            className="absolute right-0 translate-y-1/2 text-[11px] font-black leading-none tabular-nums text-neutral-500 dark:text-neutral-400"
+            style={{ bottom: `calc(${linePositionPx}px + 4px)` }}
+          >
             {row.line}
           </span>
         </div>
       )}
-      <div className="relative flex h-full items-end gap-1.5">
-        {chartGames.map((game, index) => {
-          const value = getMarketStatValue(game, row.market);
-          const hit = row.line !== null ? value >= row.line : false;
-          const height = Math.max(10, (value / maxValue) * 56);
-          const date = new Date(`${game.date}T00:00:00`);
-          const dateLabel = Number.isNaN(date.getTime())
-            ? game.date
-            : date.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
-
-          return (
-            <Tooltip
-              key={`${game.gameId}-${index}`}
-              side="top"
-              content={`${dateLabel} ${game.homeAway === "H" ? "vs" : "@"} ${game.opponentAbbr || "OPP"}: ${value}`}
-            >
-              <div className="group/trend flex min-w-0 flex-1 items-end">
-                <div
-                  className={cn(
-                    "w-full rounded-sm transition-all duration-200 group-hover/trend:translate-y-[-1px]",
-                    hit
-                      ? "bg-[linear-gradient(180deg,var(--accent-weak),var(--accent-strong))]"
-                      : "bg-[linear-gradient(180deg,#fb7185,#dc2626)]"
-                  )}
-                  style={{ height }}
-                />
-              </div>
-            </Tooltip>
-          );
-        })}
-      </div>
     </div>
   );
 };
@@ -954,28 +1065,6 @@ const getMatchupTier = (rank: number | null, totalTeams = 30): MatchupTier => {
   if (rank >= favorableEliteCutoff) return "elite";
   if (rank >= favorableCutoff) return "strong";
   return "neutral";
-};
-
-// Get matchup background classes (5-tier system) - More vivid for top/bottom 5
-const getMatchupBgClass = (rank: number | null, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
-  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
-  if (!tier) return "";
-  switch (tier) {
-    case "elite":
-      // Bold green - easiest matchup (26-30)
-      return "bg-emerald-200 dark:bg-emerald-700/40 ring-1 ring-emerald-400/50 dark:ring-emerald-500/30";
-    case "strong":
-      return "bg-emerald-50 dark:bg-emerald-900/20";
-    case "neutral":
-      return "bg-neutral-100/40 dark:bg-neutral-700/20";
-    case "bad":
-      return "bg-red-50 dark:bg-red-900/20";
-    case "worst":
-      // Bold red - toughest matchup (1-5)
-      return "bg-red-200 dark:bg-red-700/40 ring-1 ring-red-400/50 dark:ring-red-500/30";
-    default:
-      return "";
-  }
 };
 
 // Get matchup rank text color (5-tier system)
@@ -1636,6 +1725,37 @@ export function HitRateTable({
             ))}
           </colgroup>
         <thead className="sticky top-0 z-[5]">
+          {/* Grouped category row — pairs columns into "Hit Rate %" and "Defense Context" */}
+          <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
+            {/* Spacer for Player + Matchup + Prop + Recent + Str */}
+            <th colSpan={5} aria-hidden="true" className="h-9" />
+            {/* Hit Rate % group: L5 / L10 / L20 / Season / H2H */}
+            <th
+              colSpan={5}
+              scope="colgroup"
+              className="h-9 px-3 pt-3 pb-1 text-center align-bottom text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 border-l border-neutral-200/40 dark:border-neutral-800/40"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-px w-3 bg-gradient-to-r from-transparent to-brand/60" aria-hidden="true" />
+                Hit Rate %
+                <span className="h-px w-3 bg-gradient-to-l from-transparent to-brand/60" aria-hidden="true" />
+              </span>
+            </th>
+            {/* Defense Context group: DEF Rank / Allowed / Pace */}
+            <th
+              colSpan={3}
+              scope="colgroup"
+              className="h-9 px-3 pt-3 pb-1 text-center align-bottom text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 border-l border-neutral-200/40 dark:border-neutral-800/40"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-px w-3 bg-gradient-to-r from-transparent to-brand/60" aria-hidden="true" />
+                Defense Context
+                <span className="h-px w-3 bg-gradient-to-l from-transparent to-brand/60" aria-hidden="true" />
+              </span>
+            </th>
+            {/* Spacer for Odds */}
+            <th colSpan={1} aria-hidden="true" className="h-9 border-l border-neutral-200/40 dark:border-neutral-800/40" />
+          </tr>
           <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
             {/* Non-sortable columns */}
             <th className="h-14 px-4 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
@@ -1680,10 +1800,10 @@ export function HitRateTable({
               </Tooltip>
             </th>
             
-            {/* Sortable: L5 */}
+            {/* Sortable: L5 (first cell of Hit Rate % group) */}
             <th
               onClick={() => handleSort("l5Pct")}
-              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200 w-16 min-w-[64px]"
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200 w-16 min-w-[64px]"
             >
               <div className="flex items-center justify-center gap-1">
                 L5
@@ -1735,8 +1855,8 @@ export function HitRateTable({
               </div>
             </th>
             
-            {/* Defensive context columns */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+            {/* Defensive context columns (first cell starts Defense Context group) */}
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40">
               DEF Rank
             </th>
             <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
@@ -1748,8 +1868,8 @@ export function HitRateTable({
               Pace
             </th>
 
-            {/* Non-sortable: Odds (last column) */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+            {/* Non-sortable: Odds (last column, separated from Defense Context group) */}
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40">
               Odds
             </th>
           </tr>
@@ -1908,33 +2028,28 @@ export function HitRateTable({
                   )}
                 </td>
 
-                {/* Matchup Column */}
-                <td className={cn(
-                  "px-3 py-5 text-center rounded-lg",
-                  isBlurred ? "" : getMatchupBgClass(row.matchupRank, rowSport)
-                )}>
+                {/* Matchup Column — opponent + game time (DEF rank lives in its own column now) */}
+                <td className="px-2 py-4 text-center align-middle">
                   {isBlurred ? (
-                    // Blurred placeholder
-                    <div className="flex flex-col items-center gap-1.5 opacity-50 blur-[2px]">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span className="text-xs text-neutral-400 font-medium">vs</span>
-                        <div className="h-6 w-6 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                    <div className="mx-auto flex max-w-[96px] flex-col items-center gap-1.5 opacity-50 blur-[2px]">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">vs</span>
+                        <div className="h-7 w-7 rounded-full bg-neutral-200 dark:bg-neutral-700" />
                       </div>
-                      <span className="text-[10px] font-semibold text-neutral-400">—</span>
+                      <span className="text-[10px] font-bold tabular-nums text-neutral-400">—:—</span>
                     </div>
                   ) : (
-                    // Normal content
-                    <div className="flex flex-col items-center gap-1.5">
-                      {/* Tomorrow label */}
+                    <div className="mx-auto flex max-w-[96px] flex-col items-center gap-1.5">
+                      {/* Tomorrow accent (rare, only when the game is next-day) */}
                       {isTomorrow(row.gameDate) && (
-                        <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                        <span className="rounded-sm bg-amber-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.12em] text-amber-600 leading-none dark:text-amber-300">
                           Tomorrow
                         </span>
                       )}
-                      
-                      {/* Opponent with vs/@ */}
+
+                      {/* Opponent: vs/@ + logo + abbr */}
                       <div className="flex items-center justify-center gap-1.5">
-                        <span className="text-xs text-neutral-400 font-medium">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
                           {row.homeAway === "H" ? "vs" : "@"}
                         </span>
                         {row.opponentTeamAbbr && (
@@ -1942,45 +2057,44 @@ export function HitRateTable({
                             src={getTeamLogoUrl(row.opponentTeamAbbr, sport)}
                             alt={row.opponentTeamAbbr}
                             className={cn(
-                              "object-contain",
-                              sport === "wnba" ? "h-9 w-9" : "h-6 w-6"
+                              "object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]",
+                              sport === "wnba" ? "h-8 w-8" : "h-7 w-7"
                             )}
                           />
                         )}
                       </div>
-                      
-                      {/* DvP Rank Number */}
-                      {row.matchupRank !== null && (
-                        <span className={cn(
-                          "text-xs font-bold mt-0.5 tabular-nums",
-                          getMatchupRankColor(row.matchupRank, rowSport)
-                        )}>
-                          {row.matchupRank}/{defenseTotalTeamsForRow} DEF
-                        </span>
-                      )}
+
+                      {/* Game time */}
+                      <span className="text-[10px] font-bold uppercase tracking-[0.06em] tabular-nums leading-none text-neutral-500 dark:text-neutral-400">
+                        {formatGameTime(row.gameStatus, row.gameDate)}
+                      </span>
                     </div>
                   )}
                 </td>
 
-                {/* Prop Column */}
+                {/* Prop Column — typography-first, pill-less */}
                 <td className="px-3 py-4 align-middle text-center">
                   {isBlurred ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800/50 opacity-50 blur-[2px]">
-                      <span className="font-semibold">00.0+</span>
-                      PTS
-                    </span>
+                    <div className="flex flex-col items-center gap-0.5 opacity-50 blur-[2px]">
+                      <span className="text-[15px] font-black leading-none tabular-nums text-neutral-400">00.0+</span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">PTS</span>
+                    </div>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                    <div className="flex flex-col items-center gap-0.5">
                       {row.line !== null && (
-                        <span className="font-semibold text-neutral-900 dark:text-white">{row.line}+</span>
+                        <span className="text-[15px] font-black leading-none tabular-nums text-neutral-900 dark:text-white">
+                          {row.line}<span className="ml-px text-brand">+</span>
+                        </span>
                       )}
-                      {formatMarketLabel(row.market)}
-                      {getMarketTooltip(row.market) && (
-                        <Tooltip content={getMarketTooltip(row.market)!}>
-                          <Info className="h-3 w-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 cursor-help" />
-                        </Tooltip>
-                      )}
-                    </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400">
+                        {formatMarketLabel(row.market)}
+                        {getMarketTooltip(row.market) && (
+                          <Tooltip content={getMarketTooltip(row.market)!}>
+                            <Info className="h-3 w-3 cursor-help text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300" />
+                          </Tooltip>
+                        )}
+                      </span>
+                    </div>
                   )}
                 </td>
 
