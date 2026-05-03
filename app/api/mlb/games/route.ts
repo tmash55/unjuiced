@@ -7,7 +7,7 @@ import { matchOddsTeamSide } from "@/lib/mlb/odds-team-mapping";
 
 // --- Cache key prefixes ---
 // Fix #4: split static metadata (1h) from live game state (30s)
-const STATIC_CACHE_PREFIX = "mlb:games:static:v4";
+const STATIC_CACHE_PREFIX = "mlb:games:static:v6";
 const LIVE_CACHE_PREFIX = "mlb:games:live";
 const STATIC_CACHE_TTL = 3600; // team names, records, weather, park factors
 const LIVE_CACHE_TTL_ACTIVE = 90; // stored 90s; considered fresh for 30s
@@ -19,9 +19,12 @@ const LIVE_FRESH_MS_IDLE = 300_000;
 type WeatherData = {
   temperature_f: number | null;
   wind_speed_mph: number | null;
+  wind_relative_deg: number | null;
   wind_label: string | null;
   wind_impact: string | null;
   hr_impact_score: number | null;
+  precip_probability: number | null;
+  cloud_cover_pct: number | null;
   roof_type: string | null;
   venue_name: string | null;
 };
@@ -74,6 +77,8 @@ type StaticGameEntry = {
   venue_id: number | null;
   home_probable_pitcher: string | null;
   away_probable_pitcher: string | null;
+  home_probable_pitcher_id: number | null;
+  away_probable_pitcher_id: number | null;
   odds_game_id: string | null;
   season_type: string | null;
   home_team_record: string | null;
@@ -510,6 +515,8 @@ export async function GET() {
       odds_game_id,
       home_probable_pitcher,
       away_probable_pitcher,
+      home_probable_pitcher_id,
+      away_probable_pitcher_id,
       current_pitcher_id,
       current_pitcher_name,
       current_batter_id,
@@ -616,6 +623,8 @@ export async function GET() {
         venue_id: row.venue_id ?? null,
         home_probable_pitcher: row.home_probable_pitcher ?? null,
         away_probable_pitcher: row.away_probable_pitcher ?? null,
+        home_probable_pitcher_id: row.home_probable_pitcher_id ?? null,
+        away_probable_pitcher_id: row.away_probable_pitcher_id ?? null,
         is_primetime: null,
         national_broadcast: null,
         neutral_site: false,
@@ -713,7 +722,7 @@ export async function GET() {
                 supabase
                   .from("mlb_game_weather")
                   .select(
-                    "game_id, temperature_f, wind_speed_mph, wind_label, wind_impact, hr_impact_score, roof_type, venue_name",
+                    "game_id, temperature_f, wind_speed_mph, wind_relative_deg, wind_label, wind_impact, hr_impact_score, precip_probability, cloud_cover_pct, roof_type, venue_name",
                   )
                   .in("game_id", gameIds),
               )
@@ -745,9 +754,12 @@ export async function GET() {
             g.weather = {
               temperature_f: w.temperature_f ?? null,
               wind_speed_mph: w.wind_speed_mph ?? null,
+              wind_relative_deg: w.wind_relative_deg ?? null,
               wind_label: w.wind_label ?? null,
               wind_impact: w.wind_impact ?? null,
               hr_impact_score: w.hr_impact_score ?? null,
+              precip_probability: w.precip_probability ?? null,
+              cloud_cover_pct: w.cloud_cover_pct ?? null,
               roof_type: w.roof_type ?? null,
               venue_name: w.venue_name ?? null,
             };
@@ -800,6 +812,8 @@ export async function GET() {
       venue_id: g.venue_id,
       home_probable_pitcher: g.home_probable_pitcher,
       away_probable_pitcher: g.away_probable_pitcher,
+      home_probable_pitcher_id: g.home_probable_pitcher_id,
+      away_probable_pitcher_id: g.away_probable_pitcher_id,
       odds_game_id: g.odds_game_id,
       season_type: g.season_type,
       home_team_record: g.home_team_record,

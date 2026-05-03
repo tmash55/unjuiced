@@ -991,6 +991,7 @@ export function OpportunitiesTable({
                           event_id: opp.eventId,
                           line: opp.line, // Pass the specific line from edge finder
                           gameContext: buildQuickViewGameContext({
+                            gameId: opp.gameId,
                             startTime: opp.gameStart,
                             homeTeam: opp.homeTeam,
                             awayTeam: opp.awayTeam,

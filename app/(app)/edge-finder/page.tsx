@@ -592,6 +592,7 @@ export default function EdgeFinderPage() {
                 event_id: opp.eventId || "",
                 line: opp.line,
                 gameContext: buildQuickViewGameContext({
+                  gameId: opp.gameId,
                   startTime: opp.gameStart,
                   homeTeam: opp.homeTeam,
                   awayTeam: opp.awayTeam,

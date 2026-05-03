@@ -368,12 +368,14 @@ type PropCenterQuickViewPlayer = {
   event_id?: string;
   line?: number;
   gameContext?: {
+    gameId?: string | number | null;
     gameDate: string | null;
     gameDatetime: string | null;
     gameStatus: string | null;
     homeAway: "H" | "A" | null;
     opponentTeamAbbr: string | null;
     opposingPitcherName: string | null;
+    opposingPitcherId?: number | string | null;
   };
   odds?: {
     over?: {
@@ -698,6 +700,11 @@ function buildPropCenterQuickViewPlayer(
       ? game.away_probable_pitcher
       : game.home_probable_pitcher
     : null;
+  const opposingPitcherId = game
+    ? isHomeTeam
+      ? game.away_probable_pitcher_id
+      : game.home_probable_pitcher_id
+    : null;
   const matchingBookEntry = player.best_odds_book
     ? getBookEntriesForLine(player).find(([bookKey]) => parseBookKey(bookKey) === parseBookKey(player.best_odds_book!))
     : null;
@@ -713,12 +720,14 @@ function buildPropCenterQuickViewPlayer(
     gameContext:
       game && (isHomeTeam || isAwayTeam)
         ? {
+            gameId: game.game_id,
             gameDate: game.game_date,
             gameDatetime: game.game_datetime,
             gameStatus: game.game_status,
             homeAway: isHomeTeam ? "H" : "A",
             opponentTeamAbbr: isHomeTeam ? game.away_team_tricode : game.home_team_tricode,
             opposingPitcherName,
+            opposingPitcherId,
           }
         : undefined,
     odds:

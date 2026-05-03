@@ -198,6 +198,7 @@ export interface PositiveEVOpportunity {
   // Market identification
   sport: string;
   eventId: string;
+  gameId?: number | string | null;
   market: string;
   marketDisplay: string;
   

@@ -1,12 +1,14 @@
 export type QuickViewSport = "nba" | "mlb";
 
 export interface QuickViewGameContext {
+  gameId?: number | string | null;
   gameDate?: string | null;
   gameDatetime?: string | null;
   gameStatus?: string | null;
   homeAway?: "H" | "A" | null;
   opponentTeamAbbr?: string | null;
   opposingPitcherName?: string | null;
+  opposingPitcherId?: number | string | null;
 }
 
 const SUPPORTED_QUICK_VIEW_SPORTS = new Set(["nba", "mlb"]);
@@ -53,6 +55,7 @@ export function parseQuickViewPlayerId(value?: string | number | null): number |
 }
 
 export function buildQuickViewGameContext({
+  gameId,
   startTime,
   gameDate,
   gameStatus,
@@ -60,7 +63,11 @@ export function buildQuickViewGameContext({
   awayTeam,
   playerTeam,
   opposingPitcherName,
+  opposingPitcherId,
+  homeProbablePitcherId,
+  awayProbablePitcherId,
 }: {
+  gameId?: number | string | null;
   startTime?: string | null;
   gameDate?: string | null;
   gameStatus?: string | null;
@@ -68,6 +75,9 @@ export function buildQuickViewGameContext({
   awayTeam?: string | null;
   playerTeam?: string | null;
   opposingPitcherName?: string | null;
+  opposingPitcherId?: number | string | null;
+  homeProbablePitcherId?: number | string | null;
+  awayProbablePitcherId?: number | string | null;
 }): QuickViewGameContext | undefined {
   if (!homeTeam || !awayTeam) return undefined;
 
@@ -90,13 +100,17 @@ export function buildQuickViewGameContext({
   if (!opponentTeamAbbr) return undefined;
 
   const resolvedDate = gameDate || (startTime ? startTime.split("T")[0] : null);
+  const resolvedOpposingPitcherId =
+    opposingPitcherId ?? (homeAway === "H" ? awayProbablePitcherId : homeAway === "A" ? homeProbablePitcherId : null);
 
   return {
+    gameId: gameId ?? null,
     gameDate: resolvedDate,
     gameDatetime: startTime ?? null,
     gameStatus: gameStatus ?? null,
     homeAway,
     opponentTeamAbbr,
     opposingPitcherName: opposingPitcherName ?? null,
+    opposingPitcherId: resolvedOpposingPitcherId ?? null,
   };
 }
