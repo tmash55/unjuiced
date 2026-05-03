@@ -5,9 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 export interface MlbGameWeather {
   temperature_f: number | null;
   wind_speed_mph: number | null;
+  wind_relative_deg: number | null;
   wind_label: string | null;
   wind_impact: string | null;
   hr_impact_score: number | null;
+  precip_probability: number | null;
+  cloud_cover_pct: number | null;
   roof_type: string | null;
   venue_name: string | null;
 }
@@ -67,6 +70,8 @@ export interface MlbGame {
   odds_game_id: string | null;
   home_probable_pitcher: string | null;
   away_probable_pitcher: string | null;
+  home_probable_pitcher_id: number | null;
+  away_probable_pitcher_id: number | null;
   is_primetime: boolean | null;
   national_broadcast: string | null;
   neutral_site: boolean | null;

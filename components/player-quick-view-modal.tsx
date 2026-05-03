@@ -19,7 +19,28 @@ import { DefensiveAnalysis } from "@/components/hit-rates/defensive-analysis";
 import { PlayTypeAnalysis } from "@/components/hit-rates/play-type-analysis";
 import { ShootingZones } from "@/components/hit-rates/shooting-zones";
 import { PlayerCorrelations } from "@/components/hit-rates/player-correlations";
-import { MlbSprayChart } from "@/components/hit-rates/mlb/mlb-spray-chart";
+import {
+  MlbSprayChart,
+  MLB_EV_THRESHOLD_OPTIONS,
+  MLB_HIT_FILTER_OPTIONS,
+  MLB_PITCHER_HAND_OPTIONS,
+  MLB_PITCH_TYPE_LABELS,
+  MLB_SEASON_OPTIONS,
+  MLB_TRAJECTORY_OPTIONS,
+  MLB_ZONE_DISPLAY_OPTIONS,
+  filterMlbBattedBallEvents,
+  getDefaultMlbSprayChartFilters,
+  getMlbBattedBallEventKey,
+  getMlbEvThresholdMph,
+  type MlbEvThreshold,
+  type MlbHitFilter,
+  type MlbPitcherHandFilter,
+  type MlbSprayChartFilterState,
+  type MlbSprayChartPlayerType,
+  type MlbTrajectoryFilter,
+  type MlbZoneDisplay,
+} from "@/components/hit-rates/mlb/mlb-spray-chart";
+import type { BattedBallEvent } from "@/app/api/mlb/spray-chart/route";
 import { LoadingState } from "@/components/common/loading-state";
 import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, BarChart3, Users, Target, Zap, Lock, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -35,6 +56,8 @@ import Link from "next/link";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
+import { useMlbGames } from "@/hooks/use-mlb-games";
+import { useMlbHotZone } from "@/hooks/use-mlb-hot-zone";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
@@ -197,6 +220,84 @@ const formatMlbHeaderDecimal = (value: number | null | undefined, digits = 1) =>
   return value.toFixed(digits);
 };
 
+const MLB_HIT_RESULTS = new Set(["single", "double", "triple", "home run", "home_run", "1b", "2b", "3b", "hr"]);
+
+const normalizePitchUsagePct = (value: number | null | undefined) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return value <= 1 ? value * 100 : value;
+};
+
+const formatPitchUsagePct = (value: number | null | undefined) => {
+  const normalized = normalizePitchUsagePct(value);
+  if (normalized === null) return null;
+  return `${Math.round(normalized)}%`;
+};
+
+const formatMlbBattedBallDate = (dateStr?: string | null, includeYear = false) => {
+  if (!dateStr) return "-";
+  const parsed = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateStr;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(includeYear ? { year: "numeric" as const } : {}),
+    timeZone: "America/New_York",
+  }).format(parsed);
+};
+
+const formatMlbBattedBallResult = (result?: string | null) => {
+  if (!result) return "-";
+  const key = result.toLowerCase().replace(/\s+/g, "_");
+  const map: Record<string, string> = {
+    single: "1B",
+    double: "2B",
+    triple: "3B",
+    home_run: "HR",
+    field_out: "Out",
+    force_out: "FO",
+    grounded_into_double_play: "GDP",
+    double_play: "DP",
+    fielders_choice: "FC",
+    field_error: "E",
+    sac_fly: "SF",
+    sac_bunt: "SAC",
+  };
+  return map[key] ?? result.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const formatMlbBattedBallTrajectory = (trajectory?: string | null) => {
+  const map: Record<string, string> = {
+    ground_ball: "GB",
+    line_drive: "LD",
+    fly_ball: "FB",
+    popup: "PU",
+  };
+  return trajectory ? map[trajectory] ?? trajectory : "-";
+};
+
+const getMlbBattedBallResultClass = (event: BattedBallEvent) => {
+  const result = (event.event_type ?? event.result ?? "").toLowerCase().replace(/\s+/g, "_");
+  if (result === "home_run" || result === "hr") return "text-amber-400";
+  if (result === "triple" || result === "double") return "text-emerald-400";
+  if (event.is_hit || MLB_HIT_RESULTS.has(result)) return "text-sky-400";
+  return "text-slate-400";
+};
+
+const getMlbBattedBallEvClass = (ev?: number | null) => {
+  if (ev == null || !Number.isFinite(ev)) return "text-slate-400";
+  if (ev >= 105) return "text-emerald-300";
+  if (ev >= 95) return "text-emerald-400";
+  if (ev >= 88) return "text-amber-300";
+  return "text-slate-400";
+};
+
+const getMlbBattedBallTrajectoryClass = (trajectory?: string | null) => {
+  if (trajectory === "line_drive") return "text-emerald-400";
+  if (trajectory === "fly_ball") return "text-sky-400";
+  if (trajectory === "ground_ball") return "text-amber-400";
+  return "text-slate-400";
+};
+
 const getMlbSeasonFromDate = (dateStr: string) => {
   const parsed = new Date(`${dateStr}T12:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed.getFullYear();
@@ -289,6 +390,21 @@ const buildHalfPointLadder = (start: number, end: number) => {
     lines.push(Math.round(line * 10) / 10);
   }
   return lines;
+};
+
+const normalizeMlbOddsLine = (line?: number | null) => {
+  if (typeof line !== "number" || !Number.isFinite(line)) return null;
+  const rounded = Math.round(line * 10) / 10;
+  if (rounded > 0 && Math.abs(rounded - Math.round(rounded)) < 0.001) {
+    return Math.round((rounded - 0.5) * 10) / 10;
+  }
+  return rounded;
+};
+
+const toPositiveMlbGameId = (value?: number | string | null) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
 const getMlbMarketLineLadder = (market: string, activeLine: number) => {
@@ -432,6 +548,72 @@ const formatLineHistoryTime = (timestamp?: number | null) => {
   }).format(parsed);
 };
 
+const getLineHistoryTimestampMs = (timestamp?: number | null) => {
+  if (!timestamp) return null;
+  return timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
+};
+
+const formatMiniLineAxisTime = (timestamp?: number | null) => {
+  const ms = getLineHistoryTimestampMs(timestamp);
+  if (!ms) return "";
+  const parsed = new Date(ms);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const now = new Date();
+  const sameDay = parsed.toDateString() === now.toDateString();
+  if (!sameDay) {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "numeric",
+      day: "numeric",
+    }).format(parsed);
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed).replace(/\s/g, "").toLowerCase();
+};
+
+const isMlbClosedGameStatus = (status?: string | null) => {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return Boolean(
+    normalized.includes("final") ||
+    normalized.includes("completed") ||
+    normalized === "f" ||
+    normalized === "game over"
+  );
+};
+
+const isMlbMarketClosed = (game?: { gameDate?: string | null; gameDatetime?: string | null; gameStatus?: string | null } | null) => {
+  if (!game) return false;
+  if (isMlbClosedGameStatus(game.gameStatus)) return true;
+  if (!game.gameDate) return false;
+
+  const gameDate = new Date(`${game.gameDate}T12:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  gameDate.setHours(0, 0, 0, 0);
+  return Number.isFinite(gameDate.getTime()) && gameDate.getTime() < today.getTime();
+};
+
+const getMlbGameStartTimestampMs = (game?: { gameDatetime?: string | null; gameDate?: string | null } | null) => {
+  if (!game?.gameDatetime) return null;
+  const parsed = new Date(game.gameDatetime).getTime();
+  if (Number.isFinite(parsed)) return parsed;
+
+  const timeMatch = game.gameDatetime.match(/(\d{1,2}):(\d{2})\s*(am|pm)\s*ET/i);
+  if (!game.gameDate || !timeMatch) return null;
+
+  const [, hourValue, minuteValue, meridiem] = timeMatch;
+  const hour12 = Number(hourValue);
+  const minute = Number(minuteValue);
+  if (!Number.isFinite(hour12) || !Number.isFinite(minute)) return null;
+  const hour = (hour12 % 12) + (meridiem.toLowerCase() === "pm" ? 12 : 0);
+  const easternTimestamp = `${game.gameDate}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-04:00`;
+  const fallbackParsed = new Date(easternTimestamp).getTime();
+  return Number.isFinite(fallbackParsed) ? fallbackParsed : null;
+};
+
 const normalizeHexColor = (color?: string | null) => {
   if (!color) return null;
   const normalized = color.trim();
@@ -480,18 +662,21 @@ function MlbMetricTile({
   sub,
   tone = "neutral",
   accentColor,
+  align = "left",
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "neutral" | "green" | "red" | "amber";
   accentColor?: string | null;
+  align?: "left" | "center";
 }) {
   const accent = normalizeHexColor(accentColor);
   return (
     <div
       className={cn(
         "min-w-0 border-r border-neutral-200/60 px-2 py-2 last:border-r-0 dark:border-neutral-700/35 sm:px-5 sm:py-3",
+        align === "center" && "text-center",
         accent && "relative overflow-hidden"
       )}
       style={accent ? {
@@ -514,6 +699,621 @@ function MlbMetricTile({
       </p>
       {sub && <p className="mt-1 truncate text-[10px] text-neutral-500 dark:text-slate-400 sm:text-xs">{sub}</p>}
     </div>
+  );
+}
+
+type MlbBattedBallBucket = {
+  label: string;
+  value: number;
+  className: string;
+  color?: string;
+};
+
+function MlbDistributionTooltip({
+  children,
+  content,
+  className,
+}: {
+  children: React.ReactNode;
+  content: string;
+  className?: string;
+}) {
+  return (
+    <Tooltip content={content} contentClassName="px-2.5 py-1.5 text-[11px] font-bold">
+      <span
+        tabIndex={0}
+        className={cn(
+          "inline-block max-w-full cursor-help truncate rounded-sm outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400/70",
+          className
+        )}
+      >
+        {children}
+      </span>
+    </Tooltip>
+  );
+}
+
+const MLB_MODAL_ZONE_ORDER_RHB = ["pull", "pull_center", "center", "oppo_center", "oppo"] as const;
+const MLB_MODAL_ZONE_ORDER_LHB = ["oppo", "oppo_center", "center", "pull_center", "pull"] as const;
+const MLB_MODAL_ZONE_ORDER_FIELD = ["lf", "lcf", "cf", "rcf", "rf"] as const;
+const MLB_MODAL_ZONE_LABELS: Record<string, string> = {
+  pull: "Pull",
+  pull_center: "Pull-C",
+  center: "Center",
+  oppo_center: "Oppo-C",
+  oppo: "Oppo",
+  lf: "LF",
+  lcf: "LCF",
+  cf: "CF",
+  rcf: "RCF",
+  rf: "RF",
+};
+
+function getMlbModalZoneBucketColor(value: number, maxValue: number) {
+  if (value <= 0 || maxValue <= 0) return "rgba(71, 85, 105, 0.5)";
+  const intensity = Math.min(1, Math.max(0, value / maxValue));
+  return `rgba(20, 184, 166, ${0.36 + intensity * 0.52})`;
+}
+
+const MLB_MODAL_HP_X = 125.42;
+const MLB_MODAL_HP_Y = 199.27;
+const MLB_MODAL_FAIR_START = Math.PI * 0.25;
+const MLB_MODAL_FAIR_END = Math.PI * 0.75;
+const MLB_MODAL_ZONE_STEP = (MLB_MODAL_FAIR_END - MLB_MODAL_FAIR_START) / 5;
+
+function inferMlbModalZone(
+  event: { zone?: string | null; coord_x?: number | null; coord_y?: number | null },
+  battingHand?: string | null
+) {
+  if (event.zone) return event.zone;
+  if (event.coord_x == null || event.coord_y == null) return null;
+
+  const order = battingHand === "L" ? MLB_MODAL_ZONE_ORDER_LHB : MLB_MODAL_ZONE_ORDER_RHB;
+  const angle = Math.atan2(MLB_MODAL_HP_Y - event.coord_y, event.coord_x - MLB_MODAL_HP_X);
+  if (!Number.isFinite(angle)) return null;
+
+  const clamped = Math.max(MLB_MODAL_FAIR_START, Math.min(MLB_MODAL_FAIR_END - 0.0001, angle));
+  const index = Math.floor((clamped - MLB_MODAL_FAIR_START) / MLB_MODAL_ZONE_STEP);
+  return order[index] ?? null;
+}
+
+function inferMlbModalFixedFieldZone(
+  event: { coord_x?: number | null; coord_y?: number | null }
+) {
+  if (event.coord_x == null || event.coord_y == null) return null;
+
+  const angle = Math.atan2(MLB_MODAL_HP_Y - event.coord_y, event.coord_x - MLB_MODAL_HP_X);
+  if (!Number.isFinite(angle)) return null;
+
+  const clamped = Math.max(MLB_MODAL_FAIR_START, Math.min(MLB_MODAL_FAIR_END - 0.0001, angle));
+  const index = Math.floor((clamped - MLB_MODAL_FAIR_START) / MLB_MODAL_ZONE_STEP);
+  return MLB_MODAL_ZONE_ORDER_FIELD[index] ?? null;
+}
+
+function MlbDistributionBar({
+  title,
+  buckets,
+  isLoading,
+  emptyLabel,
+  unit,
+}: {
+  title: string;
+  buckets: MlbBattedBallBucket[];
+  isLoading: boolean;
+  emptyLabel: string;
+  unit?: "degrees" | "mph";
+}) {
+  const hasData = buckets.some((bucket) => bucket.value > 0);
+  const formatBucketLabel = (label: string) => unit === "degrees" ? `${label}°` : unit === "mph" ? `${label} mph` : label;
+  const visibleBuckets = buckets.filter((bucket) => bucket.value > 0);
+  const visibleTotal = visibleBuckets.reduce((sum, bucket) => sum + bucket.value, 0);
+  const getSegmentWidth = (value: number) => `${visibleTotal > 0 ? (value / visibleTotal) * 100 : 0}%`;
+  const getTooltipContent = (bucket: MlbBattedBallBucket) => `${title}: ${formatBucketLabel(bucket.label)} - ${bucket.value}%`;
+
+  return (
+    <MlbGlassPanel className="overflow-hidden">
+      <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+        <h3 className="text-[11px] font-black uppercase tracking-wide text-neutral-700 dark:text-slate-300">{title}</h3>
+      </div>
+      <div className="px-4 py-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            <div className="h-3 w-full animate-pulse rounded-full bg-neutral-200 dark:bg-slate-800" />
+            <div className="grid grid-cols-4 gap-2">
+              {buckets.map((bucket) => (
+                <div key={bucket.label} className="h-8 animate-pulse rounded-md bg-neutral-100 dark:bg-slate-800/70" />
+              ))}
+            </div>
+          </div>
+        ) : hasData ? (
+          <div className="space-y-3">
+            <div className="flex">
+              {visibleBuckets.map((bucket) => (
+                <div key={bucket.label} className="min-w-0 text-center" style={{ width: getSegmentWidth(bucket.value) }}>
+                  <MlbDistributionTooltip
+                    content={getTooltipContent(bucket)}
+                    className="text-sm font-black tabular-nums text-neutral-950 dark:text-slate-50"
+                  >
+                    {bucket.value}%
+                  </MlbDistributionTooltip>
+                </div>
+              ))}
+            </div>
+            <div className="relative flex h-3 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-300/60 dark:bg-slate-800 dark:ring-white/10">
+              {visibleBuckets.map((bucket) => (
+                <div
+                  key={bucket.label}
+                  className={cn("h-full min-w-0 border-r border-white/80 last:border-r-0 dark:border-[#050a0f]/90", bucket.className)}
+                  style={{ width: getSegmentWidth(bucket.value), backgroundColor: bucket.color }}
+                />
+              ))}
+            </div>
+            <div className="flex">
+              {visibleBuckets.map((bucket) => (
+                <div
+                  key={bucket.label}
+                  className="relative min-w-0 pt-2 text-center before:absolute before:left-1/2 before:top-0 before:h-1.5 before:w-px before:-translate-x-1/2 before:bg-neutral-300 dark:before:bg-slate-700"
+                  style={{ width: getSegmentWidth(bucket.value) }}
+                >
+                  <MlbDistributionTooltip
+                    content={getTooltipContent(bucket)}
+                    className="text-[11px] font-medium text-neutral-500 dark:text-slate-400"
+                  >
+                    {formatBucketLabel(bucket.label)}
+                  </MlbDistributionTooltip>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-xs font-semibold text-neutral-500 dark:border-slate-800 dark:text-slate-500">
+            {emptyLabel}
+          </div>
+        )}
+      </div>
+    </MlbGlassPanel>
+  );
+}
+
+function MlbBattedBallsTable({
+  events,
+  selectedEventKey,
+  onSelectEvent,
+  isLoading,
+  playerType = "batter",
+  includeYearInDates = false,
+}: {
+  events: BattedBallEvent[];
+  selectedEventKey: string | null;
+  onSelectEvent: (eventKey: string | null, event: BattedBallEvent | null) => void;
+  isLoading: boolean;
+  playerType?: MlbSprayChartPlayerType;
+  includeYearInDates?: boolean;
+}) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  type BattedBallSortKey = "date" | "inning" | "exit_velocity" | "launch_angle" | "hit_distance" | "trajectory" | "result" | "player" | "pitch_type" | "pitch_speed";
+  type BattedBallSortDirection = "asc" | "desc";
+  const [sortState, setSortState] = useState<{ key: BattedBallSortKey; direction: BattedBallSortDirection }>({
+    key: "date",
+    direction: "desc",
+  });
+  const compareNullableValues = useCallback((a: string | number | null | undefined, b: string | number | null | undefined, direction: BattedBallSortDirection) => {
+    const aMissing = a === null || a === undefined || a === "";
+    const bMissing = b === null || b === undefined || b === "";
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+
+    const base = typeof a === "number" && typeof b === "number"
+      ? a - b
+      : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+
+    return direction === "asc" ? base : -base;
+  }, []);
+  const getSortValue = useCallback((event: BattedBallEvent, key: BattedBallSortKey): string | number | null => {
+    switch (key) {
+      case "date":
+        return event.game_date ? new Date(event.game_date).getTime() : null;
+      case "inning":
+        return event.inning ?? null;
+      case "exit_velocity":
+        return event.exit_velocity ?? null;
+      case "launch_angle":
+        return event.launch_angle ?? null;
+      case "hit_distance":
+        return event.hit_distance ?? null;
+      case "trajectory":
+        return formatMlbBattedBallTrajectory(event.trajectory);
+      case "result":
+        return formatMlbBattedBallResult(event.event_type ?? event.result);
+      case "player":
+        return playerType === "pitcher"
+          ? event.batter_name ?? event.batter_hand ?? null
+          : event.pitcher_name ?? event.pitcher_hand ?? null;
+      case "pitch_type":
+        return event.pitch_type ?? null;
+      case "pitch_speed":
+        return event.pitch_speed ?? null;
+      default:
+        return null;
+    }
+  }, [playerType]);
+  const toggleSort = useCallback((key: BattedBallSortKey) => {
+    setSortState((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc",
+    }));
+  }, []);
+  const SortHeader = ({
+    sortKey,
+    label,
+    align = "center",
+  }: {
+    sortKey: BattedBallSortKey;
+    label: string;
+    align?: "left" | "center";
+  }) => {
+    const active = sortState.key === sortKey;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(sortKey)}
+        className={cn(
+          "group inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-black uppercase tracking-wide transition",
+          align === "left" ? "justify-start" : "justify-center",
+          active
+            ? "bg-sky-500/10 text-sky-600 dark:text-sky-300"
+            : "text-neutral-500 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-slate-200"
+        )}
+      >
+        <span>{label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 shrink-0 transition",
+            active ? "opacity-100" : "opacity-35 group-hover:opacity-70",
+            active && sortState.direction === "asc" && "rotate-180"
+          )}
+        />
+      </button>
+    );
+  };
+  const tableEvents = useMemo(
+    () => events
+      .map((event, index) => ({ event, key: getMlbBattedBallEventKey(event, index) }))
+      .sort((a, b) => {
+        const primaryCompare = compareNullableValues(
+          getSortValue(a.event, sortState.key),
+          getSortValue(b.event, sortState.key),
+          sortState.direction
+        );
+        if (primaryCompare !== 0) return primaryCompare;
+
+        const dateCompare = compareNullableValues(
+          getSortValue(a.event, "date"),
+          getSortValue(b.event, "date"),
+          "desc"
+        );
+        if (dateCompare !== 0) return dateCompare;
+
+        return compareNullableValues(a.event.inning ?? null, b.event.inning ?? null, "desc");
+      }),
+    [compareNullableValues, events, getSortValue, sortState.direction, sortState.key]
+  );
+
+  useEffect(() => {
+    if (!selectedEventKey || !scrollContainerRef.current) return;
+    const row = scrollContainerRef.current.querySelector<HTMLTableRowElement>(`tr[data-event-key="${CSS.escape(selectedEventKey)}"]`);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedEventKey]);
+
+  return (
+    <MlbGlassPanel className="overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+        <div>
+          <h3 className="text-sm font-black text-neutral-950 dark:text-white">Batted Balls</h3>
+          <p className="text-xs font-medium text-neutral-500 dark:text-slate-400">
+            {isLoading ? "Loading tracked contact" : `${tableEvents.length} balls in play match current filters`}
+          </p>
+        </div>
+        {selectedEventKey && (
+          <button
+            type="button"
+            onClick={() => onSelectEvent(null, null)}
+            className="rounded-md border border-neutral-200/70 bg-white/80 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-500 transition hover:bg-neutral-50 dark:border-neutral-700/50 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2 px-4 py-4">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-9 animate-pulse rounded-md bg-neutral-100 dark:bg-slate-800/70" />
+          ))}
+        </div>
+      ) : tableEvents.length === 0 ? (
+        <div className="mx-4 my-4 rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center text-xs font-semibold text-neutral-500 dark:border-slate-800 dark:text-slate-500">
+          No batted balls match these filters.
+        </div>
+      ) : (
+        <div ref={scrollContainerRef} className="max-h-[360px] overflow-auto hidden-scrollbar">
+          <table className="w-full min-w-[760px] text-xs">
+            <thead className="sticky top-0 z-[1] bg-neutral-100/95 backdrop-blur dark:bg-slate-800/95">
+              <tr className="border-b border-neutral-200/70 text-[10px] uppercase tracking-wide text-neutral-500 dark:border-slate-700/60 dark:text-slate-400">
+                <th className="px-3 py-2 text-left font-black">#</th>
+                <th className="px-3 py-1.5 text-left font-black"><SortHeader sortKey="date" label="Date" align="left" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="inning" label="Inn" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="exit_velocity" label="EV" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="launch_angle" label="LA" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="hit_distance" label="Dist" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="trajectory" label="Type" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="result" label="Result" /></th>
+                <th className="px-3 py-1.5 text-left font-black">
+                  <SortHeader sortKey="player" label={playerType === "pitcher" ? "Batter" : "Pitcher"} align="left" />
+                </th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="pitch_type" label="Pitch" /></th>
+                <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="pitch_speed" label="Velo" /></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200/40 dark:divide-slate-800/70">
+              {tableEvents.map(({ event, key }, index) => {
+                const isSelected = selectedEventKey === key;
+                const resultLabel = formatMlbBattedBallResult(event.event_type ?? event.result);
+                return (
+                  <tr
+                    key={key}
+                    data-event-key={key}
+                    onClick={() => onSelectEvent(isSelected ? null : key, isSelected ? null : event)}
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-sky-500/8",
+                      isSelected
+                        ? "bg-sky-500/15 ring-1 ring-inset ring-sky-400/45"
+                        : event.is_barrel
+                        ? "bg-emerald-500/8"
+                        : index % 2 === 0
+                        ? "bg-white/50 dark:bg-slate-950/18"
+                        : "bg-neutral-50/60 dark:bg-slate-900/20"
+                    )}
+                  >
+                    <td className="px-3 py-2 font-mono text-[11px] text-neutral-400 dark:text-slate-500">{index + 1}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-semibold text-neutral-600 dark:text-slate-300">
+                      {formatMlbBattedBallDate(event.game_date, includeYearInDates)}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono text-neutral-500 dark:text-slate-400">{event.inning ?? "-"}</td>
+                    <td className={cn("px-3 py-2 text-center font-mono font-black tabular-nums", getMlbBattedBallEvClass(event.exit_velocity))}>
+                      {event.exit_velocity != null ? Number(event.exit_velocity).toFixed(1) : "-"}
+                      {event.is_barrel && <span className="ml-1 text-[9px] text-emerald-300">BRL</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono font-semibold tabular-nums text-neutral-700 dark:text-slate-300">
+                      {event.launch_angle != null ? `${Math.round(Number(event.launch_angle))}°` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono tabular-nums text-neutral-500 dark:text-slate-400">
+                      {event.hit_distance != null ? `${Math.round(Number(event.hit_distance))}ft` : "-"}
+                    </td>
+                    <td className={cn("px-3 py-2 text-center font-black", getMlbBattedBallTrajectoryClass(event.trajectory))}>
+                      {formatMlbBattedBallTrajectory(event.trajectory)}
+                    </td>
+                    <td className={cn("px-3 py-2 text-center font-black", getMlbBattedBallResultClass(event))}>
+                      {resultLabel}
+                    </td>
+                    <td className="max-w-[180px] truncate px-3 py-2 font-medium text-neutral-600 dark:text-slate-300">
+                      {playerType === "pitcher" ? (
+                        event.batter_name ? (
+                          <>
+                            {event.batter_name}
+                            {event.batter_hand && <span className="ml-1 text-neutral-400 dark:text-slate-500">({event.batter_hand})</span>}
+                          </>
+                        ) : event.batter_hand ? (
+                          <span className="text-neutral-400 dark:text-slate-500">{event.batter_hand}HB</span>
+                        ) : "-"
+                      ) : event.pitcher_name ? (
+                        <>
+                          {event.pitcher_name}
+                          {event.pitcher_hand && <span className="ml-1 text-neutral-400 dark:text-slate-500">({event.pitcher_hand})</span>}
+                        </>
+                      ) : event.pitcher_hand ? (
+                        <span className="text-neutral-400 dark:text-slate-500">{event.pitcher_hand}HP</span>
+                      ) : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {event.pitch_type ? (
+                        <Tooltip content={MLB_PITCH_TYPE_LABELS[event.pitch_type] ?? event.pitch_type} side="top">
+                          <span className="inline-flex rounded-md bg-neutral-200/70 px-1.5 py-0.5 font-mono text-[10px] font-black text-neutral-600 dark:bg-slate-700/70 dark:text-slate-200">
+                            {event.pitch_type}
+                          </span>
+                        </Tooltip>
+                      ) : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono tabular-nums text-neutral-500 dark:text-slate-400">
+                      {event.pitch_speed != null ? Number(event.pitch_speed).toFixed(1) : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </MlbGlassPanel>
+  );
+}
+
+function MlbBattedBallFilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  accent = false,
+  menuHeader,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string; detail?: string | null }>;
+  onChange: (value: T) => void;
+  accent?: boolean;
+  menuHeader?: React.ReactNode;
+}) {
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "group flex min-h-[48px] w-full min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left shadow-sm transition active:scale-[0.99]",
+            "border-neutral-200/60 bg-white/85 hover:border-sky-300/70 hover:bg-neutral-50 dark:border-neutral-700/45 dark:bg-slate-900/30 dark:hover:border-sky-400/45 dark:hover:bg-slate-800/50",
+            accent && "border-sky-400/60 bg-sky-50/70 dark:border-sky-400/60 dark:bg-sky-500/10"
+          )}
+        >
+          <span className="min-w-0">
+            <span className="block font-mono text-[9px] font-black uppercase tracking-[0.14em] text-neutral-500 dark:text-slate-500">
+              {label}
+            </span>
+            <span className="mt-0.5 block truncate text-sm font-black text-neutral-950 dark:text-white">
+              {selected?.label ?? value}
+            </span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400 transition group-data-[state=open]:rotate-180" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="max-h-[280px] min-w-[180px] overflow-y-auto rounded-lg border-neutral-200 bg-white p-1 shadow-xl scrollbar-hide dark:border-neutral-700 dark:bg-neutral-900"
+        onWheelCapture={(event) => event.stopPropagation()}
+      >
+        {menuHeader && (
+          <div className="sticky top-0 z-10 mb-1 rounded-md border border-neutral-200/70 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-[#08111a]/95">
+            {menuHeader}
+          </div>
+        )}
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "flex cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-2 text-sm font-semibold",
+              option.value === value && "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
+            )}
+          >
+            <span className="min-w-0 truncate">{option.label}</span>
+            <span className="flex shrink-0 items-center gap-2">
+              {option.detail && (
+                <span className="font-mono text-[10px] font-black tabular-nums text-neutral-500 dark:text-slate-400">
+                  {option.detail}
+                </span>
+              )}
+              {option.value === value && <Check className="h-3.5 w-3.5" />}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function MlbBattedBallFiltersPanel({
+  filters,
+  onChange,
+  onReset,
+  pitchTypeOptions,
+  opposingPitcherName,
+  playerType = "batter",
+  pitchMixContextName,
+}: {
+  filters: MlbSprayChartFilterState;
+  onChange: (filters: MlbSprayChartFilterState) => void;
+  onReset: () => void;
+  pitchTypeOptions: Array<{ value: string; label: string; detail?: string | null }>;
+  opposingPitcherName?: string | null;
+  playerType?: MlbSprayChartPlayerType;
+  pitchMixContextName?: string | null;
+}) {
+  const updateFilters = (patch: Partial<MlbSprayChartFilterState>) => {
+    onChange({ ...filters, ...patch });
+  };
+  const handOptions = playerType === "pitcher"
+    ? [
+        { value: "all" as MlbPitcherHandFilter, label: "Both" },
+        { value: "L" as MlbPitcherHandFilter, label: "vs LHB" },
+        { value: "R" as MlbPitcherHandFilter, label: "vs RHB" },
+      ]
+    : MLB_PITCHER_HAND_OPTIONS;
+
+  return (
+    <MlbGlassPanel className="overflow-visible">
+      <div className="grid gap-2 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <MlbBattedBallFilterSelect
+            label="Season"
+            value={filters.seasonFilter}
+            options={MLB_SEASON_OPTIONS}
+            onChange={(value) => updateFilters({ seasonFilter: value })}
+          />
+          <MlbBattedBallFilterSelect<MlbTrajectoryFilter>
+            label="Trajectory"
+            value={filters.trajectoryFilter}
+            options={MLB_TRAJECTORY_OPTIONS}
+            onChange={(value) => updateFilters({ trajectoryFilter: value })}
+          />
+          <MlbBattedBallFilterSelect<string>
+            label="Pitch Type"
+            value={filters.pitchTypeFilter ?? "all"}
+            options={pitchTypeOptions}
+            onChange={(value) => updateFilters({ pitchTypeFilter: value })}
+            accent={(filters.pitchTypeFilter ?? "all") !== "all"}
+            menuHeader={
+              <div>
+                <p className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  BIP Pitch Mix
+                </p>
+                <p className="mt-0.5 truncate text-xs font-black text-neutral-950 dark:text-white">
+                  {pitchMixContextName
+                    ? `${pitchMixContextName}'s pitches in play`
+                    : opposingPitcherName
+                      ? `${opposingPitcherName}'s pitches in play`
+                      : "Pitches in current sample"}
+                </p>
+              </div>
+            }
+          />
+          <MlbBattedBallFilterSelect<MlbPitcherHandFilter>
+            label={playerType === "pitcher" ? "Batter Hand" : "Pitcher Hand"}
+            value={filters.pitcherHandFilter ?? "all"}
+            options={handOptions}
+            onChange={(value) => updateFilters({ pitcherHandFilter: value })}
+            accent={(filters.pitcherHandFilter ?? "all") !== "all"}
+          />
+          <MlbBattedBallFilterSelect<MlbHitFilter>
+            label="BIP Type"
+            value={filters.hitFilter}
+            options={MLB_HIT_FILTER_OPTIONS}
+            onChange={(value) => updateFilters({ hitFilter: value })}
+          />
+          <MlbBattedBallFilterSelect<MlbEvThreshold>
+            label="Metric View"
+            value={filters.evThreshold}
+            options={MLB_EV_THRESHOLD_OPTIONS}
+            onChange={(value) => updateFilters({ evThreshold: value })}
+            accent={filters.evThreshold !== "off"}
+          />
+        </div>
+
+        <Tooltip content="Reset filters" side="top">
+          <button
+            type="button"
+            onClick={onReset}
+            aria-label="Reset batted ball filters"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-neutral-200/70 bg-white/80 text-neutral-600 shadow-sm transition hover:border-sky-300/70 hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700/50 dark:bg-slate-900/30 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-slate-800/60"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </Tooltip>
+      </div>
+    </MlbGlassPanel>
   );
 }
 
@@ -611,15 +1411,21 @@ function MlbFilterButton({
 
 function MiniLineMovementChart({
   points,
+  isMarketClosed = false,
+  liveStartTimestamp,
 }: {
   points: Array<{ price: number; timestamp: number }>;
+  isMarketClosed?: boolean;
+  liveStartTimestamp?: number | null;
 }) {
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const formatRelativeLineTime = (timestamp: number, endTimestamp: number) => {
-    const toMs = (value: number) => (value > 10_000_000_000 ? value : value * 1000);
-    const deltaMs = Math.max(0, toMs(endTimestamp) - toMs(timestamp));
+    const endMs = getLineHistoryTimestampMs(endTimestamp);
+    const currentMs = getLineHistoryTimestampMs(timestamp);
+    if (!endMs || !currentMs) return "";
+    const deltaMs = Math.max(0, endMs - currentMs);
     const minutes = Math.round(deltaMs / 60_000);
-    if (minutes <= 2) return "Now";
+    if (minutes <= 2) return "";
     if (minutes < 60) return `-${minutes}m`;
     const hours = Math.round(minutes / 60);
     if (hours < 24) return `-${hours}h`;
@@ -660,6 +1466,28 @@ function MiniLineMovementChart({
       Math.round((clean.length - 1) * 0.7),
       clean.length - 1,
     ]));
+    const liveStartMs = getLineHistoryTimestampMs(liveStartTimestamp);
+    let liveBoundary: { x: number; startedAt: number; entireWindow: boolean } | null = null;
+    if (liveStartMs) {
+      const firstLiveIndex = positions.findIndex((point) => {
+        const pointMs = getLineHistoryTimestampMs(point.timestamp);
+        return Boolean(pointMs && pointMs >= liveStartMs);
+      });
+
+      if (firstLiveIndex >= 0) {
+        if (firstLiveIndex === 0) {
+          liveBoundary = { x: pad.left, startedAt: liveStartMs, entireWindow: true };
+        } else {
+          const previousPoint = positions[firstLiveIndex - 1];
+          const firstLivePoint = positions[firstLiveIndex];
+          liveBoundary = {
+            x: (previousPoint.x + firstLivePoint.x) / 2,
+            startedAt: liveStartMs,
+            entireWindow: false,
+          };
+        }
+      }
+    }
 
     return {
       areaPath,
@@ -677,8 +1505,9 @@ function MiniLineMovementChart({
       ticks,
       xTicks: xTickIndexes.map((index) => positions[index]).filter(Boolean),
       yForPrice,
+      liveBoundary,
     };
-  }, [points]);
+  }, [liveStartTimestamp, points]);
 
   if (!chart) {
     return (
@@ -693,8 +1522,22 @@ function MiniLineMovementChart({
   const fillClass = change >= 0 ? "fill-emerald-500" : "fill-red-500";
   const areaFill = change >= 0 ? "fill-emerald-500/15" : "fill-red-500/15";
   const changeLabel = `${change >= 0 ? "+" : ""}${change} over window`;
+  const changeShortLabel = `${change >= 0 ? "+" : ""}${change}`;
   const currentY = chart.yForPrice(chart.current.price);
   const hoveredPoint = hoveredPointIndex !== null ? chart.positions[hoveredPointIndex] : null;
+  const currentMs = getLineHistoryTimestampMs(chart.current.timestamp);
+  const isStale = Boolean(currentMs && Date.now() - currentMs > 15 * 60_000);
+  const endAxisLabel = isMarketClosed
+    ? "Close"
+    : isStale
+      ? formatMiniLineAxisTime(chart.current.timestamp)
+      : "Now";
+  const currentLabel = isMarketClosed ? "Close" : isStale ? "Last" : "Current";
+  const summaryItems = [
+    { label: "Open", value: formatAmericanOdds(chart.open.price), className: "text-neutral-900 dark:text-slate-100" },
+    { label: currentLabel, value: formatAmericanOdds(chart.current.price), className: "text-neutral-900 dark:text-slate-100" },
+    { label: "Move", value: changeShortLabel, className: change >= 0 ? "text-emerald-500" : "text-red-500" },
+  ];
   const tooltipWidth = 104;
   const tooltipHeight = 44;
   const tooltipX = hoveredPoint
@@ -739,6 +1582,34 @@ function MiniLineMovementChart({
             </g>
           );
         })}
+        {chart.liveBoundary && (
+          <g className="pointer-events-none">
+            <rect
+              x={chart.liveBoundary.x}
+              y={chart.pad.top}
+              width={chart.width - chart.pad.right - chart.liveBoundary.x}
+              height={chart.plotHeight}
+              className="fill-sky-500/5 dark:fill-sky-400/10"
+            />
+            {!chart.liveBoundary.entireWindow && (
+              <line
+                x1={chart.liveBoundary.x}
+                x2={chart.liveBoundary.x}
+                y1={chart.pad.top - 3}
+                y2={chart.pad.top + chart.plotHeight + 3}
+                className="stroke-sky-400/70 dark:stroke-sky-300/70"
+                strokeDasharray="4 4"
+              />
+            )}
+            <text
+              x={Math.min(chart.liveBoundary.x + 6, chart.width - chart.pad.right - 50)}
+              y={chart.pad.top + 10}
+              className="fill-sky-500 font-mono text-[8px] font-black uppercase tracking-[0.08em] dark:fill-sky-300"
+            >
+              Live
+            </text>
+          </g>
+        )}
         <path d={chart.areaPath} className={areaFill} />
         <path d={chart.path} fill="none" className={strokeClass} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         {chart.positions.map((point, index) => (
@@ -803,20 +1674,32 @@ function MiniLineMovementChart({
             textAnchor={index === 0 ? "start" : index === chart.xTicks.length - 1 ? "end" : "middle"}
             className="fill-neutral-400 font-mono text-[10px] font-semibold dark:fill-slate-500"
           >
-            {formatRelativeLineTime(point.timestamp, chart.current.timestamp)}
+            {index === chart.xTicks.length - 1 ? endAxisLabel : formatRelativeLineTime(point.timestamp, chart.current.timestamp)}
           </text>
         ))}
       </svg>
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-neutral-200/60 pt-2 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:border-neutral-700/35 dark:text-slate-500">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span>Low {formatAmericanOdds(chart.low)}</span>
-          <span className="text-neutral-900 dark:text-slate-100">Last {formatAmericanOdds(chart.current.price)}</span>
-          <span className={cn(change >= 0 ? "text-emerald-500" : "text-red-500")}>{changeLabel}</span>
+      <div className="mt-1 border-t border-neutral-200/60 pt-2 dark:border-neutral-700/35">
+        <div className="grid grid-cols-3 overflow-hidden rounded-md border border-neutral-200/60 bg-white/55 dark:border-neutral-700/35 dark:bg-slate-950/18">
+          {summaryItems.map((item) => (
+            <div key={item.label} className="border-r border-neutral-200/60 px-2 py-2 last:border-r-0 dark:border-neutral-700/35">
+              <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">{item.label}</p>
+              <p className={cn("mt-0.5 font-mono text-[12px] font-black tabular-nums", item.className)}>{item.value}</p>
+            </div>
+          ))}
         </div>
-        <span className={cn("inline-flex items-center gap-1", change >= 0 ? "text-emerald-500" : "text-red-500")}>
-          <span className={cn("h-1.5 w-1.5 rounded-full", change >= 0 ? "bg-emerald-500" : "bg-red-500")} />
-          {chart.positions.length} line entries
-        </span>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">
+          <span>Low {formatAmericanOdds(chart.low)}</span>
+          <span className={cn("inline-flex items-center gap-1", change >= 0 ? "text-emerald-500" : "text-red-500")}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", change >= 0 ? "bg-emerald-500" : "bg-red-500")} />
+            {chart.positions.length} line entries
+          </span>
+          {chart.liveBoundary && (
+            <span className="inline-flex items-center gap-1 text-sky-500 dark:text-sky-300">
+              <span className="h-2.5 w-px bg-sky-400/80" />
+              Live odds after {formatMiniLineAxisTime(chart.liveBoundary.startedAt)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -883,6 +1766,7 @@ function MlbRightRail({
     homeAway?: "H" | "A" | null;
     opponentTeamAbbr?: string | null;
     opposingPitcherName?: string | null;
+    opposingPitcherId?: number | string | null;
   } | null;
   lineHistory: LineHistoryApiResponse | null | undefined;
   isLineHistoryLoading: boolean;
@@ -905,6 +1789,8 @@ function MlbRightRail({
   });
   const [selectedHistoryBookId, setSelectedHistoryBookId] = useState<string | null>(null);
   const modelPct = dynamicHitRates.season ?? chartStats.hitRate;
+  const isMarketClosed = isMlbMarketClosed(nextGame);
+  const gameStartTimestampMs = getMlbGameStartTimestampMs(nextGame);
   const currentSideBookOffers = useMemo(() => {
     return bookOffers.filter((offer) => offer.side === lineHistorySide && Math.abs(offer.line - activeLine) < 0.01);
   }, [activeLine, bookOffers, lineHistorySide]);
@@ -963,6 +1849,7 @@ function MlbRightRail({
     }
   }, [historyBookOptions, selectedHistoryBookId]);
   const baseBookRows = useMemo(() => {
+    if (isMarketClosed) return [];
     const rows = new Map<string, { book: string; over?: MlbBookOffer; under?: MlbBookOffer }>();
     bookOffers.filter((offer) => Math.abs(offer.line - activeLine) < 0.01).forEach((offer) => {
       const row = rows.get(offer.book) ?? { book: offer.book };
@@ -982,7 +1869,7 @@ function MlbRightRail({
         const bBestDecimal = Math.max(americanToDecimal(b.over?.price) ?? 0, americanToDecimal(b.under?.price) ?? 0);
         return bBestDecimal - aBestDecimal;
       })
-  }, [activeLine, bookOffers]);
+  }, [activeLine, bookOffers, isMarketClosed]);
   const bookRows = useMemo(() => {
     const priceValue = (offer?: MlbBookOffer) => americanToDecimal(offer?.price) ?? -Infinity;
     const directionMultiplier = bookSort.direction === "asc" ? 1 : -1;
@@ -1058,21 +1945,21 @@ function MlbRightRail({
   ];
   const selectedHistorySportsbook = selectedHistoryBook ? getLineHistorySportsbook(selectedHistoryBook) : undefined;
   const selectedHistoryLiveOffer = useMemo(() => {
-    if (!selectedHistoryBook) return null;
+    if (!selectedHistoryBook || isMarketClosed) return null;
     return bookOffers.find((offer) => (
       offer.side === lineHistorySide
       && Math.abs(offer.line - activeLine) < 0.01
       && isSameLineHistorySportsbook(offer.book, selectedHistoryBook)
     )) ?? null;
-  }, [activeLine, bookOffers, lineHistorySide, selectedHistoryBook]);
+  }, [activeLine, bookOffers, isMarketClosed, lineHistorySide, selectedHistoryBook]);
   const syncedHistoryEntries = useMemo(() => {
-    return selectedHistoryBook
-      ? syncLineHistoryWithLivePrice(selectedHistoryBook.entries, selectedHistoryLiveOffer?.price ?? selectedHistoryBook.currentPrice)
-      : [];
-  }, [selectedHistoryBook, selectedHistoryLiveOffer?.price]);
+    if (!selectedHistoryBook) return [];
+    if (isMarketClosed) return selectedHistoryBook.entries;
+    return syncLineHistoryWithLivePrice(selectedHistoryBook.entries, selectedHistoryLiveOffer?.price ?? selectedHistoryBook.currentPrice);
+  }, [isMarketClosed, selectedHistoryBook, selectedHistoryLiveOffer?.price]);
 
   return (
-    <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1 lg:scrollbar-hide">
+    <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-hidden lg:pr-1">
       <MlbGlassPanel className="shrink-0">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Bet Context</h3>
@@ -1094,15 +1981,19 @@ function MlbRightRail({
         </div>
       </MlbGlassPanel>
 
-      <MlbGlassPanel className="flex min-h-[220px] flex-col overflow-hidden lg:min-h-[220px] lg:basis-[clamp(220px,28vh,360px)] lg:shrink-0">
+      <MlbGlassPanel className="flex min-h-[220px] flex-col overflow-hidden lg:min-h-0 lg:flex-1 lg:shrink">
         <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Best Books</h3>
-            {hasMoreBookRows && (
+            {isMarketClosed ? (
+              <span className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.08em] text-amber-600 dark:text-amber-300">
+                Closed
+              </span>
+            ) : hasMoreBookRows ? (
               <span className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">
                 Scroll for more
               </span>
-            )}
+            ) : null}
           </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
@@ -1184,7 +2075,7 @@ function MlbRightRail({
               );
             }) : (
               <div className="rounded-md border border-dashed border-neutral-200 px-3 py-4 text-center text-xs text-neutral-500 dark:border-neutral-700/50 dark:text-slate-500">
-                No live books attached to this selection.
+                {isMarketClosed ? "Market closed. Live book prices are hidden after final." : "No live books attached to this selection."}
               </div>
             )}
           </div>
@@ -1255,7 +2146,8 @@ function MlbRightRail({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="start"
-                      className="max-h-72 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                      onWheelCapture={(event) => event.stopPropagation()}
+                      className="max-h-72 min-w-[220px] overflow-y-auto overscroll-contain rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 scrollbar-hide dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
                     >
                       {historyBookOptions.map((book) => {
                         const sb = getLineHistorySportsbook(book);
@@ -1355,7 +2247,11 @@ function MlbRightRail({
               </div>
               <div>
                 {syncedHistoryEntries.length >= 2 ? (
-                  <MiniLineMovementChart points={syncedHistoryEntries} />
+                  <MiniLineMovementChart
+                    points={syncedHistoryEntries}
+                    isMarketClosed={isMarketClosed}
+                    liveStartTimestamp={gameStartTimestampMs}
+                  />
                 ) : (
                   <EmptyMiniLineMovementChart message="No historical odds available for this book, side, and line yet." />
                 )}
@@ -1363,9 +2259,11 @@ function MlbRightRail({
               <p className="text-[10px] text-neutral-400 dark:text-slate-500">
                 {syncedHistoryEntries.length < 2
                   ? "Try another book, side, or line to view historical movement."
+                  : isMarketClosed
+                  ? `Closed ${formatLineHistoryTime(syncedHistoryEntries.at(-1)?.timestamp)}`
                   : selectedHistoryLiveOffer
                   ? `Synced to live Best Books price ${formatAmericanOdds(selectedHistoryLiveOffer.price)}`
-                  : `Updated ${formatLineHistoryTime(selectedHistoryBook.entries.at(-1)?.timestamp)}`}
+                  : `Last updated ${formatLineHistoryTime(selectedHistoryBook.entries.at(-1)?.timestamp)}`}
               </p>
               <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
                 <button
@@ -1524,10 +2422,16 @@ export function PlayerQuickViewModal({
   const isMlb = sport === "mlb";
   const [lineHistoryDialogOpen, setLineHistoryDialogOpen] = useState(false);
   const [lineHistorySide, setLineHistorySide] = useState<MlbLineHistorySide>("over");
+  const [battedBallFilters, setBattedBallFilters] = useState<MlbSprayChartFilterState>(() => getDefaultMlbSprayChartFilters());
+  const [selectedBattedBallKey, setSelectedBattedBallKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) setLineHistoryDialogOpen(false);
   }, [open]);
+
+  useEffect(() => {
+    setSelectedBattedBallKey(null);
+  }, [battedBallFilters]);
 
   // Check if user has Hit Rate access for advanced tabs (hit_rate or pro plan)
   const { user } = useAuth();
@@ -1746,7 +2650,7 @@ export function PlayerQuickViewModal({
           }
         });
         
-        return { ln: line.ln, over: bestOver, under: bestUnder, books };
+        return { ln: isMlb ? normalizeMlbOddsLine(line.ln) ?? line.ln : line.ln, over: bestOver, under: bestUnder, books };
       }) as AlternateLineOdds[];
     },
     enabled: open && !!event_id && !!playerKey,
@@ -1756,7 +2660,7 @@ export function PlayerQuickViewModal({
   const alternateLines = alternatesData || [];
 
   // Line state - initialize with initial_line if provided (e.g., from edge finder)
-  const [customLine, setCustomLine] = useState<number | null>(initial_line ?? null);
+  const [customLine, setCustomLine] = useState<number | null>(() => isMlb ? normalizeMlbOddsLine(initial_line) : initial_line ?? null);
   const [isEditingLine, setIsEditingLine] = useState(false);
   const [editValue, setEditValue] = useState("");
   
@@ -1781,41 +2685,53 @@ export function PlayerQuickViewModal({
   // Update customLine when initial_line changes (e.g., clicking different player in edge finder)
   useEffect(() => {
     if (initial_line !== undefined && initial_line !== null) {
-      setCustomLine(initial_line);
+      setCustomLine(isMlb ? normalizeMlbOddsLine(initial_line) : initial_line);
     }
-  }, [initial_line]);
+  }, [initial_line, isMlb]);
 
   const externalOddsMarket = initial_market || availableMarkets[0] || null;
   const canUseExternalOdds = !isMlb || !externalOddsMarket || currentMarket === externalOddsMarket;
   
   const defaultLine = useMemo(() => {
     // Priority: profile line -> odds line -> calculated from box scores
-    if (currentMarketProfile?.line) return currentMarketProfile.line;
-    if (canUseExternalOdds && odds?.over?.line) return odds.over.line;
-    if (canUseExternalOdds && odds?.under?.line) return odds.under.line;
-    if (alternateLines.length > 0) {
+    let rawLine: number;
+    if (currentMarketProfile?.line) rawLine = currentMarketProfile.line;
+    else if (canUseExternalOdds && odds?.over?.line) rawLine = odds.over.line;
+    else if (canUseExternalOdds && odds?.under?.line) rawLine = odds.under.line;
+    else if (alternateLines.length > 0) {
       const deepestLine = [...alternateLines].sort((a, b) => {
         const bookDelta = getAlternateLineBookCount(b) - getAlternateLineBookCount(a);
         if (bookDelta !== 0) return bookDelta;
         return a.ln - b.ln;
       })[0];
-      if (deepestLine) return deepestLine.ln;
+      rawLine = deepestLine?.ln ?? (modalGames.length === 0 ? (isMlb ? 1 : 10) : 1);
+    } else if (modalGames.length === 0) {
+      rawLine = isMlb ? 1 : 10;
+    } else {
+      const recentGames = modalGames.slice(0, 10);
+      const avg = recentGames.reduce((sum, g) => sum + getMarketStat(g, currentMarket), 0) / recentGames.length;
+      rawLine = Math.round(avg * 2) / 2;
     }
-    if (modalGames.length === 0) return isMlb ? 1 : 10;
-    const recentGames = modalGames.slice(0, 10);
-    const avg = recentGames.reduce((sum, g) => sum + getMarketStat(g, currentMarket), 0) / recentGames.length;
-    return Math.round(avg * 2) / 2;
+
+    return isMlb ? normalizeMlbOddsLine(rawLine) ?? rawLine : rawLine;
   }, [currentMarketProfile, canUseExternalOdds, odds, alternateLines, modalGames, currentMarket, isMlb]);
 
-  const activeLine = customLine ?? defaultLine;
-  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
+	  const activeLine = useMemo(() => {
+	    const rawLine = customLine ?? defaultLine;
+	    return isMlb ? normalizeMlbOddsLine(rawLine) ?? rawLine : rawLine;
+	  }, [customLine, defaultLine, isMlb]);
+  const handleLineChange = useCallback((line: number) => {
+    setCustomLine(isMlb ? normalizeMlbOddsLine(line) ?? line : line);
+  }, [isMlb]);
+	  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   const activeHitRateLine = useMemo(() => {
     if (!activeHitRateOdds?.allLines?.length) return null;
-    const exact = activeHitRateOdds.allLines.find((line) => line.line === activeLine);
+    const getLineValue = (line: number) => isMlb ? normalizeMlbOddsLine(line) ?? line : line;
+    const exact = activeHitRateOdds.allLines.find((line) => Math.abs(getLineValue(line.line) - activeLine) < 0.01);
     if (exact) return exact;
-    const sorted = [...activeHitRateOdds.allLines].sort((a, b) => Math.abs(a.line - activeLine) - Math.abs(b.line - activeLine));
-    return sorted[0] && Math.abs(sorted[0].line - activeLine) <= 1.5 ? sorted[0] : null;
-  }, [activeHitRateOdds, activeLine]);
+    const sorted = [...activeHitRateOdds.allLines].sort((a, b) => Math.abs(getLineValue(a.line) - activeLine) - Math.abs(getLineValue(b.line) - activeLine));
+    return sorted[0] && Math.abs(getLineValue(sorted[0].line) - activeLine) <= 1.5 ? sorted[0] : null;
+  }, [activeHitRateOdds, activeLine, isMlb]);
   const activeAlternateLine = useMemo(() => {
     if (alternateLines.length === 0) return null;
     const exact = alternateLines.find((line) => Math.abs(line.ln - activeLine) < 0.01);
@@ -1845,16 +2761,17 @@ export function PlayerQuickViewModal({
     }
 
     if (activeHitRateLine) {
+      const hitRateLine = isMlb ? normalizeMlbOddsLine(activeHitRateLine.line) ?? activeHitRateLine.line : activeHitRateLine.line;
       return {
         over: activeHitRateLine.bestOver ? {
           price: activeHitRateLine.bestOver.price,
-          line: activeHitRateLine.line,
+          line: hitRateLine,
           book: activeHitRateLine.bestOver.book,
           mobileLink: activeHitRateLine.bestOver.mobileUrl || activeHitRateLine.bestOver.url,
         } : undefined,
         under: activeHitRateLine.bestUnder ? {
           price: activeHitRateLine.bestUnder.price,
-          line: activeHitRateLine.line,
+          line: hitRateLine,
           book: activeHitRateLine.bestUnder.book,
           mobileLink: activeHitRateLine.bestUnder.mobileUrl || activeHitRateLine.bestUnder.url,
         } : undefined,
@@ -1865,14 +2782,15 @@ export function PlayerQuickViewModal({
     // (i.e., customLine is null and odds line matches defaultLine)
     if (customLine === null && odds && canUseExternalOdds) {
       const oddsLine = odds.over?.line ?? odds.under?.line;
-      if (oddsLine === defaultLine) {
+      const normalizedOddsLine = isMlb ? normalizeMlbOddsLine(oddsLine) : oddsLine ?? null;
+      if (normalizedOddsLine === defaultLine) {
         return odds;
       }
     }
     
     // No odds available for this market/line
     return null;
-  }, [activeAlternateLine, activeHitRateLine, canUseExternalOdds, customLine, defaultLine, odds]);
+  }, [activeAlternateLine, activeHitRateLine, canUseExternalOdds, customLine, defaultLine, isMlb, odds]);
 
   const bookOffers = useMemo<MlbBookOffer[]>(() => {
     const callerOffers: MlbBookOffer[] = canUseExternalOdds ? (liveBookOffers ?? [])
@@ -1881,7 +2799,7 @@ export function PlayerQuickViewModal({
         side: offer.side,
         book: offer.book,
         price: offer.price,
-        line: offer.line ?? activeLine,
+        line: isMlb ? normalizeMlbOddsLine(offer.line ?? activeLine) ?? activeLine : offer.line ?? activeLine,
         url: offer.url ?? null,
         mobileUrl: offer.mobileUrl ?? offer.mobileLink ?? null,
         isBest: false,
@@ -1968,12 +2886,12 @@ export function PlayerQuickViewModal({
 
     if (!activeHitRateLine?.books) {
       const fallback: MlbBookOffer[] = [];
-      if (activeOdds?.over?.book && activeOdds.over.price != null) {
-        fallback.push({
-          side: "over",
-          book: activeOdds.over.book,
-          price: activeOdds.over.price,
-          line: activeOdds.over.line,
+	      if (activeOdds?.over?.book && activeOdds.over.price != null) {
+	        fallback.push({
+	          side: "over",
+	          book: activeOdds.over.book,
+	          price: activeOdds.over.price,
+	          line: isMlb ? normalizeMlbOddsLine(activeOdds.over.line) ?? activeLine : activeOdds.over.line,
           url: null,
           mobileUrl: activeOdds.over.mobileLink ?? null,
           isBest: true,
@@ -1983,12 +2901,12 @@ export function PlayerQuickViewModal({
           oddId: null,
         });
       }
-      if (activeOdds?.under?.book && activeOdds.under.price != null) {
-        fallback.push({
-          side: "under",
-          book: activeOdds.under.book,
-          price: activeOdds.under.price,
-          line: activeOdds.under.line,
+	      if (activeOdds?.under?.book && activeOdds.under.price != null) {
+	        fallback.push({
+	          side: "under",
+	          book: activeOdds.under.book,
+	          price: activeOdds.under.price,
+	          line: isMlb ? normalizeMlbOddsLine(activeOdds.under.line) ?? activeLine : activeOdds.under.line,
           url: null,
           mobileUrl: activeOdds.under.mobileLink ?? null,
           isBest: true,
@@ -2002,13 +2920,14 @@ export function PlayerQuickViewModal({
     }
 
     const offers: MlbBookOffer[] = [];
+    const hitRateLine = isMlb ? normalizeMlbOddsLine(activeHitRateLine.line) ?? activeHitRateLine.line : activeHitRateLine.line;
     Object.entries(activeHitRateLine.books).forEach(([book, sides]) => {
       if (sides.over) {
         offers.push({
           side: "over",
           book,
           price: sides.over.price,
-          line: activeHitRateLine.line,
+          line: hitRateLine,
           url: sides.over.url,
           mobileUrl: sides.over.mobileUrl,
           isBest: false,
@@ -2023,9 +2942,9 @@ export function PlayerQuickViewModal({
           side: "under",
           book,
           price: sides.under.price,
-          line: activeHitRateLine.line,
-          url: sides.under.url,
-          mobileUrl: sides.under.mobileUrl,
+          line: hitRateLine,
+	          url: sides.under.url,
+	          mobileUrl: sides.under.mobileUrl,
           isBest: false,
           evPercent: null,
           isSharpRef: false,
@@ -2035,16 +2954,17 @@ export function PlayerQuickViewModal({
       }
     });
 
-    return mergeOffers(callerOffers, [...alternateOffers, ...offers]);
-  }, [activeAlternateLine, activeHitRateLine, activeOdds, activeLine, canUseExternalOdds, liveBookOffers]);
+	    return mergeOffers(callerOffers, [...alternateOffers, ...offers]);
+	  }, [activeAlternateLine, activeHitRateLine, activeOdds, activeLine, canUseExternalOdds, isMlb, liveBookOffers]);
 
-  const rightRailLineOptions = useMemo(() => {
-    const lines = new Set<number>();
-    const addLine = (line?: number | null) => {
-      if (typeof line === "number" && Number.isFinite(line)) {
-        lines.add(Math.round(line * 10) / 10);
-      }
-    };
+	  const rightRailLineOptions = useMemo(() => {
+	    const lines = new Set<number>();
+	    const addLine = (line?: number | null) => {
+	      if (typeof line === "number" && Number.isFinite(line)) {
+	        const normalized = isMlb ? normalizeMlbOddsLine(line) : Math.round(line * 10) / 10;
+	        if (normalized !== null) lines.add(normalized);
+	      }
+	    };
 
     addLine(activeLine);
     addLine(defaultLine);
@@ -2078,10 +2998,10 @@ export function PlayerQuickViewModal({
         url: activeOdds.under.mobileLink || null,
         mobileUrl: activeOdds.under.mobileLink || null,
       } : null,
-      oddsLine: activeOdds.over?.line || activeOdds.under?.line || activeLine,
-      isClosestLine: false,
-    };
-  }, [activeOdds, activeLine]);
+	      oddsLine: isMlb ? normalizeMlbOddsLine(activeOdds.over?.line || activeOdds.under?.line || activeLine) ?? activeLine : activeOdds.over?.line || activeOdds.under?.line || activeLine,
+	      isClosestLine: false,
+	    };
+	  }, [activeOdds, activeLine, isMlb]);
 
   // Game count filter
   const [gameCount, setGameCount] = useState<GameCountFilter>(10);
@@ -2100,7 +3020,7 @@ export function PlayerQuickViewModal({
   const isMlbPitcher = isMlb && (isMlbPitcherProfile || isMlbPitcherMarketKey(currentMarket) || profilePosition === "P");
 
   useEffect(() => {
-    if (isMlb && (activeTab === "correlation" || activeTab === "matchup" || activeTab === "playstyle")) {
+    if (isMlb && (activeTab === "correlation" || activeTab === "matchup")) {
       setActiveTab("gamelog");
     }
   }, [activeTab, isMlb]);
@@ -2289,29 +3209,51 @@ export function PlayerQuickViewModal({
   const teamLogoSport = isMlb ? "mlb" : "nba";
   const fullProfilePlayerId = profile?.playerId || resolvedPlayerId;
   const fullProfileHref = fullHitRateHref;
+  const { games: mlbScheduleGames } = useMlbGames(isMlb && open);
   const nextGame = useMemo<QuickViewGameContext | null>(() => {
     if (gameContext?.gameDate && gameContext.opponentTeamAbbr) {
       return {
+        gameId: gameContext.gameId ?? null,
         gameDate: gameContext.gameDate,
         gameDatetime: gameContext.gameDatetime ?? null,
         gameStatus: gameContext.gameStatus ?? null,
         homeAway: gameContext.homeAway ?? null,
         opponentTeamAbbr: gameContext.opponentTeamAbbr,
         opposingPitcherName: gameContext.opposingPitcherName ?? null,
+        opposingPitcherId: gameContext.opposingPitcherId ?? null,
       };
     }
 
     if (!profile?.gameDate) return null;
     return {
+      gameId: profile.gameId ?? null,
       gameDate: profile.gameDate,
       gameDatetime: profile.startTime ?? null,
       gameStatus: profile.gameStatus ?? null,
       homeAway: profile.homeAway === "H" || profile.homeAway === "A" ? profile.homeAway : null,
       opponentTeamAbbr: profile.opponentTeamAbbr ?? null,
       opposingPitcherName: null,
+      opposingPitcherId: null,
     };
-  }, [gameContext, profile?.gameDate, profile?.gameStatus, profile?.homeAway, profile?.opponentTeamAbbr, profile?.startTime]);
+  }, [gameContext, profile?.gameDate, profile?.gameId, profile?.gameStatus, profile?.homeAway, profile?.opponentTeamAbbr, profile?.startTime]);
+  const mlbScheduleGame = useMemo(() => {
+    if (!isMlb || !nextGame?.gameId) return null;
+    return mlbScheduleGames.find((game) => String(game.game_id) === String(nextGame.gameId)) ?? null;
+  }, [isMlb, mlbScheduleGames, nextGame?.gameId]);
+  const opposingPitcherId = useMemo(() => {
+    const explicit = toPositiveMlbGameId(nextGame?.opposingPitcherId);
+    if (explicit) return explicit;
+    if (!mlbScheduleGame || !nextGame?.homeAway) return null;
+    return nextGame.homeAway === "H"
+      ? toPositiveMlbGameId(mlbScheduleGame.away_probable_pitcher_id)
+      : toPositiveMlbGameId(mlbScheduleGame.home_probable_pitcher_id);
+  }, [mlbScheduleGame, nextGame?.homeAway, nextGame?.opposingPitcherId]);
   const nextGameDetail = nextGame?.opposingPitcherName
+    || (opposingPitcherId && mlbScheduleGame
+      ? nextGame?.homeAway === "H"
+        ? mlbScheduleGame.away_probable_pitcher
+        : mlbScheduleGame.home_probable_pitcher
+      : null)
     || (isMlb && !isMlbPitcher ? "TBD" : formatQuickViewGameStatus(nextGame?.gameStatus, nextGame?.gameDatetime));
   const lineHistoryContext = useMemo<LineHistoryContext | null>(() => {
     const contextEventId = event_id || profile?.eventId;
@@ -2539,15 +3481,102 @@ export function PlayerQuickViewModal({
     refetchInterval: open && !!lineHistoryContext ? 30_000 : false,
     refetchOnWindowFocus: false,
   });
-  const spraySeason = mlbLogSeason ?? new Date().getFullYear();
+  const spraySeason = battedBallFilters.seasonFilter === "all" ? null : Number(battedBallFilters.seasonFilter);
+  const spraySeasons = Number.isFinite(spraySeason) && spraySeason ? [spraySeason] : undefined;
+  const sprayMinExitVelo = getMlbEvThresholdMph(battedBallFilters.evThreshold);
+  const battedBallPlayerType: MlbSprayChartPlayerType = isMlbPitcher ? "pitcher" : "batter";
+  const mlbSprayGameId = isMlb
+    ? toPositiveMlbGameId(nextGame?.gameId ?? profile?.gameId)
+    : null;
+  const mlbSprayEventId = isMlb
+    ? event_id || profile?.eventId || null
+    : null;
   const { data: mlbSprayData, isLoading: isLoadingMlbSpray } = useMlbSprayChart({
-    playerId: isMlb && !isMlbPitcher ? fullProfilePlayerId ?? null : null,
-    gameId: profile?.gameId ? Number(profile.gameId) : null,
-    seasons: [spraySeason],
-    enabled: isMlb && !isMlbPitcher && !!fullProfilePlayerId,
+    playerId: isMlb ? fullProfilePlayerId ?? null : null,
+    playerType: battedBallPlayerType,
+    gameId: mlbSprayGameId,
+    eventId: mlbSprayEventId,
+    seasons: spraySeasons,
+    minExitVelo: sprayMinExitVelo,
+    enabled: isMlb && !!fullProfilePlayerId,
   });
+  const { data: mlbHotZoneData } = useMlbHotZone(
+    isMlb && !isMlbPitcher ? fullProfilePlayerId ?? null : null,
+    opposingPitcherId,
+    open && isMlb && !isMlbPitcher && !!fullProfilePlayerId && !!opposingPitcherId
+  );
+  const battedBallPitchTypeOptions = useMemo(() => {
+    const eventPitchRows = (mlbSprayData?.events ?? []).filter((event) => Boolean(event.pitch_type));
+    const eventPitchTypes = Array.from(
+      new Set(
+        eventPitchRows
+          .map((event) => event.pitch_type)
+          .filter((pitchType): pitchType is string => Boolean(pitchType))
+      )
+    );
+    const pitchNameByType = new Map<string, string>();
+    const fallbackUsageByPitch = new Map<string, number | null>();
+    (mlbHotZoneData?.pitchTypes ?? []).forEach((pitch) => {
+      if (!pitch.pitch_type) return;
+      pitchNameByType.set(
+        pitch.pitch_type,
+        pitch.pitch_name || MLB_PITCH_TYPE_LABELS[pitch.pitch_type] || pitch.pitch_type
+      );
+      fallbackUsageByPitch.set(pitch.pitch_type, normalizePitchUsagePct(pitch.usage_pct));
+    });
+
+    const usageByPitch = new Map<string, { label: string; usage: number | null }>();
+    if (eventPitchTypes.length > 0) {
+      const totalWithPitch = eventPitchRows.length;
+      eventPitchTypes.forEach((pitchType) => {
+        const count = eventPitchRows.filter((event) => event.pitch_type === pitchType).length;
+        usageByPitch.set(pitchType, {
+          label: pitchNameByType.get(pitchType) ?? MLB_PITCH_TYPE_LABELS[pitchType] ?? pitchType,
+          usage: totalWithPitch > 0 ? Math.round((count / totalWithPitch) * 100) : null,
+        });
+      });
+    } else {
+      fallbackUsageByPitch.forEach((usage, pitchType) => {
+        usageByPitch.set(pitchType, {
+          label: pitchNameByType.get(pitchType) ?? MLB_PITCH_TYPE_LABELS[pitchType] ?? pitchType,
+          usage,
+        });
+      });
+    }
+    const pitchTypes = Array.from(usageByPitch.keys());
+    pitchTypes.sort((a, b) => {
+      const usageA = usageByPitch.get(a)?.usage ?? null;
+      const usageB = usageByPitch.get(b)?.usage ?? null;
+      if (usageA !== null || usageB !== null) return (usageB ?? -1) - (usageA ?? -1);
+      const labelA = usageByPitch.get(a)?.label ?? MLB_PITCH_TYPE_LABELS[a] ?? a;
+      const labelB = usageByPitch.get(b)?.label ?? MLB_PITCH_TYPE_LABELS[b] ?? b;
+      return labelA.localeCompare(labelB);
+    });
+
+    return [
+      { value: "all", label: "All Pitches" },
+      ...pitchTypes.map((pitchType) => ({
+        value: pitchType,
+        label: `${pitchType} · ${usageByPitch.get(pitchType)?.label ?? MLB_PITCH_TYPE_LABELS[pitchType] ?? pitchType}`,
+        detail: formatPitchUsagePct(usageByPitch.get(pitchType)?.usage),
+      })),
+    ];
+  }, [mlbHotZoneData?.pitchTypes, mlbSprayData?.events]);
+  useEffect(() => {
+    if (
+      battedBallFilters.pitchTypeFilter !== "all" &&
+      !battedBallPitchTypeOptions.some((option) => option.value === battedBallFilters.pitchTypeFilter)
+    ) {
+      setBattedBallFilters((filters) => ({ ...filters, pitchTypeFilter: "all" }));
+    }
+  }, [battedBallFilters.pitchTypeFilter, battedBallPitchTypeOptions]);
+  const filteredBattedBallEvents = useMemo(
+    () => filterMlbBattedBallEvents(mlbSprayData?.events ?? [], battedBallFilters, battedBallPlayerType),
+    [battedBallFilters, battedBallPlayerType, mlbSprayData?.events]
+  );
   const battedBallSummary = useMemo(() => {
-    const events = (mlbSprayData?.events ?? []).filter((event) => event.season === spraySeason);
+    const events = [...filteredBattedBallEvents]
+      .sort((a, b) => new Date(b.game_date ?? 0).getTime() - new Date(a.game_date ?? 0).getTime());
     const total = events.length;
     const hardHits = events.filter((event) => event.is_hard_hit).length;
     const barrels = events.filter((event) => event.is_barrel).length;
@@ -2562,9 +3591,33 @@ export function PlayerQuickViewModal({
     const pct = (count: number) => total > 0 ? Math.round((count / total) * 100) : null;
     const bucketPct = (count: number) => evEvents.length > 0 ? Math.round((count / evEvents.length) * 100) : 0;
     const launchPct = (count: number) => laEvents.length > 0 ? Math.round((count / laEvents.length) * 100) : 0;
+    const sampleLabel = battedBallFilters.seasonFilter === "all" ? "2023-2026 sample" : `${battedBallFilters.seasonFilter} sample`;
+    const zoneOrder = isMlbPitcher
+      ? MLB_MODAL_ZONE_ORDER_FIELD
+      : profile?.battingHand === "L"
+        ? MLB_MODAL_ZONE_ORDER_LHB
+        : MLB_MODAL_ZONE_ORDER_RHB;
+    const zoneCounts = new Map<string, number>();
+    events.forEach((event) => {
+      const zone = isMlbPitcher
+        ? inferMlbModalFixedFieldZone(event)
+        : inferMlbModalZone(event, profile?.battingHand);
+      if (zone) zoneCounts.set(zone, (zoneCounts.get(zone) ?? 0) + 1);
+    });
+    let totalZoneCount = Array.from(zoneCounts.values()).reduce((sum, count) => sum + count, 0);
+    if (!isMlbPitcher && events.length > 0 && totalZoneCount === 0) {
+      (mlbSprayData?.zone_summary ?? []).forEach((zone) => {
+        if (zone.zone && zone.count > 0) zoneCounts.set(zone.zone, zone.count);
+      });
+      totalZoneCount = Array.from(zoneCounts.values()).reduce((sum, count) => sum + count, 0);
+    }
+    const zonePct = (zone: string) => totalZoneCount > 0 ? Math.round(((zoneCounts.get(zone) ?? 0) / totalZoneCount) * 100) : 0;
 
     return {
       total,
+      evCount: evEvents.length,
+      laCount: laEvents.length,
+      sampleLabel,
       hardHitPct: pct(hardHits),
       barrelPct: pct(barrels),
       avgEv,
@@ -2582,16 +3635,26 @@ export function PlayerQuickViewModal({
         { label: "20-30", value: launchPct(laEvents.filter((e) => (e.launch_angle ?? 0) >= 20 && (e.launch_angle ?? 0) < 30).length), className: "bg-orange-400" },
         { label: "30+", value: launchPct(laEvents.filter((e) => (e.launch_angle ?? 0) >= 30).length), className: "bg-sky-400" },
       ],
+      zoneBuckets: (() => {
+        const buckets = zoneOrder.map((zone) => ({
+          label: MLB_MODAL_ZONE_LABELS[zone] ?? zone,
+          value: zonePct(zone),
+          className: "bg-teal-600",
+        }));
+        const maxValue = Math.max(...buckets.map((bucket) => bucket.value), 0);
+        return buckets.map((bucket) => ({
+          ...bucket,
+          color: getMlbModalZoneBucketColor(bucket.value, maxValue),
+        }));
+      })(),
     };
-  }, [mlbSprayData?.events, spraySeason]);
+  }, [battedBallFilters.seasonFilter, filteredBattedBallEvents, isMlbPitcher, mlbSprayData?.zone_summary, profile?.battingHand]);
   const modalTabs = isMlb
     ? [
         { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
         { id: "splits" as const, label: "Splits", mobileLabel: "Splits", icon: Users, proOnly: false, disabled: true, soon: true },
         { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true, disabled: true, soon: true },
-        ...(!isMlbPitcher
-          ? [{ id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true, disabled: true, soon: true }]
-          : []),
+        { id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true },
       ]
     : [
         { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
@@ -2600,11 +3663,11 @@ export function PlayerQuickViewModal({
         { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
       ];
 
-  const handleLineEdit = () => {
-    const val = parseFloat(editValue);
-    if (!isNaN(val)) setCustomLine(val);
-    setIsEditingLine(false);
-  };
+	  const handleLineEdit = () => {
+	    const val = parseFloat(editValue);
+	    if (!isNaN(val)) handleLineChange(val);
+	    setIsEditingLine(false);
+	  };
 
   if (isMlb) {
     const hitRateCards = [
@@ -2788,7 +3851,7 @@ export function PlayerQuickViewModal({
                                   <DropdownMenuItem
                                     key={line}
                                     onSelect={() => {
-                                      setCustomLine(line);
+                                      handleLineChange(line);
                                       setIsEditingLine(false);
                                     }}
                                     className={cn(
@@ -2864,7 +3927,7 @@ export function PlayerQuickViewModal({
                                 market={currentMarket}
                                 sport={sport}
                                 line={activeLine}
-                                onLineChange={setCustomLine}
+                                onLineChange={handleLineChange}
                                 odds={oddsForChart}
                                 profileGameLogs={profile?.gameLogs as any}
                               />
@@ -2926,95 +3989,99 @@ export function PlayerQuickViewModal({
                       </>
                     )}
 
-                    {activeTab === "playstyle" && !isMlbPitcher && (
+                    {activeTab === "playstyle" && (
                       <>
+                        <MlbBattedBallFiltersPanel
+                          filters={battedBallFilters}
+                          onChange={setBattedBallFilters}
+                          onReset={() => setBattedBallFilters(getDefaultMlbSprayChartFilters())}
+                          pitchTypeOptions={battedBallPitchTypeOptions}
+                          opposingPitcherName={!isMlbPitcher && nextGameDetail !== "TBD" ? nextGameDetail : null}
+                          playerType={battedBallPlayerType}
+                          pitchMixContextName={isMlbPitcher ? displayName : null}
+                        />
+
                         <MlbGlassPanel className="grid grid-cols-2 overflow-hidden md:grid-cols-4">
-                          <MlbMetricTile label="Hard Hit" value={battedBallSummary.hardHitPct !== null ? `${battedBallSummary.hardHitPct}%` : "-"} sub={`${battedBallSummary.total} tracked balls`} tone="neutral" />
-                          <MlbMetricTile label="Avg Exit Velo" value={battedBallSummary.avgEv !== null ? `${battedBallSummary.avgEv.toFixed(1)} mph` : "-"} sub="2026 sample" tone="neutral" />
-                          <MlbMetricTile label="Barrel %" value={battedBallSummary.barrelPct !== null ? `${battedBallSummary.barrelPct}%` : "-"} sub="Barrels / BBE" tone="neutral" />
-                          <MlbMetricTile label="Launch Angle" value={battedBallSummary.avgLa !== null ? `${battedBallSummary.avgLa.toFixed(1)}°` : "-"} sub="Average" tone="neutral" />
+                          <MlbMetricTile
+                            label={isMlbPitcher ? "Hard Hit Allowed" : "Hard Hit"}
+                            value={isLoadingMlbSpray ? "-" : battedBallSummary.hardHitPct !== null ? `${battedBallSummary.hardHitPct}%` : "-"}
+                            sub={battedBallSummary.total > 0 ? `${battedBallSummary.total} BBE` : battedBallSummary.sampleLabel}
+                            tone="neutral"
+                            align="center"
+                          />
+                          <MlbMetricTile
+                            label={isMlbPitcher ? "Avg EV Allowed" : "Avg Exit Velo"}
+                            value={isLoadingMlbSpray ? "-" : battedBallSummary.avgEv !== null ? `${battedBallSummary.avgEv.toFixed(1)} mph` : "-"}
+                            sub={battedBallSummary.evCount > 0 ? `${battedBallSummary.evCount} tracked` : "Tracked BBE"}
+                            tone="neutral"
+                            align="center"
+                          />
+                          <MlbMetricTile
+                            label={isMlbPitcher ? "Barrel % Allowed" : "Barrel %"}
+                            value={isLoadingMlbSpray ? "-" : battedBallSummary.barrelPct !== null ? `${battedBallSummary.barrelPct}%` : "-"}
+                            sub="Barrels / BBE"
+                            tone="neutral"
+                            align="center"
+                          />
+                          <MlbMetricTile
+                            label={isMlbPitcher ? "Launch Allowed" : "Launch Angle"}
+                            value={isLoadingMlbSpray ? "-" : battedBallSummary.avgLa !== null ? `${battedBallSummary.avgLa.toFixed(1)}°` : "-"}
+                            sub={battedBallSummary.laCount > 0 ? `${battedBallSummary.laCount} tracked` : "Average"}
+                            tone="neutral"
+                            align="center"
+                          />
                         </MlbGlassPanel>
 
                         <div className="grid gap-3 xl:grid-cols-[1fr_1.25fr]">
-                          <MlbGlassPanel className="overflow-hidden">
-                            <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-                              <h3 className="text-xs font-black uppercase tracking-wide text-neutral-700 dark:text-slate-300">Spray Distribution</h3>
-                            </div>
-                            <div className="p-3">
-                              <MlbSprayChart
-                                playerId={fullProfilePlayerId ?? null}
-                                gameId={profile?.gameId ? Number(profile.gameId) : null}
-                                battingHand={profile?.battingHand}
-                              />
-                            </div>
-                          </MlbGlassPanel>
+                          <MlbSprayChart
+                            playerId={fullProfilePlayerId ?? null}
+                            playerType={battedBallPlayerType}
+                            gameId={mlbSprayGameId}
+                            eventId={mlbSprayEventId}
+                            battingHand={profile?.battingHand}
+                            variant="modal"
+                            filters={battedBallFilters}
+                            onFiltersChange={setBattedBallFilters}
+                            hideHeaderControls
+                            hideZoneBreakdown
+                            venueName={mlbScheduleGame?.weather?.venue_name ?? null}
+                            weather={mlbScheduleGame?.weather ?? null}
+                            selectedEventKey={selectedBattedBallKey}
+                            onEventSelect={(eventKey) => setSelectedBattedBallKey(eventKey)}
+                          />
 
                           <div className="space-y-3">
-                            <MlbGlassPanel>
-                              <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-                                <h3 className="text-xs font-black uppercase tracking-wide text-neutral-700 dark:text-slate-300">Exit Velocity Breakdown</h3>
-                              </div>
-                              <div className="space-y-3 px-4 py-4">
-                                {battedBallSummary.evBuckets.map((bucket) => (
-                                  <div key={bucket.label}>
-                                    <div className="mb-1 flex justify-between text-xs text-neutral-500 dark:text-slate-400">
-                                      <span>{bucket.label} mph</span>
-                                      <span className="font-bold tabular-nums text-neutral-950 dark:text-white">{isLoadingMlbSpray ? "-" : `${bucket.value}%`}</span>
-                                    </div>
-                                    <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-slate-800">
-                                      <div className={cn("h-full rounded-full", bucket.className)} style={{ width: `${bucket.value}%` }} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </MlbGlassPanel>
-
-                            <MlbGlassPanel>
-                              <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-                                <h3 className="text-xs font-black uppercase tracking-wide text-neutral-700 dark:text-slate-300">Launch Angle Breakdown</h3>
-                              </div>
-                              <div className="space-y-3 px-4 py-4">
-                                {battedBallSummary.launchBuckets.map((bucket) => (
-                                  <div key={bucket.label}>
-                                    <div className="mb-1 flex justify-between text-xs text-neutral-500 dark:text-slate-400">
-                                      <span>{bucket.label}°</span>
-                                      <span className="font-bold tabular-nums text-neutral-950 dark:text-white">{isLoadingMlbSpray ? "-" : `${bucket.value}%`}</span>
-                                    </div>
-                                    <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-slate-800">
-                                      <div className={cn("h-full rounded-full", bucket.className)} style={{ width: `${bucket.value}%` }} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </MlbGlassPanel>
+                            <MlbDistributionBar
+                              title="Exit Velocity Breakdown"
+                              buckets={battedBallSummary.evBuckets}
+                              isLoading={isLoadingMlbSpray}
+                              emptyLabel="Exit velocity data is not available for this sample."
+                              unit="mph"
+                            />
+                            <MlbDistributionBar
+                              title="Launch Angle Breakdown"
+                              buckets={battedBallSummary.launchBuckets}
+                              isLoading={isLoadingMlbSpray}
+                              emptyLabel="Launch angle data is not available for this sample."
+                              unit="degrees"
+                            />
+                            <MlbDistributionBar
+                              title="Zone Breakdown"
+                              buckets={battedBallSummary.zoneBuckets}
+                              isLoading={isLoadingMlbSpray}
+                              emptyLabel="Zone data is not available for this sample."
+                            />
                           </div>
                         </div>
 
-                        <MlbGlassPanel className="overflow-hidden">
-                          <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-                            <h3 className="text-sm font-black text-neutral-950 dark:text-white">Recent Games <span className="font-medium text-neutral-500 dark:text-slate-400">({formatMarketLabel(currentMarket)})</span></h3>
-                          </div>
-                          <div className="px-3 py-3">
-                            <GameLogChart
-                              games={filteredGames.length > 0 ? filteredGames : chartBaseGames.slice(0, 10)}
-                              market={currentMarket}
-                              sport={sport}
-                              line={activeLine}
-                              onLineChange={setCustomLine}
-                              odds={oddsForChart}
-                            />
-                          </div>
-                        </MlbGlassPanel>
-
-                        {fullProfilePlayerId && (
-                          <BoxScoreTable
-                            sport={sport}
-                            playerId={fullProfilePlayerId}
-                            market={currentMarket}
-                            currentLine={activeLine}
-                            prefetchedGames={filteredGames}
-                          />
-                        )}
+                        <MlbBattedBallsTable
+                          events={filteredBattedBallEvents}
+                          selectedEventKey={selectedBattedBallKey}
+                          onSelectEvent={(eventKey) => setSelectedBattedBallKey(eventKey)}
+                          isLoading={isLoadingMlbSpray}
+                          playerType={battedBallPlayerType}
+                          includeYearInDates={battedBallFilters.seasonFilter === "all"}
+                        />
                       </>
                     )}
                       </div>
@@ -3035,7 +4102,7 @@ export function PlayerQuickViewModal({
                     lineHistorySide={lineHistorySide}
                     onLineHistorySideChange={setLineHistorySide}
                     onLineChange={(line) => {
-                      setCustomLine(line);
+                      handleLineChange(line);
                       setIsEditingLine(false);
                     }}
                     canOpenLineHistory={!!lineHistoryContext}
@@ -3659,7 +4726,7 @@ export function PlayerQuickViewModal({
                           market={currentMarket}
                           sport={sport}
                           line={activeLine}
-                          onLineChange={setCustomLine}
+                          onLineChange={handleLineChange}
                           odds={oddsForChart}
                           profileGameLogs={profile?.gameLogs as any}
                         />
@@ -3750,11 +4817,14 @@ export function PlayerQuickViewModal({
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "playstyle" && isMlb && (
                 <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-                  <MlbSprayChart
-                    playerId={fullProfilePlayerId ?? null}
-                    gameId={profile?.gameId ? Number(profile.gameId) : null}
-                    battingHand={profile?.battingHand}
-                  />
+	                  <MlbSprayChart
+	                    playerId={fullProfilePlayerId ?? null}
+	                    gameId={mlbSprayGameId}
+	                    eventId={mlbSprayEventId}
+	                    battingHand={profile?.battingHand}
+	                    venueName={mlbScheduleGame?.weather?.venue_name ?? null}
+	                    weather={mlbScheduleGame?.weather ?? null}
+	                  />
                 </div>
               )}
 

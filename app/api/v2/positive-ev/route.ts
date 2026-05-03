@@ -903,6 +903,7 @@ function evRowToOpportunity(
     id: row.seid,
     sport: row.sport,
     eventId: row.eid,
+    gameId: row.ev_data?.game_id ?? row.game_id ?? null,
     market: row.mkt,
     marketDisplay: row.ev_data?.market_display ?? row.mkt,
 

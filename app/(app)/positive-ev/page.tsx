@@ -1246,6 +1246,7 @@ export default function PositiveEVPage() {
                 event_id: opp.eventId,
                 line: opp.line,
                 gameContext: buildQuickViewGameContext({
+                  gameId: opp.gameId,
                   startTime: opp.startTime,
                   gameDate: opp.gameDate,
                   homeTeam: opp.homeTeam,
@@ -2201,6 +2202,7 @@ export default function PositiveEVPage() {
                                   event_id: opp.eventId,
                                   line: opp.line,
                                   gameContext: buildQuickViewGameContext({
+                                    gameId: opp.gameId,
                                     startTime: opp.startTime,
                                     gameDate: opp.gameDate,
                                     homeTeam: opp.homeTeam,
