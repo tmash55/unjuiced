@@ -103,6 +103,37 @@ interface RpcResponse {
   games: RpcGame[];
 }
 
+async function fetchPotentialAssistsByGame(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  playerId: number,
+  games: RpcGame[]
+): Promise<Map<string, number>> {
+  const gameIds = [...new Set(games.map((game) => Number(game.game_id)).filter((gameId) => Number.isFinite(gameId) && gameId > 0))];
+  const result = new Map<string, number>();
+
+  if (gameIds.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("nba_player_box_scores")
+    .select("game_id, potential_assists")
+    .eq("player_id", playerId)
+    .in("game_id", gameIds);
+
+  if (error) {
+    console.error("[Player Box Scores] Potential assists lookup error:", error.message);
+    return result;
+  }
+
+  for (const row of data || []) {
+    if (!row.game_id || row.potential_assists === null) continue;
+    result.set(String(row.game_id), row.potential_assists);
+  }
+
+  return result;
+}
+
 // Frontend response structure
 export interface PlayerInfo {
   playerId: number;
@@ -182,6 +213,7 @@ export interface BoxScoreGame {
   // Tracking
   passes: number;
   potentialReb: number;
+  potentialAssists?: number | null;
   // Combo stats
   pra: number;
   pr: number;
@@ -278,6 +310,8 @@ export async function GET(req: NextRequest) {
       ftPct: data.season_summary.ft_pct,
     } : null;
 
+    const potentialAssistsMap = await fetchPotentialAssistsByGame(supabase, playerId, data.games || []);
+
     // Map games
     const games: BoxScoreGame[] = (data.games || []).map((g) => ({
       gameId: g.game_id,
@@ -326,6 +360,7 @@ export async function GET(req: NextRequest) {
       // Tracking
       passes: g.passes,
       potentialReb: g.potential_reb,
+      potentialAssists: potentialAssistsMap.get(String(g.game_id)) ?? null,
       // Combo stats
       pra: g.pra,
       pr: g.pr,
@@ -354,4 +389,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

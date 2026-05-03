@@ -539,6 +539,9 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           {commonStats}
           <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Assists" value={game.ast} />
+          {game.potentialAssists !== null && game.potentialAssists !== undefined && game.potentialAssists > 0 && (
+            <StatRow label="Potential AST" value={game.potentialAssists} />
+          )}
           <StatRow label="Passes" value={game.passes} />
           <StatRow label="Turnovers" value={game.tov} />
           <StatRow label="AST/TO" value={game.ast === 0 ? "0" : game.tov === 0 ? game.ast.toString() : (game.ast / game.tov).toFixed(1)} />
@@ -732,11 +735,13 @@ export function GameLogChart({
   const maxStat = useMemo(() => {
     if (games.length === 0) return 10;
     
-    // For rebounds market, include potential rebounds in max calculation
+    // For rebound/assist markets, include opportunity stats in max calculation
     // For 3PM market, include 3PA in max calculation
     let max: number;
     if (market === "player_rebounds") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
+    } else if (sport === "nba" && market === "player_assists") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialAssists || 0)));
     } else if (market === "player_threes_made") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.fg3a || 0)));
     } else {
@@ -1503,6 +1508,25 @@ export function GameLogChart({
                               style={{ bottom: `${((game.potentialReb / maxStat) * chartHeight) + 2}px` }}
                             >
                               {game.potentialReb}
+                            </span>
+                          </>
+                        )}
+
+                        {/* Potential Assists - Faded overlay (NBA assists market only) */}
+                        {sport === "nba" && market === "player_assists" && (game.potentialAssists ?? 0) > 0 && (game.potentialAssists ?? 0) > game.ast && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-sky-400/25 to-sky-300/15 dark:from-sky-500/25 dark:to-sky-400/15"
+                              style={{
+                                width: barWidth,
+                                height: Math.max((((game.potentialAssists ?? 0) / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            <span
+                              className="absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold text-sky-400/80 dark:text-sky-300/75"
+                              style={{ bottom: `${(((game.potentialAssists ?? 0) / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.potentialAssists}
                             </span>
                           </>
                         )}
