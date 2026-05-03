@@ -105,8 +105,8 @@ const MLBAM_HP_Y = 199.27;
 const FAIR_START = Math.PI * 0.25;
 const FAIR_END = Math.PI * 0.75;
 const ZONE_STEP = (FAIR_END - FAIR_START) / 5;
-const ZONE_ORDER_RHB = ["pull", "pull_center", "center", "oppo_center", "oppo"] as const;
-const ZONE_ORDER_LHB = ["oppo", "oppo_center", "center", "pull_center", "pull"] as const;
+const ZONE_ORDER_RHB = ["oppo", "oppo_center", "center", "pull_center", "pull"] as const;
+const ZONE_ORDER_LHB = ["pull", "pull_center", "center", "oppo_center", "oppo"] as const;
 
 function inferBattedBallZone(coordX: number | null | undefined, coordY: number | null | undefined, batterHand: string | null | undefined) {
   if (coordX == null || coordY == null) return null;
