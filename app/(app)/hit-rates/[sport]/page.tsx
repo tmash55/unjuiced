@@ -3,6 +3,7 @@
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
+import { DailyInsightStrip } from "@/components/hit-rates/hit-rate-table";
 import { GamesFilterDropdown, hasGameStarted } from "@/components/hit-rates/games-filter-dropdown";
 import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
 import { GlossaryModal, GlossaryButton } from "@/components/hit-rates/glossary-modal";
@@ -62,20 +63,20 @@ const SPORT_CONFIG: Record<
   wnba: {
     title: "WNBA Hit Rates",
     subtitle: "Analyze WNBA player prop performance with historical hit rates, streaks, and matchup data.",
-    defaultMarket: "points",
+    defaultMarket: "player_points",
     markets: [
-      { value: "points", label: "Points" },
-      { value: "rebounds", label: "Rebounds" },
-      { value: "assists", label: "Assists" },
-      { value: "pts_reb_ast", label: "Points + Rebounds + Assists" },
-      { value: "pts_reb", label: "Points + Rebounds" },
-      { value: "pts_ast", label: "Points + Assists" },
-      { value: "reb_ast", label: "Rebounds + Assists" },
-      { value: "three_pointers_made", label: "Three Pointers" },
-      { value: "steals", label: "Steals" },
-      { value: "blocks", label: "Blocks" },
-      { value: "blk_stl", label: "Blocks + Steals" },
-      { value: "turnovers", label: "Turnovers" },
+      { value: "player_points", label: "Points" },
+      { value: "player_rebounds", label: "Rebounds" },
+      { value: "player_assists", label: "Assists" },
+      { value: "player_points_rebounds_assists", label: "Points + Rebounds + Assists" },
+      { value: "player_points_rebounds", label: "Points + Rebounds" },
+      { value: "player_points_assists", label: "Points + Assists" },
+      { value: "player_rebounds_assists", label: "Rebounds + Assists" },
+      { value: "player_threes_made", label: "Three Pointers" },
+      { value: "player_steals", label: "Steals" },
+      { value: "player_blocks", label: "Blocks" },
+      { value: "player_blocks_steals", label: "Blocks + Steals" },
+      { value: "player_turnovers", label: "Turnovers" },
     ],
   },
 };
@@ -202,10 +203,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Default game filter on first load.
   // NBA: preselect next game day.
-  // MLB: default to "All Games" to avoid empty-state when a single matchup has no profiles yet.
+  // MLB/WNBA: default to "All Games" to avoid empty states when one matchup/date has no profiles yet.
   useEffect(() => {
     if (allGames && allGames.length > 0) {
-      if (sport === "mlb") {
+      if (sport === "mlb" || sport === "wnba") {
         if (selectedGameIds === null) {
           setSelectedGameIds([]);
         }
@@ -568,6 +569,14 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     >
       {/* Glossary Modal */}
       <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+
+      <div className="mb-4">
+        <DailyInsightStrip
+          sport={sport}
+          rows={filteredRows}
+          totalCount={filteredRows.length}
+        />
+      </div>
 
       {/* Hit Rate Table - with Games Filter passed as additional filter */}
       <GatedHitRateTable 

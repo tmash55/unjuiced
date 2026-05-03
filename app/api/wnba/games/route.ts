@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 
 // Cache configuration
-const GAMES_CACHE_KEY = "wnba:games:today";
+const GAMES_CACHE_KEY = "wnba:games:regular-season-preferred:v2";
 const GAMES_CACHE_TTL = 300; // 5 minutes
 
 // Helper to parse game time from game_status like "7:00 pm ET" into sortable minutes
@@ -31,6 +31,26 @@ function sortGamesByDateTime(games: any[]): any[] {
     const bMinutes = parseGameTimeToMinutes(b.game_status || "");
     return aMinutes - bMinutes;
   });
+}
+
+function isPlayableGame(game: any): boolean {
+  const status = String(game.game_status || "").toLowerCase();
+  return !status.includes("postponed") && !status.includes("cancelled");
+}
+
+function isRegularSeasonGame(game: any): boolean {
+  return String(game.season_type || "").toLowerCase().includes("regular");
+}
+
+function getPreferredDateWindowGames(games: any[], dateCount = 2): any[] {
+  const playableGames = sortGamesByDateTime(games.filter(isPlayableGame));
+  const regularSeasonGames = playableGames.filter(isRegularSeasonGame);
+  const preferredGames = regularSeasonGames.length > 0 ? regularSeasonGames : playableGames;
+  const dates = [...new Set(preferredGames.map((game) => game.game_date))].slice(0, dateCount);
+
+  if (dates.length === 0) return [];
+
+  return preferredGames.filter((game) => dates.includes(game.game_date));
 }
 
 export async function GET(req: NextRequest) {
@@ -88,42 +108,22 @@ export async function GET(req: NextRequest) {
       season_type
     `;
 
-    const tomorrowDate = new Date(now);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrow = etFormatter.format(tomorrowDate);
+    const { data: futureGames, error: futureError } = await supabase
+      .from("wnba_games_hr")
+      .select(selectFields)
+      .gte("game_date", today)
+      .order("game_date", { ascending: true })
+      .limit(60);
 
-    const [todayResult, tomorrowResult] = await Promise.all([
-      supabase.from("wnba_games_hr").select(selectFields).eq("game_date", today),
-      supabase.from("wnba_games_hr").select(selectFields).eq("game_date", tomorrow),
-    ]);
-
-    if (todayResult.error) {
-      console.error("[/api/wnba/games] Error fetching today's games:", todayResult.error);
+    if (futureError) {
+      console.error("[/api/wnba/games] Error fetching upcoming games:", futureError);
       return NextResponse.json(
-        { error: "Failed to fetch games", details: todayResult.error.message },
+        { error: "Failed to fetch games", details: futureError.message },
         { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    const todayGames = todayResult.data || [];
-    const tomorrowGames = tomorrowResult.data || [];
-
-    let allGames = [...todayGames, ...tomorrowGames];
-
-    if (allGames.length === 0) {
-      const { data: futureGames, error: futureError } = await supabase
-        .from("wnba_games_hr")
-        .select(selectFields)
-        .gte("game_date", today)
-        .order("game_date", { ascending: true })
-        .limit(30);
-
-      if (!futureError && futureGames) {
-        const dates = [...new Set(futureGames.map(g => g.game_date))].slice(0, 2);
-        allGames = futureGames.filter(g => dates.includes(g.game_date));
-      }
-    }
-
+    const allGames = getPreferredDateWindowGames(futureGames || []);
     const sortedGames = sortGamesByDateTime(allGames);
     const dates = [...new Set(sortedGames.map(g => g.game_date))];
 

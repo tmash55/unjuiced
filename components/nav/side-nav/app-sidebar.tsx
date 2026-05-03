@@ -145,6 +145,7 @@ const wnbaLink: NavItem = {
     { label: "Hit Rates", href: "/hit-rates/wnba" },
     { label: "sheets", href: "", sectionLabel: "sheets" },
     { label: "Top Props", href: "/cheatsheets/wnba/hit-rates" },
+    { label: "Defense vs Position", href: "/cheatsheets/wnba/dvp" },
   ],
 }
 

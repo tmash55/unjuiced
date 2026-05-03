@@ -7,6 +7,7 @@ import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS } from "./chart-filter
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { InjuryFilter } from "./roster-and-injuries";
 import { Tooltip } from "@/components/tooltip";
+import { PlayerHeadshot } from "@/components/player-headshot";
 import type { PlayTypeData } from "@/hooks/use-team-play-type-ranks";
 import type { ShotZoneData } from "@/hooks/use-team-shot-zone-ranks";
 
@@ -69,6 +70,7 @@ type QuickFilterKey = "home" | "away" | "win" | "loss" | "wonBy10" | "lostBy10" 
 // Teammate for lineup context - extended with injury status
 interface TeammateInfo {
   playerId: number;
+  nbaPlayerId?: number | null;
   name: string;
   teamId: number | null;
   gamesOut: number;
@@ -90,6 +92,7 @@ interface FilterDrawerProps {
   gamesForFilters: BoxScoreGame[];
   allSeasonGames?: BoxScoreGame[]; // Full season games for range calculation
   market: string;
+  sport?: "nba" | "wnba";
   // DvP data
   hasDvpData?: boolean;
   // Play type and shooting zone matchup data (for current opponent context)
@@ -166,6 +169,7 @@ export function FilterDrawer({
   gamesForFilters,
   allSeasonGames,
   market,
+  sport = "nba",
   hasDvpData = false,
   playTypeMatchup,
   shotZoneMatchup,
@@ -611,14 +615,13 @@ export function FilterDrawer({
                       >
                         {/* Player Headshot */}
                         <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700">
-                            <img
-                              src={`https://cdn.nba.com/headshots/nba/latest/260x190/${teammate.playerId}.png`}
-                              alt={teammate.name}
-                              className="w-full h-full object-cover object-top"
-                              onError={(e) => {
-                                e.currentTarget.src = "/images/player-fallback.png";
-                              }}
+                          <div className="h-9 w-9 overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800">
+                            <PlayerHeadshot
+                              nbaPlayerId={teammate.nbaPlayerId ?? (sport === "nba" ? teammate.playerId : null)}
+                              sport={sport}
+                              name={teammate.name}
+                              size="small"
+                              className="h-full w-full object-cover object-top"
                             />
                           </div>
                           {/* Injury Status Badge */}

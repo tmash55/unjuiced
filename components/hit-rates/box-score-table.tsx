@@ -668,6 +668,9 @@ export function BoxScoreTable({
               {sortedGames.map((game, idx) => {
                 const marketStat = getMarketStat(game, market);
                 const isOverLine = currentLine != null && marketStat > currentLine;
+                const opponentLogoUrl = game.opponentAbbr
+                  ? getTeamLogoUrl(game.opponentAbbr, sport)
+                  : null;
                 
                 return (
                   <tr 
@@ -690,11 +693,13 @@ export function BoxScoreTable({
                         <span className="text-neutral-400 text-[10px]">
                           {game.homeAway === "H" ? "vs" : "@"}
                         </span>
-                        <img
-                          src={getTeamLogoUrl(game.opponentAbbr, sport)}
-                          alt={game.opponentAbbr}
-                          className="w-4 h-4 object-contain"
-                        />
+                        {opponentLogoUrl && (
+                          <img
+                            src={opponentLogoUrl}
+                            alt={game.opponentAbbr}
+                            className="w-4 h-4 object-contain"
+                          />
+                        )}
                         <span className="font-medium text-neutral-700 dark:text-neutral-300 text-[10px]">
                           {game.opponentAbbr}
                         </span>

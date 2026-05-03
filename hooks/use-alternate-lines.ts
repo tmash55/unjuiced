@@ -49,6 +49,7 @@ export interface AlternateLinesResponse {
 }
 
 export interface UseAlternateLinesOptions {
+  sport?: "nba" | "wnba";
   eventId: string | null;     // Event/game ID
   selKey: string | null;      // Player UUID from sel_key
   playerId: number | null;    // NBA player ID for game logs
@@ -58,13 +59,14 @@ export interface UseAlternateLinesOptions {
 }
 
 async function fetchAlternateLines(
+  sport: "nba" | "wnba",
   eventId: string,
   selKey: string,
   playerId: number,
   market: string,
   currentLine?: number | null
 ): Promise<AlternateLinesResponse> {
-  const res = await fetch("/api/nba/alternate-lines", {
+  const res = await fetch(`/api/${sport}/alternate-lines`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -73,6 +75,7 @@ async function fetchAlternateLines(
       playerId,
       market,
       currentLine: currentLine ?? undefined,
+      sport,
     }),
   });
 
@@ -85,13 +88,13 @@ async function fetchAlternateLines(
 }
 
 export function useAlternateLines(options: UseAlternateLinesOptions) {
-  const { eventId, selKey, playerId, market, currentLine, enabled = true } = options;
+  const { sport = "nba", eventId, selKey, playerId, market, currentLine, enabled = true } = options;
 
   const isValid = !!eventId && !!selKey && !!playerId && !!market;
 
   const query = useQuery<AlternateLinesResponse>({
-    queryKey: ["alternate-lines", eventId, selKey, playerId, market, currentLine],
-    queryFn: () => fetchAlternateLines(eventId!, selKey!, playerId!, market!, currentLine),
+    queryKey: ["alternate-lines", sport, eventId, selKey, playerId, market, currentLine],
+    queryFn: () => fetchAlternateLines(sport, eventId!, selKey!, playerId!, market!, currentLine),
     enabled: enabled && isValid,
     staleTime: 30_000,
     gcTime: 5 * 60_000,

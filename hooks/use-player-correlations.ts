@@ -61,6 +61,7 @@ export interface TeammateGameLog {
 
 export interface TeammateCorrelation {
   playerId: number;
+  nbaPlayerId?: number | null;
   playerName: string;
   position: string;
   minutesAvg: number | null;
@@ -155,6 +156,7 @@ export interface UsePlayerCorrelationsOptions {
   playerId: number | null;
   market: string | null;
   line: number | null;
+  sport?: "nba" | "wnba";
   gameId?: string | number | null; // New: pass gameId to get odds data
   lastNGames?: number | null;
   season?: string;
@@ -162,6 +164,7 @@ export interface UsePlayerCorrelationsOptions {
 }
 
 async function fetchPlayerCorrelations(
+  sport: "nba" | "wnba",
   playerId: number,
   market: string,
   line: number,
@@ -169,7 +172,7 @@ async function fetchPlayerCorrelations(
   lastNGames?: number | null,
   season?: string
 ): Promise<PlayerCorrelationsData> {
-  const res = await fetch("/api/nba/player-correlations", {
+  const res = await fetch(`/api/${sport}/player-correlations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -191,16 +194,17 @@ async function fetchPlayerCorrelations(
 }
 
 export function usePlayerCorrelations(options: UsePlayerCorrelationsOptions) {
-  const { playerId, market, line, gameId, lastNGames, season, enabled = true } = options;
+  const { playerId, market, line, sport = "nba", gameId, lastNGames, season, enabled = true } = options;
 
   // Normalize gameId to number
   const normalizedGameId = gameId ? (typeof gameId === "string" ? parseInt(gameId, 10) : gameId) : null;
   
+  const resolvedSeason = season ?? (sport === "wnba" ? "2025" : undefined);
   const isValid = playerId !== null && market !== null && line !== null;
 
   const query = useQuery<PlayerCorrelationsData>({
-    queryKey: ["player-correlations", playerId, market, line, normalizedGameId, lastNGames, season],
-    queryFn: () => fetchPlayerCorrelations(playerId!, market!, line!, normalizedGameId, lastNGames, season),
+    queryKey: ["player-correlations", sport, playerId, market, line, normalizedGameId, lastNGames, resolvedSeason],
+    queryFn: () => fetchPlayerCorrelations(sport, playerId!, market!, line!, normalizedGameId, lastNGames, resolvedSeason),
     enabled: enabled && isValid,
     staleTime: 5 * 60_000, // 5 minutes
     gcTime: 10 * 60_000, // 10 minutes

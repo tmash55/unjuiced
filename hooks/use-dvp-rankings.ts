@@ -359,16 +359,32 @@ export type DvpStatKey = typeof DVP_STATS[number]["value"];
 
 interface UseDvpRankingsOptions {
   position: string;
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }
 
-async function fetchDvpRankings(position: string, season?: string): Promise<DvpRankingsResponse> {
+function normalizeDvpPosition(position: string, sport: "nba" | "wnba" = "nba"): string {
+  const normalized = position.toUpperCase();
+  if (sport === "wnba") {
+    if (["G", "F", "C"].includes(normalized)) return normalized;
+    if (["PG", "SG"].includes(normalized)) return "G";
+    if (["SF", "PF"].includes(normalized)) return "F";
+    return "G";
+  }
+  if (["PG", "SG", "SF", "PF", "C"].includes(normalized)) return normalized;
+  if (normalized === "G") return "PG";
+  if (normalized === "F") return "PF";
+  return "PG";
+}
+
+async function fetchDvpRankings(position: string, sport: "nba" | "wnba", season?: string): Promise<DvpRankingsResponse> {
   const params = new URLSearchParams();
-  params.set("position", position);
+  params.set("position", normalizeDvpPosition(position, sport));
+  if (sport === "wnba") params.set("schema", "v2");
   if (season) params.set("season", season);
 
-  const res = await fetch(`/api/nba/dvp-rankings?${params.toString()}`);
+  const res = await fetch(`/api/${sport}/dvp-rankings?${params.toString()}`);
   
   if (!res.ok) {
     throw new Error(`Failed to fetch DvP rankings: ${res.status}`);
@@ -377,10 +393,11 @@ async function fetchDvpRankings(position: string, season?: string): Promise<DvpR
   return res.json();
 }
 
-export function useDvpRankings({ position, season, enabled = true }: UseDvpRankingsOptions) {
+export function useDvpRankings({ position, sport = "nba", season, enabled = true }: UseDvpRankingsOptions) {
+  const normalizedPosition = normalizeDvpPosition(position, sport);
   const query = useQuery({
-    queryKey: ["dvp-rankings", position, season],
-    queryFn: () => fetchDvpRankings(position, season),
+    queryKey: ["dvp-rankings", sport, sport === "wnba" ? "v2" : "v1", normalizedPosition, season],
+    queryFn: () => fetchDvpRankings(normalizedPosition, sport, season),
     enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
@@ -388,8 +405,8 @@ export function useDvpRankings({ position, season, enabled = true }: UseDvpRanki
 
   return {
     teams: query.data?.teams ?? [],
-    position: query.data?.position ?? position,
-    season: query.data?.season ?? "2025-26",
+    position: query.data?.position ?? normalizedPosition,
+    season: query.data?.season ?? (sport === "wnba" ? "2025" : "2025-26"),
     meta: query.data?.meta,
     isLoading: query.isLoading,
     isFetching: query.isFetching,

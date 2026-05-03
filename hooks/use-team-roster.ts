@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export interface TeamRosterPlayer {
   playerId: number;
+  nbaPlayerId?: number | null;
   name: string;
   position: string;
   jerseyNumber: number | null;
@@ -32,19 +33,21 @@ export interface TeamRosterResponse {
 
 export interface UseTeamRosterOptions {
   teamId: number | null;
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }
 
 async function fetchTeamRoster(
   teamId: number,
+  sport: "nba" | "wnba",
   season?: string
 ): Promise<TeamRosterResponse> {
   const params = new URLSearchParams();
   params.set("teamId", String(teamId));
   if (season) params.set("season", season);
 
-  const res = await fetch(`/api/nba/team-roster?${params.toString()}`);
+  const res = await fetch(`/api/${sport}/team-roster?${params.toString()}`);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -55,11 +58,11 @@ async function fetchTeamRoster(
 }
 
 export function useTeamRoster(options: UseTeamRosterOptions) {
-  const { teamId, season, enabled = true } = options;
+  const { teamId, sport = "nba", season, enabled = true } = options;
 
   const query = useQuery<TeamRosterResponse>({
-    queryKey: ["team-roster", teamId, season],
-    queryFn: () => fetchTeamRoster(teamId!, season),
+    queryKey: ["team-roster", sport, teamId, season],
+    queryFn: () => fetchTeamRoster(teamId!, sport, season),
     enabled: enabled && teamId !== null,
     staleTime: 5 * 60_000, // 5 minutes
     gcTime: 10 * 60_000, // 10 minutes
@@ -85,19 +88,22 @@ export function useTeamRoster(options: UseTeamRosterOptions) {
 export function useGameRosters(options: {
   playerTeamId: number | null;
   opponentTeamId: number | null;
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }) {
-  const { playerTeamId, opponentTeamId, season, enabled = true } = options;
+  const { playerTeamId, opponentTeamId, sport = "nba", season, enabled = true } = options;
 
   const playerTeam = useTeamRoster({
     teamId: playerTeamId,
+    sport,
     season,
     enabled: enabled && playerTeamId !== null,
   });
 
   const opponentTeam = useTeamRoster({
     teamId: opponentTeamId,
+    sport,
     season,
     enabled: enabled && opponentTeamId !== null,
   });
@@ -109,4 +115,3 @@ export function useGameRosters(options: {
     isFetching: playerTeam.isFetching || opponentTeam.isFetching,
   };
 }
-

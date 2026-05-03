@@ -1,0 +1,5 @@
+ALTER FUNCTION public.get_wnba_player_correlations(BIGINT, TEXT, NUMERIC, INTEGER, TEXT, INTEGER)
+  SECURITY INVOKER;
+
+ALTER FUNCTION public.get_wnba_player_correlations(BIGINT, TEXT, NUMERIC, INTEGER, TEXT, INTEGER)
+  STABLE;

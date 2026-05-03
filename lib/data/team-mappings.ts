@@ -264,7 +264,9 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     NEW: "NYL",
     PHX: "PHX", // Phoenix Mercury (stats.wnba.com uses "PHX")
     PHO: "PHX",
+    POR: "POR", // Portland expansion team
     SEA: "SEA", // Seattle Storm
+    TOR: "TOR", // Toronto expansion team
     WAS: "WAS", // Washington Mystics
     WSH: "WAS",
   }
@@ -285,6 +287,7 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       case "nba":
         return NBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "basketball_wnba":
+      case "wnba":
         return WNBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "baseball_mlb":
       case "mlb":

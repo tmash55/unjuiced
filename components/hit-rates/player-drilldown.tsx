@@ -686,6 +686,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Fetch team roster to get current injury status for teammates
   const { players: rosterPlayers } = useTeamRoster({
     teamId: profile.teamId,
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
     enabled: !!profile.teamId,
   });
 
@@ -714,21 +716,28 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const { data: playTypeMatchupData } = usePlayTypeMatchup({
     playerId: profile.playerId,
     opponentTeamId: profile.opponentTeamId,
-    enabled: !!profile.playerId && !!profile.opponentTeamId,
+    enabled: sport !== "wnba" && !!profile.playerId && !!profile.opponentTeamId,
   });
 
   // Fetch shot zone matchup for current opponent - used in filter drawer Matchup tab
   const { data: shotZoneMatchupData } = useShotZoneMatchup({
     playerId: profile.playerId,
     opponentTeamId: profile.opponentTeamId,
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
     enabled: !!profile.playerId && !!profile.opponentTeamId,
   });
 
   // Fetch all teams' play type ranks - used for filtering games by opponent defense
-  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames, isAvailable: playTypeRanksAvailable } = useTeamPlayTypeRanks();
+  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames, isAvailable: playTypeRanksAvailable } = useTeamPlayTypeRanks({
+    enabled: sport !== "wnba",
+  });
 
   // Fetch all teams' shot zone ranks - used for filtering games by opponent defense
-  const { zones: shotZoneRanks, isAvailable: shotZoneRanksAvailable } = useTeamShotZoneRanks();
+  const { zones: shotZoneRanks, isAvailable: shotZoneRanksAvailable } = useTeamShotZoneRanks({
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
+  });
 
   // Build play type ranks map for chart overlay lines: playType -> teamAbbr -> rank
   const playTypeRanksMap = useMemo(() => {
@@ -830,6 +839,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Fetch odds for current profile using new Redis keys
   const activeLine = customLine ?? profile.line;
   const { data: oddsLineData } = useOddsLine({
+    sport,
     eventId: profile.eventId,
     market: profile.market,
     playerId: profile.selKey, // Player UUID from selKey
@@ -840,13 +850,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
 
   // Transform odds line data to format expected by the header
   const oddsForChart = useMemo(() => {
-    if (!oddsLineData) return null;
-    
     // Extract best over/under from the books list
     const overBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
     const underBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
     
-    for (const book of oddsLineData.books || []) {
+    for (const book of oddsLineData?.books || []) {
       if (book.over !== null) {
         overBooks.push({
           book: book.book,
@@ -868,18 +876,31 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     // Sort by price (better odds first)
     overBooks.sort((a, b) => b.price - a.price);
     underBooks.sort((a, b) => b.price - a.price);
+
+    const isProfileLine = activeLine !== null && activeLine === profile.line;
+    const profileBestOver =
+      isProfileLine && profile.bestOdds
+        ? {
+            book: profile.bestOdds.book,
+            price: profile.bestOdds.price,
+            url: null,
+            mobileUrl: null,
+          }
+        : null;
     
-    const bestOver = overBooks[0] || null;
+    const bestOver = overBooks[0] || profileBestOver;
     const bestUnder = underBooks[0] || null;
+
+    if (!bestOver && !bestUnder && !oddsLineData) return null;
     
     return {
       bestOver,
       bestUnder,
       allBooks: { over: overBooks, under: underBooks },
-      oddsLine: oddsLineData.line,
+      oddsLine: oddsLineData?.line ?? activeLine,
       isClosestLine: false,
     };
-  }, [oddsLineData]);
+  }, [activeLine, oddsLineData, profile.bestOdds, profile.line]);
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
@@ -912,7 +933,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     }
     
     // Build odds_key from eventId and market (new key format)
-    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
+    const oddsKey = profile.eventId ? `odds:${sport}:${profile.eventId}:${profile.market}` : null;
     
     // Build odds_selection_id using selKey
     const oddsSelectionId = profile.selKey 
@@ -921,7 +942,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     
     return {
       type: "player",
-      sport: "nba",
+      sport,
       event_id: favoriteEventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null, // Extract team abbr from name
@@ -941,7 +962,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       best_book_at_save: bestOdds?.book ?? null,
       source: "hit_rates",
     };
-  }, [profile, customLine, oddsForChart, oddsLineData]);
+  }, [profile, sport, customLine, oddsForChart, oddsLineData]);
 
   // Check if current selection is favorited
   const isOverFavorited = useMemo(() => {
@@ -2112,6 +2133,9 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 games={filteredGames}
                 line={customLine ?? profile.line}
                 market={profile.market}
+                upcomingGameDate={profile.gameDate}
+                upcomingOpponentAbbr={profile.opponentTeamAbbr}
+                upcomingHomeAway={profile.homeAway}
                 profileGameLogs={profileGameLogsForChart as any}
                 onLineChange={setCustomLine}
                 quickFilters={quickFilters}
@@ -2395,6 +2419,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamId={profile.opponentTeamId}
           opponentTeamAbbr={profile.opponentTeamAbbr}
           playerName={profile.playerName}
+          sport={sport}
         />
         
         {/* Right Column: Shooting Zones */}
@@ -2403,6 +2428,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamId={profile.opponentTeamId}
           playerName={profile.playerName}
           opponentTeamAbbr={profile.opponentTeamAbbr}
+          sport={sport}
         />
       </div>
 
@@ -2421,6 +2447,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           startTime={profile.startTime}
           anchorTeam={profile.teamAbbr || profile.teamName}
           playerName={profile.playerName}
+          sport={sport}
         />
       </div>
 
@@ -2429,6 +2456,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
         <AlternateLinesMatrix
+          sport={sport}
           eventId={profile.eventId}
           selKey={profile.selKey}
           playerId={profile.playerId}
@@ -2709,6 +2737,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         gamesForFilters={gamesForChartFilters}
         allSeasonGames={boxScoreGames}
         market={profile.market}
+        sport={sport === "wnba" ? "wnba" : "nba"}
         hasDvpData={opponentDvpRanks.size > 0}
         playTypeMatchup={playTypeMatchupData}
         shotZoneMatchup={shotZoneMatchupData}
@@ -2748,6 +2777,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           const rosterInfo = injuryStatusMap.get(t.player_id);
           return {
             playerId: t.player_id,
+            nbaPlayerId: t.nba_player_id ?? null,
             name: t.name,
             teamId: profile.teamId,
             gamesOut: t.games_out ?? 0,

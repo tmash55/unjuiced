@@ -44,6 +44,7 @@ export interface PositionVsTeamResponse {
   position: string;
   opponentTeamAbbr: string;
   market: string;
+  season?: string;
   error?: string;
 }
 
@@ -51,6 +52,7 @@ export interface UsePositionVsTeamOptions {
   position: string | null;
   opponentTeamId: number | null;
   market: string | null;
+  sport?: "nba" | "wnba";
   season?: string;
   limit?: number;
   minMinutes?: number;
@@ -61,6 +63,7 @@ async function fetchPositionVsTeam(
   position: string,
   opponentTeamId: number,
   market: string,
+  sport: "nba" | "wnba",
   season?: string,
   limit?: number,
   minMinutes?: number
@@ -81,7 +84,7 @@ async function fetchPositionVsTeam(
     params.set("minMinutes", String(minMinutes));
   }
 
-  const res = await fetch(`/api/nba/position-vs-team?${params.toString()}`);
+  const res = await fetch(`/api/${sport}/position-vs-team?${params.toString()}`);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -92,13 +95,13 @@ async function fetchPositionVsTeam(
 }
 
 export function usePositionVsTeam(options: UsePositionVsTeamOptions) {
-  const { position, opponentTeamId, market, season, limit, minMinutes, enabled = true } = options;
+  const { position, opponentTeamId, market, sport = "nba", season, limit, minMinutes, enabled = true } = options;
 
   const isValid = !!position && !!opponentTeamId && !!market;
 
   const query = useQuery<PositionVsTeamResponse>({
-    queryKey: ["position-vs-team", position, opponentTeamId, market, season, limit, minMinutes],
-    queryFn: () => fetchPositionVsTeam(position!, opponentTeamId!, market!, season, limit, minMinutes),
+    queryKey: ["position-vs-team", sport, position, opponentTeamId, market, season, limit, minMinutes],
+    queryFn: () => fetchPositionVsTeam(position!, opponentTeamId!, market!, sport, season, limit, minMinutes),
     enabled: enabled && isValid,
     staleTime: 5 * 60_000, // 5 minutes (historical data doesn't change often)
     gcTime: 10 * 60_000, // 10 minutes
@@ -130,4 +133,3 @@ export function usePositionVsTeam(options: UsePositionVsTeamOptions) {
     refetch: query.refetch,
   };
 }
-

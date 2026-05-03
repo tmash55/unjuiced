@@ -187,6 +187,7 @@ function TeamRosterSection({
                     isCurrentPlayer={player.playerId === currentPlayerId}
                     filter={filters.find((f) => f.playerId === player.playerId)}
                     onFilterChange={onFilterChange}
+                    sport={sport}
                   />
                 ))}
               </div>
@@ -238,7 +239,7 @@ function PlayerRow({
         )}>
           <div className="h-full w-full bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
             <PlayerHeadshot
-              nbaPlayerId={player.playerId}
+              nbaPlayerId={player.nbaPlayerId ?? (sport === "nba" ? player.playerId : null)}
               name={player.name}
               size="tiny"
               sport={sport}
@@ -354,6 +355,7 @@ export function RosterAndInjuries({
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
     opponentTeamId,
+    sport,
     season,
     enabled: !!playerTeamId || !!opponentTeamId,
   });
@@ -589,4 +591,3 @@ export function RosterAndInjuries({
     </div>
   );
 }
-

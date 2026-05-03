@@ -18,6 +18,8 @@ export interface DvpTeamRanking {
   teamName: string | null;
   position: string;
   season: string;
+  inactive?: boolean;
+  inactiveReason?: string | null;
   games: number;
   
   // Basic stats

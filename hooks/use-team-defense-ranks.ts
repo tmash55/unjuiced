@@ -12,21 +12,30 @@ export interface TeamDefenseRanksResponse {
       };
     };
   };
+  meta?: {
+    season?: string;
+    totalTeams?: number;
+    positionBuckets?: string[];
+  };
 }
 
 export interface UseTeamDefenseRanksOptions {
   opponentTeamId: number | null;
+  sport?: "nba" | "wnba";
+  season?: string;
   enabled?: boolean;
 }
 
 async function fetchTeamDefenseRanks(
-  opponentTeamId: number
+  opponentTeamId: number,
+  sport: "nba" | "wnba",
+  season?: string
 ): Promise<TeamDefenseRanksResponse> {
-  const params = new URLSearchParams({
-    opponentTeamId: opponentTeamId.toString(),
-  });
+  const params = new URLSearchParams();
+  params.set("opponentTeamId", opponentTeamId.toString());
+  if (season) params.set("season", season);
 
-  const res = await fetch(`/api/nba/team-defense-ranks?${params.toString()}`, {
+  const res = await fetch(`/api/${sport}/team-defense-ranks?${params.toString()}`, {
     cache: "no-store",
   });
 
@@ -39,11 +48,11 @@ async function fetchTeamDefenseRanks(
 }
 
 export function useTeamDefenseRanks(options: UseTeamDefenseRanksOptions) {
-  const { opponentTeamId, enabled = true } = options;
+  const { opponentTeamId, sport = "nba", season, enabled = true } = options;
 
   const query = useQuery<TeamDefenseRanksResponse>({
-    queryKey: ["team-defense-ranks", opponentTeamId],
-    queryFn: () => fetchTeamDefenseRanks(opponentTeamId!),
+    queryKey: ["team-defense-ranks", sport, opponentTeamId, season],
+    queryFn: () => fetchTeamDefenseRanks(opponentTeamId!, sport, season),
     enabled: enabled && !!opponentTeamId,
     staleTime: 5 * 60_000, // 5 minutes
     gcTime: 10 * 60_000, // 10 minutes
@@ -53,10 +62,10 @@ export function useTeamDefenseRanks(options: UseTeamDefenseRanksOptions) {
   return {
     positions: query.data?.positions ?? {},
     opponentTeamId: query.data?.opponentTeamId ?? 0,
+    meta: query.data?.meta,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error as Error | null,
     refetch: query.refetch,
   };
 }
-

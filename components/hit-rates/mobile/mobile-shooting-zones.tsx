@@ -10,6 +10,18 @@ interface MobileShootingZonesProps {
   opponentTeamId: number | null;
   opponentTeamAbbr: string | null;
   playerName: string;
+  sport?: "nba" | "wnba";
+}
+
+const WNBA_SEASONS = ["2025", "2026"] as const;
+
+function getRankBuckets(totalTeams: number) {
+  const total = Math.max(totalTeams || 30, 1);
+  return {
+    toughMax: Math.ceil(total / 3),
+    neutralMax: Math.ceil((total * 2) / 3),
+    total,
+  };
 }
 
 // Get ordinal suffix
@@ -20,18 +32,20 @@ function getOrdinal(n: number): string {
 }
 
 // Get rank color class
-function getRankColorClass(rank: number | null) {
+function getRankColorClass(rank: number | null, totalTeams = 30) {
   if (rank === null) return "text-neutral-400 dark:text-neutral-500";
-  if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
-  if (rank <= 10) return "text-red-500 dark:text-red-400";
+  const { toughMax, neutralMax } = getRankBuckets(totalTeams);
+  if (rank > neutralMax) return "text-emerald-600 dark:text-emerald-400";
+  if (rank <= toughMax) return "text-red-500 dark:text-red-400";
   return "text-amber-600 dark:text-amber-400";
 }
 
 // Get rank badge background
-function getRankBadgeBg(rank: number | null) {
+function getRankBadgeBg(rank: number | null, totalTeams = 30) {
   if (rank === null) return "bg-neutral-100 dark:bg-neutral-800";
-  if (rank >= 21) return "bg-emerald-100 dark:bg-emerald-900/40";
-  if (rank <= 10) return "bg-red-100 dark:bg-red-900/40";
+  const { toughMax, neutralMax } = getRankBuckets(totalTeams);
+  if (rank > neutralMax) return "bg-emerald-100 dark:bg-emerald-900/40";
+  if (rank <= toughMax) return "bg-red-100 dark:bg-red-900/40";
   return "bg-amber-100 dark:bg-amber-900/40";
 }
 
@@ -45,14 +59,19 @@ const ZONE_DISPLAY: Record<string, string> = {
   aboveBreak3: "Above Break 3",
 };
 
-export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr, playerName }: MobileShootingZonesProps) {
+export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr, playerName, sport = "nba" }: MobileShootingZonesProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2025");
 
   const { data, isLoading, error } = useShotZoneMatchup({
     playerId,
     opponentTeamId,
+    sport,
+    season: sport === "wnba" ? wnbaSeason : undefined,
     enabled: !!playerId && !!opponentTeamId,
   });
+  const totalTeams = data?.summary?.total_teams ?? (sport === "wnba" ? 13 : 30);
+  const rankBuckets = getRankBuckets(totalTeams);
 
   // Transform API data
   const zones = useMemo(() => {
@@ -80,11 +99,8 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
     const zone = getZone(zoneId);
     if (!zone || zone.defRank === null) return "#2d2d2d"; // Default dark
     
-    // Favorable (21-30) - Muted emerald
-    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.5)";
-    // Tough (1-10) - True red
-    if (zone.defRank <= 10) return "rgba(239, 68, 68, 0.5)";
-    // Neutral (11-20) - Muted amber
+    if (zone.defRank > rankBuckets.neutralMax) return "rgba(52, 211, 153, 0.5)";
+    if (zone.defRank <= rankBuckets.toughMax) return "rgba(239, 68, 68, 0.5)";
     return "rgba(251, 191, 36, 0.45)";
   };
 
@@ -98,8 +114,8 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
     
     zones.forEach(zone => {
       if (zone.defRank === null) return;
-      if (zone.defRank >= 21) favorablePct += zone.pct;
-      else if (zone.defRank <= 10) toughPct += zone.pct;
+      if (zone.defRank > rankBuckets.neutralMax) favorablePct += zone.pct;
+      else if (zone.defRank <= rankBuckets.toughMax) toughPct += zone.pct;
       else neutralPct += zone.pct;
     });
     
@@ -108,7 +124,7 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
       neutralPct: Math.round(neutralPct),
       toughPct: Math.round(toughPct),
     };
-  }, [zones]);
+  }, [zones, rankBuckets.neutralMax, rankBuckets.toughMax]);
 
   if (!playerId || !opponentTeamId) return null;
 
@@ -130,6 +146,28 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {sport === "wnba" && (
+            <div className="flex items-center gap-1 rounded-lg bg-white/70 p-0.5 ring-1 ring-neutral-200/70 dark:bg-neutral-900/40 dark:ring-neutral-700/60">
+              {WNBA_SEASONS.map((season) => (
+                <button
+                  key={season}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setWnbaSeason(season);
+                  }}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-[10px] font-bold transition-all",
+                    wnbaSeason === season
+                      ? "bg-orange-500 text-white shadow-sm shadow-orange-500/20"
+                      : "text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
+                  )}
+                >
+                  {season}
+                </button>
+              ))}
+            </div>
+          )}
           {!isLoading && summary && !collapsed && (
             <div className="flex items-center gap-1">
               {summary.favorablePct > 0 && (
@@ -163,7 +201,14 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
             </div>
           ) : error || !zones.length ? (
             <div className="px-4 py-10 text-center">
-              <p className="text-sm text-neutral-500 font-medium">No shot zone data available</p>
+              <p className="text-sm text-neutral-500 font-medium">
+                No shot zone data available{sport === "wnba" ? ` for ${wnbaSeason}` : ""}
+              </p>
+              {sport === "wnba" && wnbaSeason === "2026" && (
+                <p className="mt-1 text-xs leading-5 text-neutral-500">
+                  Switch to 2025 for prior-season shot zones until 2026 games are played.
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -431,8 +476,8 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
                         <div className="flex justify-center">
                           <span className={cn(
                             "inline-flex items-center justify-center w-7 h-5 rounded text-[10px] font-bold tabular-nums",
-                            getRankBadgeBg(zone.defRank),
-                            getRankColorClass(zone.defRank)
+                            getRankBadgeBg(zone.defRank, totalTeams),
+                            getRankColorClass(zone.defRank, totalTeams)
                           )}>
                             {zone.defRank ?? "—"}
                           </span>
@@ -448,15 +493,19 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
                 <div className="flex items-center justify-center gap-3 text-[9px]">
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-sm bg-emerald-500" />
-                    <span className="text-neutral-500 dark:text-neutral-400">21-30 Favorable</span>
+                    <span className="text-neutral-500 dark:text-neutral-400">
+                      {rankBuckets.neutralMax + 1}-{rankBuckets.total} Favorable
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-sm bg-amber-500" />
-                    <span className="text-neutral-500 dark:text-neutral-400">11-20 Neutral</span>
+                    <span className="text-neutral-500 dark:text-neutral-400">
+                      {rankBuckets.toughMax + 1}-{rankBuckets.neutralMax} Neutral
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-sm bg-red-500" />
-                    <span className="text-neutral-500 dark:text-neutral-400">1-10 Tough</span>
+                    <span className="text-neutral-500 dark:text-neutral-400">1-{rankBuckets.toughMax} Tough</span>
                   </div>
                 </div>
               </div>

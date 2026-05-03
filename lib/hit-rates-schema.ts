@@ -1,4 +1,6 @@
 // Matchup rank data from get_matchup_ranks_batch RPC
+import type { PaceContext } from "@/lib/basketball/pace-context";
+
 export interface MatchupRank {
   player_id: number;
   market: string;
@@ -32,6 +34,7 @@ export interface RawHitRateProfile {
   last_10_pct: number | null;
   last_20_pct: number | null;
   season_pct: number | null;
+  season_games?: number | null;
   h2h_pct: number | null;
   h2h_avg: number | null;
   h2h_games: number | null;
@@ -65,6 +68,7 @@ export interface RawHitRateProfile {
   books?: number; // Number of books with odds
   // Matchup data (merged from RPC)
   matchup?: MatchupRank | null;
+  pace_context?: PaceContext | null;
   nba_players_hr?: {
     nba_player_id: number;
     name: string;
@@ -109,6 +113,7 @@ export interface HitRateProfile {
   last10Pct: number | null;
   last20Pct: number | null;
   seasonPct: number | null;
+  seasonGames: number | null;
   h2hPct: number | null; // Head-to-head percentage vs this opponent
   h2hAvg: number | null; // Average stat value vs this opponent
   h2hGames: number | null; // Number of games vs this opponent (sample size)
@@ -146,6 +151,7 @@ export interface HitRateProfile {
   matchupRankLabel: string | null;
   matchupAvgAllowed: number | null;
   matchupQuality: "favorable" | "neutral" | "unfavorable" | null;
+  paceContext: PaceContext | null;
   // Best odds from Redis (returned by v2 API)
   bestOdds: {
     book: string;

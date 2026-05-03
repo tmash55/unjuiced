@@ -20,6 +20,7 @@ const RequestSchema = z.object({
   playerId: z.number().int().positive(), // NBA player ID for game logs
   market: z.string().min(1),
   currentLine: z.number().optional(),
+  sport: z.enum(["nba", "wnba"]).optional(),
 });
 
 // Market to stat column mapping for box scores
@@ -125,6 +126,10 @@ function calculateHitRate(
     if (log.market_stat !== undefined && log.market_stat !== null) {
       return log.market_stat;
     }
+
+    if (log.stat !== undefined && log.stat !== null) {
+      return log.stat;
+    }
     
     // For box score data, calculate combo stats from components
     if (market === "player_points_rebounds_assists") {
@@ -181,6 +186,10 @@ function calculateAverage(gameLogs: any[], market: string, window: number): numb
     // First, check if market_stat exists (pre-calculated value from profile)
     if (log.market_stat !== undefined && log.market_stat !== null) {
       return log.market_stat;
+    }
+
+    if (log.stat !== undefined && log.stat !== null) {
+      return log.stat;
     }
     
     // For box score data, calculate combo stats from components
@@ -309,13 +318,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const routeSport = req.nextUrl.pathname.includes("/wnba/") ? "wnba" : "nba";
     const { eventId, selKey, playerId, market, currentLine } = parsed.data;
+    const sport = parsed.data.sport ?? routeSport;
+    const hitRateProfilesTable = sport === "wnba" ? "wnba_hit_rate_profiles" : "nba_hit_rate_profiles";
+    const boxScoresTable = sport === "wnba" ? "wnba_player_box_scores" : "nba_player_box_scores";
 
     // Extract player UUID from selKey if it includes side/line (e.g., "uuid:over:20.5" -> "uuid")
     const playerUuid = selKey.includes(':') ? selKey.split(':')[0] : selKey;
 
     // Step 1: Get all available lines from linesidx ZSET
-    const linesKey = `linesidx:nba:${eventId}:${market}:${playerUuid}`;
+    const linesKey = `linesidx:${sport}:${eventId}:${market}:${playerUuid}`;
     const linesRaw = await redis.zrange(linesKey, 0, -1);
 
     if (!linesRaw || linesRaw.length === 0) {
@@ -338,7 +351,7 @@ export async function POST(req: NextRequest) {
     const linesBooksMap = new Map<number, string[]>();
 
     const booksPromises = lineNumbers.map(async (line) => {
-      const booksKey = `booksidx:nba:${eventId}:${market}:${playerUuid}:${line}`;
+      const booksKey = `booksidx:${sport}:${eventId}:${market}:${playerUuid}:${line}`;
       const books = await redis.smembers(booksKey);
       return { line, books: books || [] };
     });
@@ -354,7 +367,7 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Fetch odds blobs for all books in parallel
     const oddsPromises = Array.from(allBooks).map(async (book) => {
-      const oddsKey = `odds:nba:${eventId}:${market}:${book}`;
+      const oddsKey = `odds:${sport}:${eventId}:${market}:${book}`;
       const oddsBlob = await redis.get<RedisOddsBlob>(oddsKey);
       return { book, oddsBlob };
     });
@@ -380,7 +393,7 @@ export async function POST(req: NextRequest) {
     
     while (retries >= 0) {
       const { data, error } = await supabase
-        .from("nba_hit_rate_profiles")
+        .from(hitRateProfilesTable)
         .select("game_logs, player_name")
         .eq("player_id", playerId)
         .eq("market", market)
@@ -409,22 +422,26 @@ export async function POST(req: NextRequest) {
                             market.includes("rebounds_assists") || 
                             market.includes("blocks_steals");
       
-      let selectColumns = "game_id, game_date, pts, reb, ast, blk, stl";
-      
-      if (!isComboMarket) {
+      let selectColumns = "game_id, game_date, pts, reb, ast, fg3m, blk, stl, tov";
+
+      if (sport === "nba" && !isComboMarket) {
         const statColumn = MARKET_TO_STAT[market];
         if (statColumn) {
           selectColumns = `game_id, game_date, ${statColumn}`;
         }
       }
 
-      const { data: boxScores } = await supabase
-        .from("nba_player_box_scores")
+      const { data: boxScores, error: boxScoresError } = await supabase
+        .from(boxScoresTable)
         .select(selectColumns)
         .eq("player_id", playerId)
         .neq("season_type", "Preseason")
         .order("game_date", { ascending: false })
         .limit(100);
+
+      if (boxScoresError) {
+        console.warn(`[alternate-lines:${sport}] Box score lookup failed:`, boxScoresError.message);
+      }
 
       if (boxScores && boxScores.length > 0) {
         gameLogs = boxScores;
@@ -523,7 +540,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log(`[alternate-lines] ${eventId}/${market}/${playerUuid}: ${alternateLines.length} lines, ${allBooks.size} books`);
+    console.log(`[alternate-lines:${sport}] ${eventId}/${market}/${playerUuid}: ${alternateLines.length} lines, ${allBooks.size} books`);
 
     const response: AlternateLinesResponse = {
       lines: alternateLines,
@@ -538,7 +555,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("[/api/nba/alternate-lines] Error:", error);
+    console.error("[/api/alternate-lines] Error:", error);
     return NextResponse.json(
       { error: "internal_error", message: error?.message || "" },
       { status: 500, headers: { "Cache-Control": "no-store" } }

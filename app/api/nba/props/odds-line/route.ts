@@ -59,6 +59,7 @@ const QuerySchema = z.object({
   player_id: z.string().min(1, "player_id is required"),
   line: z.coerce.number({ invalid_type_error: "line must be a number" }),
   include_sgp: z.coerce.boolean().optional().default(false),
+  sport: z.enum(["nba", "wnba"]).optional(),
 });
 
 // =============================================================================
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
       player_id: searchParams.get("player_id"),
       line: searchParams.get("line"),
       include_sgp: searchParams.get("include_sgp"),
+      sport: searchParams.get("sport") ?? undefined,
     });
     
     if (!query.success) {
@@ -105,13 +107,15 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    const routeSport = request.nextUrl.pathname.includes("/wnba/") ? "wnba" : "nba";
     const { event_id, market, player_id: rawPlayerId, line, include_sgp } = query.data;
+    const sport = query.data.sport ?? routeSport;
     
     // Extract player UUID from sel_key if it includes side/line (e.g., "uuid:over:20.5" -> "uuid")
     const player_id = rawPlayerId.includes(':') ? rawPlayerId.split(':')[0] : rawPlayerId;
     
     // Step 1: Get all books that have this line from booksidx SET
-    const booksKey = `booksidx:nba:${event_id}:${market}:${player_id}:${line}`;
+    const booksKey = `booksidx:${sport}:${event_id}:${market}:${player_id}:${line}`;
     const booksRaw = await redis.smembers(booksKey);
     
     if (!booksRaw || booksRaw.length === 0) {
@@ -127,7 +131,7 @@ export async function GET(request: NextRequest) {
     
     // Step 2: Fetch odds blobs for all books in parallel
     const oddsPromises = booksRaw.map(async (book) => {
-      const oddsKey = `odds:nba:${event_id}:${market}:${book}`;
+      const oddsKey = `odds:${sport}:${event_id}:${market}:${book}`;
       const oddsBlob = await redis.get<RedisOddsBlob>(oddsKey);
       return { book, oddsBlob };
     });
@@ -203,7 +207,7 @@ export async function GET(request: NextRequest) {
     const best = findBestOdds(bookOddsList);
     
     const responseTime = Date.now() - startTime;
-    console.log(`[odds-line] ${event_id}/${market}/${player_id}/${line}: ${bookOddsList.length} books in ${responseTime}ms`);
+    console.log(`[odds-line:${sport}] ${event_id}/${market}/${player_id}/${line}: ${bookOddsList.length} books in ${responseTime}ms`);
     
     return NextResponse.json({
       line,

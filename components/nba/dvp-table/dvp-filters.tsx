@@ -5,7 +5,7 @@ import { DvpSampleSize } from "@/hooks/use-dvp-rankings";
 
 // Types
 export type DvpViewMode = "basic" | "advanced" | "trends";
-export type Position = "PG" | "SG" | "SF" | "PF" | "C";
+export type Position = "PG" | "SG" | "SF" | "PF" | "C" | "G" | "F";
 export type TrendCompareBaseline = "season" | "l10" | "l20";
 export type TrendStat = 
   | "pts" | "reb" | "ast" | "pra" | "fg3m" | "stl" | "blk" | "tov"
@@ -13,6 +13,7 @@ export type TrendStat =
   | "fga" | "fg3a" | "fta" | "minutes";
 
 interface DvpFiltersProps {
+  sport?: "nba" | "wnba";
   position: Position;
   onPositionChange: (pos: Position) => void;
   viewMode: DvpViewMode;
@@ -28,6 +29,7 @@ interface DvpFiltersProps {
 }
 
 const POSITIONS: Position[] = ["PG", "SG", "SF", "PF", "C"];
+const WNBA_POSITIONS: Position[] = ["G", "F", "C"];
 
 const VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode }[] = [
   { value: "basic", label: "Basic", icon: <LayoutGrid className="w-4 h-4" /> },
@@ -83,6 +85,7 @@ const TREND_STAT_OPTIONS: { category: string; options: { value: TrendStat; label
 const ALL_STAT_OPTIONS = TREND_STAT_OPTIONS.flatMap(g => g.options);
 
 export function DvpFilters({
+  sport = "nba",
   position,
   onPositionChange,
   viewMode,
@@ -115,8 +118,25 @@ export function DvpFilters({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const currentSampleOption = SAMPLE_SIZE_OPTIONS.find(s => s.value === sampleSize) || SAMPLE_SIZE_OPTIONS[0];
   const currentStatOption = ALL_STAT_OPTIONS.find(s => s.value === trendStat) || ALL_STAT_OPTIONS[0];
+  const isWnba = sport === "wnba";
+  const positions = isWnba ? WNBA_POSITIONS : POSITIONS;
+  const sampleSizeOptions = isWnba
+    ? SAMPLE_SIZE_OPTIONS.map((option) =>
+        option.value === "season"
+          ? { ...option, label: `${season} Season`, shortLabel: season }
+          : option
+      )
+    : SAMPLE_SIZE_OPTIONS;
+  const currentSampleOption = sampleSizeOptions.find(s => s.value === sampleSize) || sampleSizeOptions[0];
+  const hideTrends = isWnba && season === "2025";
+  const viewModes = hideTrends ? VIEW_MODES.filter((mode) => mode.value !== "trends") : VIEW_MODES;
+
+  useEffect(() => {
+    if (hideTrends && viewMode === "trends") {
+      onViewModeChange("basic");
+    }
+  }, [hideTrends, onViewModeChange, viewMode]);
 
   return (
     <div className="flex flex-col gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 sticky top-0 z-30">
@@ -125,7 +145,7 @@ export function DvpFilters({
         <div className="flex flex-wrap items-center gap-3">
           {/* Position Selector - Pill Style */}
           <div className="flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
-            {POSITIONS.map((pos) => (
+            {positions.map((pos) => (
               <button
                 key={pos}
                 onClick={() => onPositionChange(pos)}
@@ -141,6 +161,25 @@ export function DvpFilters({
             ))}
           </div>
 
+          {isWnba && (
+            <div className="flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+              {["2025", "2026"].map((seasonOption) => (
+                <button
+                  key={seasonOption}
+                  onClick={() => onSeasonChange(seasonOption)}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-bold rounded-md transition-all",
+                    season === seasonOption
+                      ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  )}
+                >
+                  {seasonOption}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Sample Size Dropdown - Only show when NOT in trends view */}
           {viewMode !== "trends" && (
             <div className="relative" ref={sampleDropdownRef}>
@@ -155,7 +194,7 @@ export function DvpFilters({
 
               {sampleDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-[100] overflow-hidden">
-                  {SAMPLE_SIZE_OPTIONS.map((option) => (
+                  {sampleSizeOptions.map((option) => (
                     <button
                       key={option.value}
                       onClick={() => {
@@ -235,7 +274,7 @@ export function DvpFilters({
 
         {/* Right Side: View Modes - hidden on mobile (shown separately above) */}
         <div className="hidden md:flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-x-auto">
-          {VIEW_MODES.map((mode) => (
+          {viewModes.map((mode) => (
             <button
               key={mode.value}
               onClick={() => onViewModeChange(mode.value)}

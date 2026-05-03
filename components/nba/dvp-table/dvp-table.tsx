@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { DvpTeamRanking, DvpSampleSize } from "@/hooks/use-dvp-rankings";
 import { cn } from "@/lib/utils";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { DvpViewMode, TrendCompareBaseline, TrendStat } from "./dvp-filters";
 import { ChevronsUpDown, ChevronUp, ChevronDown, Info, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
@@ -11,6 +12,8 @@ export type DvpDisplayMode = "values" | "ranks";
 
 interface DvpTableProps {
   data: DvpTeamRanking[];
+  sport?: "nba" | "wnba";
+  totalTeams?: number;
   viewMode: DvpViewMode;
   sampleSize: DvpSampleSize;
   displayMode: DvpDisplayMode;
@@ -43,12 +46,16 @@ const fmtDelta = (delta: number | null | undefined) => {
 };
 
 // Helper: Get cell background color based on rank
-const getRankBg = (rank: number | null | undefined) => {
+const getRankBg = (rank: number | null | undefined, totalTeams = 30) => {
   if (rank == null) return "";
-  if (rank <= 5) return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold"; 
-  if (rank <= 10) return "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"; 
-  if (rank >= 26) return "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold"; 
-  if (rank >= 21) return "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400"; 
+  const strongCutoff = Math.max(2, Math.ceil(totalTeams * 0.17));
+  const toughCutoff = Math.max(strongCutoff, Math.ceil(totalTeams / 3));
+  const goodCutoff = totalTeams - toughCutoff + 1;
+  const greatCutoff = totalTeams - strongCutoff + 1;
+  if (rank <= strongCutoff) return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold";
+  if (rank <= toughCutoff) return "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400";
+  if (rank >= greatCutoff) return "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold";
+  if (rank >= goodCutoff) return "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400";
   return "text-neutral-600 dark:text-neutral-400"; 
 };
 
@@ -115,7 +122,18 @@ const getStatFields = (stat: TrendStat) => {
   };
 };
 
-export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaseline, trendStat, isLoading, onTeamClick }: DvpTableProps) {
+export function DvpTable({
+  data,
+  sport = "nba",
+  totalTeams = sport === "wnba" ? 13 : 30,
+  viewMode,
+  sampleSize,
+  displayMode,
+  trendBaseline,
+  trendStat,
+  isLoading,
+  onTeamClick,
+}: DvpTableProps) {
   // Store sort state for each view mode independently
   // For trends, we use a special "delta" sort that computes L5 - Season
   const [sortState, setSortState] = useState<Record<DvpViewMode, { field: SortField | "delta"; direction: SortDirection }>>({
@@ -172,6 +190,9 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
     // Handle special delta sorting for trends view
     if (viewMode === "trends" && sortField === "delta") {
       return [...data].sort((a, b) => {
+        if (a.inactive && !b.inactive) return 1;
+        if (!a.inactive && b.inactive) return -1;
+
         const seasonFieldA = a[statFields.season] as number | null;
         const l5FieldA = a[statFields.l5] as number | null;
         const seasonFieldB = b[statFields.season] as number | null;
@@ -208,6 +229,9 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
     }
 
     return [...data].sort((a, b) => {
+      if (a.inactive && !b.inactive) return 1;
+      if (!a.inactive && b.inactive) return -1;
+
       const aVal = a[effectiveSortField];
       const bVal = b[effectiveSortField];
 
@@ -240,6 +264,19 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
     return (
       <div className="w-full h-96 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" />
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="flex min-h-[320px] w-full flex-col items-center justify-center gap-2 px-6 text-center">
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-semibold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+          No DvP data available
+        </div>
+        <p className="max-w-sm text-xs text-neutral-500 dark:text-neutral-500">
+          Switch seasons or check back once defensive position data has been loaded.
+        </p>
       </div>
     );
   }
@@ -296,28 +333,28 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
       case "basic":
         return (
           <>
-            <td className={cn(cellClass, getRankBg(getRank(team, "ptsRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "ptsRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "ptsRank")) : fmt(getValue(team, "ptsAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "rebRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "rebRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "rebRank")) : fmt(getValue(team, "rebAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "astRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "astRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "astRank")) : fmt(getValue(team, "astAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "fg3mRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "fg3mRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "fg3mRank")) : fmt(getValue(team, "fg3mAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "ftaRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "ftaRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "ftaRank")) : fmt(getValue(team, "ftaAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "stlRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "stlRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "stlRank")) : fmt(getValue(team, "stlAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "blkRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "blkRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "blkRank")) : fmt(getValue(team, "blkAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "tovRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "tovRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "tovRank")) : fmt(getValue(team, "tovAvg"))}
             </td>
           </>
@@ -326,41 +363,41 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
         return (
           <>
             {/* Shooting stats - season rank only (no L5/L10/L15/L20 ranks available) */}
-            <td className={cn(cellClass, getRankBg(team.fgPctRank))}>
+            <td className={cn(cellClass, getRankBg(team.fgPctRank, totalTeams))}>
               {showRanks ? fmtRank(team.fgPctRank) : fmtPct(team.fgPct)}
             </td>
-            <td className={cn(cellClass, getRankBg(team.fgaRank))}>
+            <td className={cn(cellClass, getRankBg(team.fgaRank, totalTeams))}>
               {showRanks ? fmtRank(team.fgaRank) : fmt(team.fgaAvg)}
             </td>
-            <td className={cn(cellClass, getRankBg(team.fg3PctRank))}>
+            <td className={cn(cellClass, getRankBg(team.fg3PctRank, totalTeams))}>
               {showRanks ? fmtRank(team.fg3PctRank) : fmtPct(team.fg3Pct)}
             </td>
-            <td className={cn(cellClass, getRankBg(team.fg3aRank))}>
+            <td className={cn(cellClass, getRankBg(team.fg3aRank, totalTeams))}>
               {showRanks ? fmtRank(team.fg3aRank) : fmt(team.fg3aAvg)}
             </td>
-            <td className={cn(cellClass, getRankBg(team.orebRank))}>
+            <td className={cn(cellClass, getRankBg(team.orebRank, totalTeams))}>
               {showRanks ? fmtRank(team.orebRank) : fmt(team.orebAvg)}
             </td>
-            <td className={cn(cellClass, getRankBg(team.drebRank))}>
+            <td className={cn(cellClass, getRankBg(team.drebRank, totalTeams))}>
               {showRanks ? fmtRank(team.drebRank) : fmt(team.drebAvg)}
             </td>
             {/* Combo stats - use sample-size-aware ranks */}
-            <td className={cn(cellClass, getRankBg(getRank(team, "praRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "praRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "praRank")) : fmt(getValue(team, "praAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "prRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "prRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "prRank")) : fmt(getValue(team, "prAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "paRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "paRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "paRank")) : fmt(getValue(team, "paAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "raRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "raRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "raRank")) : fmt(getValue(team, "raAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(getRank(team, "bsRank")))}>
+            <td className={cn(cellClass, getRankBg(getRank(team, "bsRank"), totalTeams))}>
               {showRanks ? fmtRank(getRank(team, "bsRank")) : fmt(getValue(team, "bsAvg"))}
             </td>
-            <td className={cn(cellClass, getRankBg(team.dd2PctRank))}>
+            <td className={cn(cellClass, getRankBg(team.dd2PctRank, totalTeams))}>
               {showRanks ? fmtRank(team.dd2PctRank) : fmtPct(team.dd2Pct)}
             </td>
           </>
@@ -415,27 +452,27 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
         return (
           <>
             {/* Season */}
-            <td className={cn(cellClass, getRankBg(seasonRank))}>
+            <td className={cn(cellClass, getRankBg(seasonRank, totalTeams))}>
               {showRanks ? fmtRank(seasonRank) : fmt(seasonVal)}
             </td>
             
             {/* L20 */}
-            <td className={cn(cellClass, getRankBg(showRanks ? l20Rank : seasonRank))}>
+            <td className={cn(cellClass, getRankBg(showRanks ? l20Rank : seasonRank, totalTeams))}>
               {showRanks ? fmtRank(l20Rank) : fmt(l20Val)}
             </td>
             
             {/* L15 */}
-            <td className={cn(cellClass, getRankBg(showRanks ? l15Rank : seasonRank))}>
+            <td className={cn(cellClass, getRankBg(showRanks ? l15Rank : seasonRank, totalTeams))}>
               {showRanks ? fmtRank(l15Rank) : fmt(l15Val)}
             </td>
             
             {/* L10 */}
-            <td className={cn(cellClass, getRankBg(showRanks ? l10Rank : seasonRank))}>
+            <td className={cn(cellClass, getRankBg(showRanks ? l10Rank : seasonRank, totalTeams))}>
               {showRanks ? fmtRank(l10Rank) : fmt(l10Val)}
             </td>
             
             {/* L5 */}
-            <td className={cn(cellClass, "font-bold", getRankBg(showRanks ? l5Rank : seasonRank))}>
+            <td className={cn(cellClass, "font-bold", getRankBg(showRanks ? l5Rank : seasonRank, totalTeams))}>
               {showRanks ? fmtRank(l5Rank) : fmt(l5Val)}
             </td>
             
@@ -529,39 +566,68 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
-          {sortedData.map((team) => (
-            <tr 
-              key={team.teamId}
-              onClick={() => onTeamClick(team.teamId)}
-              className="group hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-all cursor-pointer active:bg-neutral-100 dark:active:bg-neutral-800"
-            >
-              <td className="sticky left-0 z-10 w-[120px] md:w-[200px] px-2 md:px-4 py-2 md:py-3 bg-white dark:bg-neutral-900 group-hover:bg-neutral-50/80 dark:group-hover:bg-neutral-800/50 border-r border-neutral-200 dark:border-neutral-700 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)] transition-all">
-                <div className="flex items-center gap-2 md:gap-3">
-                  <div className="relative h-6 w-6 md:h-8 md:w-8 shrink-0 flex items-center justify-center">
-                    <img 
-                      src={`/team-logos/nba/${team.teamAbbr}.svg`}
-                      alt={team.teamAbbr}
-                      className="h-5 w-5 md:h-7 md:w-7 object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+          {sortedData.map((team) => {
+            const isInactive = team.inactive;
+            const shouldRenderLogo = !(sport === "wnba" && isInactive);
+            return (
+              <tr
+                key={team.teamId}
+                onClick={() => {
+                  if (!isInactive) onTeamClick(team.teamId);
+                }}
+                className={cn(
+                  "group transition-all",
+                  isInactive
+                    ? "cursor-default bg-neutral-50/70 text-neutral-400 dark:bg-neutral-900/60 dark:text-neutral-600"
+                    : "cursor-pointer hover:bg-neutral-50/80 active:bg-neutral-100 dark:hover:bg-neutral-800/50 dark:active:bg-neutral-800"
+                )}
+              >
+                <td className={cn(
+                  "sticky left-0 z-10 w-[120px] md:w-[200px] px-2 md:px-4 py-2 md:py-3 border-r border-neutral-200 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all dark:border-neutral-700 dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]",
+                  isInactive
+                    ? "bg-neutral-50/95 dark:bg-neutral-900/95"
+                    : "bg-white group-hover:bg-neutral-50/80 dark:bg-neutral-900 dark:group-hover:bg-neutral-800/50"
+                )}>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className="relative h-6 w-6 md:h-8 md:w-8 shrink-0 flex items-center justify-center">
+                      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-neutral-200 text-[9px] font-black text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500">
+                        {team.teamAbbr.slice(0, 3)}
+                      </span>
+                      {shouldRenderLogo && (
+                        <img
+                          src={getTeamLogoUrl(team.teamAbbr, sport)}
+                          alt={team.teamAbbr}
+                          className={cn(
+                            "relative h-5 w-5 object-contain md:h-7 md:w-7",
+                            isInactive && "grayscale opacity-50"
+                          )}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      {/* Show abbreviation on mobile, full name on desktop */}
+                      <span className={cn("font-bold text-xs md:text-sm truncate leading-none md:hidden", isInactive ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white")}>{team.teamAbbr}</span>
+                      <span className={cn("font-bold text-sm truncate leading-none hidden md:block", isInactive ? "text-neutral-500 dark:text-neutral-500" : "text-neutral-900 dark:text-white")}>{team.teamName}</span>
+                      {isInactive && team.inactiveReason && (
+                        <span className="mt-1 hidden truncate text-[10px] font-medium text-neutral-400 dark:text-neutral-600 md:block">
+                          {team.inactiveReason}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    {/* Show abbreviation on mobile, full name on desktop */}
-                    <span className="font-bold text-xs md:text-sm text-neutral-900 dark:text-white truncate leading-none md:hidden">{team.teamAbbr}</span>
-                    <span className="font-bold text-sm text-neutral-900 dark:text-white truncate leading-none hidden md:block">{team.teamName}</span>
-                  </div>
-                </div>
-              </td>
+                </td>
 
-              <td className="px-1.5 md:px-3 py-2 md:py-4 text-center text-xs md:text-sm font-medium text-neutral-500 tabular-nums">
-                {team.games}
-              </td>
+                <td className={cn("px-1.5 md:px-3 py-2 md:py-4 text-center text-xs md:text-sm font-medium tabular-nums", isInactive ? "text-neutral-400 dark:text-neutral-600" : "text-neutral-500")}>
+                  {isInactive ? "—" : team.games}
+                </td>
 
-              {renderColumns(team)}
-            </tr>
-          ))}
+                {renderColumns(team)}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

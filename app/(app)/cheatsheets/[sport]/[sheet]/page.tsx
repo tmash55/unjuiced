@@ -611,19 +611,51 @@ const DVP_VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode
 
 function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const sheetInfo = SHEET_INFO[sheet];
-  const [selectedPosition, setSelectedPosition] = useState<Position>('PG');
+  const isWnba = sport === "wnba";
+  const [selectedPosition, setSelectedPosition] = useState<Position>(isWnba ? "G" : "PG");
   const [viewMode, setViewMode] = useState<DvpViewMode>('basic');
   const [sampleSize, setSampleSize] = useState<DvpSampleSize>('season');
   const [displayMode, setDisplayMode] = useState<DvpDisplayMode>('values');
   const [trendBaseline, setTrendBaseline] = useState<TrendCompareBaseline>('season');
   const [trendStat, setTrendStat] = useState<TrendStat>('pts');
-  const [season, setSeason] = useState('2025-26');
+  const [season, setSeason] = useState(isWnba ? "2025" : "2025-26");
+  const hideTrends = isWnba && season === "2025";
+  const mobileViewModes = hideTrends ? DVP_VIEW_MODES.filter((mode) => mode.value !== "trends") : DVP_VIEW_MODES;
+
+  useEffect(() => {
+    if (isWnba && !["G", "F", "C"].includes(selectedPosition)) {
+      setSelectedPosition("G");
+    }
+    if (!isWnba && !["PG", "SG", "SF", "PF", "C"].includes(selectedPosition)) {
+      setSelectedPosition("PG");
+    }
+  }, [isWnba, selectedPosition]);
+
+  useEffect(() => {
+    if (isWnba && season === "2025-26") {
+      setSeason("2025");
+    }
+    if (!isWnba && season === "2025") {
+      setSeason("2025-26");
+    }
+  }, [isWnba, season]);
+
+  useEffect(() => {
+    if (hideTrends && viewMode === "trends") {
+      setViewMode("basic");
+    }
+  }, [hideTrends, viewMode]);
 
   // Fetch data using the hook
-  const { teams, isLoading } = useDvpRankings({
+  const { teams, meta, isLoading } = useDvpRankings({
+    sport: isWnba ? "wnba" : "nba",
     position: selectedPosition,
     season: season,
   });
+  const totalTeams = meta?.totalTeams ?? (isWnba ? 13 : 30);
+  const legendRanges = isWnba
+    ? { tough: "1-4", neutral: "5-9", good: "10-13" }
+    : { tough: "1-10", neutral: "11-20", good: "21-30" };
 
   return (
     <AppPageLayout
@@ -637,7 +669,7 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
         {/* Mobile View Mode Tabs - shown above filters on mobile only */}
         <div className="md:hidden flex items-center justify-center p-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
           <div className="flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
-            {DVP_VIEW_MODES.map((mode) => (
+            {mobileViewModes.map((mode) => (
               <button
                 key={mode.value}
                 onClick={() => setViewMode(mode.value)}
@@ -657,6 +689,7 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
 
         {/* Filters Bar */}
         <DvpFilters 
+          sport={isWnba ? "wnba" : "nba"}
           position={selectedPosition}
           onPositionChange={setSelectedPosition}
           viewMode={viewMode}
@@ -678,16 +711,22 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
             <div className="flex items-center gap-4 text-[10px]">
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-                <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+                <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">({legendRanges.tough})</span></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
-                <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+                <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">({legendRanges.neutral})</span></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+                <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">({legendRanges.good})</span></span>
               </div>
+              {isWnba && season === "2025" && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-sm bg-neutral-300 dark:bg-neutral-700" />
+                  <span className="text-neutral-600 dark:text-neutral-400">Expansion teams <span className="text-neutral-400 dark:text-neutral-500">no 2025 data</span></span>
+                </div>
+              )}
             </div>
 
             {/* Display Mode Toggle */}
@@ -723,6 +762,8 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
         {/* Table Content */}
         <DvpTable 
           data={teams}
+          sport={isWnba ? "wnba" : "nba"}
+          totalTeams={totalTeams}
           viewMode={viewMode}
           sampleSize={sampleSize}
           displayMode={displayMode}

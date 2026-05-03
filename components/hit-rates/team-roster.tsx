@@ -46,6 +46,7 @@ export function TeamRoster({
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
     opponentTeamId,
+    sport,
     season,
     enabled: !!playerTeamId || !!opponentTeamId,
   });
@@ -288,4 +289,3 @@ function PlayerRow({
     </div>
   );
 }
-

@@ -21,15 +21,16 @@ export const SHOT_ZONE_KEYS = [
 export type ShotZoneKey = typeof SHOT_ZONE_KEYS[number]["key"];
 
 interface UseTeamShotZoneRanksOptions {
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }
 
-async function fetchTeamShotZoneRanks(season?: string): Promise<TeamShotZoneRanksResponse> {
+async function fetchTeamShotZoneRanks(sport: "nba" | "wnba", season?: string): Promise<TeamShotZoneRanksResponse> {
   const params = new URLSearchParams();
   if (season) params.set("season", season);
 
-  const res = await fetch(`/api/nba/team-shot-zone-ranks?${params.toString()}`);
+  const res = await fetch(`/api/${sport}/team-shot-zone-ranks?${params.toString()}`);
   
   if (!res.ok) {
     throw new Error(`Failed to fetch team shot zone ranks: ${res.status}`);
@@ -38,10 +39,11 @@ async function fetchTeamShotZoneRanks(season?: string): Promise<TeamShotZoneRank
   return res.json();
 }
 
-export function useTeamShotZoneRanks({ season, enabled = true }: UseTeamShotZoneRanksOptions = {}) {
+export function useTeamShotZoneRanks({ sport = "nba", season, enabled = true }: UseTeamShotZoneRanksOptions = {}) {
+  const resolvedSeason = season ?? (sport === "wnba" ? "2025" : "2025-26");
   const query = useQuery({
-    queryKey: ["team-shot-zone-ranks", season],
-    queryFn: () => fetchTeamShotZoneRanks(season),
+    queryKey: ["team-shot-zone-ranks", sport, resolvedSeason],
+    queryFn: () => fetchTeamShotZoneRanks(sport, resolvedSeason),
     enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -50,7 +52,7 @@ export function useTeamShotZoneRanks({ season, enabled = true }: UseTeamShotZone
   return {
     zones: query.data?.zones ?? [],
     zoneList: query.data?.zoneList ?? [],
-    season: query.data?.season ?? "2025-26",
+    season: query.data?.season ?? resolvedSeason,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error,

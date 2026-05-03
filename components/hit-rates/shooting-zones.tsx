@@ -12,6 +12,7 @@ interface ShootingZonesProps {
   playerName?: string | null;
   opponentTeamAbbr?: string | null;
   className?: string;
+  sport?: "nba" | "wnba";
   /** Show the zone details table side-by-side with the chart (for modals). Defaults to false. */
   showSideTable?: boolean;
 }
@@ -30,19 +31,29 @@ interface ZoneRenderData {
   matchupRating: string;
 }
 
+const WNBA_SEASONS = ["2025", "2026"] as const;
+
+function getRankBuckets(totalTeams: number) {
+  const total = Math.max(totalTeams || 30, 1);
+  return {
+    toughMax: Math.ceil(total / 3),
+    neutralMax: Math.ceil((total * 2) / 3),
+    total,
+  };
+}
+
 // Get zone color based on defense rank
-function getZoneColor(defRank: number | null, viewMode: "player" | "defense") {
+function getZoneColor(defRank: number | null, viewMode: "player" | "defense", totalTeams = 30) {
   if (defRank === null) return { bg: "rgba(120,120,120,0.3)", text: "text-neutral-400" };
+  const { toughMax, neutralMax } = getRankBuckets(totalTeams);
   
   if (viewMode === "defense") {
-    // For defense view: green = bad defense (high rank), red = good defense (low rank)
-    if (defRank >= 21) return { bg: "rgba(16,185,129,0.6)", text: "text-emerald-100" }; // Favorable
-    if (defRank <= 10) return { bg: "rgba(239,68,68,0.6)", text: "text-red-100" }; // Tough
+    if (defRank > neutralMax) return { bg: "rgba(16,185,129,0.6)", text: "text-emerald-100" }; // Favorable
+    if (defRank <= toughMax) return { bg: "rgba(239,68,68,0.6)", text: "text-red-100" }; // Tough
     return { bg: "rgba(245,158,11,0.5)", text: "text-amber-100" }; // Neutral
   } else {
-    // For player view: same colors but used for consistency
-    if (defRank >= 21) return { bg: "rgba(16,185,129,0.5)", text: "text-emerald-100" };
-    if (defRank <= 10) return { bg: "rgba(239,68,68,0.5)", text: "text-red-100" };
+    if (defRank > neutralMax) return { bg: "rgba(16,185,129,0.5)", text: "text-emerald-100" };
+    if (defRank <= toughMax) return { bg: "rgba(239,68,68,0.5)", text: "text-red-100" };
     return { bg: "rgba(245,158,11,0.45)", text: "text-amber-100" };
   }
 }
@@ -60,6 +71,7 @@ export function ShootingZones({
   playerName,
   opponentTeamAbbr,
   className,
+  sport = "nba",
   showSideTable = false 
 }: ShootingZonesProps) {
   // Handle null values with defaults
@@ -67,13 +79,19 @@ export function ShootingZones({
   const effectiveOpponentAbbr = opponentTeamAbbr || "OPP";
   const [collapsed, setCollapsed] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
+  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2025");
+  const selectedSeason = sport === "wnba" ? wnbaSeason : undefined;
 
   // Fetch real data
   const { data, isLoading, error } = useShotZoneMatchup({
     playerId,
     opponentTeamId,
+    sport,
+    season: selectedSeason,
     enabled: !!playerId && !!opponentTeamId,
   });
+  const totalTeams = data?.summary?.total_teams ?? (sport === "wnba" ? 13 : 30);
+  const rankBuckets = getRankBuckets(totalTeams);
 
   // Transform API data to render format
   const zones = useMemo((): ZoneRenderData[] => {
@@ -118,8 +136,8 @@ export function ShootingZones({
     
     zones.forEach(zone => {
       if (zone.defRank === null) return;
-      if (zone.defRank >= 21) favorablePct += zone.pct;
-      else if (zone.defRank <= 10) toughPct += zone.pct;
+      if (zone.defRank > rankBuckets.neutralMax) favorablePct += zone.pct;
+      else if (zone.defRank <= rankBuckets.toughMax) toughPct += zone.pct;
       else neutralPct += zone.pct;
     });
     
@@ -128,18 +146,15 @@ export function ShootingZones({
       neutralPct: Math.round(neutralPct),
       toughPct: Math.round(toughPct),
     };
-  }, [zones]);
+  }, [zones, rankBuckets.neutralMax, rankBuckets.toughMax]);
 
   // Get zone fill color for SVG - Premium vibrant colors with better contrast
   const getZoneFill = (zoneId: string): string => {
     const zone = getZone(zoneId);
     if (!zone || zone.defRank === null) return "url(#neutralGradient)"; // Default gradient
     
-    // Favorable (21-30) - Vibrant teal/emerald
-    if (zone.defRank >= 21) return "url(#favorableGradient)";
-    // Tough (1-10) - Rich coral/rose
-    if (zone.defRank <= 10) return "url(#toughGradient)";
-    // Neutral (11-20) - Golden amber
+    if (zone.defRank > rankBuckets.neutralMax) return "url(#favorableGradient)";
+    if (zone.defRank <= rankBuckets.toughMax) return "url(#toughGradient)";
     return "url(#neutralGradient)";
   };
   
@@ -147,8 +162,8 @@ export function ShootingZones({
   const getZoneGlow = (zoneId: string): string => {
     const zone = getZone(zoneId);
     if (!zone || zone.defRank === null) return "rgba(251, 191, 36, 0.25)";
-    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.3)";
-    if (zone.defRank <= 10) return "rgba(239, 68, 68, 0.3)";
+    if (zone.defRank > rankBuckets.neutralMax) return "rgba(52, 211, 153, 0.3)";
+    if (zone.defRank <= rankBuckets.toughMax) return "rgba(239, 68, 68, 0.3)";
     return "rgba(251, 191, 36, 0.25)";
   };
 
@@ -169,7 +184,7 @@ export function ShootingZones({
           {zone.defRank !== null && (
             <div>Opp Def Rank: <span className={cn(
               "font-semibold",
-              zone.defRank >= 21 ? "text-emerald-400" : zone.defRank <= 10 ? "text-red-400" : "text-amber-400"
+              zone.defRank > rankBuckets.neutralMax ? "text-emerald-400" : zone.defRank <= rankBuckets.toughMax ? "text-red-400" : "text-amber-400"
             )}>{getOrdinal(zone.defRank)}</span></div>
           )}
           {zone.oppFgPct !== null && (
@@ -196,8 +211,8 @@ export function ShootingZones({
     // Premium badge styling based on defense rank
     const getBadgeStyle = () => {
       if (zone.defRank === null) return "from-neutral-800/90 to-neutral-900/90 border-neutral-600/50";
-      if (zone.defRank >= 21) return "from-emerald-900/95 to-emerald-950/95 border-emerald-500/40 shadow-emerald-500/20";
-      if (zone.defRank <= 10) return "from-rose-900/95 to-rose-950/95 border-rose-500/40 shadow-rose-500/20";
+      if (zone.defRank > rankBuckets.neutralMax) return "from-emerald-900/95 to-emerald-950/95 border-emerald-500/40 shadow-emerald-500/20";
+      if (zone.defRank <= rankBuckets.toughMax) return "from-rose-900/95 to-rose-950/95 border-rose-500/40 shadow-rose-500/20";
       return "from-amber-900/95 to-amber-950/95 border-amber-500/40 shadow-amber-500/20";
     };
     
@@ -218,8 +233,8 @@ export function ShootingZones({
           {/* Defense rank with color */}
           <span className={cn(
             "text-[9px] sm:text-[11px] font-black tabular-nums drop-shadow-sm leading-none",
-            zone.defRank !== null && zone.defRank >= 21 ? "text-emerald-300" :
-            zone.defRank !== null && zone.defRank <= 10 ? "text-rose-300" : "text-amber-300"
+            zone.defRank !== null && zone.defRank > rankBuckets.neutralMax ? "text-emerald-300" :
+            zone.defRank !== null && zone.defRank <= rankBuckets.toughMax ? "text-rose-300" : "text-amber-300"
           )}>
             {zone.defRank !== null ? getOrdinal(zone.defRank) : "—"}
           </span>
@@ -255,17 +270,17 @@ export function ShootingZones({
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-md bg-gradient-to-br from-emerald-400 to-emerald-600" />
                       <span className="text-emerald-300 font-medium">Favorable</span>
-                      <span className="text-neutral-400">(Opp rank 21-30)</span>
+                      <span className="text-neutral-400">(Opp rank {rankBuckets.neutralMax + 1}-{rankBuckets.total})</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-md bg-gradient-to-br from-amber-400 to-amber-600" />
                       <span className="text-amber-300 font-medium">Neutral</span>
-                      <span className="text-neutral-400">(Opp rank 11-20)</span>
+                      <span className="text-neutral-400">(Opp rank {rankBuckets.toughMax + 1}-{rankBuckets.neutralMax})</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-md bg-gradient-to-br from-rose-400 to-rose-600" />
                       <span className="text-rose-300 font-medium">Tough</span>
-                      <span className="text-neutral-400">(Opp rank 1-10)</span>
+                      <span className="text-neutral-400">(Opp rank 1-{rankBuckets.toughMax})</span>
                     </div>
                   </div>
                 </div>
@@ -281,6 +296,25 @@ export function ShootingZones({
           </div>
 
           <div className="flex items-center gap-2">
+            {sport === "wnba" && (
+              <div className="flex items-center gap-1 bg-neutral-100/50 dark:bg-neutral-800/30 p-1 rounded-xl">
+                {WNBA_SEASONS.map((season) => (
+                  <button
+                    key={season}
+                    type="button"
+                    onClick={() => setWnbaSeason(season)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95",
+                      wnbaSeason === season
+                        ? "bg-white dark:bg-neutral-700 text-orange-700 dark:text-orange-400 shadow-sm ring-1 ring-orange-200/50 dark:ring-orange-700/30"
+                        : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {season}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* Summary Pills - Premium */}
             {!isLoading && summary && (
               <div className="hidden sm:flex items-center gap-1.5">
@@ -355,8 +389,17 @@ export function ShootingZones({
               <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : zones.length === 0 ? (
-            <div className="flex items-center justify-center h-64 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
-              <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
+            <div className="flex items-center justify-center h-64 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl px-6 text-center">
+              <div>
+                <p className="text-sm font-semibold text-neutral-200">
+                  No shot zone data available for {sport === "wnba" ? wnbaSeason : "this season"}
+                </p>
+                {sport === "wnba" && wnbaSeason === "2026" && (
+                  <p className="mt-1 text-xs leading-5 text-neutral-400">
+                    Switch to 2025 for prior-season shot zones until 2026 games are played.
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
             <div className={showSideTable ? "flex flex-col gap-3 sm:flex-row sm:gap-4" : ""}>
@@ -670,15 +713,15 @@ export function ShootingZones({
                       
                       const getRankBg = (rank: number | null) => {
                         if (rank === null) return "bg-neutral-100 dark:bg-neutral-800";
-                        if (rank >= 21) return "bg-emerald-100 dark:bg-emerald-900/40";
-                        if (rank <= 10) return "bg-red-100 dark:bg-red-900/40";
+                        if (rank > rankBuckets.neutralMax) return "bg-emerald-100 dark:bg-emerald-900/40";
+                        if (rank <= rankBuckets.toughMax) return "bg-red-100 dark:bg-red-900/40";
                         return "bg-amber-100 dark:bg-amber-900/40";
                       };
                       
                       const getRankText = (rank: number | null) => {
                         if (rank === null) return "text-neutral-500";
-                        if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
-                        if (rank <= 10) return "text-red-600 dark:text-red-400";
+                        if (rank > rankBuckets.neutralMax) return "text-emerald-600 dark:text-emerald-400";
+                        if (rank <= rankBuckets.toughMax) return "text-red-600 dark:text-red-400";
                         return "text-amber-600 dark:text-amber-400";
                       };
                       
@@ -719,15 +762,15 @@ export function ShootingZones({
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
                       <div className="w-2 h-2 rounded-sm bg-emerald-500" />
-                      <span className="text-[9px] font-medium text-emerald-500">21-30</span>
+                      <span className="text-[9px] font-medium text-emerald-500">{rankBuckets.neutralMax + 1}-{rankBuckets.total}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
                       <div className="w-2 h-2 rounded-sm bg-amber-500" />
-                      <span className="text-[9px] font-medium text-amber-500">11-20</span>
+                      <span className="text-[9px] font-medium text-amber-500">{rankBuckets.toughMax + 1}-{rankBuckets.neutralMax}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/10 border border-red-500/20">
                       <div className="w-2 h-2 rounded-sm bg-red-500" />
-                      <span className="text-[9px] font-medium text-red-500">1-10</span>
+                      <span className="text-[9px] font-medium text-red-500">1-{rankBuckets.toughMax}</span>
                     </div>
                   </div>
                 </div>

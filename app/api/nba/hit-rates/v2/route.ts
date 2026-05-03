@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@/lib/basketball/pace-context";
 
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
@@ -195,7 +196,7 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
 }
 
 // Transform RPC response to frontend format
-function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null) {
+function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null, paceContext: PaceContext | null) {
   const startTime =
     eventStartTime ||
     row.start_time ||
@@ -296,6 +297,7 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
       avg_allowed: null, // Not in table yet
       matchup_quality: matchupQuality,
     } : null,
+    pace_context: row.pace_context ?? paceContext,
   };
 }
 
@@ -495,6 +497,8 @@ export async function GET(request: Request) {
 
     // Fetch event start times from Redis for favorites/expiry workflows
     const eventStartTimes = await fetchEventStartTimes(paginatedData);
+    const supabase = createServerSupabaseClient();
+    const paceContextMap = await fetchPaceContextsForRows(supabase, "nba", paginatedData);
     
     // Transform to frontend format with best odds merged
     const transformedData = paginatedData.map(row => {
@@ -504,7 +508,8 @@ export async function GET(request: Request) {
         : null;
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
       const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
-      return transformProfile(row, bestOdds, eventStartTime);
+      const paceContext = paceContextMap.get(getPaceContextKey(row)) ?? null;
+      return transformProfile(row, bestOdds, eventStartTime, paceContext);
     });
     
     // Get unique dates from response

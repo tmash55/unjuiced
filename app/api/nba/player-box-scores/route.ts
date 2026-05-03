@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { z } from "zod";
+import { normalizeBasketballSeasonType } from "@/lib/basketball/pace-context";
 
 // Request validation
 const QuerySchema = z.object({
@@ -103,6 +104,69 @@ interface RpcResponse {
   games: RpcGame[];
 }
 
+async function fetchGamePaceByGameOpponent(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  games: RpcGame[]
+): Promise<Map<string, number>> {
+  const gameIds = [...new Set(games.map((game) => Number(game.game_id)).filter((gameId) => Number.isFinite(gameId) && gameId > 0))];
+  const opponentIds = [...new Set(games.map((game) => game.opponent_team_id).filter(Boolean))];
+  const result = new Map<string, number>();
+
+  if (gameIds.length === 0 || opponentIds.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("basketball_team_game_pace")
+    .select("game_id, opponent_team_id, pace")
+    .eq("league", "nba")
+    .in("game_id", gameIds)
+    .in("opponent_team_id", opponentIds);
+
+  if (error) {
+    console.error("[Player Box Scores] Pace lookup error:", error.message);
+    return result;
+  }
+
+  for (const row of data || []) {
+    if (!row.game_id || !row.opponent_team_id || row.pace === null) continue;
+    result.set(`${row.game_id}:${row.opponent_team_id}`, row.pace);
+  }
+
+  return result;
+}
+
+async function fetchPotentialAssistsByGame(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  playerId: number,
+  games: RpcGame[]
+): Promise<Map<string, number>> {
+  const gameIds = [...new Set(games.map((game) => Number(game.game_id)).filter((gameId) => Number.isFinite(gameId) && gameId > 0))];
+  const result = new Map<string, number>();
+
+  if (gameIds.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("nba_player_box_scores")
+    .select("game_id, potential_assists")
+    .eq("player_id", playerId)
+    .in("game_id", gameIds);
+
+  if (error) {
+    console.error("[Player Box Scores] Potential assists lookup error:", error.message);
+    return result;
+  }
+
+  for (const row of data || []) {
+    if (!row.game_id || row.potential_assists === null) continue;
+    result.set(String(row.game_id), row.potential_assists);
+  }
+
+  return result;
+}
+
 // Frontend response structure
 export interface PlayerInfo {
   playerId: number;
@@ -182,6 +246,7 @@ export interface BoxScoreGame {
   // Tracking
   passes: number;
   potentialReb: number;
+  potentialAssists?: number | null;
   // Combo stats
   pra: number;
   pr: number;
@@ -278,11 +343,14 @@ export async function GET(req: NextRequest) {
       ftPct: data.season_summary.ft_pct,
     } : null;
 
+    const gamePaceMap = await fetchGamePaceByGameOpponent(supabase, data.games || []);
+    const potentialAssistsMap = await fetchPotentialAssistsByGame(supabase, playerId, data.games || []);
+
     // Map games
     const games: BoxScoreGame[] = (data.games || []).map((g) => ({
       gameId: g.game_id,
       date: g.date,
-      seasonType: g.season_type,
+      seasonType: normalizeBasketballSeasonType(g.season_type, "nba", g.date),
       homeAway: g.home_away,
       opponentTeamId: g.opponent_team_id,
       opponentAbbr: g.opponent_abbr,
@@ -321,11 +389,12 @@ export async function GET(req: NextRequest) {
       offRating: g.off_rating,
       defRating: g.def_rating,
       netRating: g.net_rating,
-      pace: g.pace,
+      pace: gamePaceMap.get(`${Number(g.game_id)}:${g.opponent_team_id}`) ?? g.pace,
       pie: g.pie,
       // Tracking
       passes: g.passes,
       potentialReb: g.potential_reb,
+      potentialAssists: potentialAssistsMap.get(String(g.game_id)) ?? null,
       // Combo stats
       pra: g.pra,
       pr: g.pr,
@@ -354,4 +423,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

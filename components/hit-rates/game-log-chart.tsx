@@ -250,6 +250,9 @@ interface GameLogChartProps {
   market: string;
   sport?: "nba" | "mlb" | "wnba";
   className?: string;
+  upcomingGameDate?: string | null;
+  upcomingOpponentAbbr?: string | null;
+  upcomingHomeAway?: string | null;
   // Optional: game logs from hit rate profile for teammates_out data
   profileGameLogs?: ProfileGameLog[] | null;
   // Optional: callback when line is changed via drag
@@ -446,6 +449,12 @@ const formatShortDate = (dateStr: string) => {
   return date.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
 };
 
+const getDateYear = (dateStr: string | null | undefined): number | null => {
+  if (!dateStr) return null;
+  const year = new Date(dateStr + "T12:00:00").getFullYear();
+  return Number.isFinite(year) ? year : null;
+};
+
 // Stat row component for tooltip - premium styling
 const StatRow = ({ label, value, subValue }: { label: string; value: string | number; subValue?: string }) => (
   <div className="flex items-center justify-between py-[3px]">
@@ -556,6 +565,9 @@ const getMarketStats = (game: BoxScoreGame, marketRaw: string): React.ReactNode 
           {commonStats}
           <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Assists" value={game.ast} />
+          {game.potentialAssists !== null && game.potentialAssists !== undefined && (
+            <StatRow label="Potential AST" value={game.potentialAssists} />
+          )}
           <StatRow label="Passes" value={game.passes} />
           <StatRow label="Turnovers" value={game.tov} />
           <StatRow label="AST/TO" value={game.ast === 0 ? "0" : game.tov === 0 ? game.ast.toString() : (game.ast / game.tov).toFixed(1)} />
@@ -692,6 +704,9 @@ export function GameLogChart({
   market,
   sport = "nba",
   className,
+  upcomingGameDate,
+  upcomingOpponentAbbr,
+  upcomingHomeAway,
   profileGameLogs,
   onLineChange,
   quickFilters,
@@ -724,6 +739,30 @@ export function GameLogChart({
     return [...inputGames].reverse(); // Oldest first, most recent on right
   }, [inputGames]);
 
+  const upcomingSlot = useMemo(() => {
+    if (!upcomingGameDate || line === null || games.length === 0) return null;
+
+    const latestHistoricalDate = games.reduce((latest, game) => {
+      return !latest || game.date > latest ? game.date : latest;
+    }, "");
+
+    const hasSameDate = games.some((game) => game.date === upcomingGameDate);
+    if (hasSameDate || upcomingGameDate <= latestHistoricalDate) return null;
+
+    return {
+      date: upcomingGameDate,
+      opponentAbbr: upcomingOpponentAbbr ?? null,
+      homeAway: upcomingHomeAway ?? null,
+    };
+  }, [games, line, upcomingGameDate, upcomingHomeAway, upcomingOpponentAbbr]);
+
+  const chartItems = useMemo(() => {
+    const historicalItems = games.map((game) => ({ type: "game" as const, game }));
+    return upcomingSlot
+      ? [...historicalItems, { type: "upcoming" as const, slot: upcomingSlot }]
+      : historicalItems;
+  }, [games, upcomingSlot]);
+
   // Normalize game ID by removing leading zeros for consistent matching
   // NBA game IDs can be "0022500060" or "22500060" depending on source
   const normalizeGameId = (id: string | number | undefined | null): string => {
@@ -749,15 +788,21 @@ export function GameLogChart({
   const maxStat = useMemo(() => {
     if (games.length === 0) return 10;
     
-    // For rebounds market, include potential rebounds in max calculation
+    // For rebound/assist markets, include opportunity stats in max calculation
     // For 3PM market, include 3PA in max calculation
     let max: number;
     if (market === "player_rebounds") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
+    } else if (sport === "nba" && market === "player_assists") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialAssists || 0)));
     } else if (market === "player_threes_made") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.fg3a || 0)));
     } else {
       max = Math.max(...games.map(g => getMarketStat(g, market)));
+    }
+
+    if (line !== null) {
+      max = Math.max(max, line);
     }
     
     // For small values (0-5), use a tighter scale
@@ -767,17 +812,34 @@ export function GameLogChart({
     if (max <= 20) return Math.ceil(max / 5) * 5 + 2; // Round to nearest 5
     // For larger values, round up to nearest 5 with small buffer
     return Math.ceil(max / 5) * 5 + 5;
-  }, [games, market]);
+  }, [games, line, market]);
 
   const chartHeight = 200;
   // Adjust bar width based on number of games
-  const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 40 : games.length <= 20 ? 30 : 24;
+  const itemCount = chartItems.length;
+  const barWidth = itemCount <= 5 ? 48 : itemCount <= 10 ? 40 : itemCount <= 20 ? 30 : 24;
 
   // Shared track sizing for bars/logos/dates so all x-axis elements stay aligned.
   const gapPx = 12; // gap-3
-  const contentWidth = games.length > 0
-    ? games.length * barWidth + (games.length - 1) * gapPx
+  const contentWidth = itemCount > 0
+    ? itemCount * barWidth + (itemCount - 1) * gapPx
     : 0;
+
+  const seasonBoundary = useMemo(() => {
+    if (!upcomingSlot || games.length === 0) return null;
+
+    const lastHistoricalGame = games[games.length - 1];
+    const historicalYear = getDateYear(lastHistoricalGame.date);
+    const upcomingYear = getDateYear(upcomingSlot.date);
+    if (!historicalYear || !upcomingYear || historicalYear === upcomingYear) return null;
+
+    return {
+      index: games.length,
+      historicalYear,
+      upcomingYear,
+      x: games.length * (barWidth + gapPx) - gapPx / 2,
+    };
+  }, [barWidth, games, gapPx, upcomingSlot]);
 
   // Auto-scroll to the right (most recent games) only when overflowing.
   // Uses requestAnimationFrame to ensure the DOM has laid out the full scroll width first.
@@ -792,7 +854,7 @@ export function GameLogChart({
         el.scrollLeft = 0;
       }
     });
-  }, [games.length, barWidth, gapPx]);
+  }, [itemCount, barWidth, gapPx]);
 
   // Calculate line position as percentage (use displayLine for dragging)
   const linePosition = displayLine !== null ? (displayLine / maxStat) * 100 : null;
@@ -1076,6 +1138,19 @@ export function GameLogChart({
         <div className="absolute top-1/2 left-0 right-0 border-b border-dashed border-neutral-400/[0.12] dark:border-neutral-500/[0.15] pointer-events-none" />
         <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-400/[0.20] dark:border-neutral-500/[0.20] pointer-events-none" />
 
+        {seasonBoundary && (
+          <div
+            className="absolute inset-y-0 z-[6] pointer-events-none"
+            style={{ left: seasonBoundary.x }}
+          >
+            <div className="absolute inset-y-0 w-px bg-neutral-400/40 dark:bg-neutral-500/40" />
+            <div className="absolute inset-y-0 -left-8 w-16 bg-gradient-to-r from-transparent via-neutral-400/[0.08] to-transparent dark:via-white/[0.07]" />
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-200/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-500 shadow-sm dark:border-neutral-700/80 dark:bg-neutral-900/90 dark:text-neutral-400">
+              {seasonBoundary.historicalYear} season
+            </div>
+          </div>
+        )}
+
         {/* Bars Container - fixed track with shared widths for perfect x-axis alignment */}
         <div className="absolute inset-0 flex items-end justify-start gap-3 z-10 pointer-events-none">
           
@@ -1199,7 +1274,69 @@ export function GameLogChart({
           })()}
           
           {/* Note: individual bars will have pointer-events-auto for tooltips */}
-          {games.map((game, idx) => {
+          {chartItems.map((item, idx) => {
+            if (item.type === "upcoming") {
+              const slot = item.slot;
+              const placeholderHeightPx = displayLine !== null
+                ? Math.max((displayLine / maxStat) * chartHeight, 24)
+                : 40;
+              const opponentLogo = slot.opponentAbbr ? getTeamLogoUrl(slot.opponentAbbr, sport) : null;
+              const matchupText = slot.opponentAbbr
+                ? `${slot.homeAway === "H" ? "vs" : "@"} ${slot.opponentAbbr}`
+                : "Upcoming";
+
+              return (
+                <Tooltip
+                  key={`upcoming-${slot.date}-${idx}`}
+                  content={
+                    <div className="rounded-xl border border-neutral-800/50 bg-neutral-900 px-4 py-3 shadow-2xl dark:bg-neutral-950">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                        Upcoming Game
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {formatDate(slot.date)} {matchupText}
+                      </div>
+                      {displayLine !== null && (
+                        <div className="mt-2 text-xs text-neutral-400">
+                          Waiting on result for {displayLine}+ {marketLabel}
+                        </div>
+                      )}
+                    </div>
+                  }
+                  side="top"
+                  align="center"
+                >
+                  <div
+                    className="relative shrink-0 flex flex-col items-center justify-end cursor-default group pointer-events-auto"
+                    style={{ width: barWidth, height: chartHeight }}
+                  >
+                    <span className="mb-1 text-xs font-bold text-neutral-400 dark:text-neutral-500">?</span>
+                    <div
+                      className="relative rounded-t border border-dashed border-neutral-400/70 bg-neutral-200/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors group-hover:border-primary/70 dark:border-neutral-500/70 dark:bg-white/[0.04]"
+                      style={{
+                        width: barWidth,
+                        height: placeholderHeightPx,
+                      }}
+                    >
+                      <div className="absolute inset-x-1 top-1/2 border-t border-dashed border-neutral-400/40 dark:border-neutral-500/40" />
+                    </div>
+                    <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5">
+                      {opponentLogo ? (
+                        <img
+                          src={opponentLogo}
+                          alt={slot.opponentAbbr ?? "Opponent"}
+                          className="h-4 w-4 object-contain opacity-70 transition-opacity group-hover:opacity-100"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-neutral-400">UP</span>
+                      )}
+                    </div>
+                  </div>
+                </Tooltip>
+              );
+            }
+
+            const game = item.game;
             const statValue = getMarketStat(game, market);
             const barHeightPx = (statValue / maxStat) * chartHeight;
             // Use displayLine for real-time updates while dragging
@@ -1533,6 +1670,25 @@ export function GameLogChart({
                             </span>
                           </>
                         )}
+
+                        {/* Potential Assists - Faded overlay (NBA assists market only) */}
+                        {sport === "nba" && market === "player_assists" && (game.potentialAssists ?? 0) > 0 && (game.potentialAssists ?? 0) > game.ast && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-sky-400/25 to-sky-300/15 dark:from-sky-500/25 dark:to-sky-400/15"
+                              style={{
+                                width: barWidth,
+                                height: Math.max((((game.potentialAssists ?? 0) / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            <span
+                              className="absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold text-sky-400/80 dark:text-sky-300/75"
+                              style={{ bottom: `${(((game.potentialAssists ?? 0) / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.potentialAssists}
+                            </span>
+                          </>
+                        )}
                         
                         {/* 3PA - Faded overlay (only for 3PM market) */}
                         {market === "player_threes_made" && game.fg3a > 0 && game.fg3a > game.fg3m && (
@@ -1636,15 +1792,28 @@ export function GameLogChart({
 
       {/* X-Axis - Dates */}
       <div className="mt-8 flex justify-start gap-3">
-        {games.map((game, idx) => (
-          <div
-            key={game.gameId || idx}
-            className="shrink-0 text-[9px] text-neutral-400 text-center font-medium"
-            style={{ width: barWidth }}
-          >
-            {formatShortDate(game.date)}
-          </div>
-        ))}
+        {chartItems.map((item, idx) => {
+          const date = item.type === "game" ? item.game.date : item.slot.date;
+          return (
+            <div
+              key={item.type === "game" ? (item.game.gameId || idx) : `upcoming-date-${date}`}
+              className={cn(
+                "shrink-0 text-center text-[9px] font-medium",
+                item.type === "upcoming"
+                  ? "text-neutral-600 dark:text-neutral-300"
+                  : "text-neutral-400"
+              )}
+              style={{ width: barWidth }}
+            >
+              <div>{formatShortDate(date)}</div>
+              {item.type === "upcoming" && (
+                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-primary dark:text-primary-weak">
+                  Next
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       </div>{/* end centered track */}

@@ -109,6 +109,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     last10Pct: profile.last_10_pct,
     last20Pct: profile.last_20_pct,
     seasonPct: profile.season_pct,
+    seasonGames: profile.season_games ?? null,
     h2hPct: profile.h2h_pct,
     h2hAvg: profile.h2h_avg,
     h2hGames: profile.h2h_games,
@@ -146,6 +147,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     matchupRankLabel: matchup?.rank_label ?? null,
     matchupAvgAllowed: matchup?.avg_allowed ?? null,
     matchupQuality: matchup?.matchup_quality ?? null,
+    paceContext: profile.pace_context ?? null,
     // Best odds from Redis
     bestOdds: profile.best_odds ?? null,
     books: profile.books ?? 0,

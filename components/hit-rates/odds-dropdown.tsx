@@ -39,6 +39,7 @@ interface OddsLineResponse {
 }
 
 interface OddsDropdownProps {
+  sport?: "nba" | "wnba";
   // Row data for fetching odds
   eventId?: string | null;
   market?: string | null;
@@ -84,6 +85,7 @@ const getBookFallbackUrl = (bookId?: string): string | null => {
 // =============================================================================
 
 export function OddsDropdown({ 
+  sport = "nba",
   eventId, 
   market, 
   selKey, 
@@ -122,6 +124,12 @@ export function OddsDropdown({
     return selKey.includes(':') ? selKey.split(':')[0] : selKey;
   }, [selKey]);
 
+  useEffect(() => {
+    setOddsData(null);
+    setError(null);
+    hasFetched.current = false;
+  }, [sport, eventId, market, playerId, line]);
+
   // Fetch odds - called on mount to show fresh odds immediately
   const fetchOdds = useCallback(async () => {
     if (!eventId || !market || !playerId || line === null || line === undefined) {
@@ -139,7 +147,7 @@ export function OddsDropdown({
         line: String(line),
       });
 
-      const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
+      const response = await fetch(`/api/${sport}/props/odds-line?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch odds");
@@ -154,7 +162,7 @@ export function OddsDropdown({
     } finally {
       setIsLoading(false);
     }
-  }, [eventId, market, playerId, line]);
+  }, [sport, eventId, market, playerId, line]);
 
   // Fetch odds on mount to show fresh odds in the button immediately
   useEffect(() => {

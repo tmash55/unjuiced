@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { z } from "zod";
+import { normalizeBasketballSeasonType } from "@/lib/basketball/pace-context";
 
 /**
  * WNBA Player Box Scores API
@@ -108,6 +109,38 @@ interface RpcResponse {
   games: RpcGame[];
 }
 
+async function fetchGamePaceByGameOpponent(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  games: RpcGame[]
+): Promise<Map<string, number>> {
+  const gameIds = [...new Set(games.map((game) => Number(game.game_id)).filter((gameId) => Number.isFinite(gameId) && gameId > 0))];
+  const opponentIds = [...new Set(games.map((game) => game.opponent_team_id).filter(Boolean))];
+  const result = new Map<string, number>();
+
+  if (gameIds.length === 0 || opponentIds.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("basketball_team_game_pace")
+    .select("game_id, opponent_team_id, pace")
+    .eq("league", "wnba")
+    .in("game_id", gameIds)
+    .in("opponent_team_id", opponentIds);
+
+  if (error) {
+    console.error("[WNBA Player Box Scores] Pace lookup error:", error.message);
+    return result;
+  }
+
+  for (const row of data || []) {
+    if (!row.game_id || !row.opponent_team_id || row.pace === null) continue;
+    result.set(`${row.game_id}:${row.opponent_team_id}`, row.pace);
+  }
+
+  return result;
+}
+
 export interface PlayerInfo {
   playerId: number;
   nbaPlayerId?: number | null;
@@ -182,6 +215,7 @@ export interface BoxScoreGame {
   pie: number;
   passes: number;
   potentialReb: number;
+  potentialAssists?: number | null;
   pra: number;
   pr: number;
   pa: number;
@@ -274,10 +308,12 @@ export async function GET(req: NextRequest) {
       ftPct: data.season_summary.ft_pct,
     } : null;
 
+    const gamePaceMap = await fetchGamePaceByGameOpponent(supabase, data.games || []);
+
     const games: BoxScoreGame[] = (data.games || []).map((g) => ({
       gameId: g.game_id,
       date: g.date,
-      seasonType: g.season_type,
+      seasonType: normalizeBasketballSeasonType(g.season_type, "wnba", g.date),
       homeAway: g.home_away,
       opponentTeamId: g.opponent_team_id,
       opponentAbbr: g.opponent_abbr,
@@ -312,10 +348,11 @@ export async function GET(req: NextRequest) {
       offRating: g.off_rating,
       defRating: g.def_rating,
       netRating: g.net_rating,
-      pace: g.pace,
+      pace: gamePaceMap.get(`${Number(g.game_id)}:${g.opponent_team_id}`) ?? g.pace,
       pie: g.pie,
       passes: g.passes,
       potentialReb: g.potential_reb,
+      potentialAssists: null,
       pra: g.pra,
       pr: g.pr,
       pa: g.pa,

@@ -41,6 +41,7 @@ export interface FavoriteSnapshotSide {
 }
 
 interface UseOddsLineParams {
+  sport?: "nba" | "wnba";
   eventId: string | null;
   market: string | null;
   playerId: string | null;
@@ -58,7 +59,8 @@ export async function fetchOddsLine(
   market: string,
   playerId: string,
   line: number,
-  includeSgp: boolean = false
+  includeSgp: boolean = false,
+  sport: "nba" | "wnba" = "nba"
 ): Promise<OddsLineResponse> {
   const params = new URLSearchParams({
     event_id: eventId,
@@ -71,7 +73,7 @@ export async function fetchOddsLine(
     params.set("include_sgp", "true");
   }
   
-  const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
+  const response = await fetch(`/api/${sport}/props/odds-line?${params.toString()}`);
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -142,6 +144,7 @@ export function getBestSideFromOddsLine(
 // =============================================================================
 
 export function useOddsLine({
+  sport = "nba",
   eventId,
   market,
   playerId,
@@ -152,8 +155,8 @@ export function useOddsLine({
   const isValid = Boolean(eventId && market && playerId && line !== null);
   
   const query = useQuery({
-    queryKey: ["odds-line", eventId, market, playerId, line, includeSgp],
-    queryFn: () => fetchOddsLine(eventId!, market!, playerId!, line!, includeSgp),
+    queryKey: ["odds-line", sport, eventId, market, playerId, line, includeSgp],
+    queryFn: () => fetchOddsLine(eventId!, market!, playerId!, line!, includeSgp, sport),
     enabled: enabled && isValid,
     staleTime: 10_000, // 10 seconds
     gcTime: 60_000, // 1 minute

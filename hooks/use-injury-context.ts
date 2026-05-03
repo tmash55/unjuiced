@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 // Player who was out during games
 export interface PlayerOutInfo {
   player_id: number;
+  nba_player_id?: number | null;
   name: string;
   position: string | null;
   team_id?: number; // Only for opponents
@@ -115,8 +116,9 @@ export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
     enabled = true,
   } = options;
 
-  // WNBA has no matching RPC yet — disable the query until one exists.
-  const sportEnabled = sport !== "wnba";
+  const rpcName = sport === "wnba"
+    ? "get_wnba_players_out_for_filter"
+    : "get_players_out_for_filter";
 
   const query = useQuery<PlayersOutForFilterResponse | null>({
     queryKey: ["players-out-for-filter", sport, playerId, season],
@@ -124,7 +126,7 @@ export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
       if (!playerId) return null;
 
       const supabase = getSupabaseClient();
-      const { data, error } = await supabase.rpc("get_players_out_for_filter", {
+      const { data, error } = await supabase.rpc(rpcName, {
         p_player_id: playerId,
         p_season: season,
       });
@@ -136,7 +138,7 @@ export function usePlayersOutForFilter(options: UsePlayersOutForFilterOptions) {
 
       return data as PlayersOutForFilterResponse;
     },
-    enabled: enabled && playerId !== null && sportEnabled,
+    enabled: enabled && playerId !== null,
     staleTime: 5 * 60_000, // 5 minutes
     gcTime: 10 * 60_000, // 10 minutes
   });
@@ -273,4 +275,3 @@ export function filterGamesByPlayerAvailability(
     }
   });
 }
-

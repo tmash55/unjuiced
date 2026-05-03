@@ -33,6 +33,9 @@ export interface ShotZoneMatchupResponse {
   zones: ShotZone[];
   summary: {
     total_zones_shown: number;
+    total_teams?: number;
+    tough_max_rank?: number;
+    neutral_max_rank?: number;
     favorable_zones: number;
     neutral_zones: number;
     tough_zones: number;
@@ -50,6 +53,7 @@ export interface ShotZoneMatchupResponse {
 interface UseShotZoneMatchupOptions {
   playerId: number | null | undefined;
   opponentTeamId: number | null | undefined;
+  sport?: "nba" | "wnba";
   season?: string;
   enabled?: boolean;
 }
@@ -57,17 +61,20 @@ interface UseShotZoneMatchupOptions {
 export function useShotZoneMatchup({
   playerId,
   opponentTeamId,
-  season = "2025-26",
+  sport = "nba",
+  season,
   enabled = true,
 }: UseShotZoneMatchupOptions) {
+  const resolvedSeason = season ?? (sport === "wnba" ? "2025" : "2025-26");
+
   return useQuery<ShotZoneMatchupResponse, Error>({
-    queryKey: ["shot-zone-matchup", playerId, opponentTeamId, season],
+    queryKey: ["shot-zone-matchup", sport, playerId, opponentTeamId, resolvedSeason],
     queryFn: async () => {
       if (!playerId || !opponentTeamId) {
         throw new Error("Player ID and Opponent Team ID are required.");
       }
       const res = await fetch(
-        `/api/nba/shot-zone-matchup?playerId=${playerId}&opponentTeamId=${opponentTeamId}&season=${season}`
+        `/api/${sport}/shot-zone-matchup?playerId=${playerId}&opponentTeamId=${opponentTeamId}&season=${resolvedSeason}`
       );
       if (!res.ok) {
         const errorData = await res.json();
@@ -94,4 +101,3 @@ export function mapZoneToId(zoneName: string): string {
   };
   return mapping[zoneName] || zoneName.toLowerCase().replace(/\s+/g, "");
 }
-

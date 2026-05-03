@@ -14,24 +14,24 @@ const HIT_RATE_TABLE_CONFIG: Record<HitRateSport, HitRateTableConfig> = {
     seasonPctLabel: "25/26",
     showPreviousSeasonAvg: false,
     previousSeasonLabel: "25 SZN",
-    // player, matchup, prop, l5avg, l10avg, seasonavg, str, l5, l10, l20, season, h2h, odds
-    columnWidths: [250, 100, 100, 70, 70, 70, 55, 64, 64, 64, 72, 72, 120],
+    // player, matchup, prop, recent, str, l5, l10, l20, season, h2h, defrank, allowed, pace, odds
+    columnWidths: [250, 100, 100, 390, 55, 92, 92, 92, 96, 92, 82, 82, 68, 120],
   },
   mlb: {
     seasonAvgLabel: "Season Avg",
     seasonPctLabel: "Season",
     showPreviousSeasonAvg: true,
     previousSeasonLabel: "25 SZN",
-    // player, matchup, prop, l5avg, l10avg, seasonavg, prevseason, str, l5, l10, l20, season, h2h, odds
-    columnWidths: [250, 100, 100, 70, 70, 70, 75, 55, 64, 64, 64, 72, 72, 120],
+    // player, matchup, prop, recent, str, l5, l10, l20, season, h2h, defrank, allowed, pace, odds
+    columnWidths: [250, 100, 100, 390, 55, 92, 92, 92, 96, 92, 82, 82, 68, 120],
   },
   wnba: {
     seasonAvgLabel: "25 Avg",
     seasonPctLabel: "25 SZN",
     showPreviousSeasonAvg: false,
     previousSeasonLabel: "24 SZN",
-    // player, matchup, prop, l5avg, l10avg, seasonavg, str, l5, l10, l20, season, h2h, odds
-    columnWidths: [250, 100, 100, 70, 70, 70, 55, 64, 64, 64, 72, 72, 120],
+    // player, matchup, prop, recent, str, l5, l10, l20, season, h2h, defrank, allowed, pace, odds
+    columnWidths: [250, 100, 100, 390, 55, 92, 92, 92, 96, 92, 82, 82, 68, 120],
   },
 };
 

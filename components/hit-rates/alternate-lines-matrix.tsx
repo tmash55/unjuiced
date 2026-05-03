@@ -12,6 +12,7 @@ import { useStateLink } from "@/hooks/use-state-link";
 const SHARP_BOOKS = ["pinnacle", "circa", "bookmaker"];
 
 interface AlternateLinesMatrixProps {
+  sport?: "nba" | "wnba";
   eventId: string | null;       // Event/game ID
   selKey: string | null;        // Player UUID from sel_key
   playerId: number | null;      // NBA player ID
@@ -56,6 +57,7 @@ const getBookName = (bookKey: string): string => {
 };
 
 export function AlternateLinesMatrix({
+  sport = "nba",
   eventId,
   selKey,
   playerId,
@@ -69,6 +71,7 @@ export function AlternateLinesMatrix({
   
   // Use new Redis keys for fetching alternate lines
   const { lines, isLoading, error } = useAlternateLines({
+    sport,
     eventId,
     selKey,
     playerId,
@@ -484,4 +487,3 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
     </div>
   );
 }
-

@@ -236,6 +236,7 @@ export function PlayerCard({
 
   const playerKey = profile.selKey ? profile.selKey.split(":")[0] : null;
   const { data: oddsLineData } = useOddsLine({
+    sport: sport === "wnba" ? "wnba" : "nba",
     eventId: profile.eventId,
     market: profile.market,
     playerId: playerKey,

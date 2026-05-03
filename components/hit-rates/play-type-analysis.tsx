@@ -11,6 +11,7 @@ interface PlayTypeAnalysisProps {
   opponentTeamId: number | null;
   opponentTeamAbbr: string | null;
   playerName: string;
+  sport?: "nba" | "wnba";
 }
 
 // Get rank text color matching Alternate Lines hit rate colors
@@ -36,14 +37,15 @@ function getOrdinalSuffix(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, playerName }: PlayTypeAnalysisProps) {
+export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, playerName, sport = "nba" }: PlayTypeAnalysisProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const isWnba = sport === "wnba";
 
   const { data, isLoading, error } = usePlayTypeMatchup({
     playerId,
     opponentTeamId,
-    enabled: !!playerId && !!opponentTeamId,
+    enabled: !isWnba && !!playerId && !!opponentTeamId,
   });
 
   if (!playerId || !opponentTeamId) return null;
@@ -132,6 +134,20 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
               <div className="flex flex-col items-center gap-2">
                 <div className="h-4 w-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
                 <span className="text-[10px] text-neutral-400">Loading...</span>
+              </div>
+            </div>
+          ) : isWnba ? (
+            <div className="px-5 py-10">
+              <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-neutral-200/70 bg-neutral-50 text-neutral-500 shadow-sm dark:border-neutral-700/60 dark:bg-neutral-900/50 dark:text-neutral-400">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                  WNBA play type analysis coming soon
+                </p>
+                <p className="mt-1.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+                  We will add WNBA play-type scoring and opponent defense splits once that data is ready.
+                </p>
               </div>
             </div>
           ) : error || !data?.play_types?.length ? (

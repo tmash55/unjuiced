@@ -272,6 +272,7 @@ export function InjuryReport({
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
     opponentTeamId,
+    sport,
     season,
     enabled: !!playerTeamId || !!opponentTeamId,
   });
@@ -400,4 +401,3 @@ export function InjuryReport({
     </div>
   );
 }
-

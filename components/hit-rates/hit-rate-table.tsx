@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, BarChart3, ChevronUp, ChevronDown, ChevronsUpDown, Clock3, Flame, Info, HeartPulse, Loader2, Search, ShieldCheck, Target, Trophy, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
 import Chart from "@/icons/chart";
 // Disabled: usePrefetchPlayer was causing excessive API calls on hover
 // import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
@@ -10,6 +11,7 @@ import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 // MiniSparkline removed - using color-coded percentage cells instead for performance
 import { HitRateProfile } from "@/lib/hit-rates-schema";
+import { usePlayerBoxScores, type BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl, getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -104,6 +106,109 @@ const formatPercentage = (value: number | null) => {
   return `${value.toFixed(1)}%`;
 };
 
+const formatRoundedPercentage = (value: number | null) => {
+  if (value === null || value === undefined) return "—";
+  return `${Math.round(value)}%`;
+};
+
+const formatOddsPrice = (price: number | null | undefined) => {
+  if (price === null || price === undefined) return "—";
+  return price > 0 ? `+${price}` : `${price}`;
+};
+
+const getPrimaryHitRate = (row: HitRateProfile) => row.last10Pct ?? row.last5Pct ?? row.last20Pct ?? row.seasonPct;
+
+const getHitRateTextColor = (value: number | null | undefined) => {
+  if (value === null || value === undefined) return "text-neutral-500 dark:text-neutral-400";
+  if (value >= 70) return "text-emerald-500 dark:text-emerald-400";
+  if (value >= 50) return "text-amber-500 dark:text-amber-400";
+  return "text-red-500 dark:text-red-400";
+};
+
+const getStreakDisplay = (streak: number | null | undefined) => {
+  if (streak === null || streak === undefined) return "—";
+  if (streak > 0) return `W ${streak}`;
+  if (streak < 0) return `L ${Math.abs(streak)}`;
+  return "0";
+};
+
+const getStreakColor = (streak: number | null | undefined) => {
+  if (streak === null || streak === undefined || streak === 0) return "text-neutral-500 dark:text-neutral-400";
+  return streak > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
+};
+
+const getMarketStatValue = (game: BoxScoreGame, market: string): number => {
+  switch (market) {
+    case "player_points": return game.pts;
+    case "player_rebounds": return game.reb;
+    case "player_assists": return game.ast;
+    case "player_threes_made": return game.fg3m;
+    case "player_steals": return game.stl;
+    case "player_blocks": return game.blk;
+    case "player_turnovers": return game.tov;
+    case "player_points_rebounds_assists": return game.pra;
+    case "player_points_rebounds": return game.pr;
+    case "player_points_assists": return game.pa;
+    case "player_rebounds_assists": return game.ra;
+    case "player_blocks_steals": return game.bs;
+    case "player_hits": return game.mlbHits ?? 0;
+    case "player_home_runs": return game.mlbHomeRuns ?? 0;
+    case "player_runs_scored": return game.mlbRunsScored ?? 0;
+    case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
+    default: return game.pts;
+  }
+};
+
+type RecentTrendMap = Record<string, BoxScoreGame[]>;
+
+async function fetchRecentTrends(
+  sport: "nba" | "wnba",
+  playerIds: number[]
+): Promise<RecentTrendMap> {
+  if (playerIds.length === 0) return {};
+
+  const params = new URLSearchParams();
+  params.set("playerIds", playerIds.join(","));
+  params.set("limit", "10");
+
+  const res = await fetch(`/api/${sport}/hit-rates/recent-trends?${params.toString()}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || "Failed to load recent trends");
+  }
+
+  const payload = await res.json();
+  return payload.trends ?? {};
+}
+
+const getContextPillClass = (rank: number | null, sport: "nba" | "mlb" | "wnba") => {
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
+  switch (tier) {
+    case "elite":
+      return "border-[color-mix(in_oklab,var(--accent)_38%,transparent)] bg-[color-mix(in_oklab,var(--accent)_17%,var(--card))] text-[color-mix(in_oklab,var(--accent)_92%,var(--text))]";
+    case "strong":
+      return "border-[color-mix(in_oklab,var(--accent)_24%,transparent)] bg-[color-mix(in_oklab,var(--accent)_9%,var(--card))] text-[color-mix(in_oklab,var(--accent)_78%,var(--text))]";
+    case "bad":
+      return "border-red-500/20 bg-red-500/10 text-red-500 dark:text-red-300";
+    case "worst":
+      return "border-red-500/35 bg-red-500/15 text-red-600 dark:text-red-200";
+    default:
+      return "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400";
+  }
+};
+
+const getPacePillClass = (label: "pace_up" | "pace_down" | "neutral" | null | undefined) => {
+  if (label === "pace_up") {
+    return "border-[color-mix(in_oklab,var(--accent)_28%,transparent)] bg-[color-mix(in_oklab,var(--accent)_10%,var(--card))] text-[color-mix(in_oklab,var(--accent)_82%,var(--text))]";
+  }
+  if (label === "pace_down") {
+    return "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300";
+  }
+  return "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400";
+};
+
 // Hit rate badge class - matches alternate lines matrix colors
 const hitRateBadgeClass = (value: number | null) => {
   if (value === null || value === undefined) {
@@ -134,40 +239,553 @@ const getProgressBarColor = (value: number | null) => {
   return "bg-red-400";
 };
 
-// Premium Hit Rate Cell with progress bar
+const getHitRateHeatClass = (value: number | null) => {
+  if (value === null || value === undefined) {
+    return "bg-neutral-50 text-neutral-500 dark:bg-neutral-900/80 dark:text-neutral-500";
+  }
+  if (value >= 75) {
+    return "bg-[color-mix(in_oklab,var(--accent)_27%,var(--card))] text-[color-mix(in_oklab,var(--accent)_95%,var(--text))]";
+  }
+  if (value >= 60) {
+    return "bg-[color-mix(in_oklab,var(--accent)_18%,var(--card))] text-[color-mix(in_oklab,var(--accent)_82%,var(--text))]";
+  }
+  if (value >= 50) {
+    return "bg-amber-500/18 text-amber-600 dark:text-amber-300";
+  }
+  if (value >= 35) {
+    return "bg-orange-500/18 text-orange-600 dark:text-orange-300";
+  }
+  return "bg-red-500/18 text-red-600 dark:text-red-300";
+};
+
+const getHitRateBorderClass = (value: number | null) => {
+  if (value === null || value === undefined) return "border-neutral-200/70 dark:border-neutral-800/80";
+  if (value >= 60) return "border-[color-mix(in_oklab,var(--accent)_24%,transparent)]";
+  if (value >= 50) return "border-amber-500/20";
+  if (value >= 35) return "border-orange-500/20";
+  return "border-red-500/20";
+};
+
+const formatHitRateCount = (value: number | null, sampleSize?: number | null) => {
+  if (value === null || value === undefined || !sampleSize || sampleSize <= 0) return null;
+  const hits = Math.round((value / 100) * sampleSize);
+  return `${hits}/${sampleSize}`;
+};
+
+// Heat-map hit rate cell with sample count.
 const HitRateCell = ({ 
   value, 
+  sampleSize,
+  subLabel,
   isBlurred = false 
 }: { 
   value: number | null; 
+  sampleSize?: number | null;
+  subLabel?: string;
   isBlurred?: boolean;
 }) => {
-  const percentage = value ?? 0;
-  const barColor = getProgressBarColor(value);
-  const textColor = value === null ? "text-neutral-400" :
-    value >= 60 ? "text-emerald-500 dark:text-emerald-400" :
-    value >= 50 ? "text-amber-500 dark:text-amber-400" :
-    value >= 35 ? "text-orange-500 dark:text-orange-400" :
-    "text-red-500 dark:text-red-400";
+  const count = formatHitRateCount(value, sampleSize);
+  const secondary = count ?? subLabel ?? "—";
   
   return (
-    <div className={cn("flex flex-col items-center gap-1", isBlurred && "blur-[3px] opacity-60")}>
-      {/* Percentage value */}
-      <span className={cn("text-sm font-bold tabular-nums", textColor)}>
-        {value !== null ? `${Math.round(value)}%` : "—"}
+    <div
+      className={cn(
+        "mx-auto flex min-h-[58px] w-full max-w-[88px] flex-col items-center justify-center rounded-md border px-2 py-2 text-center transition-colors duration-200",
+        getHitRateHeatClass(value),
+        getHitRateBorderClass(value),
+        isBlurred && "blur-[3px] opacity-60"
+      )}
+    >
+      <span className="text-[15px] font-black leading-none tabular-nums">
+        {value !== null && value !== undefined ? `${Math.round(value)}%` : "—"}
       </span>
-      {/* Progress bar */}
-      <div className="w-12 h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
-        <div 
-          className={cn("h-full rounded-full transition-all duration-300", barColor)}
-          style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+      <span className="mt-1 text-[11px] font-bold leading-none tabular-nums opacity-75">
+        {secondary}
+      </span>
+    </div>
+  );
+};
+
+const MiniSignalBar = ({ value }: { value: number | null }) => {
+  const percentage = Math.min(100, Math.max(0, value ?? 0));
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+      <div
+        className={cn("h-full rounded-full transition-all duration-300", getProgressBarColor(value))}
+        style={{ width: `${percentage}%` }}
+      />
+    </div>
+  );
+};
+
+const MetricRail = ({ label, value }: { label: string; value: number | null }) => (
+  <div className="min-w-0">
+    <div className="mb-1.5 flex items-center justify-between gap-3">
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
+        {label}
+      </span>
+      <span className={cn("text-sm font-black tabular-nums", getHitRateTextColor(value))}>
+        {formatRoundedPercentage(value)}
+      </span>
+    </div>
+    <MiniSignalBar value={value} />
+  </div>
+);
+
+const RecentTrendBars = ({
+  row,
+  games,
+  isLoading,
+  isBlurred = false,
+  sport,
+}: {
+  row: HitRateProfile;
+  games: BoxScoreGame[] | undefined;
+  isLoading: boolean;
+  isBlurred?: boolean;
+  sport: "nba" | "mlb" | "wnba";
+}) => {
+  if (isBlurred) {
+    return (
+      <div className="flex h-20 items-end gap-1.5 opacity-45 blur-[2px]">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div key={index} className="flex flex-1 items-end">
+            <div className="w-full rounded-sm bg-neutral-300 dark:bg-neutral-700" style={{ height: `${14 + (index % 5) * 5}px` }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (sport === "mlb") {
+    return (
+      <div className="flex h-20 items-center justify-center rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-3 text-[11px] font-bold text-neutral-400 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+        Game logs soon
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-20 items-end gap-1.5">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div key={index} className="flex flex-1 items-end">
+            <div className="w-full animate-pulse rounded-sm bg-neutral-200 dark:bg-neutral-800" style={{ height: `${16 + (index % 4) * 7}px` }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const chartGames = (games ?? []).slice(0, 10).reverse();
+  if (chartGames.length === 0) {
+    return (
+      <div className="flex h-20 items-center justify-center rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-3 text-[11px] font-bold text-neutral-400 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+        No recent games
+      </div>
+    );
+  }
+
+  const values = chartGames.map((game) => getMarketStatValue(game, row.market));
+  const maxValue = Math.max(row.line ?? 0, ...values, 1);
+  const linePercent = row.line !== null ? Math.min(92, Math.max(10, (row.line / maxValue) * 88)) : null;
+
+  return (
+    <div className="relative h-20 rounded-lg border border-neutral-200/70 bg-neutral-50/60 px-2 pb-2 pt-3 dark:border-neutral-800/70 dark:bg-neutral-950/55">
+      {linePercent !== null && (
+        <div
+          className="pointer-events-none absolute left-2 right-2 border-t border-dashed border-brand/50"
+          style={{ bottom: `${linePercent}%` }}
+        >
+          <span className="absolute -right-1 -top-2.5 rounded-[4px] border border-brand/25 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))] px-1 text-[9px] font-black tabular-nums text-brand">
+            {row.line}
+          </span>
+        </div>
+      )}
+      <div className="relative flex h-full items-end gap-1.5">
+        {chartGames.map((game, index) => {
+          const value = getMarketStatValue(game, row.market);
+          const hit = row.line !== null ? value >= row.line : false;
+          const height = Math.max(10, (value / maxValue) * 56);
+          const date = new Date(`${game.date}T00:00:00`);
+          const dateLabel = Number.isNaN(date.getTime())
+            ? game.date
+            : date.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+
+          return (
+            <Tooltip
+              key={`${game.gameId}-${index}`}
+              side="top"
+              content={`${dateLabel} ${game.homeAway === "H" ? "vs" : "@"} ${game.opponentAbbr || "OPP"}: ${value}`}
+            >
+              <div className="group/trend flex min-w-0 flex-1 items-end">
+                <div
+                  className={cn(
+                    "w-full rounded-sm transition-all duration-200 group-hover/trend:translate-y-[-1px]",
+                    hit
+                      ? "bg-[linear-gradient(180deg,var(--accent-weak),var(--accent-strong))]"
+                      : "bg-[linear-gradient(180deg,#fb7185,#dc2626)]"
+                  )}
+                  style={{ height }}
+                />
+              </div>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const DailyInsightCard = ({
+  icon,
+  label,
+  primary,
+  secondary,
+  accent = "brand",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  primary: string;
+  secondary: string;
+  accent?: "brand" | "emerald" | "amber" | "red";
+}) => {
+  const accentClass =
+    accent === "emerald"
+      ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+      : accent === "amber"
+        ? "text-amber-500 bg-amber-500/10 border-amber-500/20"
+        : accent === "red"
+          ? "text-red-500 bg-red-500/10 border-red-500/20"
+          : "text-brand bg-brand/10 border-brand/20";
+
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-neutral-200/80 bg-white/80 p-3.5 shadow-sm ring-1 ring-black/[0.02] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md dark:border-neutral-800/80 dark:bg-neutral-900/70 dark:ring-white/[0.03]">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <div className="flex items-start gap-3">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border", accentClass)}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
+            {label}
+          </p>
+          <p className="mt-1 truncate text-sm font-black text-neutral-950 dark:text-white">
+            {primary}
+          </p>
+          <p className="mt-0.5 truncate text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            {secondary}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const DailyInsightStrip = ({
+  rows,
+  totalCount,
+  sport,
+}: {
+  rows: HitRateProfile[];
+  totalCount?: number;
+  sport: "nba" | "mlb" | "wnba";
+}) => {
+  const insights = useMemo(() => {
+    const usableRows = rows.filter((row) => !isPlayerOut(row.injuryStatus));
+    const byL10 = [...usableRows]
+      .filter((row) => row.last10Pct !== null)
+      .sort((a, b) => (b.last10Pct ?? -1) - (a.last10Pct ?? -1) || (b.last10Avg ?? -1) - (a.last10Avg ?? -1));
+    const byOdds = [...usableRows]
+      .filter((row) => row.bestOdds)
+      .sort((a, b) => (b.bestOdds?.price ?? -9999) - (a.bestOdds?.price ?? -9999));
+    const byStreak = [...usableRows]
+      .filter((row) => row.hitStreak !== null && row.hitStreak !== 0)
+      .sort((a, b) => (b.hitStreak ?? -9999) - (a.hitStreak ?? -9999));
+    const byWeakDefense = [...usableRows]
+      .filter((row) => row.matchupRank !== null)
+      .sort((a, b) => (b.matchupRank ?? -1) - (a.matchupRank ?? -1) || (getPrimaryHitRate(b) ?? -1) - (getPrimaryHitRate(a) ?? -1));
+    const gameCount = new Set(usableRows.map((row) => row.gameId).filter(Boolean)).size;
+    const propsCount = totalCount ?? rows.length;
+
+    return {
+      bestL10: byL10[0] ?? null,
+      bestOdds: byOdds[0] ?? null,
+      hotStreak: byStreak[0] ?? null,
+      weakDefense: byWeakDefense[0] ?? null,
+      gameCount,
+      propsCount,
+    };
+  }, [rows, totalCount]);
+
+  const sportLabel = sport.toUpperCase();
+  const defenseTotalTeams = getDefenseTotalTeams(sport);
+  const bestL10 = insights.bestL10;
+  const bestOdds = insights.bestOdds;
+  const hotStreak = insights.hotStreak;
+  const weakDefense = insights.weakDefense;
+
+  return (
+    <div className="border-b border-neutral-200/80 bg-gradient-to-r from-neutral-50 via-white to-neutral-50 px-5 py-4 dark:border-neutral-800/80 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+      <div className="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr_1.15fr_0.95fr] md:grid-cols-2">
+        <DailyInsightCard
+          icon={<Trophy className="h-4 w-4" />}
+          label="Highest L10"
+          primary={bestL10 ? bestL10.playerName : "No signal yet"}
+          secondary={bestL10 ? `${formatRoundedPercentage(bestL10.last10Pct)} on ${bestL10.line ?? "—"}+ ${formatMarketLabel(bestL10.market)}` : "Waiting on hit-rate rows"}
+          accent="emerald"
+        />
+        <DailyInsightCard
+          icon={<Target className="h-4 w-4" />}
+          label="Best Odds"
+          primary={bestOdds ? `${formatOddsPrice(bestOdds.bestOdds?.price)} ${bestOdds.playerName}` : "No odds yet"}
+          secondary={bestOdds ? `${bestOdds.bestOdds?.book ?? "Book"} on ${bestOdds.line ?? "—"}+` : "Books will appear as feeds update"}
+          accent={bestOdds && (bestOdds.bestOdds?.price ?? 0) > 0 ? "emerald" : "brand"}
+        />
+        <DailyInsightCard
+          icon={<Flame className="h-4 w-4" />}
+          label="Hot Streak"
+          primary={hotStreak ? hotStreak.playerName : "No active run"}
+          secondary={hotStreak ? `${getStreakDisplay(hotStreak.hitStreak)} on ${formatMarketLabel(hotStreak.market)}` : "Streaks reset as lines move"}
+          accent="amber"
+        />
+        <DailyInsightCard
+          icon={<ShieldCheck className="h-4 w-4" />}
+          label="Weak Defense"
+          primary={weakDefense ? `${weakDefense.playerName} vs ${weakDefense.opponentTeamAbbr ?? "OPP"}` : "No DvP yet"}
+          secondary={weakDefense ? `Opponent rank ${weakDefense.matchupRank}/${defenseTotalTeams}, L10 ${formatRoundedPercentage(weakDefense.last10Pct)}` : "Needs matchup ranks for this slate"}
+          accent="brand"
+        />
+        <DailyInsightCard
+          icon={<Clock3 className="h-4 w-4" />}
+          label={`${sportLabel} Slate`}
+          primary={`${insights.gameCount || "All"} games`}
+          secondary={`${insights.propsCount} props in this view`}
+          accent="brand"
         />
       </div>
     </div>
   );
 };
 
-// getHitRateTextColor removed - using hitRateBadgeClass for all hit rate displays
+const ExpandedRowPanel = ({
+  row,
+  sport,
+  onOpenFullReport,
+}: {
+  row: HitRateProfile;
+  sport: "nba" | "mlb" | "wnba";
+  onOpenFullReport?: (row: HitRateProfile) => void;
+}) => {
+  const boxScoreSport = sport === "wnba" ? "wnba" : "nba";
+  const { games: recentGames, isLoading: recentGamesLoading } = usePlayerBoxScores({
+    playerId: row.playerId,
+    sport: boxScoreSport,
+    limit: 10,
+    enabled: sport !== "mlb" && !!row.playerId,
+  });
+  const avgDelta = row.last10Avg !== null && row.line !== null ? row.last10Avg - row.line : null;
+  const defenseTotalTeams = getDefenseTotalTeams(sport);
+  const chartGames = useMemo(() => recentGames.slice(0, 10).reverse(), [recentGames]);
+  const maxChartValue = useMemo(() => {
+    const values = chartGames.map((game) => getMarketStatValue(game, row.market));
+    const maxValue = Math.max(row.line ?? 0, ...values, 1);
+    return Math.ceil(maxValue * 1.15);
+  }, [chartGames, row.line, row.market]);
+  const matchupText = row.matchupRank !== null
+    ? row.matchupRank >= 21
+      ? "Favorable defense"
+      : row.matchupRank <= 10
+        ? "Tough defense"
+        : "Neutral defense"
+    : "No defense rank";
+
+  return (
+    <div className="grid gap-4 p-4 lg:grid-cols-[1.35fr_0.85fr_0.85fr]">
+      <div className="rounded-xl border border-neutral-200/80 bg-neutral-50/80 p-4 ring-1 ring-black/[0.02] dark:border-neutral-800/80 dark:bg-neutral-950/70 dark:ring-white/[0.03]">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-neutral-950 dark:text-white">
+              Recent performance
+            </p>
+            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+              Last 10 games against {row.line ?? "—"}+ {formatMarketLabel(row.market)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-600 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+            Avg {row.last10Avg !== null ? row.last10Avg.toFixed(1) : "—"}
+          </div>
+        </div>
+
+        <div className="relative mb-4 min-h-[180px] rounded-xl border border-neutral-200/70 bg-white/70 px-4 pb-3 pt-5 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+          {row.line !== null && (
+            <div className="pointer-events-none absolute left-4 right-4 border-t border-dashed border-brand/60" style={{ bottom: `${12 + Math.min(86, Math.max(8, (row.line / maxChartValue) * 82))}%` }}>
+              <span className="absolute -left-1 -top-3 rounded-md bg-brand px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm">
+                {row.line}
+              </span>
+            </div>
+          )}
+
+          {sport === "mlb" ? (
+            <div className="flex h-[145px] items-center justify-center text-center">
+              <div>
+                <p className="text-sm font-bold text-neutral-700 dark:text-neutral-200">Recent bars need MLB row game logs</p>
+                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Tracked in the data notes for a batched table RPC.</p>
+              </div>
+            </div>
+          ) : recentGamesLoading ? (
+            <div className="flex h-[145px] items-end gap-2">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={index} className="flex flex-1 flex-col items-center gap-2">
+                  <div className="w-full animate-pulse rounded-t-md bg-neutral-200 dark:bg-neutral-800" style={{ height: `${38 + (index % 4) * 18}px` }} />
+                  <div className="h-3 w-8 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+                </div>
+              ))}
+            </div>
+          ) : chartGames.length > 0 ? (
+            <div className="flex h-[145px] items-end gap-2">
+              {chartGames.map((game) => {
+                const statValue = getMarketStatValue(game, row.market);
+                const hit = row.line !== null ? statValue >= row.line : false;
+                const height = Math.max(14, (statValue / maxChartValue) * 112);
+                const date = new Date(`${game.date}T00:00:00`);
+                const dateLabel = date.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+                return (
+                  <div key={game.gameId} className="group/bar flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                    <span className={cn("text-[10px] font-black tabular-nums", hit ? "text-emerald-500" : "text-red-500")}>
+                      {statValue}
+                    </span>
+                    <div
+                      className={cn(
+                        "w-full max-w-8 rounded-t-md shadow-sm transition-all duration-200 group-hover/bar:scale-x-110",
+                        hit
+                          ? "bg-gradient-to-t from-emerald-700 to-emerald-400"
+                          : "bg-gradient-to-t from-red-700 to-red-400"
+                      )}
+                      style={{ height }}
+                    />
+                    <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">{dateLabel}</span>
+                    {game.opponentAbbr && (
+                      <img src={getTeamLogoUrl(game.opponentAbbr, sport)} alt={game.opponentAbbr} className="h-4 w-4 object-contain opacity-80" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex h-[145px] items-center justify-center text-center">
+              <div>
+                <p className="text-sm font-bold text-neutral-700 dark:text-neutral-200">No recent games found</p>
+                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">This will populate after box scores are available.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <MetricRail label="L5" value={row.last5Pct} />
+          <MetricRail label="L10" value={row.last10Pct} />
+          <MetricRail label="L20" value={row.last20Pct} />
+          <MetricRail label="Season" value={row.seasonPct} />
+        </div>
+        <div className="mt-4 grid gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400 sm:grid-cols-3">
+          <div className="rounded-lg border border-neutral-200/70 bg-white/70 px-3 py-2 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400">L10 edge</span>
+            <span className={cn("mt-1 block text-sm font-black tabular-nums", avgDelta === null ? "text-neutral-400" : avgDelta >= 0 ? "text-emerald-500" : "text-red-500")}>
+              {avgDelta === null ? "—" : `${avgDelta >= 0 ? "+" : ""}${avgDelta.toFixed(1)}`}
+            </span>
+          </div>
+          <div className="rounded-lg border border-neutral-200/70 bg-white/70 px-3 py-2 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400">Streak</span>
+            <span className={cn("mt-1 block text-sm font-black", getStreakColor(row.hitStreak))}>
+              {getStreakDisplay(row.hitStreak)}
+            </span>
+          </div>
+          <div className="rounded-lg border border-neutral-200/70 bg-white/70 px-3 py-2 dark:border-neutral-800/70 dark:bg-neutral-900/70">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400">H2H</span>
+            <span className={cn("mt-1 block text-sm font-black tabular-nums", getHitRateTextColor(row.h2hPct))}>
+              {formatRoundedPercentage(row.h2hPct)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200/80 bg-neutral-50/80 p-4 dark:border-neutral-800/80 dark:bg-neutral-950/70">
+        <div className="mb-4 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-brand" />
+          <p className="text-sm font-black text-neutral-950 dark:text-white">Matchup context</p>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Opponent</span>
+            <span className="inline-flex items-center gap-2 font-bold text-neutral-900 dark:text-white">
+              {row.opponentTeamAbbr && (
+                <img src={getTeamLogoUrl(row.opponentTeamAbbr, sport)} alt={row.opponentTeamAbbr} className="h-5 w-5 object-contain" />
+              )}
+              {row.homeAway === "H" ? "vs" : "@"} {row.opponentTeamAbbr ?? row.opponentTeamName ?? "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Defense rank</span>
+            <span className={cn("font-black tabular-nums", getMatchupRankColor(row.matchupRank, sport))}>
+              {row.matchupRank !== null ? `${row.matchupRank}/${defenseTotalTeams}` : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Avg allowed</span>
+            <span className="font-bold tabular-nums text-neutral-900 dark:text-white">
+              {row.matchupAvgAllowed !== null ? row.matchupAvgAllowed.toFixed(1) : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Read</span>
+            <span className="font-bold text-neutral-900 dark:text-white">{matchupText}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Pace context</span>
+            <span className={cn("font-bold tabular-nums", row.paceContext?.paceLabel === "pace_up" ? "text-emerald-500" : row.paceContext?.paceLabel === "pace_down" ? "text-amber-500" : "text-neutral-900 dark:text-white")}>
+              {row.paceContext?.opponentRecent.l5Rank
+                ? `Opp #${row.paceContext.opponentRecent.l5Rank}`
+                : row.paceContext?.matchupL5Pace !== null && row.paceContext?.matchupL5Pace !== undefined
+                  ? row.paceContext.matchupL5Pace.toFixed(1)
+                  : "—"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200/80 bg-neutral-50/80 p-4 dark:border-neutral-800/80 dark:bg-neutral-950/70">
+        <div className="mb-4 flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-brand" />
+          <p className="text-sm font-black text-neutral-950 dark:text-white">Market pulse</p>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Best over</span>
+            <span className={cn("font-black tabular-nums", row.bestOdds ? "text-emerald-500" : "text-neutral-400")}>
+              {formatOddsPrice(row.bestOdds?.price)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Book</span>
+            <span className="font-bold capitalize text-neutral-900 dark:text-white">{row.bestOdds?.book ?? "—"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-500 dark:text-neutral-400">Game time</span>
+            <span className="font-bold text-neutral-900 dark:text-white">{formatGameTime(row.gameStatus, row.gameDate)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenFullReport?.(row)}
+            className="mt-2 w-full rounded-lg border border-brand/25 bg-brand/10 px-3 py-2 text-xs font-black text-brand transition-all duration-200 hover:bg-brand/15 active:scale-[0.98]"
+          >
+            Open full player report
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const formatDate = (value: string | null) => {
   if (!value) return "TBD";
@@ -322,18 +940,25 @@ const hasInjuryStatus = (status: string | null): boolean => {
 // HIGH rank (21-30) = weak defense = GOOD for player (green)
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst" | null;
 
-const getMatchupTier = (rank: number | null): MatchupTier => {
+const getDefenseTotalTeams = (sport: "nba" | "mlb" | "wnba") => sport === "wnba" ? 13 : 30;
+
+const getMatchupTier = (rank: number | null, totalTeams = 30): MatchupTier => {
   if (rank === null) return null;
-  if (rank <= 5) return "worst";      // 1-5: Toughest defense (FADE)
-  if (rank <= 10) return "bad";       // 6-10: Hard matchup
-  if (rank <= 20) return "neutral";   // 11-20: Neutral matchup
-  if (rank <= 25) return "strong";    // 21-25: Good matchup
-  return "elite";                      // 26-30: Easiest matchup (SMASH)
+  const toughEliteCutoff = Math.max(1, Math.floor(totalTeams * 0.17));
+  const toughCutoff = Math.ceil(totalTeams / 3);
+  const favorableCutoff = totalTeams - toughCutoff + 1;
+  const favorableEliteCutoff = totalTeams - toughEliteCutoff + 1;
+
+  if (rank <= toughEliteCutoff) return "worst";
+  if (rank <= toughCutoff) return "bad";
+  if (rank >= favorableEliteCutoff) return "elite";
+  if (rank >= favorableCutoff) return "strong";
+  return "neutral";
 };
 
 // Get matchup background classes (5-tier system) - More vivid for top/bottom 5
-const getMatchupBgClass = (rank: number | null): string => {
-  const tier = getMatchupTier(rank);
+const getMatchupBgClass = (rank: number | null, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
   if (!tier) return "";
   switch (tier) {
     case "elite":
@@ -354,8 +979,8 @@ const getMatchupBgClass = (rank: number | null): string => {
 };
 
 // Get matchup rank text color (5-tier system)
-const getMatchupRankColor = (rank: number | null): string => {
-  const tier = getMatchupTier(rank);
+const getMatchupRankColor = (rank: number | null, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
   if (!tier) return "text-neutral-500 dark:text-neutral-400";
   switch (tier) {
     case "elite":
@@ -436,9 +1061,6 @@ export function HitRateTable({
   const effectiveMarketOptions =
     marketOptions && marketOptions.length > 0 ? marketOptions : DEFAULT_MARKET_OPTIONS;
   const tableConfig = getHitRateTableConfig(sport);
-  const seasonAvgHeaderLabel = tableConfig.seasonAvgLabel;
-  const showPreviousSeasonAvg = tableConfig.showPreviousSeasonAvg;
-  const previousSeasonAvgHeaderLabel = tableConfig.previousSeasonLabel;
   const seasonPctHeaderLabel = tableConfig.seasonPctLabel;
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -456,6 +1078,7 @@ export function HitRateTable({
   const hideNoOdds = hideNoOddsControlled ?? hideNoOddsInternal;
   const setHideNoOdds = onHideNoOddsChange ?? setHideNoOddsInternal;
   const filterPopupRef = useRef<HTMLDivElement>(null);
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   
   // Check if any advanced filters are active
   const hasActiveFilters = selectedPositions.size > 0 || maxMatchupRank > 0 || hideNoOdds;
@@ -627,6 +1250,26 @@ export function HitRateTable({
       return 0;
     });
   }, [filteredRows, oddsLoading, sortField, sortDirection]);
+
+  const displayedRows = useMemo(() => {
+    if (!hideNoOdds || oddsLoading) return sortedRows;
+    return sortedRows.filter((row) => !!row.bestOdds);
+  }, [hideNoOdds, oddsLoading, sortedRows]);
+
+  const recentTrendSport = sport === "wnba" ? "wnba" : sport === "nba" ? "nba" : null;
+  const recentTrendPlayerIds = useMemo(() => {
+    if (!recentTrendSport) return [];
+    return Array.from(new Set(displayedRows.slice(0, 60).map((row) => row.playerId).filter(Boolean)));
+  }, [displayedRows, recentTrendSport]);
+
+  const recentTrendsQuery = useQuery<RecentTrendMap>({
+    queryKey: ["hit-rate-recent-trends", recentTrendSport, recentTrendPlayerIds.join(",")],
+    queryFn: () => fetchRecentTrends(recentTrendSport!, recentTrendPlayerIds),
+    enabled: !!recentTrendSport && recentTrendPlayerIds.length > 0,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   // Report which profiles have odds (for filtering in other components like sidebar)
   // Use a ref to track previous value and avoid infinite loops
@@ -908,7 +1551,7 @@ export function HitRateTable({
           <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
           {hasActiveFilters || selectedMarkets.length < effectiveMarketOptions.length ? (
             // Filters active - show filtered count
-            <>{filteredRows.length} props</>
+            <>{displayedRows.length} props</>
           ) : totalCount !== undefined ? (
             // All markets, no filters - show pagination info
             <>{rows.length} of {totalCount} props</>
@@ -986,7 +1629,7 @@ export function HitRateTable({
 
       {/* Table - Premium styling */}
       <div ref={scrollRef} className="overflow-auto flex-1 rounded-b-2xl">
-      <table className="min-w-full text-sm table-fixed">
+      <table className="min-w-full table-fixed border-separate border-spacing-y-1 text-sm">
           <colgroup>
             {tableConfig.columnWidths.map((width, idx) => (
               <col key={`hr-col-${idx}`} style={{ width }} />
@@ -1019,46 +1662,10 @@ export function HitRateTable({
                 <SortIcon field="line" />
               </div>
             </th>
-            
-            {/* Sortable: L5 Avg */}
-            <th
-              onClick={() => handleSort("l5Avg")}
-              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
-            >
-              <div className="flex items-center justify-center gap-1">
-                L5 Avg
-                <SortIcon field="l5Avg" />
-              </div>
-            </th>
-            
-            {/* Sortable: L10 Avg */}
-            <th
-              onClick={() => handleSort("l10Avg")}
-              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
-            >
-              <div className="flex items-center justify-center gap-1">
-                L10 Avg
-                <SortIcon field="l10Avg" />
-              </div>
-            </th>
-            
-            {/* Sortable: 25/26 Avg (Season Avg) */}
-            <th
-              onClick={() => handleSort("seasonAvg")}
-              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
-            >
-              <div className="flex items-center justify-center gap-1">
-                {seasonAvgHeaderLabel}
-                <SortIcon field="seasonAvg" />
-              </div>
-            </th>
 
-            {/* Prior season average (MLB only) */}
-            {showPreviousSeasonAvg ? (
-              <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-                {previousSeasonAvgHeaderLabel}
-              </th>
-            ) : null}
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              Recent (10)
+            </th>
             
             {/* Sortable: Streak */}
             <th
@@ -1128,6 +1735,19 @@ export function HitRateTable({
               </div>
             </th>
             
+            {/* Defensive context columns */}
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              DEF Rank
+            </th>
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              <Tooltip content="Opponent defense allowed per game to this player's position for the selected market." side="top">
+                <span className="cursor-help">Allowed</span>
+              </Tooltip>
+            </th>
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              Pace
+            </th>
+
             {/* Non-sortable: Odds (last column) */}
             <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
               Odds
@@ -1135,41 +1755,43 @@ export function HitRateTable({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row, idx) => {
-            // Apply hideNoOdds filter - skip rows without actual betting odds
-            // Check for bestOdds from the main API (Redis bestodds keys)
-            // Don't apply filter while data is still loading
-            const hasActualOdds = !!row.bestOdds;
-            if (hideNoOdds && !oddsLoading && !hasActualOdds) return null;
-            
+          {displayedRows.map((row, idx) => {
             const opponent = row.opponentTeamAbbr ?? row.opponentTeamName ?? "Opponent";
             const matchup = row.teamAbbr ? `${row.teamAbbr} vs ${opponent}` : opponent;
             const isHighConfidence = (row.last10Pct ?? 0) >= 70;
             // Use composite key with index to guarantee uniqueness
             // (same player can have duplicate profiles for same game in data)
             const rowKey = `${row.id}-${row.gameId ?? "no-game"}-${row.market}-${idx}`;
+            const isExpanded = expandedRowKey === rowKey;
+            const rowSport = sport === "mlb" ? "mlb" : sport === "wnba" ? "wnba" : "nba";
+            const defenseTotalTeamsForRow = getDefenseTotalTeams(rowSport);
             
             // Check if this row should be blurred (for gated access)
             const isBlurred = blurAfterIndex !== undefined && idx >= blurAfterIndex;
 
             return (
+              <React.Fragment key={rowKey}>
               <tr
-                key={rowKey}
                 onClick={() => !isBlurred && onRowClick?.(row)}
                 className={cn(
-                  "border-b border-neutral-100/80 dark:border-neutral-800/80 transition-all duration-200 group",
-                  idx % 2 === 0 ? "bg-white dark:bg-neutral-900" : "bg-neutral-50/50 dark:bg-neutral-900/50",
+                  "group overflow-hidden transition-all duration-200",
+                  idx % 2 === 0 ? "bg-white/90 dark:bg-neutral-950/70" : "bg-neutral-50/90 dark:bg-neutral-900/70",
+                  "shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]",
+                  isExpanded && "bg-brand/[0.05] shadow-[inset_4px_0_0_0_var(--color-brand),inset_0_0_0_1px_rgba(14,165,233,0.28)] dark:bg-brand/10",
                   isBlurred 
                     ? "cursor-default select-none pointer-events-none" 
-                    : "cursor-pointer hover:bg-brand/[0.04] dark:hover:bg-brand/10 hover:shadow-[inset_4px_0_0_0_rgba(99,102,241,0.5)]",
+                    : "cursor-pointer hover:bg-brand/[0.045] dark:hover:bg-brand/10 hover:shadow-[inset_4px_0_0_0_rgba(14,165,233,0.55),inset_0_0_0_1px_rgba(14,165,233,0.24)]",
                   // isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
                 )}
               >
                 {/* Player Column: Headshot + Name + Position/Jersey */}
-                <td className="px-3 py-5">
+                <td className="rounded-l-xl px-3 py-4">
                   {isBlurred ? (
                     // Blurred placeholder content
                     <div className="flex items-center gap-3 opacity-50">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs font-black tabular-nums text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900">
+                        {idx + 1}
+                      </span>
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
                         <User className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
                       </div>
@@ -1192,6 +1814,14 @@ export function HitRateTable({
                       "flex items-center gap-3",
                       isPlayerOut(row.injuryStatus) && "opacity-50"
                     )}>
+                      <span className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums transition-all duration-200",
+                        isExpanded
+                          ? "border-brand/40 bg-brand/15 text-brand"
+                          : "border-neutral-200 bg-white text-neutral-500 group-hover:border-brand/30 group-hover:text-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400"
+                      )}>
+                        {idx + 1}
+                      </span>
                       {(() => {
                         const hasInjury = row.injuryStatus && row.injuryStatus !== "active" && row.injuryStatus !== "available";
                         const injuryTooltip = hasInjury
@@ -1281,7 +1911,7 @@ export function HitRateTable({
                 {/* Matchup Column */}
                 <td className={cn(
                   "px-3 py-5 text-center rounded-lg",
-                  isBlurred ? "" : getMatchupBgClass(row.matchupRank)
+                  isBlurred ? "" : getMatchupBgClass(row.matchupRank, rowSport)
                 )}>
                   {isBlurred ? (
                     // Blurred placeholder
@@ -1323,9 +1953,9 @@ export function HitRateTable({
                       {row.matchupRank !== null && (
                         <span className={cn(
                           "text-xs font-bold mt-0.5 tabular-nums",
-                          getMatchupRankColor(row.matchupRank)
+                          getMatchupRankColor(row.matchupRank, rowSport)
                         )}>
-                          #{row.matchupRank}
+                          {row.matchupRank}/{defenseTotalTeamsForRow} DEF
                         </span>
                       )}
                     </div>
@@ -1333,7 +1963,7 @@ export function HitRateTable({
                 </td>
 
                 {/* Prop Column */}
-                <td className="px-3 py-5 align-middle text-center">
+                <td className="px-3 py-4 align-middle text-center">
                   {isBlurred ? (
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800/50 opacity-50 blur-[2px]">
                       <span className="font-semibold">00.0+</span>
@@ -1354,47 +1984,16 @@ export function HitRateTable({
                   )}
                 </td>
 
-                {/* L5 Avg Column */}
-                <td className="px-3 py-5 align-middle text-center">
-                  <span className={cn(
-                    "text-sm font-medium",
-                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.last5Avg, row.line)
-                  )}>
-                    {isBlurred ? "00.0" : (row.last5Avg !== null ? row.last5Avg.toFixed(1) : "—")}
-                  </span>
+                {/* Recent trend bars */}
+                <td className="px-3 py-3 align-middle">
+                  <RecentTrendBars
+                    row={row}
+                    games={recentTrendsQuery.data?.[String(row.playerId)]}
+                    isLoading={recentTrendsQuery.isLoading || recentTrendsQuery.isFetching}
+                    isBlurred={isBlurred}
+                    sport={rowSport}
+                  />
                 </td>
-
-                {/* L10 Avg Column */}
-                <td className="px-3 py-5 align-middle text-center">
-                  <span className={cn(
-                    "text-sm font-medium",
-                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.last10Avg, row.line)
-                  )}>
-                    {isBlurred ? "00.0" : (row.last10Avg !== null ? row.last10Avg.toFixed(1) : "—")}
-                  </span>
-                </td>
-
-                {/* 25/26 Avg (Season Avg) Column */}
-                <td className="px-3 py-5 align-middle text-center">
-                  <span className={cn(
-                    "text-sm font-medium",
-                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.seasonAvg, row.line)
-                  )}>
-                    {isBlurred ? "00.0" : (row.seasonAvg !== null ? row.seasonAvg.toFixed(1) : "—")}
-                  </span>
-                </td>
-
-                {/* Prior Season Avg (MLB only) */}
-                {showPreviousSeasonAvg ? (
-                  <td className="px-3 py-5 align-middle text-center">
-                    <span className={cn(
-                      "text-sm font-medium",
-                      isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.previousSeasonAvg, row.line)
-                    )}>
-                      {isBlurred ? "00.0" : (row.previousSeasonAvg !== null ? row.previousSeasonAvg.toFixed(1) : "—")}
-                    </span>
-                  </td>
-                ) : null}
 
                 {/* Streak Column */}
                 <td className="px-1 py-5 align-middle text-center">
@@ -1410,48 +2009,129 @@ export function HitRateTable({
                 </td>
 
                 {/* L5 % - Premium cell with progress bar */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <HitRateCell value={row.last5Pct} isBlurred={isBlurred} />
+                <td className="px-1 py-3 align-middle text-center">
+                  <HitRateCell value={row.last5Pct} sampleSize={5} isBlurred={isBlurred} />
                 </td>
 
                 {/* L10 % - Premium cell with progress bar */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <HitRateCell value={row.last10Pct} isBlurred={isBlurred} />
+                <td className="px-1 py-3 align-middle text-center">
+                  <HitRateCell value={row.last10Pct} sampleSize={10} isBlurred={isBlurred} />
                 </td>
 
                 {/* L20 % - Premium cell with progress bar */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <HitRateCell value={row.last20Pct} isBlurred={isBlurred} />
+                <td className="px-1 py-3 align-middle text-center">
+                  <HitRateCell value={row.last20Pct} sampleSize={20} isBlurred={isBlurred} />
                 </td>
 
                 {/* Season % - Premium cell with progress bar */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <HitRateCell value={row.seasonPct} isBlurred={isBlurred} />
+                <td className="px-1 py-3 align-middle text-center">
+                  <HitRateCell value={row.seasonPct} sampleSize={row.seasonGames} subLabel="SZN" isBlurred={isBlurred} />
                 </td>
                 
                 {/* H2H % - Premium cell with progress bar */}
+                <td className="px-1 py-3 align-middle text-center">
+                  <HitRateCell value={row.h2hPct} sampleSize={row.h2hGames} isBlurred={isBlurred} />
+                </td>
+
+                {/* Defensive context: rank vs position */}
                 <td className="px-2 py-5 align-middle text-center">
-                  <HitRateCell value={row.h2hPct} isBlurred={isBlurred} />
+                  <span
+                    className={cn(
+                      "inline-flex min-w-[58px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
+                      isBlurred ? "opacity-50 blur-[2px]" : getContextPillClass(row.matchupRank, rowSport)
+                    )}
+                  >
+                    {isBlurred ? "—" : row.matchupRank !== null ? `${row.matchupRank}/${defenseTotalTeamsForRow}` : "—"}
+                  </span>
+                </td>
+
+                {/* Defensive context: average allowed */}
+                <td className="px-2 py-5 align-middle text-center">
+                  <Tooltip
+                    content={`Opponent defense allowed per game to ${formatPosition(row.position)} for ${formatMarketLabel(row.market)}.`}
+                    side="top"
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex min-w-[58px] items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-bold tabular-nums text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-300",
+                        isBlurred && "opacity-50 blur-[2px]"
+                      )}
+                    >
+                      {isBlurred ? "00.0" : row.matchupAvgAllowed !== null ? row.matchupAvgAllowed.toFixed(1) : "—"}
+                    </span>
+                  </Tooltip>
+                </td>
+
+                {/* Game context: pace */}
+                <td className="px-2 py-5 align-middle text-center">
+                  <Tooltip
+                    side="top"
+                    content={
+                      row.paceContext
+                        ? `Opponent L5 pace #${row.paceContext.opponentRecent.l5Rank ?? "—"} (${row.paceContext.opponentRecent.l5 ?? "—"}), L10 #${row.paceContext.opponentRecent.l10Rank ?? "—"} (${row.paceContext.opponentRecent.l10 ?? "—"}), matchup L5 ${row.paceContext.matchupL5Pace ?? "—"} / ${row.paceContext.confidence} confidence`
+                        : "Pace context unavailable"
+                    }
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex min-w-[56px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
+                        isBlurred ? "opacity-50 blur-[2px]" : getPacePillClass(row.paceContext?.paceLabel)
+                      )}
+                    >
+                      {isBlurred ? "—" : row.paceContext?.opponentRecent.l5Rank ? `#${row.paceContext.opponentRecent.l5Rank}` : "—"}
+                    </span>
+                  </Tooltip>
                 </td>
                 
                 {/* Odds Column (last column) */}
-                <td className="px-3 py-5 align-middle text-center">
+                <td className="rounded-r-xl px-3 py-5 align-middle text-center">
                   {isBlurred ? (
                     <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>
                   ) : hasGameStarted(row.gameStatus, row.gameDate) ? (
                     <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
                   ) : (
-                    <OddsDropdown 
-                      eventId={row.eventId}
-                      market={row.market}
-                      selKey={row.selKey}
-                      line={row.line}
-                      bestOdds={row.bestOdds}
-                      loading={oddsLoading}
-                    />
+                    <div className="flex items-center justify-center gap-2">
+                      <OddsDropdown
+                        sport={sport === "wnba" ? "wnba" : "nba"}
+                        eventId={row.eventId}
+                        market={row.market}
+                        selKey={row.selKey}
+                        line={row.line}
+                        bestOdds={row.bestOdds}
+                        loading={oddsLoading}
+                      />
+                      <button
+                        type="button"
+                        aria-label={isExpanded ? "Collapse row insights" : "Expand row insights"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedRowKey(isExpanded ? null : rowKey);
+                        }}
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.96]",
+                          isExpanded
+                            ? "border-brand/40 bg-brand/15 text-brand"
+                            : "border-neutral-200 bg-white text-neutral-500 hover:border-brand/30 hover:text-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400"
+                        )}
+                      >
+                        <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
+              {isExpanded && !isBlurred && (
+                <tr className="border-b border-brand/20 bg-brand/[0.025] dark:bg-brand/[0.06]">
+                  <td colSpan={tableConfig.columnWidths.length} className="p-0" onClick={(event) => event.stopPropagation()}>
+                    <ExpandedRowPanel
+                      row={row}
+                      sport={rowSport}
+                      onOpenFullReport={onRowClick}
+                    />
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             );
           })}
         </tbody>

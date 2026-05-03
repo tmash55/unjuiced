@@ -2806,6 +2806,7 @@ interface PositionHistorySectionProps {
   opponentTeamAbbr: string;
   selectedMarket: string;
   effectiveLine: number;
+  sport?: "nba" | "wnba";
 }
 
 function PositionHistorySection({ 
@@ -2813,7 +2814,8 @@ function PositionHistorySection({
   opponentTeamId, 
   opponentTeamAbbr, 
   selectedMarket,
-  effectiveLine 
+  effectiveLine,
+  sport = "nba",
 }: PositionHistorySectionProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [gameLimit, setGameLimit] = useState<5 | 10 | 20 | 82>(10);
@@ -2824,6 +2826,8 @@ function PositionHistorySection({
     position,
     opponentTeamId,
     market: selectedMarket,
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
     limit: gameLimit,
     enabled: !!position && !!opponentTeamId && !!selectedMarket,
   });
@@ -3235,22 +3239,30 @@ interface DefenseVsPositionTabProps {
   profile: HitRateProfile;
   effectiveLine: number;
   selectedMarket: string;
+  sport?: "nba" | "wnba";
 }
 
-function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: DefenseVsPositionTabProps) {
+function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = "nba" }: DefenseVsPositionTabProps) {
   // All positions for filter
-  const ALL_POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
+  const ALL_POSITIONS = sport === "wnba"
+    ? (["G", "F", "C"] as const)
+    : (["PG", "SG", "SF", "PF", "C"] as const);
   
   // Get player's default position
   const defaultPosition = useMemo(() => {
     const pos = profile.position;
+    if (sport === "wnba") {
+      if (pos === "C") return "C";
+      if (pos === "F" || pos === "SF" || pos === "PF") return "F";
+      return "G";
+    }
     if (!pos) return "PG";
     if (["PG", "SG", "SF", "PF", "C"].includes(pos)) return pos;
     if (pos === "G") return "PG";
     if (pos === "F") return "SF";
     if (pos === "C") return "C";
     return "PG";
-  }, [profile.position]);
+  }, [profile.position, sport]);
   
   // Position filter state - user can change this
   const [selectedPosition, setSelectedPosition] = useState(defaultPosition);
@@ -3262,6 +3274,8 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
   // Fetch team defense ranks for all positions (for the matrix)
   const { positions: defensePositions, isLoading: defenseLoading } = useTeamDefenseRanks({
     opponentTeamId: profile.opponentTeamId,
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
     enabled: !!profile.opponentTeamId,
   });
   
@@ -3327,7 +3341,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
                 {/* Logo Box */}
                 <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-white to-neutral-50 dark:from-white/8 dark:to-white/4 border border-neutral-200/80 dark:border-white/10 flex items-center justify-center shadow-md dark:shadow-lg dark:shadow-black/20">
                   <img
-                    src={`/team-logos/nba/${profile.opponentTeamAbbr?.toUpperCase()}.svg`}
+                    src={`/team-logos/${sport}/${profile.opponentTeamAbbr?.toUpperCase()}.svg`}
                     alt={profile.opponentTeamAbbr ?? ""}
                     className="h-10 w-10 object-contain drop-shadow-sm dark:drop-shadow-[0_0_6px_rgba(255,255,255,0.25)]"
                   />
@@ -3433,6 +3447,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
         opponentTeamAbbr={profile.opponentTeamAbbr!}
         selectedMarket={selectedMarket}
         effectiveLine={effectiveLine}
+        sport={sport}
       />
       
         {/* ═══ RANKINGS MATRIX - All Positions ═══ */}
@@ -3842,20 +3857,27 @@ export function MobilePlayerDrilldown({
   const { data: playTypeMatchup } = usePlayTypeMatchup({
     playerId: profile.playerId,
     opponentTeamId: profile.opponentTeamId,
-    enabled: !!profile.playerId && !!profile.opponentTeamId,
+    enabled: sport !== "wnba" && !!profile.playerId && !!profile.opponentTeamId,
   });
 
   const { data: shotZoneMatchup } = useShotZoneMatchup({
     playerId: profile.playerId,
     opponentTeamId: profile.opponentTeamId,
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
     enabled: !!profile.playerId && !!profile.opponentTeamId,
   });
 
   // Fetch play type ranks for matchup filters
-  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames } = useTeamPlayTypeRanks();
+  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames } = useTeamPlayTypeRanks({
+    enabled: sport !== "wnba",
+  });
 
   // Fetch shot zone ranks for matchup filters
-  const { zones: shotZoneRanks } = useTeamShotZoneRanks();
+  const { zones: shotZoneRanks } = useTeamShotZoneRanks({
+    sport,
+    season: sport === "wnba" ? "2025" : undefined,
+  });
 
   // Build play type ranks map for chart overlay lines: playType -> teamAbbr -> rank
   const playTypeRanksMap = useMemo(() => {
@@ -3968,7 +3990,8 @@ export function MobilePlayerDrilldown({
   const { playerTeam, opponentTeam, isLoading: rostersLoading } = useGameRosters({
     playerTeamId: profile.teamId,
     opponentTeamId: profile.opponentTeamId,
-    season: "2025-26",
+    sport,
+    season: sport === "wnba" ? "2025" : "2025-26",
     // Load on chart tab (for roster section), correlation tab, or when injury filters are set
     enabled: (injuryFilters.length > 0 || activeTab === "injuries" || activeTab === "chart") && !!profile.teamId && !!profile.opponentTeamId,
   });
@@ -3976,6 +3999,7 @@ export function MobilePlayerDrilldown({
   // Fetch odds for current line using new Redis keys
   const currentLine = customLine ?? profile.line;
   const { data: oddsLineData } = useOddsLine({
+    sport,
     eventId: profile.eventId,
     market: profile.market,
     playerId: profile.selKey, // Player UUID from selKey
@@ -3987,13 +4011,14 @@ export function MobilePlayerDrilldown({
   // Legacy odds fetch - still needed for "all lines" modal
   const { getOdds } = useHitRateOdds({
     rows: [{ oddsSelectionId: profile.oddsSelectionId, line: profile.line }],
-    enabled: !!profile.oddsSelectionId,
+    enabled: sport !== "wnba" && !!profile.oddsSelectionId,
   });
   
   const fullOddsData = getOdds(profile.oddsSelectionId);
 
   // Alternate lines (same source as desktop matrix) for mobile odds tab fallback
   const { lines: alternateLines } = useAlternateLines({
+    sport,
     eventId: profile.eventId,
     selKey: profile.selKey,
     playerId: profile.playerId,
@@ -4065,6 +4090,16 @@ export function MobilePlayerDrilldown({
   // Get odds for the current line using new Redis keys
   // Falls back to legacy data if new data not available
   const odds = useMemo(() => {
+    const profileBestOver =
+      currentLine !== null && currentLine === profile.line && profile.bestOdds
+        ? {
+            book: profile.bestOdds.book,
+            price: profile.bestOdds.price,
+            url: null,
+            mobileUrl: null,
+          }
+        : null;
+
     // Use new Redis key data when available
     if (oddsLineData) {
       // Extract best over/under from the books list
@@ -4094,7 +4129,7 @@ export function MobilePlayerDrilldown({
       overBooks.sort((a, b) => b.price - a.price);
       underBooks.sort((a, b) => b.price - a.price);
       
-      const bestOver = overBooks[0] || null;
+      const bestOver = overBooks[0] || profileBestOver;
       const bestUnder = underBooks[0] || null;
       
       return {
@@ -4114,9 +4149,16 @@ export function MobilePlayerDrilldown({
       const fallbackLine = alternateLinesForOdds.find(l => l.line === (customLine ?? profile.line));
       if (fallbackLine) {
         return {
-          bestOver: fallbackLine.bestOver,
+          bestOver: fallbackLine.bestOver || profileBestOver,
           bestUnder: fallbackLine.bestUnder,
           isAltLine: customLine !== null && customLine !== profile.line,
+        };
+      }
+      if (profileBestOver) {
+        return {
+          bestOver: profileBestOver,
+          bestUnder: null,
+          isAltLine: false,
         };
       }
       return null;
@@ -4174,11 +4216,11 @@ export function MobilePlayerDrilldown({
     
     // Use the primary line odds
     return {
-      bestOver: fullOddsData.bestOver,
+      bestOver: fullOddsData.bestOver || profileBestOver,
       bestUnder: fullOddsData.bestUnder,
       isAltLine: false,
     };
-  }, [oddsLineData, fullOddsData, customLine, profile.line, alternateLinesForOdds]);
+  }, [currentLine, oddsLineData, fullOddsData, customLine, profile.line, profile.bestOdds, alternateLinesForOdds]);
 
   // Favorites hook for adding to My Plays
   const { isFavorited, favoriteKeys, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
@@ -4235,7 +4277,7 @@ export function MobilePlayerDrilldown({
     }
     
     // Build odds_key from eventId and market (new key format)
-    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
+    const oddsKey = profile.eventId ? `odds:${sport}:${profile.eventId}:${profile.market}` : null;
     
     // Build odds_selection_id using selKey
     const oddsSelectionId = profile.selKey 
@@ -4244,7 +4286,7 @@ export function MobilePlayerDrilldown({
     
     return {
       type: "player",
-      sport: "nba",
+      sport,
       event_id: favoriteEventId,
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
@@ -4264,7 +4306,7 @@ export function MobilePlayerDrilldown({
       best_book_at_save: bestOdds?.book ?? null,
       source: "hit_rates",
     };
-  }, [profile, customLine, odds, oddsLineData, fullOddsData, oddsLinesForTabs]);
+  }, [profile, sport, customLine, odds, oddsLineData, fullOddsData, oddsLinesForTabs]);
 
   // Check if current selection is favorited
   const isOverFavorited = useMemo(() => {
@@ -4711,6 +4753,7 @@ export function MobilePlayerDrilldown({
     playerId: profile.playerId,
     market: profile.market,
     line: effectiveLine,
+    sport,
     // Only pass gameId if profile has a line - otherwise the RPC will fail
     gameId: profile.line !== null ? profile.gameId : null,
     // Pass the game count filter - convert to number for the API
@@ -5877,7 +5920,7 @@ export function MobilePlayerDrilldown({
                         <div className="flex items-center gap-2 mb-2">
                           {playerTeam.teamAbbr && (
                             <img
-                              src={`/team-logos/nba/${playerTeam.teamAbbr.toUpperCase()}.svg`}
+                              src={`/team-logos/${sport}/${playerTeam.teamAbbr.toUpperCase()}.svg`}
                               alt={playerTeam.teamAbbr}
                               className="h-5 w-5 object-contain"
                             />
@@ -5954,7 +5997,7 @@ export function MobilePlayerDrilldown({
                         <div className="flex items-center gap-2 mb-2">
                           {opponentTeam.teamAbbr && (
                             <img
-                              src={`/team-logos/nba/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
+                              src={`/team-logos/${sport}/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
                               alt={opponentTeam.teamAbbr}
                               className="h-5 w-5 object-contain"
                             />
@@ -6006,6 +6049,7 @@ export function MobilePlayerDrilldown({
             profile={profile} 
             effectiveLine={effectiveLine}
             selectedMarket={selectedMarket}
+            sport={sport}
           />
         )}
         
@@ -6087,8 +6131,26 @@ export function MobilePlayerDrilldown({
                         const bestPct = best?.stat.hitRateWhenAnchorHits?.pct ?? 0;
                         return currPct > bestPct ? curr : best;
                       }, validStats[0]);
+
+                      const visibleLine = Math.max(
+                        0.5,
+                        bestStat?.stat.hitRateWhenAnchorHits?.lineUsed ?? bestStat?.stat.avgOverall ?? 0.5
+                      );
+                      const visibleGameLogs = teammate.gameLogs.filter(g => g.anchorHit);
+                      const statKeyMap: Record<string, keyof TeammateGameLog["stats"]> = {
+                        points: "pts", rebounds: "reb", assists: "ast", threes: "fg3m",
+                        steals: "stl", blocks: "blk", turnovers: "tov", pra: "pra",
+                        pointsRebounds: "pr", pointsAssists: "pa", reboundsAssists: "ra", blocksSteals: "bs",
+                      };
+                      const visibleStatsKey = statKeyMap[bestStat?.key || "points"] || "pts";
+                      const visibleGames = visibleGameLogs.length;
+                      const visibleTimesHit = visibleGameLogs.filter(log => {
+                        const statValue = log.stats[visibleStatsKey] ?? 0;
+                        return statValue >= visibleLine;
+                      }).length;
+                      const visiblePct = visibleGames > 0 ? Math.round((visibleTimesHit / visibleGames) * 100) : 0;
                       
-                      return { teammate, bestStat, validStats };
+                      return { teammate, bestStat, validStats, visiblePct, visibleGames };
                     })
                     .filter(item => {
                       // Must have a best stat with valid data
@@ -6101,9 +6163,11 @@ export function MobilePlayerDrilldown({
                       return true;
                     })
                     .sort((a, b) => {
-                      const aPct = a.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
-                      const bPct = b.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
-                      return bPct - aPct;
+                      return (
+                        b.visiblePct - a.visiblePct ||
+                        b.visibleGames - a.visibleGames ||
+                        a.teammate.playerName.localeCompare(b.teammate.playerName)
+                      );
                     })
                     .map(({ teammate, bestStat, validStats }, idx) => {
                       const isExpanded = expandedCorrelationId === teammate.playerId;
@@ -6162,7 +6226,7 @@ export function MobilePlayerDrilldown({
                             : corrHitRate?.selectionId ?? null;
                           const result = await toggleFavorite({
                             type: "player",
-                            sport: "nba",
+                            sport,
                             event_id: corrEventId,
                             game_date: profile.gameDate ?? null,
                             home_team: profile.homeTeamName ?? null,
@@ -6175,7 +6239,7 @@ export function MobilePlayerDrilldown({
                             market: corrMarketKey,
                             line: lineValue,
                             side: "over",
-                            odds_key: `odds:nba:${corrEventId}:${corrMarketKey}`,
+                            odds_key: `odds:${sport}:${corrEventId}:${corrMarketKey}`,
                             odds_selection_id: oddsSelId,
                             books_snapshot: null,
                             best_price_at_save: corrHitRate?.overPrice ?? null,
@@ -6229,6 +6293,14 @@ export function MobilePlayerDrilldown({
                                   <Heart className={cn("h-4 w-4", corrIsFavorited && "fill-current")} />
                                 )}
                               </div>
+
+                              <PlayerHeadshot
+                                nbaPlayerId={teammate.nbaPlayerId ?? (sport === "nba" ? teammate.playerId : null)}
+                                sport={sport}
+                                name={teammate.playerName}
+                                size="tiny"
+                                className="h-9 w-9 shrink-0 rounded-full border border-neutral-200/70 bg-neutral-100 dark:border-neutral-700/70 dark:bg-neutral-800"
+                              />
 
                               {/* Left: Player identity */}
                               <div className="flex-1 min-w-0">
@@ -6318,6 +6390,7 @@ export function MobilePlayerDrilldown({
                                 </div>
                                 {corrEventId && corrMarketKey && corrSelKey && (
                                   <OddsDropdown
+                                    sport={sport}
                                     eventId={corrEventId}
                                     market={corrMarketKey}
                                     selKey={corrSelKey}
@@ -6431,6 +6504,7 @@ export function MobilePlayerDrilldown({
               opponentTeamId={profile.opponentTeamId}
               opponentTeamAbbr={profile.opponentTeamAbbr}
               playerName={profile.playerName}
+              sport={sport}
             />
             
             {/* Shooting Zones */}
@@ -6439,6 +6513,7 @@ export function MobilePlayerDrilldown({
               opponentTeamId={profile.opponentTeamId}
               opponentTeamAbbr={profile.opponentTeamAbbr}
               playerName={profile.playerName}
+              sport={sport}
             />
             
             {/* Game Log - ESPN Style */}

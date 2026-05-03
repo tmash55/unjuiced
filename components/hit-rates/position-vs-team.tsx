@@ -39,7 +39,17 @@ const getStatVsLineClass = (stat?: number | null, line?: number | null) => {
   return "text-neutral-900 dark:text-white";
 };
 
-const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
+const NBA_POSITIONS = ["PG", "SG", "SF", "PF", "C"];
+const WNBA_POSITIONS = ["G", "F", "C"];
+const WNBA_SEASONS = ["2025", "2026"] as const;
+
+const normalizePositionForSport = (position: string | null, sport: "nba" | "wnba") => {
+  if (sport !== "wnba") return position;
+  const upper = position?.toUpperCase();
+  if (upper === "C") return "C";
+  if (upper === "F" || upper === "SF" || upper === "PF") return "F";
+  return "G";
+};
 
 export function PositionVsTeam({
   position,
@@ -51,15 +61,20 @@ export function PositionVsTeam({
   sport = "nba",
 }: PositionVsTeamProps) {
   // Local state for filters
-  const [selectedPosition, setSelectedPosition] = useState<string | null>(position);
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(
+    normalizePositionForSport(position, sport)
+  );
+  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2025");
   const [showFilters, setShowFilters] = useState(false);
   const [gameLimit, setGameLimit] = useState(50);
   const [minMinutes, setMinMinutes] = useState(0);
+  const positionsToShow = sport === "wnba" ? WNBA_POSITIONS : NBA_POSITIONS;
+  const selectedSeason = sport === "wnba" ? wnbaSeason : undefined;
   
   // Sync selectedPosition with position prop when it changes (e.g., when selecting a different player from sidebar)
   useEffect(() => {
-    setSelectedPosition(position);
-  }, [position]);
+    setSelectedPosition(normalizePositionForSport(position, sport));
+  }, [position, sport]);
   
   const { 
     players, 
@@ -79,12 +94,15 @@ export function PositionVsTeam({
     position: selectedPosition,
     opponentTeamId,
     market,
+    sport,
+    season: selectedSeason,
     limit: gameLimit,
     minMinutes,
     enabled: !!selectedPosition && !!opponentTeamId && !!market,
   });
 
   const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, sport) : null;
+  const hasExpansionEmptyState = sport === "wnba" && wnbaSeason === "2025" && players.length === 0;
 
   // Calculate hit rate vs this opponent from recent games
   const hitsVsOpponent = currentLine !== null 
@@ -209,6 +227,25 @@ export function PositionVsTeam({
             </Tooltip>
             
             {/* Filter Button - Shows position badge */}
+            {sport === "wnba" && (
+              <div className="flex items-center gap-1 bg-neutral-100/50 dark:bg-neutral-800/30 p-1 rounded-xl">
+                {WNBA_SEASONS.map((season) => (
+                  <button
+                    key={season}
+                    type="button"
+                    onClick={() => setWnbaSeason(season)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95",
+                      wnbaSeason === season
+                        ? "bg-white dark:bg-neutral-700 text-blue-700 dark:text-blue-400 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-700/30"
+                        : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {season}
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
@@ -245,7 +282,7 @@ export function PositionVsTeam({
                 Position
               </label>
               <div className="flex items-center gap-1">
-                {POSITIONS.map((pos) => {
+                {positionsToShow.map((pos) => {
                   const isSelected = pos === selectedPosition;
                   return (
                     <button
@@ -356,8 +393,15 @@ export function PositionVsTeam({
             {players.length === 0 && !isFetching ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center">
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                    No matchup data available for {selectedPosition} vs {opponentTeamAbbr}
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                    {hasExpansionEmptyState
+                      ? `No 2025 matchup history for ${selectedPosition} vs ${opponentTeamAbbr || "this opponent"}`
+                      : `No matchup data available for ${selectedPosition} vs ${opponentTeamAbbr || "this opponent"}`}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+                    {hasExpansionEmptyState
+                      ? "New expansion teams do not have prior-season position matchup logs yet. Switch to 2026 once games are played to see current-season results."
+                      : "Try another position, season, or minutes filter."}
                   </p>
                 </td>
               </tr>
@@ -378,10 +422,10 @@ export function PositionVsTeam({
       <div className="px-5 py-3 border-t border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50/80 via-white/60 to-neutral-50/80 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50">
         <div className="flex items-center gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
           <span>{formatMarketLabel(market || "")} for</span>
-          <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold">{position}</span>
+          <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold">{selectedPosition}</span>
           <span>vs</span>
           <span className="font-bold text-neutral-700 dark:text-neutral-300">{opponentTeamAbbr}</span>
-          <span>this season</span>
+          <span>{sport === "wnba" ? wnbaSeason : "this season"}</span>
           {currentLine !== null && (
             <span className="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-700 font-bold text-neutral-700 dark:text-neutral-300">
               Line: {currentLine}+
@@ -468,4 +512,3 @@ function PlayerMatchupRow({
     </tr>
   );
 }
-

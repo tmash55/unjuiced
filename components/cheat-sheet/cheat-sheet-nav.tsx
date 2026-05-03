@@ -142,6 +142,12 @@ const WNBA_TABS: CheatSheetTab[] = [
     icon: BarChart3,
     href: "/cheatsheets/wnba/hit-rates",
   },
+  {
+    slug: "dvp",
+    label: "Def vs Position",
+    shortLabel: "DVP",
+    icon: ShieldOff,
+  },
 ];
 
 const SPORT_TABS: Record<string, CheatSheetTab[]> = {

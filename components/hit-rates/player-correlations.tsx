@@ -39,6 +39,7 @@ interface PlayerCorrelationsProps {
   playerId: number | null;
   market: string | null;
   line: number | null;
+  sport?: "nba" | "wnba";
   gameId?: string | number | null; // For fetching odds data
   gameDate?: string | null;
   homeTeamName?: string | null;
@@ -196,6 +197,16 @@ const calculateHitRateFromLogs = (
   return { pct, timesHit, games: relevantGames.length };
 };
 
+const calculateVisibleHitRateFromLogs = (
+  gameLogs: TeammateGameLog[],
+  market: Exclude<TeammateMarket, "all">,
+  lineUsed: number | null | undefined,
+  maxGames = 8
+): { pct: number | null; timesHit: number; games: number } => {
+  const visibleGames = gameLogs.filter((game) => game.anchorHit).slice(0, maxGames);
+  return calculateHitRateFromLogs(visibleGames, market, lineUsed);
+};
+
 // Strength level types
 type StrengthLevel = "hot" | "warm" | "neutral" | "cold" | "low";
 
@@ -321,6 +332,7 @@ const AllStatsGridRow = ({
   isEven,
   minHitRate,
   selectedMarkets,
+  sport,
 }: { 
   teammate: TeammateCorrelation;
   anchorPlayerName?: string;
@@ -328,6 +340,7 @@ const AllStatsGridRow = ({
   isEven: boolean;
   minHitRate: number;
   selectedMarkets: Set<TeammateMarket>;
+  sport: "nba" | "wnba";
 }) => {
   const bestMarkets = useMemo(() => getBestMarkets(teammate, locationFilter, 1), [teammate, locationFilter]);
   const hasBestMarket = bestMarkets.length > 0 && bestMarkets[0].pct >= 70;
@@ -352,7 +365,8 @@ const AllStatsGridRow = ({
       <div className="flex items-center gap-3 px-4 py-3 border-r border-neutral-100 dark:border-neutral-800/40">
         <div className="relative shrink-0">
           <PlayerHeadshot
-            nbaPlayerId={teammate.playerId}
+            nbaPlayerId={teammate.nbaPlayerId ?? (sport === "nba" ? teammate.playerId : null)}
+            sport={sport}
             name={teammate.playerName}
             size="tiny"
             className="w-8 h-8 rounded-full"
@@ -511,6 +525,7 @@ const TeammateCard = ({
   onToggleFavorite,
   oddsLoading,
   fallbackEventId,
+  sport,
 }: { 
   teammate: TeammateCorrelation;
   selectedMarket: Exclude<TeammateMarket, "all">;
@@ -524,6 +539,7 @@ const TeammateCard = ({
   onToggleFavorite: (payload: CorrelationFavoritePayload, e: React.MouseEvent) => Promise<void>;
   oddsLoading: boolean;
   fallbackEventId?: string | null;
+  sport: "nba" | "wnba";
 }) => {
   const statData = teammate[selectedMarket];
   const hitRateData = statData?.hitRateWhenAnchorHits;
@@ -613,7 +629,8 @@ const TeammateCard = ({
         {/* Left: Player Info */}
         <div className="flex items-center gap-2.5 min-w-0">
           <PlayerHeadshot
-            nbaPlayerId={teammate.playerId}
+            nbaPlayerId={teammate.nbaPlayerId ?? (sport === "nba" ? teammate.playerId : null)}
+            sport={sport}
             name={teammate.playerName}
             size="small"
             className="w-10 h-10 rounded-full shrink-0"
@@ -657,6 +674,7 @@ const TeammateCard = ({
           {SHOW_CORRELATION_ACTIONS && (
             <>
               <OddsDropdown
+                sport={sport}
                 eventId={eventId}
                 market={marketKey}
                 selKey={hitRateData.selKey || hitRateData.selectionId}
@@ -842,6 +860,7 @@ const StatTableRow = ({
   onToggleFavorite,
   oddsLoading,
   fallbackEventId,
+  sport,
 }: { 
   teammate: TeammateCorrelation;
   selectedMarket: Exclude<TeammateMarket, "all">;
@@ -854,6 +873,7 @@ const StatTableRow = ({
   onToggleFavorite: (payload: CorrelationFavoritePayload, e: React.MouseEvent) => Promise<void>;
   oddsLoading: boolean;
   fallbackEventId?: string | null;
+  sport: "nba" | "wnba";
 }) => {
   const tableGridClass = SHOW_CORRELATION_ACTIONS
     ? "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px_70px] items-center gap-2"
@@ -938,7 +958,8 @@ const StatTableRow = ({
       {/* Player */}
       <div className="flex items-center gap-2.5 min-w-0">
         <PlayerHeadshot
-          nbaPlayerId={teammate.playerId}
+          nbaPlayerId={teammate.nbaPlayerId ?? (sport === "nba" ? teammate.playerId : null)}
+          sport={sport}
           name={teammate.playerName}
           size="tiny"
           className="w-8 h-8 rounded-full shrink-0"
@@ -1080,9 +1101,10 @@ const StatTableRow = ({
 
       {SHOW_CORRELATION_ACTIONS && (
         <div className="flex items-center justify-center">
-          <OddsDropdown
-            eventId={eventId}
-            market={marketKey}
+              <OddsDropdown
+                sport={sport}
+                eventId={eventId}
+                market={marketKey}
             selKey={hitRateData.selKey || hitRateData.selectionId}
             line={effectiveLine}
             bestOdds={bestOdds}
@@ -1110,6 +1132,7 @@ export function PlayerCorrelations({
   anchorTeam,
   playerName,
   className,
+  sport = "nba",
 }: PlayerCorrelationsProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState<TeammateMarket>("points");
@@ -1174,6 +1197,7 @@ export function PlayerCorrelations({
     playerId,
     market,
     line,
+    sport,
     // Only pass gameId if we have a valid line - the RPC with odds needs a line in the DB
     gameId: line !== null ? gameId : null,
     lastNGames: gameFilter,
@@ -1275,7 +1299,7 @@ export function PlayerCorrelations({
 
       const result = await toggleFavorite({
         type: "player",
-        sport: "nba",
+        sport,
         event_id: eventId,
         game_date: gameDate ?? null,
         home_team: homeTeamName ?? null,
@@ -1288,7 +1312,7 @@ export function PlayerCorrelations({
         market: marketKey,
         line: lineValue,
         side: "over",
-        odds_key: `odds:nba:${eventId}:${marketKey}`,
+        odds_key: `odds:${sport}:${eventId}:${marketKey}`,
         odds_selection_id: oddsSelectionId,
         books_snapshot: booksSnapshot,
         best_price_at_save: bestOver?.price ?? null,
@@ -1312,7 +1336,7 @@ export function PlayerCorrelations({
     } finally {
       setTogglingFavoriteKey(null);
     }
-  }, [anchorTeam, awayTeamName, gameDate, gameId, homeTeamName, isLoggedIn, startTime, toggleFavorite]);
+  }, [anchorTeam, awayTeamName, gameDate, gameId, homeTeamName, isLoggedIn, sport, startTime, toggleFavorite]);
 
   // Filter and sort teammates
   const sortedTeammates = useMemo(() => {
@@ -1367,12 +1391,20 @@ export function PlayerCorrelations({
         return (bBest?.pct ?? -1) - (aBest?.pct ?? -1);
       }
       
-      const aStat = a[selectedMarket as Exclude<TeammateMarket, "all">];
-      const bStat = b[selectedMarket as Exclude<TeammateMarket, "all">];
+      const marketKey = selectedMarket as Exclude<TeammateMarket, "all">;
+      const aStat = a[marketKey];
+      const bStat = b[marketKey];
       
       switch (sortBy) {
-        case "hitRate":
-          return (bStat?.hitRateWhenAnchorHits?.pct ?? -1) - (aStat?.hitRateWhenAnchorHits?.pct ?? -1);
+        case "hitRate": {
+          const aVisible = calculateVisibleHitRateFromLogs(a.gameLogs, marketKey, aStat?.hitRateWhenAnchorHits?.lineUsed);
+          const bVisible = calculateVisibleHitRateFromLogs(b.gameLogs, marketKey, bStat?.hitRateWhenAnchorHits?.lineUsed);
+          return (
+            (bVisible.pct ?? -1) - (aVisible.pct ?? -1) ||
+            bVisible.games - aVisible.games ||
+            a.playerName.localeCompare(b.playerName)
+          );
+        }
         case "boost":
           return (bStat?.diff ?? -999) - (aStat?.diff ?? -999);
         case "sample":
@@ -1730,6 +1762,7 @@ export function PlayerCorrelations({
                         isEven={idx % 2 === 0}
                         minHitRate={minHitRate}
                         selectedMarkets={selectedMarkets}
+                        sport={sport}
                       />
                     ))}
                   </div>
@@ -1755,6 +1788,7 @@ export function PlayerCorrelations({
                     onToggleFavorite={handleToggleFavorite}
                     oddsLoading={oddsLoading}
                     fallbackEventId={fallbackEventId}
+                    sport={sport}
                   />
                 ))}
               </div>
@@ -1789,6 +1823,7 @@ export function PlayerCorrelations({
                     onToggleFavorite={handleToggleFavorite}
                     oddsLoading={oddsLoading}
                     fallbackEventId={fallbackEventId}
+                    sport={sport}
                   />
                 ))}
               </div>
