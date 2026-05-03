@@ -2469,7 +2469,7 @@ export function MlbPropCommandCenter() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all",
                   selectedMarket === m.key
-                    ? "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-on-primary shadow-sm"
                     : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/80 dark:hover:bg-neutral-800/60"
                 )}
               >
@@ -2489,7 +2489,7 @@ export function MlbPropCommandCenter() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all",
                   selectedMarket === m.key
-                    ? "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-on-primary shadow-sm"
                     : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/80 dark:hover:bg-neutral-800/60"
                 )}
               >

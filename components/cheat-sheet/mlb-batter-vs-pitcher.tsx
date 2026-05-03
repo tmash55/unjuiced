@@ -25,6 +25,7 @@ import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvide
 import { Tooltip } from "@/components/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
+import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -951,6 +952,7 @@ function TbdPitcherCard({ teamPitchers, onChangePitcher }: { teamPitchers?: Team
 }
 
 function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
 
   const vsLHB = pitcher.pitcher_splits?.vs_lhb;
@@ -1023,7 +1025,12 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
     <div className="space-y-5">
       {/* Header with pitcher selector */}
       <div className="flex items-center gap-3">
-        <div className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+          className="relative shrink-0 rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label={`Open quick view for ${pitcher.name}`}
+        >
           <img
             src={getMlbHeadshotUrl(pitcher.player_id, "small")}
             alt={pitcher.name}
@@ -1034,10 +1041,16 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
               ↻
             </span>
           )}
-        </div>
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-white truncate">{pitcher.name}</h3>
+            <button
+              type="button"
+              onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+              className="truncate text-left text-lg font-bold text-neutral-900 hover:text-brand hover:underline transition-colors dark:text-white"
+            >
+              {pitcher.name}
+            </button>
             {onChangePitcher && teamPitchers && teamPitchers.length > 1 && (
               <div className="relative" ref={pitcherMenuRef}>
                 <button
@@ -1354,6 +1367,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
           </div>
         </div>
       )}
+      {quickViewElement}
     </div>
   );
 }
@@ -1764,6 +1778,11 @@ function BatterRow({
   zebra?: boolean;
   activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
+  const handleOpenBatter = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    openQuickView({ mlb_player_id: batter.player_id, player_name: batter.player_name, initial_market: "player_hits" });
+  };
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
     avg: batter.avg, slg: batter.slg, woba: batter.woba, iso: batter.iso,
@@ -1795,7 +1814,15 @@ function BatterRow({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-neutral-400 w-4 tabular-nums">{batter.lineup_position ?? "-"}</span>
-                <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{batter.player_name}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleOpenBatter}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleOpenBatter(e as unknown as React.MouseEvent); }}
+                  className="cursor-pointer truncate text-xs font-semibold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+                >
+                  {batter.player_name}
+                </span>
                 <span className={cn("text-[10px] font-medium", batter.batting_hand === "S" ? "text-purple-500 dark:text-purple-400" : hasPlatoon ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
                   {batter.batting_hand === "S" ? "SW" : batter.batting_hand}
                 </span>
@@ -1839,6 +1866,7 @@ function BatterRow({
         </button>
 
         {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} activeStatcast={activeStatcast} />}
+        {quickViewElement}
       </div>
     );
   }
@@ -1875,7 +1903,15 @@ function BatterRow({
               alt={batter.player_name}
               className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
             />
-            <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{batter.player_name}</span>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleOpenBatter}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleOpenBatter(e as unknown as React.MouseEvent); }}
+              className="cursor-pointer truncate text-xs font-semibold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+            >
+              {batter.player_name}
+            </span>
             <span
               className={cn(
                 "text-[10px] font-semibold px-1 py-0.5 rounded shrink-0",
@@ -2020,6 +2056,7 @@ function BatterRow({
           </td>
         </tr>
       )}
+      {quickViewElement}
     </React.Fragment>
   );
 }
@@ -2715,6 +2752,7 @@ function ComparisonView({
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
   scoreMarket?: string;
 }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
   const activePropMarket = scoreMarket ?? "hr";
@@ -2818,7 +2856,15 @@ function ComparisonView({
                   className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold text-neutral-900 dark:text-white truncate block">{b.player_name}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); } }}
+                    className="cursor-pointer text-xs font-bold text-neutral-900 dark:text-white truncate block transition-colors hover:text-brand hover:underline"
+                  >
+                    {b.player_name}
+                  </span>
                   <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>
                     {b.batting_hand}{hasPlatoon ? " PLT" : ""}
                   </span>
@@ -2891,6 +2937,7 @@ function ComparisonView({
           );
         })}
       </div>
+      {quickViewElement}
     </div>
   );
 }

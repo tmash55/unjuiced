@@ -12,6 +12,7 @@ import type { TeamScoringRow } from "@/app/api/mlb/correlations/team-scoring/rou
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
+import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
 import {
   Loader2,
   ChevronDown,
@@ -150,6 +151,7 @@ function SkeletonCard() {
 // ── Prop Stack Card ──────────────────────────────────────────────────────────
 
 function PropStackCard({ stack, rank, onAddToParlay }: { stack: PropStack; rank: number; onAddToParlay?: (stack: PropStack) => void }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const [expanded, setExpanded] = useState(false);
   const pct = stack.co_occurrence_pct;
 
@@ -185,7 +187,13 @@ function PropStackCard({ stack, rank, onAddToParlay }: { stack: PropStack; rank:
                   className="rounded-full bg-neutral-100 dark:bg-neutral-800 shrink-0"
                   unoptimized
                 />
-                <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: stack.player_a_id, player_name: stack.player_a_name, initial_market: stack.market_a }); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: stack.player_a_id, player_name: stack.player_a_name, initial_market: stack.market_a }); } }}
+                  className="cursor-pointer text-xs font-semibold text-neutral-900 dark:text-white truncate transition-colors hover:text-brand hover:underline"
+                >
                   {lastName(stack.player_a_name)}
                 </span>
                 <span className="text-[10px] font-medium text-brand shrink-0">
@@ -200,7 +208,13 @@ function PropStackCard({ stack, rank, onAddToParlay }: { stack: PropStack; rank:
                   className="rounded-full bg-neutral-100 dark:bg-neutral-800 shrink-0"
                   unoptimized
                 />
-                <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: stack.player_b_id, player_name: stack.player_b_name, initial_market: stack.market_b }); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: stack.player_b_id, player_name: stack.player_b_name, initial_market: stack.market_b }); } }}
+                  className="cursor-pointer text-xs font-semibold text-neutral-900 dark:text-white truncate transition-colors hover:text-brand hover:underline"
+                >
                   {lastName(stack.player_b_name)}
                 </span>
                 <span className="text-[10px] font-medium text-brand shrink-0">
@@ -253,6 +267,7 @@ function PropStackCard({ stack, rank, onAddToParlay }: { stack: PropStack; rank:
           )}
         </div>
       )}
+      {quickViewElement}
     </div>
   );
 }
@@ -275,6 +290,7 @@ function useLineupPairs(chain: LineupChainLink[]) {
 }
 
 function LineupFlowSection({ chain, isMobile }: { chain: LineupChainLink[]; isMobile: boolean }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const pairs = useLineupPairs(chain);
   if (pairs.length === 0) return null;
 
@@ -356,9 +372,13 @@ function LineupFlowSection({ chain, isMobile }: { chain: LineupChainLink[]; isMo
               />
 
               {/* Name */}
-              <span className="text-xs font-semibold text-neutral-900 dark:text-white flex-1 min-w-0 truncate">
+              <button
+                type="button"
+                onClick={() => openQuickView({ mlb_player_id: player.id, player_name: player.name, initial_market: "player_hits" })}
+                className="text-xs font-semibold text-neutral-900 dark:text-white flex-1 min-w-0 truncate text-left transition-colors hover:text-brand hover:underline"
+              >
                 {isMobile ? lastName(player.name) : player.name}
-              </span>
+              </button>
             </div>
 
             {/* Connection bar between this player and next (including 9→1 wrap) */}
@@ -404,6 +424,7 @@ function LineupFlowSection({ chain, isMobile }: { chain: LineupChainLink[]; isMo
           </div>
         );
       })}
+      {quickViewElement}
     </div>
   );
 }

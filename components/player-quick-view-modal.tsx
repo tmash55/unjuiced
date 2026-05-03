@@ -42,7 +42,7 @@ import {
 } from "@/components/hit-rates/mlb/mlb-spray-chart";
 import type { BattedBallEvent } from "@/app/api/mlb/spray-chart/route";
 import { LoadingState } from "@/components/common/loading-state";
-import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, BarChart3, Users, Target, Zap, Lock, Sparkles } from "lucide-react";
+import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, Users, Target, Zap, Lock, Sparkles, Thermometer, Wind, CloudRain, Home } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
@@ -58,11 +58,12 @@ import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMlbHotZone } from "@/hooks/use-mlb-hot-zone";
+import { useMlbIndividualMatchup } from "@/hooks/use-mlb-individual-matchup";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconChartHistogram, IconCirclePlus } from "@tabler/icons-react";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite } from "@/hooks/use-favorites";
 import { toast } from "sonner";
 
@@ -451,6 +452,9 @@ type MlbBookSortKey = "book" | "over" | "under";
 type SortDirection = "asc" | "desc";
 type MlbLineHistorySide = "over" | "under";
 const SHARP_LINE_HISTORY_BOOKS = ["pinnacle", "circa"];
+// Default-selection priority for the line movement chart. Pinnacle/Circa are sharp;
+// fall back to the most popular consumer books before alphabetical ordering kicks in.
+const LINE_HISTORY_BOOK_PRIORITY = ["pinnacle", "circa", "draftkings", "fanduel", "fanatics"];
 
 const formatAmericanOdds = (price?: number | null) => {
   if (price === null || price === undefined) return "-";
@@ -476,6 +480,12 @@ const getSharpLineHistoryRank = (book: { bookId?: string | null; bookName?: stri
   const normalized = `${book.bookId ?? ""} ${book.bookName ?? ""}`.toLowerCase();
   const rank = SHARP_LINE_HISTORY_BOOKS.findIndex((sharpBook) => normalized.includes(sharpBook));
   return rank === -1 ? SHARP_LINE_HISTORY_BOOKS.length : rank;
+};
+
+const getLineHistoryBookPriorityRank = (book: { bookId?: string | null; bookName?: string | null }) => {
+  const normalized = `${book.bookId ?? ""} ${book.bookName ?? ""}`.toLowerCase();
+  const rank = LINE_HISTORY_BOOK_PRIORITY.findIndex((preferred) => normalized.includes(preferred));
+  return rank === -1 ? LINE_HISTORY_BOOK_PRIORITY.length : rank;
 };
 
 const normalizeLineHistoryBookKey = (value?: string | null) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -521,8 +531,8 @@ const syncLineHistoryWithLivePrice = (entries: LineHistoryPoint[], livePrice?: n
 
 const sortLineHistoryBookIds = (bookIds: string[]) => {
   return Array.from(new Set(bookIds.filter(Boolean))).sort((a, b) => {
-    const aRank = getSharpLineHistoryRank({ bookId: a });
-    const bRank = getSharpLineHistoryRank({ bookId: b });
+    const aRank = getLineHistoryBookPriorityRank({ bookId: a });
+    const bRank = getLineHistoryBookPriorityRank({ bookId: b });
     if (aRank !== bRank) return aRank - bRank;
     const aName = getLineHistorySportsbook({ bookId: a })?.name ?? a;
     const bName = getLineHistorySportsbook({ bookId: b })?.name ?? b;
@@ -647,7 +657,7 @@ function MlbGlassPanel({
   return (
     <section
       className={cn(
-        "rounded-lg border border-neutral-200/50 bg-white shadow-sm shadow-slate-200/20 dark:border-neutral-700/30 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
+        "rounded-lg border border-border bg-card shadow-sm shadow-slate-200/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
         className
       )}
     >
@@ -675,7 +685,7 @@ function MlbMetricTile({
   return (
     <div
       className={cn(
-        "min-w-0 border-r border-neutral-200/60 px-2 py-2 last:border-r-0 dark:border-neutral-700/35 sm:px-5 sm:py-3",
+        "min-w-0 border-r border-border px-2 py-2 last:border-r-0 sm:px-5 sm:py-3",
         align === "center" && "text-center",
         accent && "relative overflow-hidden"
       )}
@@ -684,20 +694,20 @@ function MlbMetricTile({
         boxShadow: `inset 0 1px 0 ${accent}22`,
       } : undefined}
     >
-      <p className={cn("truncate text-[9px] font-semibold text-neutral-500 dark:text-slate-400 sm:text-[11px] sm:font-medium", accent && "dark:text-slate-300")}>{label}</p>
+      <p className={cn("truncate text-[9px] font-semibold text-muted-foreground sm:text-[11px] sm:font-medium", accent && "dark:text-slate-300")}>{label}</p>
       <p
         className={cn(
           "mt-1 text-lg font-black leading-none tabular-nums sm:text-2xl",
           !accent && tone === "green" && "text-emerald-600 dark:text-emerald-400",
           !accent && tone === "red" && "text-red-500 dark:text-red-400",
           !accent && tone === "amber" && "text-amber-600 dark:text-amber-300",
-          !accent && tone === "neutral" && "text-neutral-950 dark:text-slate-50"
+          !accent && tone === "neutral" && "text-foreground"
         )}
         style={accent ? { color: accent } : undefined}
       >
         {value}
       </p>
-      {sub && <p className="mt-1 truncate text-[10px] text-neutral-500 dark:text-slate-400 sm:text-xs">{sub}</p>}
+      {sub && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">{sub}</p>}
     </div>
   );
 }
@@ -812,16 +822,16 @@ function MlbDistributionBar({
 
   return (
     <MlbGlassPanel className="overflow-hidden">
-      <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-        <h3 className="text-[11px] font-black uppercase tracking-wide text-neutral-700 dark:text-slate-300">{title}</h3>
+      <div className="border-b border-border px-4 py-3">
+        <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">{title}</h3>
       </div>
       <div className="px-4 py-4">
         {isLoading ? (
           <div className="space-y-3">
-            <div className="h-3 w-full animate-pulse rounded-full bg-neutral-200 dark:bg-slate-800" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-neutral-100 dark:bg-neutral-800" />
             <div className="grid grid-cols-4 gap-2">
               {buckets.map((bucket) => (
-                <div key={bucket.label} className="h-8 animate-pulse rounded-md bg-neutral-100 dark:bg-slate-800/70" />
+                <div key={bucket.label} className="h-8 animate-pulse rounded-md bg-neutral-100 dark:bg-neutral-800/70" />
               ))}
             </div>
           </div>
@@ -832,18 +842,18 @@ function MlbDistributionBar({
                 <div key={bucket.label} className="min-w-0 text-center" style={{ width: getSegmentWidth(bucket.value) }}>
                   <MlbDistributionTooltip
                     content={getTooltipContent(bucket)}
-                    className="text-sm font-black tabular-nums text-neutral-950 dark:text-slate-50"
+                    className="text-sm font-black tabular-nums text-foreground"
                   >
                     {bucket.value}%
                   </MlbDistributionTooltip>
                 </div>
               ))}
             </div>
-            <div className="relative flex h-3 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-300/60 dark:bg-slate-800 dark:ring-white/10">
+            <div className="relative flex h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800 ring-1 ring-border">
               {visibleBuckets.map((bucket) => (
                 <div
                   key={bucket.label}
-                  className={cn("h-full min-w-0 border-r border-white/80 last:border-r-0 dark:border-[#050a0f]/90", bucket.className)}
+                  className={cn("h-full min-w-0 border-r border-card last:border-r-0", bucket.className)}
                   style={{ width: getSegmentWidth(bucket.value), backgroundColor: bucket.color }}
                 />
               ))}
@@ -852,12 +862,12 @@ function MlbDistributionBar({
               {visibleBuckets.map((bucket) => (
                 <div
                   key={bucket.label}
-                  className="relative min-w-0 pt-2 text-center before:absolute before:left-1/2 before:top-0 before:h-1.5 before:w-px before:-translate-x-1/2 before:bg-neutral-300 dark:before:bg-slate-700"
+                  className="relative min-w-0 pt-2 text-center before:absolute before:left-1/2 before:top-0 before:h-1.5 before:w-px before:-translate-x-1/2 before:bg-border"
                   style={{ width: getSegmentWidth(bucket.value) }}
                 >
                   <MlbDistributionTooltip
                     content={getTooltipContent(bucket)}
-                    className="text-[11px] font-medium text-neutral-500 dark:text-slate-400"
+                    className="text-[11px] font-medium text-muted-foreground"
                   >
                     {formatBucketLabel(bucket.label)}
                   </MlbDistributionTooltip>
@@ -866,7 +876,7 @@ function MlbDistributionBar({
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-xs font-semibold text-neutral-500 dark:border-slate-800 dark:text-slate-500">
+          <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs font-semibold text-muted-foreground">
             {emptyLabel}
           </div>
         )}
@@ -963,8 +973,8 @@ function MlbBattedBallsTable({
           "group inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-black uppercase tracking-wide transition",
           align === "left" ? "justify-start" : "justify-center",
           active
-            ? "bg-sky-500/10 text-sky-600 dark:text-sky-300"
-            : "text-neutral-500 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-slate-200"
+            ? "bg-brand/10 text-brand"
+            : "text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground"
         )}
       >
         <span>{label}</span>
@@ -1009,10 +1019,10 @@ function MlbBattedBallsTable({
 
   return (
     <MlbGlassPanel className="overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <h3 className="text-sm font-black text-neutral-950 dark:text-white">Batted Balls</h3>
-          <p className="text-xs font-medium text-neutral-500 dark:text-slate-400">
+          <h3 className="text-sm font-black text-foreground">Batted Balls</h3>
+          <p className="text-xs font-medium text-muted-foreground">
             {isLoading ? "Loading tracked contact" : `${tableEvents.length} balls in play match current filters`}
           </p>
         </div>
@@ -1020,7 +1030,7 @@ function MlbBattedBallsTable({
           <button
             type="button"
             onClick={() => onSelectEvent(null, null)}
-            className="rounded-md border border-neutral-200/70 bg-white/80 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-500 transition hover:bg-neutral-50 dark:border-neutral-700/50 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-md border border-border bg-neutral-50 dark:bg-neutral-800/50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-muted-foreground transition hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground"
           >
             Clear
           </button>
@@ -1030,18 +1040,18 @@ function MlbBattedBallsTable({
       {isLoading ? (
         <div className="space-y-2 px-4 py-4">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-9 animate-pulse rounded-md bg-neutral-100 dark:bg-slate-800/70" />
+            <div key={index} className="h-9 animate-pulse rounded-md bg-neutral-100 dark:bg-neutral-800/70" />
           ))}
         </div>
       ) : tableEvents.length === 0 ? (
-        <div className="mx-4 my-4 rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center text-xs font-semibold text-neutral-500 dark:border-slate-800 dark:text-slate-500">
+        <div className="mx-4 my-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-xs font-semibold text-muted-foreground">
           No batted balls match these filters.
         </div>
       ) : (
         <div ref={scrollContainerRef} className="max-h-[360px] overflow-auto hidden-scrollbar">
           <table className="w-full min-w-[760px] text-xs">
-            <thead className="sticky top-0 z-[1] bg-neutral-100/95 backdrop-blur dark:bg-slate-800/95">
-              <tr className="border-b border-neutral-200/70 text-[10px] uppercase tracking-wide text-neutral-500 dark:border-slate-700/60 dark:text-slate-400">
+            <thead className="sticky top-0 z-[1] bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur">
+              <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 text-left font-black">#</th>
                 <th className="px-3 py-1.5 text-left font-black"><SortHeader sortKey="date" label="Date" align="left" /></th>
                 <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="inning" label="Inn" /></th>
@@ -1057,7 +1067,7 @@ function MlbBattedBallsTable({
                 <th className="px-3 py-1.5 text-center font-black"><SortHeader sortKey="pitch_speed" label="Velo" /></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-200/40 dark:divide-slate-800/70">
+            <tbody className="divide-y divide-border/60">
               {tableEvents.map(({ event, key }, index) => {
                 const isSelected = selectedEventKey === key;
                 const resultLabel = formatMlbBattedBallResult(event.event_type ?? event.result);
@@ -1067,29 +1077,29 @@ function MlbBattedBallsTable({
                     data-event-key={key}
                     onClick={() => onSelectEvent(isSelected ? null : key, isSelected ? null : event)}
                     className={cn(
-                      "cursor-pointer transition-colors hover:bg-sky-500/8",
+                      "cursor-pointer transition-colors hover:bg-brand/8",
                       isSelected
-                        ? "bg-sky-500/15 ring-1 ring-inset ring-sky-400/45"
+                        ? "bg-brand/12 ring-1 ring-inset ring-brand/40"
                         : event.is_barrel
                         ? "bg-emerald-500/8"
                         : index % 2 === 0
-                        ? "bg-white/50 dark:bg-slate-950/18"
-                        : "bg-neutral-50/60 dark:bg-slate-900/20"
+                        ? "bg-card"
+                        : "bg-neutral-50 dark:bg-neutral-800/40"
                     )}
                   >
-                    <td className="px-3 py-2 font-mono text-[11px] text-neutral-400 dark:text-slate-500">{index + 1}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-semibold text-neutral-600 dark:text-slate-300">
+                    <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">{index + 1}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-semibold text-foreground/80">
                       {formatMlbBattedBallDate(event.game_date, includeYearInDates)}
                     </td>
-                    <td className="px-3 py-2 text-center font-mono text-neutral-500 dark:text-slate-400">{event.inning ?? "-"}</td>
+                    <td className="px-3 py-2 text-center font-mono text-muted-foreground">{event.inning ?? "-"}</td>
                     <td className={cn("px-3 py-2 text-center font-mono font-black tabular-nums", getMlbBattedBallEvClass(event.exit_velocity))}>
                       {event.exit_velocity != null ? Number(event.exit_velocity).toFixed(1) : "-"}
-                      {event.is_barrel && <span className="ml-1 text-[9px] text-emerald-300">BRL</span>}
+                      {event.is_barrel && <span className="ml-1 text-[9px] text-emerald-500 dark:text-emerald-300">BRL</span>}
                     </td>
-                    <td className="px-3 py-2 text-center font-mono font-semibold tabular-nums text-neutral-700 dark:text-slate-300">
+                    <td className="px-3 py-2 text-center font-mono font-semibold tabular-nums text-foreground/80">
                       {event.launch_angle != null ? `${Math.round(Number(event.launch_angle))}°` : "-"}
                     </td>
-                    <td className="px-3 py-2 text-center font-mono tabular-nums text-neutral-500 dark:text-slate-400">
+                    <td className="px-3 py-2 text-center font-mono tabular-nums text-muted-foreground">
                       {event.hit_distance != null ? `${Math.round(Number(event.hit_distance))}ft` : "-"}
                     </td>
                     <td className={cn("px-3 py-2 text-center font-black", getMlbBattedBallTrajectoryClass(event.trajectory))}>
@@ -1098,35 +1108,35 @@ function MlbBattedBallsTable({
                     <td className={cn("px-3 py-2 text-center font-black", getMlbBattedBallResultClass(event))}>
                       {resultLabel}
                     </td>
-                    <td className="max-w-[180px] truncate px-3 py-2 font-medium text-neutral-600 dark:text-slate-300">
+                    <td className="max-w-[180px] truncate px-3 py-2 font-medium text-foreground/80">
                       {playerType === "pitcher" ? (
                         event.batter_name ? (
                           <>
                             {event.batter_name}
-                            {event.batter_hand && <span className="ml-1 text-neutral-400 dark:text-slate-500">({event.batter_hand})</span>}
+                            {event.batter_hand && <span className="ml-1 text-muted-foreground">({event.batter_hand})</span>}
                           </>
                         ) : event.batter_hand ? (
-                          <span className="text-neutral-400 dark:text-slate-500">{event.batter_hand}HB</span>
+                          <span className="text-muted-foreground">{event.batter_hand}HB</span>
                         ) : "-"
                       ) : event.pitcher_name ? (
                         <>
                           {event.pitcher_name}
-                          {event.pitcher_hand && <span className="ml-1 text-neutral-400 dark:text-slate-500">({event.pitcher_hand})</span>}
+                          {event.pitcher_hand && <span className="ml-1 text-muted-foreground">({event.pitcher_hand})</span>}
                         </>
                       ) : event.pitcher_hand ? (
-                        <span className="text-neutral-400 dark:text-slate-500">{event.pitcher_hand}HP</span>
+                        <span className="text-muted-foreground">{event.pitcher_hand}HP</span>
                       ) : "-"}
                     </td>
                     <td className="px-3 py-2 text-center">
                       {event.pitch_type ? (
                         <Tooltip content={MLB_PITCH_TYPE_LABELS[event.pitch_type] ?? event.pitch_type} side="top">
-                          <span className="inline-flex rounded-md bg-neutral-200/70 px-1.5 py-0.5 font-mono text-[10px] font-black text-neutral-600 dark:bg-slate-700/70 dark:text-slate-200">
+                          <span className="inline-flex rounded-md bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] font-black text-foreground/80">
                             {event.pitch_type}
                           </span>
                         </Tooltip>
                       ) : "-"}
                     </td>
-                    <td className="px-3 py-2 text-center font-mono tabular-nums text-neutral-500 dark:text-slate-400">
+                    <td className="px-3 py-2 text-center font-mono tabular-nums text-muted-foreground">
                       {event.pitch_speed != null ? Number(event.pitch_speed).toFixed(1) : "-"}
                     </td>
                   </tr>
@@ -1147,15 +1157,20 @@ function MlbBattedBallFilterSelect<T extends string>({
   onChange,
   accent = false,
   menuHeader,
+  menuMinWidth,
+  triggerLabel,
 }: {
   label: string;
   value: T;
-  options: Array<{ value: T; label: string; detail?: string | null }>;
+  options: Array<{ value: T; label: string; detail?: string | null; prefix?: string | null; usagePct?: number | null }>;
   onChange: (value: T) => void;
   accent?: boolean;
   menuHeader?: React.ReactNode;
+  menuMinWidth?: string;
+  triggerLabel?: (option: { value: T; label: string; prefix?: string | null }) => React.ReactNode;
 }) {
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const hasUsage = options.some((option) => typeof option.usagePct === "number" && option.usagePct > 0);
 
   return (
     <DropdownMenu>
@@ -1164,52 +1179,79 @@ function MlbBattedBallFilterSelect<T extends string>({
           type="button"
           className={cn(
             "group flex min-h-[48px] w-full min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left shadow-sm transition active:scale-[0.99]",
-            "border-neutral-200/60 bg-white/85 hover:border-sky-300/70 hover:bg-neutral-50 dark:border-neutral-700/45 dark:bg-slate-900/30 dark:hover:border-sky-400/45 dark:hover:bg-slate-800/50",
-            accent && "border-sky-400/60 bg-sky-50/70 dark:border-sky-400/60 dark:bg-sky-500/10"
+            "border-border bg-neutral-50 dark:bg-neutral-800/40 hover:border-brand/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/60",
+            accent && "border-brand/50 bg-brand/8 hover:bg-brand/12 dark:bg-brand/12"
           )}
         >
           <span className="min-w-0">
-            <span className="block font-mono text-[9px] font-black uppercase tracking-[0.14em] text-neutral-500 dark:text-slate-500">
+            <span className="block font-mono text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
               {label}
             </span>
-            <span className="mt-0.5 block truncate text-sm font-black text-neutral-950 dark:text-white">
-              {selected?.label ?? value}
+            <span className="mt-0.5 block truncate text-sm font-black text-foreground">
+              {triggerLabel ? triggerLabel(selected) : selected?.label ?? value}
             </span>
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400 transition group-data-[state=open]:rotate-180" />
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition group-data-[state=open]:rotate-180" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         sideOffset={6}
-        className="max-h-[280px] min-w-[180px] overflow-y-auto rounded-lg border-neutral-200 bg-white p-1 shadow-xl scrollbar-hide dark:border-neutral-700 dark:bg-neutral-900"
+        className={cn(
+          "max-h-[320px] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-xl scrollbar-hide",
+          menuMinWidth ?? "min-w-[200px]"
+        )}
         onWheelCapture={(event) => event.stopPropagation()}
       >
         {menuHeader && (
-          <div className="sticky top-0 z-10 mb-1 rounded-md border border-neutral-200/70 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-[#08111a]/95">
+          <div className="sticky top-0 z-10 mb-1 rounded-md border border-border bg-card/95 px-2.5 py-2 shadow-sm backdrop-blur">
             {menuHeader}
           </div>
         )}
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "flex cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-2 text-sm font-semibold",
-              option.value === value && "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
-            )}
-          >
-            <span className="min-w-0 truncate">{option.label}</span>
-            <span className="flex shrink-0 items-center gap-2">
-              {option.detail && (
-                <span className="font-mono text-[10px] font-black tabular-nums text-neutral-500 dark:text-slate-400">
-                  {option.detail}
-                </span>
+        {options.map((option) => {
+          const isSelected = option.value === value;
+          const usage = typeof option.usagePct === "number" ? Math.max(0, Math.min(100, option.usagePct)) : null;
+          return (
+            <DropdownMenuItem
+              key={option.value}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "relative flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-semibold",
+                isSelected && "bg-brand/10 text-brand"
               )}
-              {option.value === value && <Check className="h-3.5 w-3.5" />}
-            </span>
-          </DropdownMenuItem>
-        ))}
+            >
+              {option.prefix ? (
+                <span className={cn(
+                  "inline-flex h-5 min-w-[28px] items-center justify-center rounded font-mono text-[10px] font-black tracking-tight",
+                  isSelected ? "bg-brand/15 text-brand" : "bg-neutral-200/70 text-foreground/70 dark:bg-neutral-700/60 dark:text-neutral-300"
+                )}>
+                  {option.prefix}
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              <span className="flex shrink-0 items-center gap-2">
+                {hasUsage && usage !== null ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1 w-10 overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-700/60">
+                      <span
+                        className={cn("block h-full rounded-full", isSelected ? "bg-brand" : "bg-foreground/40")}
+                        style={{ width: `${usage}%` }}
+                      />
+                    </span>
+                    <span className={cn("min-w-[28px] text-right font-mono text-[10px] font-black tabular-nums", isSelected ? "text-brand" : "text-muted-foreground")}>
+                      {usage}%
+                    </span>
+                  </span>
+                ) : option.detail ? (
+                  <span className="font-mono text-[10px] font-black tabular-nums text-muted-foreground">
+                    {option.detail}
+                  </span>
+                ) : null}
+                {isSelected && <Check className="h-3.5 w-3.5" />}
+              </span>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1223,15 +1265,26 @@ function MlbBattedBallFiltersPanel({
   opposingPitcherName,
   playerType = "batter",
   pitchMixContextName,
+  pitchMixIsFullArsenal = false,
 }: {
   filters: MlbSprayChartFilterState;
   onChange: (filters: MlbSprayChartFilterState) => void;
   onReset: () => void;
-  pitchTypeOptions: Array<{ value: string; label: string; detail?: string | null }>;
+  pitchTypeOptions: Array<{ value: string; label: string; detail?: string | null; prefix?: string | null; usagePct?: number | null }>;
   opposingPitcherName?: string | null;
   playerType?: MlbSprayChartPlayerType;
   pitchMixContextName?: string | null;
+  pitchMixIsFullArsenal?: boolean;
 }) {
+  const headerLabel = pitchMixIsFullArsenal ? "Pitch Mix" : "BIP Pitch Mix";
+  const subjectName = pitchMixContextName || opposingPitcherName;
+  const headerSubtitle = subjectName
+    ? pitchMixIsFullArsenal
+      ? `${subjectName}'s season repertoire`
+      : `${subjectName}'s pitches in play`
+    : pitchMixIsFullArsenal
+      ? "Season repertoire"
+      : "Pitches in current sample";
   const updateFilters = (patch: Partial<MlbSprayChartFilterState>) => {
     onChange({ ...filters, ...patch });
   };
@@ -1265,17 +1318,15 @@ function MlbBattedBallFiltersPanel({
             options={pitchTypeOptions}
             onChange={(value) => updateFilters({ pitchTypeFilter: value })}
             accent={(filters.pitchTypeFilter ?? "all") !== "all"}
+            menuMinWidth="min-w-[260px]"
+            triggerLabel={(option) => option.prefix ? `${option.prefix} · ${option.label}` : option.label}
             menuHeader={
               <div>
-                <p className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                  BIP Pitch Mix
+                <p className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                  {headerLabel}
                 </p>
-                <p className="mt-0.5 truncate text-xs font-black text-neutral-950 dark:text-white">
-                  {pitchMixContextName
-                    ? `${pitchMixContextName}'s pitches in play`
-                    : opposingPitcherName
-                      ? `${opposingPitcherName}'s pitches in play`
-                      : "Pitches in current sample"}
+                <p className="mt-0.5 text-xs font-black leading-tight text-foreground">
+                  {headerSubtitle}
                 </p>
               </div>
             }
@@ -1307,7 +1358,7 @@ function MlbBattedBallFiltersPanel({
             type="button"
             onClick={onReset}
             aria-label="Reset batted ball filters"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-neutral-200/70 bg-white/80 text-neutral-600 shadow-sm transition hover:border-sky-300/70 hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700/50 dark:bg-slate-900/30 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-slate-800/60"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 text-foreground/70 shadow-sm transition hover:border-brand/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground active:scale-[0.98]"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -1352,28 +1403,220 @@ function MlbOddsBlock({
   );
 }
 
+function MlbWeatherChip({ weather }: { weather: import("@/hooks/use-mlb-games").MlbGameWeather }) {
+  const tempF = Number.isFinite(weather.temperature_f as number) ? Math.round(weather.temperature_f as number) : null;
+  const windMph = Number.isFinite(weather.wind_speed_mph as number) ? Math.round(weather.wind_speed_mph as number) : null;
+  const precipPct = Number.isFinite(weather.precip_probability as number) ? Math.round(weather.precip_probability as number) : null;
+  const isClosedRoof = weather.roof_type ? weather.roof_type.toLowerCase() === "closed" || weather.roof_type.toLowerCase() === "dome" : false;
+
+  const parts: React.ReactNode[] = [];
+  if (tempF !== null) {
+    parts.push(
+      <span key="temp" className="inline-flex items-center gap-1">
+        <Thermometer className="h-3 w-3 text-amber-500/80" />
+        <span className="font-mono tabular-nums">{tempF}°F</span>
+      </span>
+    );
+  }
+  if (windMph !== null && windMph > 0) {
+    parts.push(
+      <span key="wind" className="inline-flex items-center gap-1">
+        <Wind className="h-3 w-3 text-sky-500/80" />
+        <span className="font-mono tabular-nums">{windMph}mph</span>
+        {weather.wind_label && <span className="text-foreground/60">{weather.wind_label}</span>}
+      </span>
+    );
+  }
+  if (precipPct !== null && precipPct >= 20) {
+    parts.push(
+      <span key="precip" className="inline-flex items-center gap-1 text-blue-500 dark:text-blue-400">
+        <CloudRain className="h-3 w-3" />
+        <span className="font-mono tabular-nums">{precipPct}%</span>
+      </span>
+    );
+  }
+  if (isClosedRoof) {
+    parts.push(
+      <span key="roof" className="inline-flex items-center gap-1 text-foreground/60">
+        <Home className="h-3 w-3" />
+        Roof
+      </span>
+    );
+  }
+
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-border bg-neutral-50 px-2.5 py-1 text-xs text-foreground/80 dark:bg-neutral-800/40">
+      {parts.map((part, idx) => (
+        <React.Fragment key={idx}>
+          {idx > 0 && <span className="text-border">•</span>}
+          {part}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+type SeasonStatTier = "elite" | "good" | "neutral" | "weak";
+
+function getSeasonStatTier(label: string, raw: string): SeasonStatTier {
+  // Parse the numeric value out of the formatted string
+  const num = Number(raw.replace(/[^0-9.\-]/g, ""));
+  if (!Number.isFinite(num)) return "neutral";
+  switch (label.toUpperCase()) {
+    case "AVG":
+      if (num >= 0.300) return "elite";
+      if (num >= 0.270) return "good";
+      if (num >= 0.230) return "neutral";
+      return "weak";
+    case "OPS":
+      if (num >= 0.900) return "elite";
+      if (num >= 0.800) return "good";
+      if (num >= 0.700) return "neutral";
+      return "weak";
+    case "OBP":
+      if (num >= 0.380) return "elite";
+      if (num >= 0.340) return "good";
+      if (num >= 0.310) return "neutral";
+      return "weak";
+    case "ERA":
+      if (num <= 3.00) return "elite";
+      if (num <= 4.00) return "good";
+      if (num <= 4.75) return "neutral";
+      return "weak";
+    case "WHIP":
+      if (num <= 1.10) return "elite";
+      if (num <= 1.25) return "good";
+      if (num <= 1.40) return "neutral";
+      return "weak";
+    case "K/G":
+      if (num >= 9) return "elite";
+      if (num >= 7) return "good";
+      return "neutral";
+    case "IP/G":
+      if (num >= 6.0) return "elite";
+      if (num >= 5.0) return "good";
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+const SEASON_TIER_VALUE_CLASS: Record<SeasonStatTier, string> = {
+  elite: "text-emerald-500 dark:text-emerald-400",
+  good: "text-emerald-600/85 dark:text-emerald-300/90",
+  neutral: "text-foreground",
+  weak: "text-amber-500 dark:text-amber-400",
+};
+
+const SEASON_TIER_DOT_CLASS: Record<SeasonStatTier, string> = {
+  elite: "bg-emerald-500 ring-emerald-500/25",
+  good: "bg-emerald-400/80 ring-emerald-400/20",
+  neutral: "bg-foreground/30 ring-foreground/10",
+  weak: "bg-amber-500 ring-amber-500/25",
+};
+
 function MlbSeasonStatsStrip({
   summary,
+  teamAccent,
 }: {
   summary: { label: string; stats: Array<{ label: string; value: string; sub?: string; highlight?: boolean }> };
+  teamAccent?: string | null;
 }) {
+  const accent = normalizeHexColor(teamAccent);
+  const topEdgeStyle = accent
+    ? { background: `linear-gradient(90deg, transparent, ${accent}99, transparent)` }
+    : undefined;
+  const bandStyle = accent
+    ? { background: `linear-gradient(90deg, ${accent}14, transparent 45%, ${accent}10)` }
+    : undefined;
+  const dotStyle = accent ? { backgroundColor: accent } : undefined;
+
   return (
-    <div className="overflow-hidden rounded-lg border border-neutral-200/70 bg-neutral-50 shadow-sm dark:border-neutral-700/50 dark:bg-neutral-800/35 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="bg-slate-900 px-3 py-1 text-center dark:bg-slate-950">
-        <span className="font-mono text-[10px] font-black uppercase tracking-[0.1em] text-white">{summary.label}</span>
+    <div className="relative overflow-hidden rounded-lg border border-border bg-card shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div
+        className={cn("absolute inset-x-0 top-0 h-px", !accent && "bg-gradient-to-r from-transparent via-brand/60 to-transparent")}
+        style={topEdgeStyle}
+      />
+      <div
+        className={cn(
+          "flex items-center justify-center gap-1.5 border-b border-border px-3 py-1 sm:py-1.5",
+          !accent && "bg-gradient-to-r from-brand/[0.06] via-transparent to-brand/[0.06]"
+        )}
+        style={bandStyle}
+      >
+        <span className={cn("h-1 w-1 rounded-full", !accent && "bg-brand")} style={dotStyle} />
+        <span className="font-mono text-[9px] font-black uppercase tracking-[0.14em] text-foreground/80 sm:text-[10px]">{summary.label}</span>
+        <span className={cn("h-1 w-1 rounded-full", !accent && "bg-brand/70")} style={dotStyle} />
       </div>
-      <div className="grid grid-cols-4 divide-x divide-neutral-200/70 dark:divide-neutral-700/45">
-        {summary.stats.map((stat) => (
-          <div key={stat.label} className="min-w-0 px-2 py-1.5 text-center">
-            <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">{stat.label}</p>
-            <p className={cn("mt-0.5 text-base font-black leading-none tabular-nums", stat.highlight ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-950 dark:text-white")}>
-              {stat.value}
-            </p>
-            {stat.sub && <p className="mt-0.5 truncate text-[8px] font-medium text-neutral-500 dark:text-slate-500">{stat.sub}</p>}
-          </div>
-        ))}
+      <div className="grid grid-cols-4 divide-x divide-border">
+        {summary.stats.map((stat) => {
+          const tier = getSeasonStatTier(stat.label, stat.value);
+          return (
+            <div key={stat.label} className="group relative min-w-0 px-1.5 py-1.5 text-center sm:px-2 sm:py-2">
+              <p className="flex items-center justify-center gap-1 font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                <span className={cn("inline-block h-1 w-1 rounded-full ring-2", SEASON_TIER_DOT_CLASS[tier])} />
+                {stat.label}
+              </p>
+              <p className={cn("mt-0.5 text-sm font-black leading-none tabular-nums sm:mt-1 sm:text-base", SEASON_TIER_VALUE_CLASS[tier])}>
+                {stat.value}
+              </p>
+              {stat.sub && <p className="mt-0.5 hidden truncate text-[8px] font-medium uppercase tracking-wide text-muted-foreground sm:mt-1 sm:block">{stat.sub}</p>}
+            </div>
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+function MlbCompactSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ label: string; value: T; disabled?: boolean }>;
+  onChange: (value: T) => void;
+}) {
+  const selected = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-8 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-md border border-border bg-neutral-50 px-2.5 text-left transition hover:border-brand/50 active:scale-[0.99] dark:bg-neutral-800/40"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+            <span className="truncate text-xs font-bold text-foreground">{selected?.label ?? value}</span>
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[140px] rounded-lg border border-border bg-card p-1 shadow-xl">
+        {options.map((option) => {
+          const isSelected = option.value === value;
+          return (
+            <DropdownMenuItem
+              key={option.value}
+              disabled={option.disabled}
+              onSelect={() => !option.disabled && onChange(option.value)}
+              className={cn(
+                "cursor-pointer rounded-md px-2.5 py-2 text-sm font-semibold",
+                isSelected && "bg-brand/10 text-brand",
+                option.disabled && "cursor-not-allowed opacity-40"
+              )}
+            >
+              {option.label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1399,9 +1642,9 @@ function MlbFilterButton({
       className={cn(
         "rounded-md px-3 py-1.5 text-xs font-bold transition active:scale-[0.98]",
         active
-          ? "bg-sky-100 text-sky-700 shadow-sm ring-1 ring-sky-200 dark:bg-sky-500/20 dark:text-sky-300 dark:ring-sky-500/20"
-          : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white",
-        disabled && "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-neutral-500 dark:hover:bg-transparent dark:hover:text-slate-400"
+          ? "bg-brand/15 text-brand shadow-sm ring-1 ring-brand/25"
+          : "text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground",
+        disabled && "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground"
       )}
     >
       {children}
@@ -1511,7 +1754,7 @@ function MiniLineMovementChart({
 
   if (!chart) {
     return (
-      <div className="flex h-[150px] items-center justify-center rounded-lg border border-dashed border-neutral-200 bg-neutral-50 text-xs text-neutral-400 dark:border-neutral-700/50 dark:bg-[#111820] dark:text-slate-500">
+      <div className="flex h-[150px] items-center justify-center rounded-lg border border-dashed border-border bg-neutral-50 dark:bg-neutral-800/40 text-xs text-muted-foreground dark:bg-neutral-800/30">
         Not enough movement yet
       </div>
     );
@@ -1534,8 +1777,8 @@ function MiniLineMovementChart({
       : "Now";
   const currentLabel = isMarketClosed ? "Close" : isStale ? "Last" : "Current";
   const summaryItems = [
-    { label: "Open", value: formatAmericanOdds(chart.open.price), className: "text-neutral-900 dark:text-slate-100" },
-    { label: currentLabel, value: formatAmericanOdds(chart.current.price), className: "text-neutral-900 dark:text-slate-100" },
+    { label: "Open", value: formatAmericanOdds(chart.open.price), className: "text-foreground" },
+    { label: currentLabel, value: formatAmericanOdds(chart.current.price), className: "text-foreground" },
     { label: "Move", value: changeShortLabel, className: change >= 0 ? "text-emerald-500" : "text-red-500" },
   ];
   const tooltipWidth = 104;
@@ -1558,7 +1801,7 @@ function MiniLineMovementChart({
   };
 
   return (
-    <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-[#111820] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+    <div className="rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 p-3 dark:bg-neutral-800/30 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
       <svg
         viewBox={`0 0 ${chart.width} ${chart.height}`}
         className="h-[150px] w-full cursor-crosshair overflow-visible"
@@ -1678,24 +1921,24 @@ function MiniLineMovementChart({
           </text>
         ))}
       </svg>
-      <div className="mt-1 border-t border-neutral-200/60 pt-2 dark:border-neutral-700/35">
-        <div className="grid grid-cols-3 overflow-hidden rounded-md border border-neutral-200/60 bg-white/55 dark:border-neutral-700/35 dark:bg-slate-950/18">
+      <div className="mt-1 border-t border-border pt-2">
+        <div className="grid grid-cols-3 overflow-hidden rounded-md border border-border bg-card/60">
           {summaryItems.map((item) => (
-            <div key={item.label} className="border-r border-neutral-200/60 px-2 py-2 last:border-r-0 dark:border-neutral-700/35">
-              <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">{item.label}</p>
+            <div key={item.label} className="border-r border-border px-2 py-2 last:border-r-0">
+              <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
               <p className={cn("mt-0.5 font-mono text-[12px] font-black tabular-nums", item.className)}>{item.value}</p>
             </div>
           ))}
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
           <span>Low {formatAmericanOdds(chart.low)}</span>
           <span className={cn("inline-flex items-center gap-1", change >= 0 ? "text-emerald-500" : "text-red-500")}>
             <span className={cn("h-1.5 w-1.5 rounded-full", change >= 0 ? "bg-emerald-500" : "bg-red-500")} />
             {chart.positions.length} line entries
           </span>
           {chart.liveBoundary && (
-            <span className="inline-flex items-center gap-1 text-sky-500 dark:text-sky-300">
-              <span className="h-2.5 w-px bg-sky-400/80" />
+            <span className="inline-flex items-center gap-1 text-brand">
+              <span className="h-2.5 w-px bg-brand/80" />
               Live odds after {formatMiniLineAxisTime(chart.liveBoundary.startedAt)}
             </span>
           )}
@@ -1707,7 +1950,7 @@ function MiniLineMovementChart({
 
 function EmptyMiniLineMovementChart({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-[#111820] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+    <div className="rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 p-3 dark:bg-neutral-800/30 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
       <div className="relative h-[150px] overflow-hidden rounded-md">
         <div className="absolute inset-x-10 top-8 space-y-7">
           {[0, 1, 2].map((line) => (
@@ -1789,6 +2032,10 @@ function MlbRightRail({
   });
   const [selectedHistoryBookId, setSelectedHistoryBookId] = useState<string | null>(null);
   const modelPct = dynamicHitRates.season ?? chartStats.hitRate;
+  // When the modal is opened from a tool that doesn't carry odds context (e.g. exit
+  // velocity), the right-rail panels for live odds, line movement, and the betslip
+  // CTA have nothing to show. Hide them outright instead of stacking empty states.
+  const hasOddsContext = bookOffers.length > 0 || canOpenLineHistory || canSaveFavorite;
   const isMarketClosed = isMlbMarketClosed(nextGame);
   const gameStartTimestampMs = getMlbGameStartTimestampMs(nextGame);
   const currentSideBookOffers = useMemo(() => {
@@ -1829,8 +2076,8 @@ function MlbRightRail({
 
     return Array.from(byBook.values())
       .sort((a, b) => {
-        const aRank = getSharpLineHistoryRank(a);
-        const bRank = getSharpLineHistoryRank(b);
+        const aRank = getLineHistoryBookPriorityRank(a);
+        const bRank = getLineHistoryBookPriorityRank(b);
         if (aRank !== bRank) return aRank - bRank;
         return a.bookName.localeCompare(b.bookName);
       });
@@ -1961,12 +2208,12 @@ function MlbRightRail({
   return (
     <aside className="flex min-h-0 flex-col gap-2.5 lg:sticky lg:top-0 lg:h-full lg:max-h-full lg:self-stretch lg:overflow-hidden lg:pr-1">
       <MlbGlassPanel className="shrink-0">
-        <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-          <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Bet Context</h3>
+        <div className="border-b border-border px-4 py-3">
+          <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Bet Context</h3>
         </div>
         <div className="space-y-2.5 px-4 py-3">
           {betNotes.map((note, idx) => (
-            <div key={note} className="flex gap-2 text-xs leading-relaxed text-neutral-600 dark:text-slate-300">
+            <div key={note} className="flex gap-2 text-xs leading-relaxed text-foreground/80">
               <span
                 className={cn(
                   "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]",
@@ -1981,23 +2228,24 @@ function MlbRightRail({
         </div>
       </MlbGlassPanel>
 
+      {hasOddsContext && (
       <MlbGlassPanel className="flex min-h-[220px] flex-col overflow-hidden lg:min-h-0 lg:flex-1 lg:shrink">
-        <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+        <div className="border-b border-border px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Best Books</h3>
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Best Books</h3>
             {isMarketClosed ? (
               <span className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.08em] text-amber-600 dark:text-amber-300">
                 Closed
               </span>
             ) : hasMoreBookRows ? (
-              <span className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">
+              <span className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Scroll for more
               </span>
             ) : null}
           </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
-          <div className="grid grid-cols-[minmax(0,1fr)_86px_86px] gap-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-slate-500">
+          <div className="grid grid-cols-[minmax(0,1fr)_86px_86px] gap-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
             {renderBookSortHeader("book", "Book", "justify-self-start")}
             {renderBookSortHeader("over", "Over", "justify-self-end")}
             {renderBookSortHeader("under", "Under", "justify-self-end")}
@@ -2013,13 +2261,13 @@ function MlbRightRail({
                 <div
                   key={row.book}
                   className={cn(
-                    "grid min-h-[46px] grid-cols-[minmax(0,1fr)_86px_86px] items-center gap-2 border-b border-neutral-200/50 px-1 py-1.5 text-sm last:border-b-0 dark:border-neutral-700/25",
-                    (row.over?.isBest || row.under?.isBest) && "bg-emerald-500/[0.035]"
+                    "grid min-h-[46px] grid-cols-[minmax(0,1fr)_86px_86px] items-center gap-2 border-b border-border/60 px-1 py-1.5 text-sm last:border-b-0",
+                    (row.over?.isBest || row.under?.isBest) && "bg-emerald-500/[0.06] dark:bg-emerald-500/[0.05]"
                   )}
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     {sb?.image?.light && <img src={sb.image.light} alt={sb.name} className="h-4 w-4 rounded object-contain" />}
-                    <span className="truncate font-semibold text-neutral-700 dark:text-slate-200">{sb?.name ?? row.book}</span>
+                    <span className="truncate font-semibold text-foreground">{sb?.name ?? row.book}</span>
                   </div>
                   <button
                     type="button"
@@ -2029,9 +2277,9 @@ function MlbRightRail({
                     className={cn(
                       "group relative inline-flex h-8 min-w-[76px] items-center justify-center overflow-hidden rounded-md border text-right font-mono text-[13px] font-bold tabular-nums shadow-sm transition active:scale-[0.98] disabled:cursor-default dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                       row.over?.isBest
-                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-300"
-                        : "border-neutral-200/70 bg-white/70 text-neutral-800 hover:border-sky-400/50 hover:bg-sky-50/80 dark:border-neutral-700/50 dark:bg-neutral-900/50 dark:text-slate-200 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10",
-                      !row.over && "border-transparent bg-transparent text-neutral-300 shadow-none dark:text-slate-700"
+                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                        : "border-border bg-card text-foreground hover:border-brand/50 hover:bg-brand/8",
+                      !row.over && "border-transparent bg-transparent text-muted-foreground/40 shadow-none"
                     )}
                   >
                     <span className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-1 px-2">
@@ -2054,9 +2302,9 @@ function MlbRightRail({
                     className={cn(
                       "group relative inline-flex h-8 min-w-[76px] items-center justify-center overflow-hidden rounded-md border text-right font-mono text-[13px] font-bold tabular-nums shadow-sm transition active:scale-[0.98] disabled:cursor-default dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                       row.under?.isBest
-                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-300"
-                        : "border-neutral-200/70 bg-white/70 text-neutral-800 hover:border-sky-400/50 hover:bg-sky-50/80 dark:border-neutral-700/50 dark:bg-neutral-900/50 dark:text-slate-200 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10",
-                      !row.under && "border-transparent bg-transparent text-neutral-300 shadow-none dark:text-slate-700"
+                        ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                        : "border-border bg-card text-foreground hover:border-brand/50 hover:bg-brand/8",
+                      !row.under && "border-transparent bg-transparent text-muted-foreground/40 shadow-none"
                     )}
                   >
                     <span className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-1 px-2">
@@ -2074,18 +2322,20 @@ function MlbRightRail({
                 </div>
               );
             }) : (
-              <div className="rounded-md border border-dashed border-neutral-200 px-3 py-4 text-center text-xs text-neutral-500 dark:border-neutral-700/50 dark:text-slate-500">
+              <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
                 {isMarketClosed ? "Market closed. Live book prices are hidden after final." : "No live books attached to this selection."}
               </div>
             )}
           </div>
         </div>
       </MlbGlassPanel>
+      )}
 
+      {hasOddsContext && (
       <MlbGlassPanel className="shrink-0">
-        <div className="border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+        <div className="border-b border-border px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-900 dark:text-white">Line Movement</h3>
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Line Movement</h3>
             <button
               type="button"
               disabled={!canOpenLineHistory}
@@ -2093,8 +2343,8 @@ function MlbRightRail({
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] transition active:scale-[0.98]",
                 canOpenLineHistory
-                  ? "border-neutral-200/70 text-neutral-600 hover:border-sky-400/60 hover:bg-sky-50 hover:text-sky-700 dark:border-neutral-700/50 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:hover:text-sky-300"
-                  : "cursor-not-allowed border-neutral-200/40 text-neutral-300 dark:border-neutral-800 dark:text-slate-700"
+                  ? "border-border text-muted-foreground hover:border-brand/50 hover:bg-brand/10 hover:text-brand"
+                  : "cursor-not-allowed border-border/40 text-muted-foreground/40"
               )}
             >
               Full
@@ -2105,26 +2355,26 @@ function MlbRightRail({
         <div className="px-4 py-4">
           {isLineHistoryLoading ? (
             <div className="space-y-2">
-              <div className="rounded-lg border border-neutral-200/70 bg-neutral-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-neutral-700/35 dark:bg-neutral-800/45 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-                <div className="h-[150px] animate-pulse rounded-md bg-neutral-200/55 dark:bg-neutral-700/45" />
-                <div className="mt-3 flex items-center justify-between border-t border-neutral-200/60 pt-2 dark:border-neutral-700/35">
-                  <div className="h-3 w-28 animate-pulse rounded bg-neutral-200/70 dark:bg-neutral-700/55" />
-                  <div className="h-3 w-20 animate-pulse rounded bg-neutral-200/70 dark:bg-neutral-700/55" />
+              <div className="rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 p-3 dark:bg-neutral-800/30 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                <div className="h-[150px] animate-pulse rounded-md bg-neutral-100 dark:bg-neutral-800/60" />
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-2">
+                  <div className="h-3 w-28 animate-pulse rounded bg-neutral-100 dark:bg-neutral-800/70" />
+                  <div className="h-3 w-20 animate-pulse rounded bg-neutral-100 dark:bg-neutral-800/70" />
                 </div>
               </div>
             </div>
           ) : selectedHistoryBook ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2 border-b border-neutral-200/50 pb-2 dark:border-neutral-700/25">
+              <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:text-slate-500">
+                  <span className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                     Book
                   </span>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="group flex h-8 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-neutral-200/70 bg-white px-2.5 text-left text-xs font-bold text-neutral-800 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-100 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500 dark:data-[state=open]:border-sky-500"
+                        className="group flex h-8 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 text-left text-xs font-bold text-foreground shadow-sm outline-none transition hover:border-brand/50 hover:bg-brand/8 focus:border-brand focus:ring-2 focus:ring-brand/15 data-[state=open]:border-brand data-[state=open]:ring-2 data-[state=open]:ring-brand/15"
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           {selectedHistorySportsbook?.image?.light && (
@@ -2141,13 +2391,13 @@ function MlbRightRail({
                             </span>
                           )}
                         </span>
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-data-[state=open]:rotate-180 dark:text-slate-500" />
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition group-data-[state=open]:rotate-180" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="start"
                       onWheelCapture={(event) => event.stopPropagation()}
-                      className="max-h-72 min-w-[220px] overflow-y-auto overscroll-contain rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 scrollbar-hide dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                      className="max-h-72 min-w-[220px] overflow-y-auto overscroll-contain rounded-lg border border-border bg-card p-1.5 shadow-xl ring-0 scrollbar-hide"
                     >
                       {historyBookOptions.map((book) => {
                         const sb = getLineHistorySportsbook(book);
@@ -2158,14 +2408,14 @@ function MlbRightRail({
                             key={book.bookId}
                             onSelect={() => setSelectedHistoryBookId(book.bookId)}
                             className={cn(
-                              "flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs font-bold text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
-                              isSelected && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                              "flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs font-bold text-foreground/80 focus:bg-brand/10 focus:text-foreground",
+                              isSelected && "bg-brand/10 text-foreground"
                             )}
                           >
                             {sb?.image?.light ? (
                               <img src={sb.image.light} alt="" className="h-4 w-4 shrink-0 rounded object-contain" />
                             ) : (
-                              <span className="h-4 w-4 shrink-0 rounded bg-neutral-200 dark:bg-neutral-700" />
+                              <span className="h-4 w-4 shrink-0 rounded bg-neutral-100 dark:bg-neutral-800" />
                             )}
                             <span className="min-w-0 flex-1 truncate">{book.bookName}</span>
                             {isSharp && (
@@ -2173,7 +2423,7 @@ function MlbRightRail({
                                 Sharp
                               </span>
                             )}
-                            {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
+                            {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-brand" />}
                           </DropdownMenuItem>
                         );
                       })}
@@ -2185,16 +2435,16 @@ function MlbRightRail({
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="group inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200/70 bg-white px-2.5 font-mono text-[10px] font-bold tabular-nums text-neutral-600 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500"
+                        className="group inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 font-mono text-[10px] font-bold tabular-nums text-foreground/80 shadow-sm outline-none transition hover:border-brand/50 hover:bg-brand/8 focus:border-brand focus:ring-2 focus:ring-brand/15 data-[state=open]:border-brand data-[state=open]:ring-2 data-[state=open]:ring-brand/15"
                       >
                         {selectedLineOption}+
-                        <ChevronDown className="h-3 w-3 text-neutral-400 transition group-data-[state=open]:rotate-180 dark:text-slate-500" />
+                        <ChevronDown className="h-3 w-3 text-muted-foreground transition group-data-[state=open]:rotate-180" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
                       onWheelCapture={(event) => event.stopPropagation()}
-                      className="max-h-64 min-w-24 overflow-y-auto overscroll-contain rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 scrollbar-hide dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                      className="max-h-64 min-w-24 overflow-y-auto overscroll-contain rounded-lg border border-border bg-card p-1.5 shadow-xl ring-0 scrollbar-hide"
                     >
                       {lineOptions.map((line) => {
                         const isSelected = Math.abs(line - activeLine) < 0.01;
@@ -2203,12 +2453,12 @@ function MlbRightRail({
                             key={line}
                             onSelect={() => onLineChange(line)}
                             className={cn(
-                              "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold tabular-nums text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
-                              isSelected && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                              "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold tabular-nums text-foreground/80 focus:bg-brand/10 focus:text-foreground",
+                              isSelected && "bg-brand/10 text-foreground"
                             )}
                           >
                             {line}+
-                            {isSelected && <Check className="h-3.5 w-3.5 text-sky-500" />}
+                            {isSelected && <Check className="h-3.5 w-3.5 text-brand" />}
                           </DropdownMenuItem>
                         );
                       })}
@@ -2219,26 +2469,26 @@ function MlbRightRail({
                       <button
                         type="button"
                         aria-label={`Switch line movement side from ${lineHistorySide}`}
-                        className="group inline-flex h-8 w-9 items-center justify-center rounded-md border border-neutral-200/70 bg-white font-mono text-[11px] font-black uppercase text-neutral-600 shadow-sm outline-none transition hover:border-sky-400/50 hover:bg-sky-50/70 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15 data-[state=open]:border-sky-400 data-[state=open]:ring-2 data-[state=open]:ring-sky-400/15 dark:border-neutral-700/45 dark:bg-neutral-900/65 dark:text-slate-300 dark:hover:border-sky-500/45 dark:hover:bg-sky-500/10 dark:focus:border-sky-500"
+                        className="group inline-flex h-8 w-9 items-center justify-center rounded-md border border-border bg-card font-mono text-[11px] font-black uppercase text-foreground/80 shadow-sm outline-none transition hover:border-brand/50 hover:bg-brand/8 focus:border-brand focus:ring-2 focus:ring-brand/15 data-[state=open]:border-brand data-[state=open]:ring-2 data-[state=open]:ring-brand/15"
                       >
                         {lineHistorySide === "over" ? "O" : "U"}
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="min-w-24 rounded-lg border border-neutral-200/70 bg-white p-1.5 shadow-xl shadow-slate-950/10 ring-0 dark:border-neutral-700/50 dark:bg-[#0f1720] dark:shadow-black/30"
+                      className="min-w-24 rounded-lg border border-border bg-card p-1.5 shadow-xl ring-0"
                     >
                       {(["over", "under"] as const).map((side) => (
                         <DropdownMenuItem
                           key={side}
                           onSelect={() => onLineHistorySideChange(side)}
                           className={cn(
-                            "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.06em] text-neutral-700 focus:bg-sky-50 focus:text-neutral-950 dark:text-slate-300 dark:focus:bg-sky-500/10 dark:focus:text-white",
-                            side === lineHistorySide && "bg-sky-50 text-neutral-950 dark:bg-sky-500/10 dark:text-white"
+                            "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.06em] text-foreground/80 focus:bg-brand/10 focus:text-foreground",
+                            side === lineHistorySide && "bg-brand/10 text-foreground"
                           )}
                         >
                           <span><span className="font-black">{side === "over" ? "O" : "U"}</span> {side}</span>
-                          {side === lineHistorySide && <Check className="h-3.5 w-3.5 text-sky-500" />}
+                          {side === lineHistorySide && <Check className="h-3.5 w-3.5 text-brand" />}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
@@ -2256,7 +2506,7 @@ function MlbRightRail({
                   <EmptyMiniLineMovementChart message="No historical odds available for this book, side, and line yet." />
                 )}
               </div>
-              <p className="text-[10px] text-neutral-400 dark:text-slate-500">
+              <p className="text-[10px] text-muted-foreground">
                 {syncedHistoryEntries.length < 2
                   ? "Try another book, side, or line to view historical movement."
                   : isMarketClosed
@@ -2265,54 +2515,71 @@ function MlbRightRail({
                   ? `Synced to live Best Books price ${formatAmericanOdds(selectedHistoryLiveOffer.price)}`
                   : `Last updated ${formatLineHistoryTime(selectedHistoryBook.entries.at(-1)?.timestamp)}`}
               </p>
-              <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
+              <div className="border-t border-border pt-3">
                 <button
                   type="button"
                   disabled={isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)}
                   onClick={onToggleFavorite}
                   className={cn(
-                    "flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition active:scale-[0.99]",
+                    "group flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black tracking-tight transition active:scale-[0.99]",
                     isFavoriteSaved
-                      ? "border-sky-400/45 bg-sky-500/85 hover:bg-sky-500"
-                      : "border-emerald-400/40 bg-emerald-500/85 hover:bg-emerald-500",
+                      ? "border-brand/35 bg-brand/10 text-brand hover:bg-brand/15"
+                      : "border-brand/30 bg-gradient-to-b from-brand to-brand/85 text-on-primary shadow-md shadow-brand/30 hover:shadow-lg hover:shadow-brand/40 dark:shadow-brand/25 dark:hover:shadow-brand/35",
                     (isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)) && "cursor-not-allowed opacity-60"
                   )}
                 >
-                  {isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
-                    {isFavoriteSaved ? <Check className="h-3.5 w-3.5" /> : <IconPlus className="h-3.5 w-3.5" stroke={2.4} />}
-                  </span>
+                  {isFavoriteSaved ? (
+                    <Check className="h-4 w-4 shrink-0" strokeWidth={2.6} />
+                  ) : (
+                    <IconCirclePlus className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" stroke={2.2} />
+                  )}
+                  <span>{isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="rounded-md border border-dashed border-neutral-200 px-3 py-4 text-center text-xs leading-relaxed text-neutral-500 dark:border-neutral-700/50 dark:text-slate-500">
+              <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs leading-relaxed text-muted-foreground">
                 {lineHistoryError?.message || "Line movement will appear when historical odds are available for this book."}
               </div>
-              <div className="border-t border-neutral-200/60 pt-3 dark:border-neutral-700/35">
+              <div className="border-t border-border pt-3">
                 <button
                   type="button"
                   disabled={isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)}
                   onClick={onToggleFavorite}
                   className={cn(
-                    "flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition active:scale-[0.99]",
+                    "group flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black tracking-tight transition active:scale-[0.99]",
                     isFavoriteSaved
-                      ? "border-sky-400/45 bg-sky-500/85 hover:bg-sky-500"
-                      : "border-emerald-400/40 bg-emerald-500/85 hover:bg-emerald-500",
+                      ? "border-brand/35 bg-brand/10 text-brand hover:bg-brand/15"
+                      : "border-brand/30 bg-gradient-to-b from-brand to-brand/85 text-on-primary shadow-md shadow-brand/30 hover:shadow-lg hover:shadow-brand/40 dark:shadow-brand/25 dark:hover:shadow-brand/35",
                     (isFavoriteSaving || (!canSaveFavorite && isFavoriteLoggedIn)) && "cursor-not-allowed opacity-60"
                   )}
                 >
-                  {isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/50">
-                    {isFavoriteSaved ? <Check className="h-3.5 w-3.5" /> : <IconPlus className="h-3.5 w-3.5" stroke={2.4} />}
-                  </span>
+                  {isFavoriteSaved ? (
+                    <Check className="h-4 w-4 shrink-0" strokeWidth={2.6} />
+                  ) : (
+                    <IconCirclePlus className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" stroke={2.2} />
+                  )}
+                  <span>{isFavoriteSaved ? "Saved to Betslip" : "Add to Betslip"}</span>
                 </button>
               </div>
             </div>
           )}
         </div>
       </MlbGlassPanel>
+      )}
+      {!hasOddsContext && (
+        <MlbGlassPanel className="shrink-0">
+          <div className="border-b border-border px-4 py-3">
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Live Odds</h3>
+          </div>
+          <div className="px-4 py-5 text-center">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Odds aren&apos;t attached to this view. Open this player from <span className="font-semibold text-foreground/80">Prop Center</span>, <span className="font-semibold text-foreground/80">Edge Finder</span>, or <span className="font-semibold text-foreground/80">+EV</span> to see live books and line movement.
+            </p>
+          </div>
+        </MlbGlassPanel>
+      )}
     </aside>
   );
 }
@@ -2682,12 +2949,16 @@ export function PlayerQuickViewModal({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMarketDropdownOpen]);
 
-  // Update customLine when initial_line changes (e.g., clicking different player in edge finder)
+  // Reset customLine on every modal open so the caller's initial_line always wins
+  // over the user's last manual selection from a previous session.
   useEffect(() => {
+    if (!open) return;
     if (initial_line !== undefined && initial_line !== null) {
       setCustomLine(isMlb ? normalizeMlbOddsLine(initial_line) : initial_line);
+    } else {
+      setCustomLine(null);
     }
-  }, [initial_line, isMlb]);
+  }, [open, initial_line, isMlb]);
 
   const externalOddsMarket = initial_market || availableMarkets[0] || null;
   const canUseExternalOdds = !isMlb || !externalOddsMarket || currentMarket === externalOddsMarket;
@@ -3025,7 +3296,17 @@ export function PlayerQuickViewModal({
     }
   }, [activeTab, isMlb]);
 
+  // Reset modal-local state when the user switches markets *within* the modal.
+  // Skip the initial mount — otherwise it would wipe customLine that was just
+  // initialized from `initial_line`.
+  const lastResetMarketRef = useRef<string | null>(null);
   useEffect(() => {
+    if (lastResetMarketRef.current === null) {
+      lastResetMarketRef.current = selectedMarket;
+      return;
+    }
+    if (lastResetMarketRef.current === selectedMarket) return;
+    lastResetMarketRef.current = selectedMarket;
     setCustomLine(null);
     setIsEditingLine(false);
     setLineHistorySide("over");
@@ -3203,7 +3484,6 @@ export function PlayerQuickViewModal({
 
   // Display info - prefer profile data, then lookup data, then passed props
   const displayName = profile?.playerName || playerInfo?.name || player_name || "Unknown Player";
-  const displayTeam = profile?.teamAbbr || playerInfo?.team_abbr || "";
   const displayPosition = profile?.position || playerInfo?.depth_chart_pos || playerInfo?.position || "";
   const displayJersey = profile?.jerseyNumber || playerInfo?.jersey_number;
   const teamLogoSport = isMlb ? "mlb" : "nba";
@@ -3255,6 +3535,14 @@ export function PlayerQuickViewModal({
         : mlbScheduleGame.home_probable_pitcher
       : null)
     || (isMlb && !isMlbPitcher ? "TBD" : formatQuickViewGameStatus(nextGame?.gameStatus, nextGame?.gameDatetime));
+
+  const derivedPlayerTeam = useMemo(() => {
+    if (!mlbScheduleGame || !nextGame?.homeAway) return "";
+    return nextGame.homeAway === "H"
+      ? mlbScheduleGame.home_team_tricode
+      : mlbScheduleGame.away_team_tricode;
+  }, [mlbScheduleGame, nextGame?.homeAway]);
+  const displayTeam = profile?.teamAbbr || playerInfo?.team_abbr || derivedPlayerTeam || "";
   const lineHistoryContext = useMemo<LineHistoryContext | null>(() => {
     const contextEventId = event_id || profile?.eventId;
     const historyMarket = isMlb ? getMlbLineHistoryMarket(currentMarket) : currentMarket;
@@ -3505,6 +3793,19 @@ export function PlayerQuickViewModal({
     opposingPitcherId,
     open && isMlb && !isMlbPitcher && !!fullProfilePlayerId && !!opposingPitcherId
   );
+  const { pitcher: opposingPitcherProfile } = useMlbIndividualMatchup({
+    batterId: open && isMlb && !isMlbPitcher ? fullProfilePlayerId ?? null : null,
+    pitcherId: open && isMlb && !isMlbPitcher ? opposingPitcherId : null,
+    sample: "season",
+  });
+  const opposingPitcherHand = useMemo(() => {
+    if (!opposingPitcherId || !mlbSprayData?.events) return null;
+    const match = mlbSprayData.events.find((event) => Number(event.pitcher_id) === Number(opposingPitcherId) && event.pitcher_hand);
+    if (!match?.pitcher_hand) return null;
+    const upper = String(match.pitcher_hand).toUpperCase();
+    return upper === "L" || upper === "R" ? upper : null;
+  }, [mlbSprayData?.events, opposingPitcherId]);
+
   const battedBallPitchTypeOptions = useMemo(() => {
     const eventPitchRows = (mlbSprayData?.events ?? []).filter((event) => Boolean(event.pitch_type));
     const eventPitchTypes = Array.from(
@@ -3526,7 +3827,19 @@ export function PlayerQuickViewModal({
     });
 
     const usageByPitch = new Map<string, { label: string; usage: number | null }>();
-    if (eventPitchTypes.length > 0) {
+
+    // Prefer the pitcher's full arsenal (whole-season pitch mix from individual-matchup).
+    // Falls back to hot-zone usage, then BIP-derived counts from spray events.
+    const arsenalRows = opposingPitcherProfile?.arsenal ?? [];
+    if (arsenalRows.length > 0) {
+      arsenalRows.forEach((row) => {
+        if (!row.pitch_type) return;
+        usageByPitch.set(row.pitch_type, {
+          label: row.pitch_name || pitchNameByType.get(row.pitch_type) || MLB_PITCH_TYPE_LABELS[row.pitch_type] || row.pitch_type,
+          usage: normalizePitchUsagePct(row.usage_pct),
+        });
+      });
+    } else if (eventPitchTypes.length > 0) {
       const totalWithPitch = eventPitchRows.length;
       eventPitchTypes.forEach((pitchType) => {
         const count = eventPitchRows.filter((event) => event.pitch_type === pitchType).length;
@@ -3557,11 +3870,14 @@ export function PlayerQuickViewModal({
       { value: "all", label: "All Pitches" },
       ...pitchTypes.map((pitchType) => ({
         value: pitchType,
-        label: `${pitchType} · ${usageByPitch.get(pitchType)?.label ?? MLB_PITCH_TYPE_LABELS[pitchType] ?? pitchType}`,
-        detail: formatPitchUsagePct(usageByPitch.get(pitchType)?.usage),
+        label: usageByPitch.get(pitchType)?.label ?? MLB_PITCH_TYPE_LABELS[pitchType] ?? pitchType,
+        prefix: pitchType,
+        usagePct: usageByPitch.get(pitchType)?.usage ?? null,
       })),
     ];
-  }, [mlbHotZoneData?.pitchTypes, mlbSprayData?.events]);
+  }, [mlbHotZoneData?.pitchTypes, mlbSprayData?.events, opposingPitcherProfile?.arsenal]);
+
+  const usingFullPitcherMix = (opposingPitcherProfile?.arsenal?.length ?? 0) > 0;
   useEffect(() => {
     if (
       battedBallFilters.pitchTypeFilter !== "all" &&
@@ -3651,13 +3967,13 @@ export function PlayerQuickViewModal({
   }, [battedBallFilters.seasonFilter, filteredBattedBallEvents, isMlbPitcher, mlbSprayData?.zone_summary, profile?.battingHand]);
   const modalTabs = isMlb
     ? [
-        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
+        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
+        { id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true },
         { id: "splits" as const, label: "Splits", mobileLabel: "Splits", icon: Users, proOnly: false, disabled: true, soon: true },
         { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true, disabled: true, soon: true },
-        { id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true },
       ]
     : [
-        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: BarChart3, proOnly: false },
+        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
         { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
         { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
         { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
@@ -3681,7 +3997,7 @@ export function PlayerQuickViewModal({
     return (
       <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-[96vw] lg:max-w-[1420px] max-h-[94vh] overflow-hidden rounded-xl border border-neutral-200/50 bg-white p-0 text-neutral-950 shadow-2xl ring-1 ring-black/5 dark:border-neutral-700/40 dark:bg-[#050a0f] dark:text-slate-100 dark:ring-white/5">
+        <DialogContent className="w-full h-[100dvh] max-w-none rounded-none border-0 bg-background p-0 text-foreground shadow-2xl sm:h-auto sm:max-h-[94vh] sm:max-w-[96vw] sm:rounded-xl sm:border sm:border-border sm:ring-1 sm:ring-black/5 lg:max-w-[1420px] dark:sm:ring-white/5 overflow-hidden">
           {isLoading ? (
             <div className="px-6 py-24">
               <DialogTitle className="sr-only">Loading Player Profile</DialogTitle>
@@ -3689,15 +4005,15 @@ export function PlayerQuickViewModal({
             </div>
           ) : !hasData ? (
             <div className="px-6 py-24 text-center">
-              <DialogTitle className="text-lg font-semibold text-neutral-950 dark:text-white">Player Not Found</DialogTitle>
-              <p className="mt-2 text-sm text-neutral-500 dark:text-slate-400">Unable to load data for this player.</p>
+              <DialogTitle className="text-lg font-semibold text-foreground">Player Not Found</DialogTitle>
+              <p className="mt-2 text-sm text-muted-foreground">Unable to load data for this player.</p>
             </div>
           ) : (
-            <div className="flex h-[94vh] max-h-[94vh] flex-col overflow-hidden bg-neutral-50 dark:bg-[#050a0f]">
-              <div className="shrink-0 border-b border-neutral-200/50 bg-white px-4 py-3 dark:border-neutral-700/35 dark:bg-[#080f16] sm:px-6 lg:pr-12">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-                  <div className="flex min-w-0 items-start gap-4">
-                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-neutral-200/50 bg-neutral-100 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-background sm:h-[94vh] sm:max-h-[94vh]">
+              <div className="shrink-0 border-b border-border bg-card px-3 py-2.5 sm:px-6 sm:py-3 lg:pr-12">
+                <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+                  <div className="flex min-w-0 items-center gap-3 sm:items-start sm:gap-4">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border bg-neutral-100 dark:bg-neutral-800 shadow-sm sm:h-24 sm:w-24 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                       <PlayerHeadshot
                         nbaPlayerId={null}
                         mlbPlayerId={resolvedPlayerId ?? null}
@@ -3707,62 +4023,74 @@ export function PlayerQuickViewModal({
                         className="h-full w-full object-cover"
                       />
                     </div>
-                    <div className="min-w-0 pt-0.5">
-                      <DialogTitle className="truncate text-2xl font-black tracking-tight text-neutral-950 dark:text-white sm:text-3xl">
-                        {displayName}
-                      </DialogTitle>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium text-neutral-500 dark:text-slate-400">
-                        {displayTeam && <span>{displayTeam}</span>}
-                        {displayPosition && <><span className="text-neutral-300 dark:text-slate-600">•</span><span>{displayPosition}</span></>}
-                        {displayJersey && <><span className="text-neutral-300 dark:text-slate-600">•</span><span>#{displayJersey}</span></>}
+                    <div className="min-w-0 flex-1 sm:pt-0.5">
+                      <div className="flex min-w-0 items-baseline gap-1.5 sm:block">
+                        <DialogTitle className="truncate text-base font-black leading-tight tracking-tight text-foreground sm:text-3xl">
+                          {displayName}
+                        </DialogTitle>
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:hidden">
+                          {[displayTeam, displayPosition, displayJersey ? `#${displayJersey}` : null].filter(Boolean).join(" · ")}
+                        </span>
                       </div>
-                      {nextGame && (
-                        <div className="mt-2 inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1 text-xs text-neutral-600 dark:bg-emerald-400/[0.06] dark:text-slate-300">
-                          <span className="inline-flex items-center gap-1.5 font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-                            Next
-                          </span>
-                          {nextGame.opponentTeamAbbr && (
-                            <>
-                              <span className="text-neutral-300 dark:text-slate-600">{nextGame.homeAway === "H" ? "vs" : "@"}</span>
-                              <span className="inline-flex items-center gap-1.5">
-                                {nextGame.opponentTeamAbbr && (
-                                  <img
-                                    src={getTeamLogoUrl(nextGame.opponentTeamAbbr, "mlb")}
-                                    alt={nextGame.opponentTeamAbbr}
-                                    className="h-4 w-4 object-contain"
-                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
-                                  />
-                                )}
-                                {nextGame.opponentTeamAbbr}
+                      <div className="mt-0.5 hidden flex-wrap items-center gap-1.5 text-xs font-medium text-muted-foreground sm:mt-1 sm:flex sm:gap-2 sm:text-sm">
+                        {displayTeam && <span>{displayTeam}</span>}
+                        {displayPosition && <><span className="text-border">•</span><span>{displayPosition}</span></>}
+                        {displayJersey && <><span className="text-border">•</span><span>#{displayJersey}</span></>}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 sm:gap-2">
+                        {nextGame && (
+                          <div className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-border bg-neutral-50 py-0.5 pl-1 pr-2 text-[11px] text-foreground/85 dark:bg-neutral-800/40 sm:gap-2 sm:py-1 sm:pl-1.5 sm:pr-2.5 sm:text-xs">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-1.5 py-0.5 font-bold uppercase tracking-[0.08em] text-[9px] text-brand sm:px-2 sm:text-[10px]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+                              Next
+                            </span>
+                            {nextGame.opponentTeamAbbr && (
+                              <span className="inline-flex items-center gap-1 font-semibold sm:gap-1.5">
+                                <span className="text-foreground/55">{nextGame.homeAway === "H" ? "vs" : "@"}</span>
+                                <img
+                                  src={getTeamLogoUrl(nextGame.opponentTeamAbbr, "mlb")}
+                                  alt={nextGame.opponentTeamAbbr}
+                                  className="h-3.5 w-3.5 object-contain sm:h-4 sm:w-4"
+                                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                />
+                                <span>{nextGame.opponentTeamAbbr}</span>
                               </span>
-                            </>
-                          )}
-                          {nextGameDetail && (
-                            <>
-                              <span className="text-neutral-300 dark:text-slate-600">•</span>
-                              <span className="truncate">{nextGameDetail}</span>
-                            </>
-                          )}
-                        </div>
-                      )}
+                            )}
+                            {nextGameDetail && nextGameDetail !== "TBD" && (
+                              <span className="inline-flex items-center gap-1 truncate font-medium text-foreground/70">
+                                <span className="text-foreground/35">•</span>
+                                <span className="truncate">{nextGameDetail}</span>
+                                {opposingPitcherHand && (
+                                  <span className="font-mono text-[10px] font-bold text-foreground/55">({opposingPitcherHand})</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {isMlb && mlbScheduleGame?.weather && (
+                          <MlbWeatherChip weather={mlbScheduleGame.weather} />
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div>
                     {headerSeasonSummary && (
-                      <MlbSeasonStatsStrip summary={headerSeasonSummary} />
+                      <MlbSeasonStatsStrip
+                        summary={headerSeasonSummary}
+                        teamAccent={getReadableTeamAccent(profile?.primaryColor, profile?.secondaryColor)}
+                      />
                     )}
                   </div>
                 </div>
               </div>
 
-              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 scrollbar-hide sm:px-6 lg:overflow-hidden">
-                <div className="grid gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-24 scrollbar-hide sm:px-6 sm:pb-4 lg:overflow-hidden">
+                <div className="grid gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_360px] lg:pt-4">
                   <main className="min-w-0 lg:min-h-0">
                     <MlbGlassPanel className="overflow-visible lg:flex lg:h-full lg:min-h-0 lg:flex-col">
-                      <div className="flex flex-col gap-2 border-b border-neutral-200/50 px-2.5 py-2 dark:border-neutral-700/30 sm:gap-3 sm:px-3 sm:py-2.5 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex min-w-0 gap-5 overflow-x-auto scrollbar-hide sm:gap-7">
+                      <div className="sticky top-0 z-20 flex flex-col gap-2 rounded-t-lg border-b border-border bg-card px-3 py-2 sm:gap-3 sm:px-3 sm:py-2.5 lg:static lg:z-auto xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 gap-4 overflow-x-auto scrollbar-hide sm:gap-7">
                           {modalTabs.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -3774,18 +4102,18 @@ export function PlayerQuickViewModal({
                                 disabled={isDisabled}
                                 onClick={() => !isDisabled && setActiveTab(tab.id)}
                                 className={cn(
-                                  "relative flex h-10 shrink-0 items-center gap-1.5 text-xs font-semibold transition sm:h-11 sm:gap-2 sm:text-sm",
+                                  "relative flex h-12 shrink-0 items-center gap-1.5 text-xs font-semibold transition sm:h-11 sm:gap-2 sm:text-sm",
                                   isDisabled
-                                    ? "cursor-not-allowed text-neutral-400 dark:text-slate-600"
+                                    ? "cursor-not-allowed text-muted-foreground/50"
                                     : isActive
-                                      ? "text-neutral-950 dark:text-white"
-                                      : "text-neutral-500 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-200"
+                                      ? "text-foreground"
+                                      : "text-muted-foreground hover:text-foreground"
                                 )}
                               >
-                                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                <Icon className="h-4 w-4 sm:h-4 sm:w-4" />
                                 <span>{tab.id === "matchup" ? "Pitcher" : tab.id === "playstyle" ? "Batted Ball" : tab.label.replace("Game ", "")}</span>
-                                {"soon" in tab && tab.soon && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[9px] font-black text-neutral-500 dark:bg-slate-700 dark:text-slate-300">SOON</span>}
-                                {isActive && <span className="absolute bottom-[-9px] left-0 h-0.5 w-full rounded-full bg-sky-500 sm:bottom-[-11px]" />}
+                                {"soon" in tab && tab.soon && <span className="rounded bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">SOON</span>}
+                                {isActive && <span className="absolute bottom-[-9px] left-0 h-0.5 w-full rounded-full bg-brand sm:bottom-[-11px]" />}
                               </button>
                             );
                           })}
@@ -3796,16 +4124,16 @@ export function PlayerQuickViewModal({
                             <button
                               type="button"
                               onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
-                              className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50 sm:h-10 sm:px-3"
+                              className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/50 px-2.5 text-left shadow-sm transition hover:border-brand/60 active:scale-[0.99] dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:h-10 sm:px-3"
                             >
                               <span className="min-w-0">
-                                <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-neutral-500 dark:text-slate-500 sm:text-[9px]">Prop</span>
-                                <span className="mt-0.5 block truncate text-xs font-black leading-tight text-neutral-950 dark:text-white sm:text-sm">{formatMarketLabel(currentMarket)}</span>
+                                <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-muted-foreground sm:text-[9px]">Prop</span>
+                                <span className="mt-0.5 block truncate text-xs font-black leading-tight text-foreground sm:text-sm">{formatMarketLabel(currentMarket)}</span>
                               </span>
-                              <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isMarketDropdownOpen && "rotate-180")} />
+                              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isMarketDropdownOpen && "rotate-180")} />
                             </button>
                             {isMarketDropdownOpen && (
-                              <div className="absolute left-0 top-full z-50 mt-2 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1.5 shadow-2xl dark:border-neutral-700/50 dark:bg-[#080f16]">
+                              <div className="absolute left-0 top-full z-50 mt-2 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-2xl">
                                 {availableMarkets.map((m) => (
                                   <button
                                     key={m}
@@ -3817,7 +4145,7 @@ export function PlayerQuickViewModal({
                                     }}
                                     className={cn(
                                       "w-full rounded-md px-3 py-2 text-left text-sm font-bold transition",
-                                      m === currentMarket ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" : "text-neutral-700 hover:bg-neutral-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                      m === currentMarket ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "text-foreground/80 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground"
                                     )}
                                   >
                                     {formatMarketLabel(m)}
@@ -3831,19 +4159,19 @@ export function PlayerQuickViewModal({
                             <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
-                                className="flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 text-left shadow-sm transition hover:border-sky-300/70 active:scale-[0.99] dark:border-neutral-700/50 dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-sky-500/50 sm:h-10 sm:px-3"
+                                className="flex h-9 items-center justify-between gap-2 rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/50 px-2.5 text-left shadow-sm transition hover:border-brand/60 active:scale-[0.99] dark:bg-neutral-800/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:h-10 sm:px-3"
                               >
                                 <span className="min-w-0">
-                                  <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-neutral-500 dark:text-slate-500 sm:text-[9px]">Line</span>
-                                  <span className="mt-0.5 block text-xs font-black leading-tight text-neutral-950 dark:text-white sm:text-sm">{activeLine}+</span>
+                                  <span className="block text-[8px] font-bold uppercase leading-none tracking-wide text-muted-foreground sm:text-[9px]">Line</span>
+                                  <span className="mt-0.5 block text-xs font-black leading-tight text-foreground sm:text-sm">{activeLine}+</span>
                                 </span>
-                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
                               align="end"
                               onWheelCapture={(event) => event.stopPropagation()}
-                              className="z-[300] max-h-72 min-w-[160px] overflow-y-auto overscroll-contain rounded-lg border-neutral-200 bg-white p-1.5 shadow-2xl scrollbar-hide dark:border-neutral-700/50 dark:bg-[#080f16]"
+                              className="z-[300] max-h-72 min-w-[160px] overflow-y-auto overscroll-contain rounded-lg border border-border bg-card p-1.5 shadow-2xl scrollbar-hide"
                             >
                               {rightRailLineOptions.map((line) => {
                                 const isSelected = Math.abs(line - activeLine) < 0.01;
@@ -3857,8 +4185,8 @@ export function PlayerQuickViewModal({
                                     className={cn(
                                       "cursor-pointer rounded-md px-3 py-2 text-sm font-black tabular-nums",
                                       isSelected
-                                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                        : "text-neutral-700 hover:bg-neutral-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                        : "text-foreground/80 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground"
                                     )}
                                   >
                                     {line}+
@@ -3899,11 +4227,11 @@ export function PlayerQuickViewModal({
                         </MlbGlassPanel>
 
                         <MlbGlassPanel className="overflow-hidden">
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
                             <div>
-                              <h3 className="text-sm font-black text-neutral-950 dark:text-white">Recent Games <span className="font-medium text-neutral-500 dark:text-slate-400">({formatMarketLabel(currentMarket)})</span></h3>
+                              <h3 className="text-sm font-black text-foreground">Recent Games <span className="font-medium text-muted-foreground">({formatMarketLabel(currentMarket)})</span></h3>
                             </div>
-                            <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-slate-800 dark:bg-slate-950">
+                            <div className="flex rounded-md border border-border bg-neutral-50 dark:bg-neutral-800/50 p-0.5">
                               {[
                                 { label: "10", value: 10 as const },
                                 { label: "20", value: 20 as const },
@@ -3932,46 +4260,72 @@ export function PlayerQuickViewModal({
                                 profileGameLogs={profile?.gameLogs as any}
                               />
                             ) : (
-                              <div className="py-12 text-center text-sm text-neutral-500 dark:text-slate-400">No game data available for these filters</div>
+                              <div className="py-12 text-center text-sm text-muted-foreground">No game data available for these filters</div>
                             )}
                           </div>
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200/50 px-4 py-3 dark:border-neutral-700/30">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-wide text-neutral-400 dark:text-slate-500">Location</span>
-                              <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-slate-800 dark:bg-slate-950">
-                                {[
+                          <div className="border-t border-border px-3 py-2.5 sm:px-4 sm:py-3">
+                            {/* Mobile: compact dropdowns side by side */}
+                            <div className="flex items-center gap-2 sm:hidden">
+                              <MlbCompactSelect
+                                label="Loc"
+                                value={mlbHomeAwayFilter}
+                                options={[
                                   { label: "All", value: "all" as const },
                                   { label: "Home", value: "H" as const },
                                   { label: "Away", value: "A" as const },
-                                ].map((option) => (
-                                  <MlbFilterButton
-                                    key={option.value}
-                                    active={mlbHomeAwayFilter === option.value}
-                                    onClick={() => setMlbHomeAwayFilter(option.value)}
-                                  >
-                                    {option.label}
-                                  </MlbFilterButton>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-wide text-neutral-400 dark:text-slate-500">Time</span>
-                              <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-slate-800 dark:bg-slate-950">
-                                {[
+                                ]}
+                                onChange={(v) => setMlbHomeAwayFilter(v)}
+                              />
+                              <MlbCompactSelect
+                                label="Time"
+                                value={mlbDayNightFilter}
+                                options={[
                                   { label: "All", value: "all" as const },
-                                  { label: "Day", value: "D" as const },
-                                  { label: "Night", value: "N" as const },
-                                ].map((option) => (
-                                  <MlbFilterButton
-                                    key={option.value}
-                                    active={mlbDayNightFilter === option.value}
-                                    disabled={option.value !== "all" && !hasDayNightData}
-                                    title={option.value !== "all" && !hasDayNightData ? "Game start time is not available for this sample yet." : undefined}
-                                    onClick={() => setMlbDayNightFilter(option.value)}
-                                  >
-                                    {option.label}
-                                  </MlbFilterButton>
-                                ))}
+                                  { label: "Day", value: "D" as const, disabled: !hasDayNightData },
+                                  { label: "Night", value: "N" as const, disabled: !hasDayNightData },
+                                ]}
+                                onChange={(v) => setMlbDayNightFilter(v)}
+                              />
+                            </div>
+                            {/* Desktop: segmented controls */}
+                            <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">Location</span>
+                                <div className="flex rounded-md border border-border bg-neutral-50 dark:bg-neutral-800/50 p-0.5">
+                                  {[
+                                    { label: "All", value: "all" as const },
+                                    { label: "Home", value: "H" as const },
+                                    { label: "Away", value: "A" as const },
+                                  ].map((option) => (
+                                    <MlbFilterButton
+                                      key={option.value}
+                                      active={mlbHomeAwayFilter === option.value}
+                                      onClick={() => setMlbHomeAwayFilter(option.value)}
+                                    >
+                                      {option.label}
+                                    </MlbFilterButton>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">Time</span>
+                                <div className="flex rounded-md border border-border bg-neutral-50 dark:bg-neutral-800/50 p-0.5">
+                                  {[
+                                    { label: "All", value: "all" as const },
+                                    { label: "Day", value: "D" as const },
+                                    { label: "Night", value: "N" as const },
+                                  ].map((option) => (
+                                    <MlbFilterButton
+                                      key={option.value}
+                                      active={mlbDayNightFilter === option.value}
+                                      disabled={option.value !== "all" && !hasDayNightData}
+                                      title={option.value !== "all" && !hasDayNightData ? "Game start time is not available for this sample yet." : undefined}
+                                      onClick={() => setMlbDayNightFilter(option.value)}
+                                    >
+                                      {option.label}
+                                    </MlbFilterButton>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -3984,6 +4338,7 @@ export function PlayerQuickViewModal({
                             market={currentMarket}
                             currentLine={activeLine}
                             prefetchedGames={filteredGames}
+                            variant="modal"
                           />
                         )}
                       </>
@@ -3999,6 +4354,7 @@ export function PlayerQuickViewModal({
                           opposingPitcherName={!isMlbPitcher && nextGameDetail !== "TBD" ? nextGameDetail : null}
                           playerType={battedBallPlayerType}
                           pitchMixContextName={isMlbPitcher ? displayName : null}
+                          pitchMixIsFullArsenal={usingFullPitcherMix}
                         />
 
                         <MlbGlassPanel className="grid grid-cols-2 overflow-hidden md:grid-cols-4">
@@ -4738,13 +5094,14 @@ export function PlayerQuickViewModal({
 
                   {/* Box Score Table */}
                   {fullProfilePlayerId && (
-                    <div className="overflow-x-auto rounded-xl border border-neutral-200/60 dark:border-neutral-700/60">
+                    <div className="overflow-x-auto">
                       <BoxScoreTable
                         sport={sport}
                         playerId={fullProfilePlayerId}
                         market={currentMarket}
                         currentLine={activeLine}
                         prefetchedGames={isMlb ? mlbSeasonGames : undefined}
+                        variant="modal"
                       />
                     </div>
                   )}

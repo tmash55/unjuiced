@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useId, useMemo, useState } from "react";
-import { Check, ChevronDown, Cloud, CloudRain, CloudSun, MapPin, Navigation, RotateCcw, Sun, Thermometer, Wind, Zap } from "lucide-react";
+import { Check, ChevronDown, Cloud, CloudRain, CloudSun, MapPin, Navigation2, RotateCcw, Sun, Thermometer, Wind, Zap } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
@@ -1541,7 +1541,7 @@ export function MlbSprayChart({
                 {shouldShowWindMarker && (
                   <div className="pointer-events-none absolute bottom-2 left-1 flex items-center gap-2 rounded-lg border border-neutral-200/70 bg-white/85 px-2 py-1.5 text-[10px] font-black shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-950/70 dark:shadow-black/25">
                     <span className={cn("flex h-6 w-6 items-center justify-center rounded-md border border-current/25 bg-current/10", getWindTextToneClass(weather?.wind_impact))}>
-                      <Navigation
+                      <Navigation2
                         className="h-3.5 w-3.5 text-current"
                         style={{
                           transform: windRelativeDeg !== null ? `rotate(${windRelativeDeg}deg)` : undefined,

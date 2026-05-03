@@ -38,6 +38,7 @@ import Chart from "@/icons/chart";
 import { SegmentedControl, FilterGroup, FilterDivider, FilterSearch, FilterCount, DateNav } from "@/components/cheat-sheet/sheet-filter-bar";
 import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
 import { useMlbGames } from "@/hooks/use-mlb-games";
+import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ function SortIcon({ field, currentField, direction }: { field: SortField; curren
 // ── Mobile Card ──────────────────────────────────────────────────────────────
 
 function MobileEvCard({ leader, rank }: { leader: ExitVeloLeader; rank: number }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 overflow-hidden">
       <div className="flex items-center gap-3 p-3 border-b border-neutral-100 dark:border-neutral-800/50">
@@ -256,7 +258,13 @@ function MobileEvCard({ leader, rank }: { leader: ExitVeloLeader; rank: number }
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="font-bold text-sm text-neutral-900 dark:text-white truncate">{leader.player_name}</span>
+            <button
+              type="button"
+              onClick={() => openQuickView({ mlb_player_id: leader.player_id, player_name: leader.player_name, initial_market: "player_hits" })}
+              className="font-bold text-sm text-neutral-900 dark:text-white truncate text-left transition-colors hover:text-brand hover:underline"
+            >
+              {leader.player_name}
+            </button>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
             <img src={`/team-logos/mlb/${leader.team_abbr.toUpperCase()}.svg`} alt={leader.team_abbr} className="h-3.5 w-3.5 object-contain" />
@@ -342,6 +350,7 @@ function MobileEvCard({ leader, rank }: { leader: ExitVeloLeader; rank: number }
           <span className="text-amber-500">GB {leader.ground_ball_pct.toFixed(0)}%</span>
         </div>
       </div>
+      {quickViewElement}
     </div>
   );
 }
@@ -902,6 +911,7 @@ function EvScatterPlot({
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function MlbExitVelocity() {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -1575,7 +1585,13 @@ export function MlbExitVelocity() {
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">{leader.player_name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: leader.player_id, player_name: leader.player_name, initial_market: "player_hits" }); }}
+                                    className="font-bold text-sm text-neutral-900 dark:text-white leading-tight text-left transition-colors hover:text-brand hover:underline"
+                                  >
+                                    {leader.player_name}
+                                  </button>
                                   <span className="text-[10px] font-semibold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">
                                     {leader.batting_hand === "L" ? "LHB" : leader.batting_hand === "S" ? "SHB" : "RHB"}
                                   </span>
@@ -1799,6 +1815,7 @@ export function MlbExitVelocity() {
           </div>
         )}
       </div>
+      {quickViewElement}
     </div>
   );
 }

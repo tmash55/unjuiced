@@ -25,6 +25,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
+import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
 
 // ── Row Color System (Bettor Perspective) ───────────────────────────────────
 
@@ -486,6 +487,7 @@ function GameHeaderBar({ game, gameTime }: { game: GameInfo; gameTime: string })
 // ── Pitcher Header (compact, for matchup card) ──────────────────────────────
 
 function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherData; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const h = pitcher.headline;
   const handLabel = pitcher.hand ? `${pitcher.hand}HP` : "SP";
   const recordLabel = h.wins != null && h.losses != null
@@ -520,7 +522,13 @@ function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">{pitcher.name}</span>
+          <button
+            type="button"
+            onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+            className="truncate text-left text-sm font-bold text-neutral-900 dark:text-white transition-colors hover:text-brand hover:underline"
+          >
+            {pitcher.name}
+          </button>
           <span className={cn(
             "text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none",
             pitcher.hand === "L"
@@ -606,6 +614,7 @@ function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: {
           </span>
         </div>
       </div>
+      {quickViewElement}
     </div>
   );
 }
@@ -811,6 +820,7 @@ function BatterLineupTable({
   battingSide: "home" | "away";
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
 }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const applyState = useStateLink();
 
   // Lazy-load rich matchup data when a batter is expanded
@@ -903,7 +913,13 @@ function BatterLineupTable({
                           alt={b.player_name}
                           className="w-6 h-6 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
                         />
-                        <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate max-w-[100px]">
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); } }}
+                          className="cursor-pointer text-xs font-semibold text-neutral-900 dark:text-white truncate max-w-[100px] transition-colors hover:text-brand hover:underline"
+                        >
                           {isMobile ? lastNameOnly(b.player_name) : b.player_name}
                         </span>
                         <span className={cn(
@@ -1072,6 +1088,7 @@ function BatterLineupTable({
           })}
         </tbody>
       </table>
+      {quickViewElement}
     </div>
   );
 }

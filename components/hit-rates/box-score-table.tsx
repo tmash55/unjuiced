@@ -14,6 +14,7 @@ interface BoxScoreTableProps {
   currentLine?: number | null;
   season?: string;
   className?: string;
+  variant?: "default" | "modal";
   // Optional pre-fetched data to avoid duplicate API calls
   prefetchedGames?: BoxScoreGame[];
   prefetchedSeasonSummary?: SeasonSummary | null;
@@ -159,12 +160,81 @@ export function BoxScoreTable({
   currentLine,
   season,
   className,
+  variant = "default",
   prefetchedGames,
   prefetchedSeasonSummary,
 }: BoxScoreTableProps) {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const isMlb = sport === "mlb";
+  const isModal = variant === "modal";
+
+  const wrapperClass = isModal
+    ? "rounded-lg border border-border bg-card shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] overflow-hidden"
+    : "rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5";
+  const headerWrapperClass = isModal
+    ? "border-b border-border px-4 py-3"
+    : "relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60";
+  const accentBarClass = isModal
+    ? "h-7 w-1 rounded-full bg-brand"
+    : "h-10 w-1.5 rounded-full bg-gradient-to-b from-sky-500 to-blue-600 shadow-sm shadow-sky-500/30";
+  const titleClass = isModal
+    ? "text-sm font-black text-foreground tracking-tight"
+    : "text-lg font-bold text-neutral-900 dark:text-white tracking-tight";
+  const pillClass = isModal
+    ? "px-2 py-0.5 rounded-md bg-brand/10 text-brand text-[10px] font-bold tabular-nums"
+    : "px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-bold";
+  const subtitleClass = isModal
+    ? "text-[11px] text-muted-foreground font-medium"
+    : "text-xs text-neutral-500 dark:text-neutral-400 font-medium";
+  const theadClass = isModal
+    ? "sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm"
+    : "sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm";
+  const thBaseClass = isModal
+    ? "px-2 py-2.5 text-center font-black text-muted-foreground uppercase text-[10px] tracking-wide"
+    : "px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide";
+  const thBaseLeftClass = isModal
+    ? "px-3 py-2.5 text-left font-black text-muted-foreground uppercase text-[10px] tracking-wide"
+    : "px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide";
+  const thSortableHoverClass = isModal
+    ? "cursor-pointer hover:text-foreground"
+    : "cursor-pointer hover:text-neutral-800 dark:hover:text-white";
+  const tdMutedClass = isModal
+    ? "px-2 py-2 text-center text-foreground/80"
+    : "px-2 py-2 text-center text-neutral-700 dark:text-neutral-300";
+  const tdMutedTabularClass = isModal
+    ? "px-2 py-2 text-center text-foreground/80 tabular-nums"
+    : "px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums";
+  const rowAltClass = isModal
+    ? "bg-white dark:bg-neutral-900/40"
+    : "bg-white dark:bg-neutral-800";
+  const rowAltAltClass = isModal
+    ? "bg-neutral-50/50 dark:bg-neutral-800/30"
+    : "bg-neutral-50/70 dark:bg-neutral-800/70";
+  const rowDividerClass = isModal
+    ? "border-b border-border/60"
+    : "border-b border-neutral-100 dark:border-neutral-700/50";
+  const rowHoverClass = isModal
+    ? "hover:bg-brand/8"
+    : "hover:bg-blue-50/50 dark:hover:bg-blue-900/10";
+  const tfootClass = isModal
+    ? "sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-800/80 border-t border-border"
+    : "sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-700 border-t-2 border-neutral-300 dark:border-neutral-500";
+  const tfootStatClass = isModal
+    ? "px-2 py-2.5 text-center text-foreground/80"
+    : "px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200";
+  const tfootMutedClass = isModal
+    ? "px-2 py-2.5 text-center text-muted-foreground"
+    : "px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500";
+  const tfootHighlightClass = isModal
+    ? "px-2 py-2.5 text-center text-foreground font-black"
+    : "px-2 py-2.5 text-center text-neutral-900 dark:text-white";
+  const tfootLabelClass = isModal
+    ? "px-3 py-2.5 text-left text-foreground"
+    : "px-3 py-2.5 text-left text-neutral-700 dark:text-neutral-200";
+  const headerGradientOverlay = isModal ? null : (
+    <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
+  );
 
   // Only fetch if we don't have prefetched data
   const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
@@ -441,11 +511,11 @@ export function BoxScoreTable({
 
   if (isLoading) {
     return (
-      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      <div className={cn(wrapperClass, className)}>
         <div className="flex items-center justify-center h-48">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 border-2 border-sky-200 border-t-sky-500 rounded-full animate-spin" />
-            <span className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Loading box scores...</span>
+            <div className={cn("h-8 w-8 rounded-full animate-spin border-2", isModal ? "border-border border-t-brand" : "border-sky-200 border-t-sky-500")} />
+            <span className={cn("text-sm font-medium", isModal ? "text-muted-foreground" : "text-neutral-500 dark:text-neutral-400")}>Loading box scores...</span>
           </div>
         </div>
       </div>
@@ -454,7 +524,7 @@ export function BoxScoreTable({
 
   if (error) {
     return (
-      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      <div className={cn(wrapperClass, "p-6", className)}>
         <p className="text-sm text-red-500 font-medium">Failed to load box scores</p>
       </div>
     );
@@ -462,8 +532,8 @@ export function BoxScoreTable({
 
   if (games.length === 0) {
     return (
-      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">No box score data available</p>
+      <div className={cn(wrapperClass, "p-6", className)}>
+        <p className={cn("text-sm font-medium", isModal ? "text-muted-foreground" : "text-neutral-500 dark:text-neutral-400")}>No box score data available</p>
       </div>
     );
   }
@@ -471,20 +541,20 @@ export function BoxScoreTable({
   if (isMlb) {
     const isPitcherMarket = isMlbPitcherMarket(market);
     return (
-      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      <div className={cn(wrapperClass, className)}>
         <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
-          <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          {headerGradientOverlay}
+          <div className={headerWrapperClass}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-sky-500 to-blue-600 shadow-sm shadow-sky-500/30" />
+              <div className={accentBarClass} />
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">Game Log</h2>
-                  <span className="px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-bold">
+                  <h2 className={titleClass}>Game Log</h2>
+                  <span className={pillClass}>
                     {games.length} games
                   </span>
                 </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                <p className={subtitleClass}>
                   MLB historical game logs
                 </p>
               </div>
@@ -495,24 +565,24 @@ export function BoxScoreTable({
         <div className="overflow-x-auto">
           <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+              <thead className={theadClass}>
                 <tr>
                   <th
-                    className="px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                    className={cn(thBaseLeftClass, thSortableHoverClass)}
                     onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center gap-1">
                       DATE <SortIcon field="date" />
                     </div>
                   </th>
-                  <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  <th className={thBaseClass}>
                     OPP
                   </th>
-                  <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  <th className={thBaseClass}>
                     RESULT
                   </th>
                   <th
-                    className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                    className={cn(thBaseClass, thSortableHoverClass)}
                     onClick={() => handleSort("marketStat")}
                   >
                     <div className="flex items-center justify-center gap-1">
@@ -522,7 +592,7 @@ export function BoxScoreTable({
                   {isPitcherMarket ? (
                     <>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("innings")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -530,7 +600,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("outs")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -538,7 +608,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("strikeouts")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -546,7 +616,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("hitsAllowed")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -554,7 +624,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("earnedRuns")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -562,7 +632,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("walks")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -570,35 +640,35 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("whip")}
                       >
                         <div className="flex items-center justify-center gap-1">
                           WHIP <SortIcon field="whip" />
                         </div>
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      <th className={thBaseClass}>
                         ERA
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      <th className={thBaseClass}>
                         K-BB
                       </th>
                     </>
                   ) : (
                     <>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("plateAppearances")}
                       >
                         <div className="flex items-center justify-center gap-1">
                           PA <SortIcon field="plateAppearances" />
                         </div>
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      <th className={thBaseClass}>
                         AB
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("hits")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -606,18 +676,18 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("homeRuns")}
                       >
                         <div className="flex items-center justify-center gap-1">
                           HR <SortIcon field="homeRuns" />
                         </div>
                       </th>
-                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      <th className={thBaseClass}>
                         R
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("rbi")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -625,7 +695,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("totalBases")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -633,7 +703,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("walks")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -641,7 +711,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("strikeouts")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -649,7 +719,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("battingAvg")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -657,7 +727,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("obp")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -665,7 +735,7 @@ export function BoxScoreTable({
                         </div>
                       </th>
                       <th
-                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("slg")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -684,61 +754,61 @@ export function BoxScoreTable({
                     <tr
                       key={game.gameId}
                       className={cn(
-                        "transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 border-b border-neutral-100 dark:border-neutral-700/50",
-                        idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/70 dark:bg-neutral-800/70"
+                        "transition-colors", rowHoverClass, rowDividerClass,
+                        idx % 2 === 0 ? rowAltClass : rowAltAltClass
                       )}
                     >
                       <td className="px-3 py-2 whitespace-nowrap">
-                        <span className="font-medium text-neutral-700 dark:text-neutral-200">{formatGameDate(game.date)}</span>
+                        <span className={cn("font-medium", isModal ? "text-foreground" : "text-neutral-700 dark:text-neutral-200")}>{formatGameDate(game.date)}</span>
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-neutral-400 text-[10px]">{game.homeAway === "H" ? "vs" : "@"}</span>
+                          <span className={cn("text-[10px]", isModal ? "text-muted-foreground" : "text-neutral-400")}>{game.homeAway === "H" ? "vs" : "@"}</span>
                           <img
                             src={getTeamLogoUrl(game.opponentAbbr, "mlb")}
                             alt={game.opponentAbbr}
                             className="w-4 h-4 object-contain"
                           />
-                          <span className="font-medium text-neutral-700 dark:text-neutral-300 text-[10px]">{game.opponentAbbr}</span>
+                          <span className={cn("font-medium text-[10px]", isModal ? "text-foreground/80" : "text-neutral-700 dark:text-neutral-300")}>{game.opponentAbbr}</span>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-center whitespace-nowrap">
                         <span className={cn("font-bold", game.result === "W" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
                           {game.result}
                         </span>
-                        <span className="text-neutral-500 dark:text-neutral-400 ml-1 text-[10px]">{game.teamScore}-{game.opponentScore}</span>
+                        <span className={cn("ml-1 text-[10px]", isModal ? "text-muted-foreground" : "text-neutral-500 dark:text-neutral-400")}>{game.teamScore}-{game.opponentScore}</span>
                       </td>
-                      <td className={cn("px-2 py-2 text-center font-bold", isOverLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white")}>
+                      <td className={cn("px-2 py-2 text-center font-bold", isOverLine ? "text-emerald-600 dark:text-emerald-400" : isModal ? "text-foreground" : "text-neutral-900 dark:text-white")}>
                         {marketStat}
                       </td>
                       {isPitcherMarket ? (
                         <>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{formatInningsPitched(game.mlbInningsPitched)}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{getPitcherOuts(game)}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbPitcherStrikeouts ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHitsAllowed ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbEarnedRuns ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWhipGame?.toFixed(2) ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbEraGame?.toFixed(2) ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">
+                          <td className={tdMutedClass}>{formatInningsPitched(game.mlbInningsPitched)}</td>
+                          <td className={tdMutedClass}>{getPitcherOuts(game)}</td>
+                          <td className={tdMutedClass}>{game.mlbPitcherStrikeouts ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbHitsAllowed ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbEarnedRuns ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbWalks ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbWhipGame?.toFixed(2) ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbEraGame?.toFixed(2) ?? "-"}</td>
+                          <td className={tdMutedClass}>
                             {game.mlbPitcherStrikeouts != null && game.mlbWalks != null ? game.mlbPitcherStrikeouts - game.mlbWalks : "-"}
                           </td>
                         </>
                       ) : (
                         <>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbPlateAppearances ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbAtBats ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHits ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHomeRuns ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRunsScored ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRbi ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbTotalBases ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbStrikeOuts ?? "-"}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbBattingAvg(game))}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbObp(game))}</td>
-                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300 tabular-nums">{formatMlbRate(getMlbSlg(game))}</td>
+                          <td className={tdMutedClass}>{game.mlbPlateAppearances ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbAtBats ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbHits ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbHomeRuns ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbRunsScored ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbRbi ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbTotalBases ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbWalks ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbStrikeOuts ?? "-"}</td>
+                          <td className={tdMutedTabularClass}>{formatMlbRate(getMlbBattingAvg(game))}</td>
+                          <td className={tdMutedTabularClass}>{formatMlbRate(getMlbObp(game))}</td>
+                          <td className={tdMutedTabularClass}>{formatMlbRate(getMlbSlg(game))}</td>
                         </>
                       )}
                     </tr>
@@ -746,38 +816,38 @@ export function BoxScoreTable({
                 })}
               </tbody>
               {mlbAverages && (
-                <tfoot className="sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-700 border-t-2 border-neutral-300 dark:border-neutral-500">
+                <tfoot className={tfootClass}>
                   <tr className="font-bold">
-                    <td className="px-3 py-2.5 text-left text-neutral-700 dark:text-neutral-200">AVERAGES</td>
-                    <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">—</td>
-                    <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">—</td>
-                    <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">{mlbAverages.marketStat}</td>
+                    <td className={tfootLabelClass}>AVERAGES</td>
+                    <td className={tfootMutedClass}>—</td>
+                    <td className={tfootMutedClass}>—</td>
+                    <td className={tfootHighlightClass}>{mlbAverages.marketStat}</td>
                     {isPitcherMarket ? (
                       <>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.innings}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.outs}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.strikeouts}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.hitsAllowed}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.earnedRuns}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.whip}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.era}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.kMinusBb}</td>
+                        <td className={tfootStatClass}>{mlbAverages.innings}</td>
+                        <td className={tfootStatClass}>{mlbAverages.outs}</td>
+                        <td className={tfootStatClass}>{mlbAverages.strikeouts}</td>
+                        <td className={tfootStatClass}>{mlbAverages.hitsAllowed}</td>
+                        <td className={tfootStatClass}>{mlbAverages.earnedRuns}</td>
+                        <td className={tfootStatClass}>{mlbAverages.walks}</td>
+                        <td className={tfootStatClass}>{mlbAverages.whip}</td>
+                        <td className={tfootStatClass}>{mlbAverages.era}</td>
+                        <td className={tfootStatClass}>{mlbAverages.kMinusBb}</td>
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.hits}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.homeRuns}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.runs}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.rbi}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.totalBases}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.batterStrikeouts}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.battingAvg}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.obp}</td>
-                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.slg}</td>
+                        <td className={tfootStatClass}>—</td>
+                        <td className={tfootStatClass}>—</td>
+                        <td className={tfootStatClass}>{mlbAverages.hits}</td>
+                        <td className={tfootStatClass}>{mlbAverages.homeRuns}</td>
+                        <td className={tfootStatClass}>{mlbAverages.runs}</td>
+                        <td className={tfootStatClass}>{mlbAverages.rbi}</td>
+                        <td className={tfootStatClass}>{mlbAverages.totalBases}</td>
+                        <td className={tfootStatClass}>{mlbAverages.walks}</td>
+                        <td className={tfootStatClass}>{mlbAverages.batterStrikeouts}</td>
+                        <td className={tfootStatClass}>{mlbAverages.battingAvg}</td>
+                        <td className={tfootStatClass}>{mlbAverages.obp}</td>
+                        <td className={tfootStatClass}>{mlbAverages.slg}</td>
                       </>
                     )}
                   </tr>
@@ -791,24 +861,23 @@ export function BoxScoreTable({
   }
 
   return (
-    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
-      {/* Header - Premium Design */}
+    <div className={cn(wrapperClass, className)}>
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
-        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+        {headerGradientOverlay}
+        <div className={headerWrapperClass}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-sky-500 to-blue-600 shadow-sm shadow-sky-500/30" />
+              <div className={accentBarClass} />
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                  <h2 className={titleClass}>
                     Game Log
                   </h2>
-                  <span className="px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-bold">
+                  <span className={pillClass}>
                     {games.length} games
                   </span>
                 </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                <p className={subtitleClass}>
                   Full season box scores
                   {seasonSummary && <span className="ml-2">· {seasonSummary.record}</span>}
                 </p>
@@ -818,28 +887,27 @@ export function BoxScoreTable({
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
           <table className="min-w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+            <thead className={theadClass}>
               <tr>
                 <th 
-                  className="px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseLeftClass, thSortableHoverClass)}
                   onClick={() => handleSort("date")}
                 >
                   <div className="flex items-center gap-1">
                     DATE <SortIcon field="date" />
                   </div>
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   OPP
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   RESULT
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("minutes")}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -847,24 +915,24 @@ export function BoxScoreTable({
                   </div>
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("pts")}
                 >
                   <div className="flex items-center justify-center gap-1">
                     PTS <SortIcon field="pts" />
                   </div>
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   FG
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   3PT
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   FT
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("reb")}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -872,18 +940,18 @@ export function BoxScoreTable({
                   </div>
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("ast")}
                 >
                   <div className="flex items-center justify-center gap-1">
                     AST <SortIcon field="ast" />
                   </div>
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   TO
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("stl")}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -891,24 +959,24 @@ export function BoxScoreTable({
                   </div>
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("blk")}
                 >
                   <div className="flex items-center justify-center gap-1">
                     BLK <SortIcon field="blk" />
                   </div>
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   OREB
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   DREB
                 </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                <th className={thBaseClass}>
                   PF
                 </th>
                 <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  className={cn(thBaseClass, thSortableHoverClass)}
                   onClick={() => handleSort("plusMinus")}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -926,13 +994,13 @@ export function BoxScoreTable({
                   <tr 
                     key={game.gameId}
                     className={cn(
-                      "transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 border-b border-neutral-100 dark:border-neutral-700/50",
-                      idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/70 dark:bg-neutral-800/70"
+                      "transition-colors", rowHoverClass, rowDividerClass,
+                      idx % 2 === 0 ? rowAltClass : rowAltAltClass
                     )}
                   >
                     {/* Date - Day + Date format */}
                     <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="font-medium text-neutral-700 dark:text-neutral-200">
+                      <span className={cn("font-medium", isModal ? "text-foreground" : "text-neutral-700 dark:text-neutral-200")}>
                         {formatGameDate(game.date)}
                       </span>
                     </td>
@@ -940,7 +1008,7 @@ export function BoxScoreTable({
                     {/* Opponent */}
                     <td className="px-2 py-2">
                       <div className="flex items-center justify-center gap-1">
-                        <span className="text-neutral-400 text-[10px]">
+                        <span className={cn("text-[10px]", isModal ? "text-muted-foreground" : "text-neutral-400")}>
                           {game.homeAway === "H" ? "vs" : "@"}
                         </span>
                         <img
@@ -948,7 +1016,7 @@ export function BoxScoreTable({
                           alt={game.opponentAbbr}
                           className="w-4 h-4 object-contain"
                         />
-                        <span className="font-medium text-neutral-700 dark:text-neutral-300 text-[10px]">
+                        <span className={cn("font-medium text-[10px]", isModal ? "text-foreground/80" : "text-neutral-700 dark:text-neutral-300")}>
                           {game.opponentAbbr}
                         </span>
                       </div>
@@ -962,13 +1030,13 @@ export function BoxScoreTable({
                       )}>
                         {game.result}
                       </span>
-                      <span className="text-neutral-500 dark:text-neutral-400 ml-1 text-[10px]">
+                      <span className={cn("ml-1 text-[10px]", isModal ? "text-muted-foreground" : "text-neutral-500 dark:text-neutral-400")}>
                         {game.teamScore}-{game.opponentScore}
                       </span>
                     </td>
 
                     {/* Minutes */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.minutes?.toFixed(0) ?? "—"}
                     </td>
 
@@ -976,24 +1044,24 @@ export function BoxScoreTable({
                     <td className={cn(
                       "px-2 py-2 text-center font-bold",
                       market === "player_points" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400" 
-                        : "text-neutral-900 dark:text-white"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : isModal ? "text-foreground" : "text-neutral-900 dark:text-white"
                     )}>
                       {game.pts}
                     </td>
 
                     {/* FG */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.fgm}-{game.fga}
                     </td>
 
                     {/* 3PT */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.fg3m}-{game.fg3a}
                     </td>
 
                     {/* FT */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.ftm}-{game.fta}
                     </td>
 
@@ -1001,8 +1069,8 @@ export function BoxScoreTable({
                     <td className={cn(
                       "px-2 py-2 text-center font-medium",
                       market === "player_rebounds" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400" 
-                        : "text-neutral-900 dark:text-white"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : isModal ? "text-foreground" : "text-neutral-900 dark:text-white"
                     )}>
                       {game.reb}
                     </td>
@@ -1011,14 +1079,14 @@ export function BoxScoreTable({
                     <td className={cn(
                       "px-2 py-2 text-center font-medium",
                       market === "player_assists" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400" 
-                        : "text-neutral-900 dark:text-white"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : isModal ? "text-foreground" : "text-neutral-900 dark:text-white"
                     )}>
                       {game.ast}
                     </td>
 
                     {/* Turnovers */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.tov ?? 0}
                     </td>
 
@@ -1026,8 +1094,8 @@ export function BoxScoreTable({
                     <td className={cn(
                       "px-2 py-2 text-center",
                       market === "player_steals" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
-                        : "text-neutral-600 dark:text-neutral-300"
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : isModal ? "text-foreground/80" : "text-neutral-600 dark:text-neutral-300"
                     )}>
                       {game.stl}
                     </td>
@@ -1036,24 +1104,24 @@ export function BoxScoreTable({
                     <td className={cn(
                       "px-2 py-2 text-center",
                       market === "player_blocks" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
-                        : "text-neutral-600 dark:text-neutral-300"
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : isModal ? "text-foreground/80" : "text-neutral-600 dark:text-neutral-300"
                     )}>
                       {game.blk}
                     </td>
 
                     {/* Offensive Rebounds */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.oreb ?? 0}
                     </td>
 
                     {/* Defensive Rebounds */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.dreb ?? 0}
                     </td>
 
                     {/* Personal Fouls */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                    <td className={isModal ? "px-2 py-2 text-center text-foreground/80" : "px-2 py-2 text-center text-neutral-600 dark:text-neutral-300"}>
                       {game.fouls ?? 0}
                     </td>
 
@@ -1062,7 +1130,7 @@ export function BoxScoreTable({
                       "px-2 py-2 text-center font-medium",
                       (game.plusMinus ?? 0) > 0 ? "text-emerald-600 dark:text-emerald-400" :
                       (game.plusMinus ?? 0) < 0 ? "text-red-500 dark:text-red-400" :
-                      "text-neutral-600 dark:text-neutral-300"
+                      isModal ? "text-foreground/80" : "text-neutral-600 dark:text-neutral-300"
                     )}>
                       {game.plusMinus != null ? (game.plusMinus > 0 ? `+${game.plusMinus}` : game.plusMinus) : "—"}
                     </td>
@@ -1072,61 +1140,61 @@ export function BoxScoreTable({
             </tbody>
             {/* Averages Footer Row - inside same table for alignment */}
             {averages && (
-              <tfoot className="sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-700 border-t-2 border-neutral-300 dark:border-neutral-500">
+              <tfoot className={tfootClass}>
                 <tr className="font-bold">
-                  <td className="px-3 py-2.5 text-left text-neutral-700 dark:text-neutral-200 whitespace-nowrap">
+                  <td className={cn(tfootLabelClass, "whitespace-nowrap")}>
                     AVERAGES
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">
+                  <td className={tfootMutedClass}>
                     —
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">
+                  <td className={tfootMutedClass}>
                     —
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.minutes}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">
+                  <td className={tfootHighlightClass}>
                     {averages.pts}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.fgm}-{averages.fga}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.fg3m}-{averages.fg3a}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.ftm}-{averages.fta}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.reb}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.ast}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.tov}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.stl}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.blk}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.oreb ?? "—"}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.dreb ?? "—"}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                  <td className={tfootStatClass}>
                     {averages.pf}
                   </td>
                   <td className={cn(
                     "px-2 py-2.5 text-center font-medium",
                     parseFloat(averages.plusMinus ?? "0") > 0 ? "text-emerald-600 dark:text-emerald-400" :
                     parseFloat(averages.plusMinus ?? "0") < 0 ? "text-red-500 dark:text-red-400" :
-                    "text-neutral-700 dark:text-neutral-200"
+                    isModal ? "text-foreground/80" : "text-neutral-700 dark:text-neutral-200"
                   )}>
                     {averages.plusMinus != null ? (parseFloat(averages.plusMinus) > 0 ? `+${averages.plusMinus}` : averages.plusMinus) : "—"}
                   </td>
