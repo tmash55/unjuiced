@@ -32,6 +32,7 @@ import {
   getDefaultMlbSprayChartFilters,
   getMlbBattedBallEventKey,
   getMlbEvThresholdMph,
+  getMlbSampleBatterHand,
   type MlbEvThreshold,
   type MlbHitFilter,
   type MlbPitcherHandFilter,
@@ -194,6 +195,7 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_rbi": return game.mlbRbi ?? 0;
     case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_stolen_bases": return game.mlbStolenBases ?? 0;
     case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
     case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
@@ -341,6 +343,7 @@ const MLB_FALLBACK_MARKETS = [
   "player_home_runs",
   "player_runs_scored",
   "player_rbi",
+  "player_stolen_bases",
   "player_hits__runs__rbis",
   "pitcher_strikeouts",
   "pitcher_hits_allowed",
@@ -376,6 +379,9 @@ const MLB_LINE_HISTORY_MARKET_ALIASES: Record<string, string> = {
   pitcher_outs_recorded: "player_outs",
   pitcher_walks: "player_walks_allowed",
   pitcher_walks_allowed: "player_walks_allowed",
+  batter_stolen_bases: "player_stolen_bases",
+  player_steals: "player_stolen_bases",
+  stolen_bases: "player_stolen_bases",
 };
 
 const getMlbLineHistoryMarket = (market: string) => MLB_LINE_HISTORY_MARKET_ALIASES[market] ?? market;
@@ -414,6 +420,7 @@ const getMlbMarketLineLadder = (market: string, activeLine: number) => {
 
   switch (market) {
     case "player_home_runs":
+    case "player_stolen_bases":
       return buildHalfPointLadder(min, extendTo(2.5));
     case "player_hits":
     case "player_runs":
@@ -765,6 +772,10 @@ function getMlbModalZoneBucketColor(value: number, maxValue: number) {
   return `rgba(20, 184, 166, ${0.36 + intensity * 0.52})`;
 }
 
+function isMlbLeftHandedBatter(value: string | null | undefined): boolean {
+  return String(value ?? "").trim().toUpperCase().startsWith("L");
+}
+
 const MLB_MODAL_HP_X = 125.42;
 const MLB_MODAL_HP_Y = 199.27;
 const MLB_MODAL_FAIR_START = Math.PI * 0.25;
@@ -777,7 +788,7 @@ function inferMlbModalZone(
 ) {
   if (event.coord_x == null || event.coord_y == null) return event.zone ?? null;
 
-  const order = battingHand === "L" ? MLB_MODAL_ZONE_ORDER_LHB : MLB_MODAL_ZONE_ORDER_RHB;
+  const order = isMlbLeftHandedBatter(battingHand) ? MLB_MODAL_ZONE_ORDER_LHB : MLB_MODAL_ZONE_ORDER_RHB;
   const angle = Math.atan2(MLB_MODAL_HP_Y - event.coord_y, event.coord_x - MLB_MODAL_HP_X);
   if (!Number.isFinite(angle)) return null;
 
@@ -3907,16 +3918,17 @@ export function PlayerQuickViewModal({
     const bucketPct = (count: number) => evEvents.length > 0 ? Math.round((count / evEvents.length) * 100) : 0;
     const launchPct = (count: number) => laEvents.length > 0 ? Math.round((count / laEvents.length) * 100) : 0;
     const sampleLabel = battedBallFilters.seasonFilter === "all" ? "2023-2026 sample" : `${battedBallFilters.seasonFilter} sample`;
+    const sampleBatterHand = getMlbSampleBatterHand(events, profile?.battingHand);
     const zoneOrder = isMlbPitcher
       ? MLB_MODAL_ZONE_ORDER_FIELD
-      : profile?.battingHand === "L"
+      : sampleBatterHand === "L"
         ? MLB_MODAL_ZONE_ORDER_LHB
         : MLB_MODAL_ZONE_ORDER_RHB;
     const zoneCounts = new Map<string, number>();
     events.forEach((event) => {
       const zone = isMlbPitcher
         ? inferMlbModalFixedFieldZone(event)
-        : inferMlbModalZone(event, profile?.battingHand);
+        : inferMlbModalZone(event, event.batter_hand ?? sampleBatterHand ?? profile?.battingHand);
       if (zone) zoneCounts.set(zone, (zoneCounts.get(zone) ?? 0) + 1);
     });
     let totalZoneCount = Array.from(zoneCounts.values()).reduce((sum, count) => sum + count, 0);

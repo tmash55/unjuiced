@@ -352,6 +352,7 @@ const PROP_MARKET_TO_QUICK_VIEW_MARKET: Record<string, string> = {
   hits: "player_hits",
   tb: "player_total_bases",
   rbi: "player_rbi",
+  sb: "player_stolen_bases",
   h_r_rbi: "player_hits__runs__rbis",
   pitcher_k: "pitcher_strikeouts",
   pitcher_h: "pitcher_hits_allowed",

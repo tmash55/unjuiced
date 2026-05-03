@@ -93,6 +93,9 @@ export interface BoxScoreGame {
   mlbRunsScored?: number;
   mlbRbi?: number;
   mlbTotalBases?: number;
+  mlbStolenBases?: number;
+  mlbCaughtStealing?: number | null;
+  mlbStolenBaseAttempts?: number | null;
   mlbPitcherStrikeouts?: number;
   mlbPitcherOuts?: number;
   mlbAtBats?: number;

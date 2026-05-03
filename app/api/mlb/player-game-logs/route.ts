@@ -54,6 +54,9 @@ interface MlbDrilldownLogEntry {
   runs?: number;
   rbi?: number;
   totalBases?: number;
+  stolenBases?: number;
+  caughtStealing?: number | null;
+  stolenBaseAttempts?: number | null;
   walks?: number;
   strikeOuts?: number;
   battingAvg?: number | null;
@@ -150,6 +153,8 @@ function mapBatterRows(rows: any[], market: string, gameMetaById = new Map<strin
         ? row.rbi
         : market === "player_total_bases"
         ? row.total_bases
+        : market === "player_stolen_bases"
+        ? row.stolen_bases
         : market === "player_hits__runs__rbis"
         ? Number(row.hits ?? 0) + Number(row.runs ?? 0) + Number(row.rbi ?? 0)
         : row.hits;
@@ -165,6 +170,9 @@ function mapBatterRows(rows: any[], market: string, gameMetaById = new Map<strin
     const gameDatetime = row.game_datetime ?? row.start_time ?? gameMeta?.gameDatetime ?? null;
     const dayNightRaw = typeof row.day_night === "string" ? row.day_night.trim().toUpperCase().slice(0, 1) : null;
     const dayNight = dayNightRaw === "D" || dayNightRaw === "N" ? dayNightRaw : getDayNightFromGameDatetime(gameDatetime);
+    const stolenBases = Number(row.stolen_bases ?? 0);
+    const caughtStealingRaw = toNumeric(row.caught_stealing);
+    const stolenBaseAttempts = caughtStealingRaw === null ? null : stolenBases + caughtStealingRaw;
 
     return {
       gameId: String(row.game_id),
@@ -186,6 +194,9 @@ function mapBatterRows(rows: any[], market: string, gameMetaById = new Map<strin
       runs: row.runs,
       rbi: row.rbi,
       totalBases: row.total_bases,
+      stolenBases,
+      caughtStealing: caughtStealingRaw,
+      stolenBaseAttempts,
       walks: row.base_on_balls,
       strikeOuts: row.strike_outs,
       battingAvg: toNumeric(row.batting_avg),
@@ -254,6 +265,9 @@ function mapBatterRows(rows: any[], market: string, gameMetaById = new Map<strin
       mlbRunsScored: entry.runs ?? 0,
       mlbRbi: entry.rbi ?? 0,
       mlbTotalBases: entry.totalBases ?? 0,
+      mlbStolenBases: entry.stolenBases ?? 0,
+      mlbCaughtStealing: entry.caughtStealing ?? null,
+      mlbStolenBaseAttempts: entry.stolenBaseAttempts ?? null,
       mlbAtBats: entry.atBats ?? 0,
       mlbPlateAppearances: entry.plateAppearances ?? 0,
       mlbWalks: entry.walks ?? 0,

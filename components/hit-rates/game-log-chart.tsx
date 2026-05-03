@@ -291,6 +291,7 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_rbi": return game.mlbRbi ?? 0;
     case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_stolen_bases": return game.mlbStolenBases ?? 0;
     case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
     case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
@@ -386,6 +387,7 @@ const getMarketLabel = (market: string): string => {
     player_rbi: "rbi",
     player_rbis: "rbi",
     player_total_bases: "tb",
+    player_stolen_bases: "sb",
     player_hits__runs__rbis: "h+r+rbi",
     player_strikeouts: "k",
     pitcher_strikeouts: "k",
@@ -448,6 +450,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
     case "player_rbi":
     case "player_rbis":
     case "player_total_bases":
+    case "player_stolen_bases":
     case "player_hits__runs__rbis":
       return (
         <>
@@ -456,6 +459,13 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           <StatRow label="Hits" value={game.mlbHits ?? 0} />
           <StatRow label="HR" value={game.mlbHomeRuns ?? 0} />
           <StatRow label="TB" value={game.mlbTotalBases ?? 0} />
+          <StatRow
+            label="SB / CS"
+            value={`${game.mlbStolenBases ?? 0} / ${game.mlbCaughtStealing ?? 0}`}
+          />
+          {game.mlbStolenBaseAttempts !== null && game.mlbStolenBaseAttempts !== undefined && (
+            <StatRow label="Attempts" value={game.mlbStolenBaseAttempts} />
+          )}
           <StatRow label="Runs" value={game.mlbRunsScored ?? 0} />
           <StatRow label="RBI" value={game.mlbRbi ?? 0} />
           <div className="my-2 border-t border-[#ffffff0d]" />
@@ -742,6 +752,8 @@ export function GameLogChart({
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
     } else if (sport === "nba" && market === "player_assists") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialAssists || 0)));
+    } else if (sport === "mlb" && market === "player_stolen_bases") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.mlbStolenBaseAttempts ?? 0)));
     } else if (market === "player_threes_made") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.fg3a || 0)));
     } else {
@@ -1527,6 +1539,25 @@ export function GameLogChart({
                               style={{ bottom: `${(((game.potentialAssists ?? 0) / maxStat) * chartHeight) + 2}px` }}
                             >
                               {game.potentialAssists}
+                            </span>
+                          </>
+                        )}
+
+                        {/* Stolen base attempts - opportunity overlay (MLB stolen bases market only) */}
+                        {sport === "mlb" && market === "player_stolen_bases" && (game.mlbStolenBaseAttempts ?? 0) > 0 && (game.mlbStolenBaseAttempts ?? 0) > (game.mlbStolenBases ?? 0) && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-amber-400/25 to-amber-300/15 dark:from-amber-500/25 dark:to-amber-400/15"
+                              style={{
+                                width: barWidth,
+                                height: Math.max((((game.mlbStolenBaseAttempts ?? 0) / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            <span
+                              className="absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold text-amber-400/80 dark:text-amber-300/75"
+                              style={{ bottom: `${(((game.mlbStolenBaseAttempts ?? 0) / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.mlbStolenBaseAttempts}
                             </span>
                           </>
                         )}

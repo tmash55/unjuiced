@@ -23,6 +23,9 @@ export interface MlbDrilldownLogEntry {
   runs?: number;
   rbi?: number;
   totalBases?: number;
+  stolenBases?: number;
+  caughtStealing?: number | null;
+  stolenBaseAttempts?: number | null;
   walks?: number;
   strikeOuts?: number;
   battingAvg?: number | null;

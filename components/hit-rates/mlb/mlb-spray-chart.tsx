@@ -325,6 +325,37 @@ function normalizePitcherHand(value: string | null | undefined): MlbPitcherHandF
   return null;
 }
 
+export function getMlbNormalizedBatterHand(value: string | null | undefined): "L" | "R" | null {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase();
+  if (normalized.startsWith("L")) return "L";
+  if (normalized.startsWith("R")) return "R";
+  return null;
+}
+
+export function getMlbSampleBatterHand(
+  events: ReadonlyArray<Pick<BattedBallEvent, "batter_hand">>,
+  fallback?: string | null
+): "L" | "R" | null {
+  const fallbackHand = getMlbNormalizedBatterHand(fallback);
+  let left = 0;
+  let right = 0;
+
+  events.forEach((event) => {
+    const hand = getMlbNormalizedBatterHand(event.batter_hand);
+    if (hand === "L") left += 1;
+    if (hand === "R") right += 1;
+  });
+
+  if (left > right) return "L";
+  if (right > left) return "R";
+  return fallbackHand;
+}
+
+function isLeftHandedBatter(value: string | null | undefined): boolean {
+  return getMlbNormalizedBatterHand(value) === "L";
+}
+
 function inferFixedFieldZone(coordX: number | null | undefined, coordY: number | null | undefined) {
   if (coordX == null || coordY == null) return null;
   const angle = Math.atan2(MLBAM_HP_Y - Number(coordY), Number(coordX) - MLBAM_HP_X);
@@ -344,7 +375,7 @@ function inferBatterRelativeZone(
   const angle = Math.atan2(MLBAM_HP_Y - Number(coordY), Number(coordX) - MLBAM_HP_X);
   if (!Number.isFinite(angle)) return null;
 
-  const order = String(batterHand ?? "").toUpperCase().startsWith("L") ? ZONE_ORDER_LHB : ZONE_ORDER_RHB;
+  const order = isLeftHandedBatter(batterHand) ? ZONE_ORDER_LHB : ZONE_ORDER_RHB;
   const clamped = Math.max(FAIR_START, Math.min(FAIR_END - 0.0001, angle));
   const index = Math.floor((clamped - FAIR_START) / ZONE_STEP);
   return order[index] ?? null;
@@ -702,6 +733,10 @@ export function MlbSprayChart({
     if (eventsArr.length === 0) return [];
     return filterMlbBattedBallEvents(eventsArr, activeFilters, playerType);
   }, [eventsArr, activeFilters, playerType]);
+  const sampleBatterHand = useMemo(
+    () => getMlbSampleBatterHand(filteredEvents, battingHand),
+    [filteredEvents, battingHand]
+  );
 
   // ── Stadium geometry (normalized to 500x500 viewbox) ──
   const outfieldRaw = useMemo(() => toPoints(data?.stadium_geometry?.outfieldOuter ?? []), [data?.stadium_geometry]);
@@ -832,7 +867,7 @@ export function MlbSprayChart({
   // ── Zone data ──
   const zoneOrder = playerType === "pitcher"
     ? ZONE_ORDER_FIELD
-    : battingHand === "L"
+    : sampleBatterHand === "L"
       ? ZONE_ORDER_LHB
       : ZONE_ORDER_RHB;
   const rawZoneSummaryArr = Array.isArray(data?.zone_summary) ? data.zone_summary : [];
@@ -841,7 +876,7 @@ export function MlbSprayChart({
     filteredEvents.forEach((event) => {
       const zone = playerType === "pitcher"
         ? inferFixedFieldZone(event.coord_x, event.coord_y)
-        : inferBatterRelativeZone(event.coord_x, event.coord_y, event.batter_hand ?? battingHand) ?? event.zone;
+        : inferBatterRelativeZone(event.coord_x, event.coord_y, event.batter_hand ?? sampleBatterHand ?? battingHand) ?? event.zone;
       if (!zone) return;
       const current = countByZone.get(zone) ?? { zone, count: 0, hits: 0, avg: null, hr: 0 };
       const result = (event.result ?? "").toLowerCase();
@@ -853,7 +888,7 @@ export function MlbSprayChart({
 
     const derived = Array.from(countByZone.values());
     return derived.length > 0 || playerType === "pitcher" ? derived : rawZoneSummaryArr;
-  }, [battingHand, filteredEvents, playerType, rawZoneSummaryArr]);
+  }, [battingHand, filteredEvents, playerType, rawZoneSummaryArr, sampleBatterHand]);
   const zoneSummaries = useMemo(() => {
     if (zoneSummaryArr.length === 0) return [];
     return zoneOrder

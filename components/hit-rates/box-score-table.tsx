@@ -37,6 +37,8 @@ type SortField =
   | "runs"
   | "rbi"
   | "totalBases"
+  | "stolenBases"
+  | "stolenBaseAttempts"
   | "hitsAllowed"
   | "strikeouts"
   | "outs"
@@ -72,6 +74,7 @@ const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): n
     case "player_rbi": return game.mlbRbi ?? 0;
     case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_stolen_bases": return game.mlbStolenBases ?? 0;
     case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
     case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
@@ -283,6 +286,14 @@ export function BoxScoreTable({
           aVal = a.mlbTotalBases ?? 0;
           bVal = b.mlbTotalBases ?? 0;
           break;
+        case "stolenBases":
+          aVal = a.mlbStolenBases ?? 0;
+          bVal = b.mlbStolenBases ?? 0;
+          break;
+        case "stolenBaseAttempts":
+          aVal = a.mlbStolenBaseAttempts ?? 0;
+          bVal = b.mlbStolenBaseAttempts ?? 0;
+          break;
         case "hitsAllowed":
           aVal = a.mlbHitsAllowed ?? 0;
           bVal = b.mlbHitsAllowed ?? 0;
@@ -437,6 +448,8 @@ export function BoxScoreTable({
         runs: acc.runs + (g.mlbRunsScored ?? 0),
         rbi: acc.rbi + (g.mlbRbi ?? 0),
         totalBases: acc.totalBases + (g.mlbTotalBases ?? 0),
+        stolenBases: acc.stolenBases + (g.mlbStolenBases ?? 0),
+        stolenBaseAttempts: acc.stolenBaseAttempts + (g.mlbStolenBaseAttempts ?? 0),
         strikeouts: acc.strikeouts + (g.mlbPitcherStrikeouts ?? 0),
         outs: acc.outs + getPitcherOuts(g),
         innings: acc.innings + (g.mlbInningsPitched ?? 0),
@@ -455,6 +468,8 @@ export function BoxScoreTable({
         runs: 0,
         rbi: 0,
         totalBases: 0,
+        stolenBases: 0,
+        stolenBaseAttempts: 0,
         strikeouts: 0,
         outs: 0,
         innings: 0,
@@ -475,6 +490,8 @@ export function BoxScoreTable({
       runs: (sum.runs / n).toFixed(1),
       rbi: (sum.rbi / n).toFixed(1),
       totalBases: (sum.totalBases / n).toFixed(1),
+      stolenBases: (sum.stolenBases / n).toFixed(1),
+      stolenBaseAttempts: (sum.stolenBaseAttempts / n).toFixed(1),
       strikeouts: (sum.strikeouts / n).toFixed(1),
       outs: (sum.outs / n).toFixed(1),
       innings: formatInningsPitched(sum.innings / n),
@@ -704,6 +721,22 @@ export function BoxScoreTable({
                       </th>
                       <th
                         className={cn(thBaseClass, thSortableHoverClass)}
+                        onClick={() => handleSort("stolenBases")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          SB <SortIcon field="stolenBases" />
+                        </div>
+                      </th>
+                      <th
+                        className={cn(thBaseClass, thSortableHoverClass)}
+                        onClick={() => handleSort("stolenBaseAttempts")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          ATT <SortIcon field="stolenBaseAttempts" />
+                        </div>
+                      </th>
+                      <th
+                        className={cn(thBaseClass, thSortableHoverClass)}
                         onClick={() => handleSort("walks")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -804,6 +837,8 @@ export function BoxScoreTable({
                           <td className={tdMutedClass}>{game.mlbRunsScored ?? "-"}</td>
                           <td className={tdMutedClass}>{game.mlbRbi ?? "-"}</td>
                           <td className={tdMutedClass}>{game.mlbTotalBases ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbStolenBases ?? "-"}</td>
+                          <td className={tdMutedClass}>{game.mlbStolenBaseAttempts ?? "—"}</td>
                           <td className={tdMutedClass}>{game.mlbWalks ?? "-"}</td>
                           <td className={tdMutedClass}>{game.mlbStrikeOuts ?? "-"}</td>
                           <td className={tdMutedTabularClass}>{formatMlbRate(getMlbBattingAvg(game))}</td>
@@ -843,6 +878,8 @@ export function BoxScoreTable({
                         <td className={tfootStatClass}>{mlbAverages.runs}</td>
                         <td className={tfootStatClass}>{mlbAverages.rbi}</td>
                         <td className={tfootStatClass}>{mlbAverages.totalBases}</td>
+                        <td className={tfootStatClass}>{mlbAverages.stolenBases}</td>
+                        <td className={tfootStatClass}>{mlbAverages.stolenBaseAttempts}</td>
                         <td className={tfootStatClass}>{mlbAverages.walks}</td>
                         <td className={tfootStatClass}>{mlbAverages.batterStrikeouts}</td>
                         <td className={tfootStatClass}>{mlbAverages.battingAvg}</td>
