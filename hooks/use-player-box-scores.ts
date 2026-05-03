@@ -80,6 +80,7 @@ export interface BoxScoreGame {
   // Tracking
   passes: number;
   potentialReb: number;
+  potentialAssists?: number | null;
   // Combo stats
   pra: number;
   pr: number;

@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 
 // Cache configuration
-const GAMES_CACHE_KEY = "nba:games:today";
+const GAMES_CACHE_KEY = "nba:games:today:v3";
 const GAMES_CACHE_TTL = 300; // 5 minutes
 
 // Helper to parse game time from game_status like "7:00 pm ET" into sortable minutes
@@ -35,6 +35,27 @@ function sortGamesByDateTime(games: any[]): any[] {
     const bMinutes = parseGameTimeToMinutes(b.game_status || "");
     return aMinutes - bMinutes;
   });
+}
+
+function isPlayableGame(game: any): boolean {
+  const status = String(game.game_status || "").trim().toLowerCase();
+  const seasonType = String(game.season_type || "").toLowerCase();
+  const homeScore = Number(game.home_team_score ?? 0);
+  const awayScore = Number(game.away_team_score ?? 0);
+  const isPlayoffLabel =
+    seasonType.includes("playoff") ||
+    seasonType.includes("round") ||
+    seasonType.includes("conf") ||
+    seasonType.includes("final");
+
+  // NBA playoff feeds include "if necessary" placeholder rows after a series
+  // is decided. They sit at TBD with 0-0 scores and should not appear as
+  // selectable hit-rate games.
+  if (status === "tbd" && isPlayoffLabel && homeScore === 0 && awayScore === 0) {
+    return false;
+  }
+
+  return !status.includes("postponed") && !status.includes("cancelled");
 }
 
 export async function GET(req: NextRequest) {
@@ -114,8 +135,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const todayGames = todayResult.data || [];
-    const tomorrowGames = tomorrowResult.data || [];
+    const todayGames = (todayResult.data || []).filter(isPlayableGame);
+    const tomorrowGames = (tomorrowResult.data || []).filter(isPlayableGame);
 
     // Combine today's games and tomorrow's games
     let allGames = [...todayGames, ...tomorrowGames];
@@ -131,7 +152,7 @@ export async function GET(req: NextRequest) {
 
       if (!futureError && futureGames) {
         const dates = [...new Set(futureGames.map(g => g.game_date))].slice(0, 2);
-        allGames = futureGames.filter(g => dates.includes(g.game_date));
+        allGames = futureGames.filter(g => dates.includes(g.game_date)).filter(isPlayableGame);
       }
     }
 
