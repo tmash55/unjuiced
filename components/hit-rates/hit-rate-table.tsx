@@ -991,6 +991,20 @@ const formatSpread = (spread: number | null) => {
   return spread > 0 ? `+${spread}` : spread.toString();
 };
 
+const formatTotal = (total: number | null) => {
+  if (total === null || total === undefined) return "—";
+  return Number.isInteger(total) ? total.toString() : total.toFixed(1);
+};
+
+const formatBookName = (book: string | null | undefined) => {
+  if (!book) return null;
+  const normalized = book.toLowerCase();
+  if (normalized === "pinnacle") return "Pinnacle";
+  if (normalized === "draftkings") return "DraftKings";
+  if (normalized === "fanduel") return "FanDuel";
+  return book;
+};
+
 // Get color class for average vs line comparison
 const getAvgColorClass = (avg: number | null, line: number | null) => {
   if (avg === null || line === null) return "text-neutral-700 dark:text-neutral-300";
@@ -2039,7 +2053,7 @@ export function HitRateTable({
                       <span className="text-[10px] font-bold tabular-nums text-neutral-400">—:—</span>
                     </div>
                   ) : (
-                    <div className="mx-auto flex max-w-[96px] flex-col items-center gap-1.5">
+                    <div className="mx-auto flex max-w-[124px] flex-col items-center gap-1.5">
                       {/* Tomorrow accent (rare, only when the game is next-day) */}
                       {isTomorrow(row.gameDate) && (
                         <span className="rounded-sm bg-amber-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.12em] text-amber-600 leading-none dark:text-amber-300">
@@ -2068,6 +2082,33 @@ export function HitRateTable({
                       <span className="text-[10px] font-bold uppercase tracking-[0.06em] tabular-nums leading-none text-neutral-500 dark:text-neutral-400">
                         {formatGameTime(row.gameStatus, row.gameDate)}
                       </span>
+
+                      {(row.total !== null || row.spread !== null) && (
+                        <Tooltip
+                          content={[
+                            row.total !== null
+                              ? `Over/under from ${formatBookName(row.totalBook) ?? "available books"}`
+                              : null,
+                            row.spread !== null
+                              ? `Spread from ${formatBookName(row.spreadBook) ?? "available books"}`
+                              : null,
+                          ].filter(Boolean).join(" • ")}
+                          side="top"
+                        >
+                          <div className="flex cursor-help items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                            {row.total !== null && (
+                              <span className="rounded-sm border border-neutral-700/70 bg-neutral-900/70 px-1.5 py-1 text-neutral-300 dark:border-neutral-700 dark:bg-neutral-900/80">
+                                O/U {formatTotal(row.total)}
+                              </span>
+                            )}
+                            {row.spread !== null && (
+                              <span className="rounded-sm border border-brand/25 bg-brand/10 px-1.5 py-1 text-brand">
+                                {formatSpread(row.spread)}
+                              </span>
+                            )}
+                          </div>
+                        </Tooltip>
+                      )}
                     </div>
                   )}
                 </td>

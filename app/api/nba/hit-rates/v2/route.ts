@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@/lib/basketball/pace-context";
+import { fetchGameLineContextsForRows, getGameLineContextKey, type GameLineContext } from "@/lib/basketball/game-line-context";
 
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
@@ -23,7 +24,7 @@ import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:nba:v4"; // Incremented for v3 RPC + best odds integration
+const CACHE_KEY_PREFIX = "hitrates:nba:v5"; // Incremented for game spread/total enrichment
 
 // =============================================================================
 // TYPES
@@ -196,7 +197,13 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
 }
 
 // Transform RPC response to frontend format
-function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null, paceContext: PaceContext | null) {
+function transformProfile(
+  row: any,
+  bestOdds: BestOddsData | null,
+  eventStartTime: string | null,
+  paceContext: PaceContext | null,
+  gameLineContext: GameLineContext | null
+) {
   const startTime =
     eventStartTime ||
     row.start_time ||
@@ -234,8 +241,11 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
     last_10_avg: row.last_10_avg,
     last_20_avg: row.last_20_avg,
     season_avg: row.season_avg,
-    spread: row.spread,
-    total: row.total,
+    spread: row.spread ?? gameLineContext?.spread ?? null,
+    total: row.total ?? gameLineContext?.total ?? null,
+    game_odds_book: gameLineContext?.spreadBook ?? gameLineContext?.totalBook ?? null,
+    spread_book: gameLineContext?.spreadBook ?? null,
+    total_book: gameLineContext?.totalBook ?? null,
     spread_clv: row.spread_clv,
     total_clv: row.total_clv,
     injury_status: row.injury_status,
@@ -499,6 +509,7 @@ export async function GET(request: Request) {
     const eventStartTimes = await fetchEventStartTimes(paginatedData);
     const supabase = createServerSupabaseClient();
     const paceContextMap = await fetchPaceContextsForRows(supabase, "nba", paginatedData);
+    const gameLineContextMap = await fetchGameLineContextsForRows("nba", paginatedData);
     
     // Transform to frontend format with best odds merged
     const transformedData = paginatedData.map(row => {
@@ -509,7 +520,8 @@ export async function GET(request: Request) {
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
       const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
       const paceContext = paceContextMap.get(getPaceContextKey(row)) ?? null;
-      return transformProfile(row, bestOdds, eventStartTime, paceContext);
+      const gameLineContext = gameLineContextMap.get(getGameLineContextKey(row)) ?? null;
+      return transformProfile(row, bestOdds, eventStartTime, paceContext, gameLineContext);
     });
     
     // Get unique dates from response

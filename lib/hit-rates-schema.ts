@@ -46,6 +46,9 @@ export interface RawHitRateProfile {
   hit_streak: number | null;
   spread: number | null;
   total: number | null;
+  game_odds_book?: string | null;
+  spread_book?: string | null;
+  total_book?: string | null;
   injury_status: string | null;
   injury_notes: string | null;
   position: string | null;
@@ -124,6 +127,9 @@ export interface HitRateProfile {
   previousSeasonAvg: number | null;
   spread: number | null;
   total: number | null;
+  gameOddsBook?: string | null;
+  spreadBook?: string | null;
+  totalBook?: string | null;
   injuryStatus: string | null;
   injuryNotes: string | null;
   position: string | null;

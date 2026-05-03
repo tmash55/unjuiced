@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@/lib/basketball/pace-context";
+import { fetchGameLineContextsForRows, getGameLineContextKey, type GameLineContext } from "@/lib/basketball/game-line-context";
 
 /**
  * Hit Rates API v2 - WNBA
@@ -15,7 +16,7 @@ import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:wnba:v6";
+const CACHE_KEY_PREFIX = "hitrates:wnba:v7";
 
 // =============================================================================
 // TYPES
@@ -569,7 +570,8 @@ function transformProfile(
   eventStartTime: string | null,
   playerMetadata: WnbaPlayerMetadata | null,
   dvpRank: WnbaDvpRank | null,
-  paceContext: PaceContext | null
+  paceContext: PaceContext | null,
+  gameLineContext: GameLineContext | null
 ) {
   const teamId = row.team_id ?? getWnbaTeamIdFromAbbr(row.team_abbr);
   const opponentTeamId = row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
@@ -617,8 +619,11 @@ function transformProfile(
     last_10_avg: row.last_10_avg,
     last_20_avg: row.last_20_avg,
     season_avg: row.season_avg,
-    spread: row.spread,
-    total: row.total,
+    spread: row.spread ?? gameLineContext?.spread ?? null,
+    total: row.total ?? gameLineContext?.total ?? null,
+    game_odds_book: gameLineContext?.spreadBook ?? gameLineContext?.totalBook ?? null,
+    spread_book: gameLineContext?.spreadBook ?? null,
+    total_book: gameLineContext?.totalBook ?? null,
     spread_clv: row.spread_clv,
     total_clv: row.total_clv,
     injury_status: row.injury_status,
@@ -916,6 +921,7 @@ export async function GET(request: Request) {
       opponent_team_id: row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr),
     }));
     const paceContextMap = await fetchPaceContextsForRows(supabase, "wnba", paceRows);
+    const gameLineContextMap = await fetchGameLineContextsForRows("wnba", paginatedData);
 
     const transformedData = paginatedData.map((row, index) => {
       const compositeKey = row.event_id && row.market && row.sel_key
@@ -935,7 +941,8 @@ export async function GET(request: Request) {
         ? dvpRankMap.get(`${opponentTeamId}:${position}:${row.market}`) ?? null
         : null;
       const paceContext = paceContextMap.get(getPaceContextKey(paceRows[index])) ?? null;
-      return transformProfile(row, bestOdds, eventStartTime, playerMetadata, dvpRank, paceContext);
+      const gameLineContext = gameLineContextMap.get(getGameLineContextKey(row)) ?? null;
+      return transformProfile(row, bestOdds, eventStartTime, playerMetadata, dvpRank, paceContext, gameLineContext);
     });
 
     const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
