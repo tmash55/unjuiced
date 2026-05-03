@@ -186,9 +186,9 @@ export const MLB_SEASON_OPTIONS = [
   { value: "all", label: "2023-2026" },
 ];
 
-const ZONE_ORDER_RHB = ["pull", "pull_center", "center", "oppo_center", "oppo"];
-const ZONE_ORDER_LHB = ["oppo", "oppo_center", "center", "pull_center", "pull"];
-const ZONE_ORDER_FIELD = ["lf", "lcf", "cf", "rcf", "rf"];
+const ZONE_ORDER_RHB = ["oppo", "oppo_center", "center", "pull_center", "pull"];
+const ZONE_ORDER_LHB = ["pull", "pull_center", "center", "oppo_center", "oppo"];
+const ZONE_ORDER_FIELD = ["rf", "rcf", "cf", "lcf", "lf"];
 const ZONE_LABELS: Record<string, string> = {
   pull: "Pull",
   pull_center: "Pull-C",

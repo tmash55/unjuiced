@@ -743,9 +743,9 @@ function MlbDistributionTooltip({
   );
 }
 
-const MLB_MODAL_ZONE_ORDER_RHB = ["pull", "pull_center", "center", "oppo_center", "oppo"] as const;
-const MLB_MODAL_ZONE_ORDER_LHB = ["oppo", "oppo_center", "center", "pull_center", "pull"] as const;
-const MLB_MODAL_ZONE_ORDER_FIELD = ["lf", "lcf", "cf", "rcf", "rf"] as const;
+const MLB_MODAL_ZONE_ORDER_RHB = ["oppo", "oppo_center", "center", "pull_center", "pull"] as const;
+const MLB_MODAL_ZONE_ORDER_LHB = ["pull", "pull_center", "center", "oppo_center", "oppo"] as const;
+const MLB_MODAL_ZONE_ORDER_FIELD = ["rf", "rcf", "cf", "lcf", "lf"] as const;
 const MLB_MODAL_ZONE_LABELS: Record<string, string> = {
   pull: "Pull",
   pull_center: "Pull-C",
