@@ -539,7 +539,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           {commonStats}
           <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Assists" value={game.ast} />
-          {game.potentialAssists !== null && game.potentialAssists !== undefined && game.potentialAssists > 0 && (
+          {game.potentialAssists !== null && game.potentialAssists !== undefined && (
             <StatRow label="Potential AST" value={game.potentialAssists} />
           )}
           <StatRow label="Passes" value={game.passes} />
