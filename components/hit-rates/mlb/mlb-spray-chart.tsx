@@ -335,6 +335,21 @@ function inferFixedFieldZone(coordX: number | null | undefined, coordY: number |
   return ZONE_ORDER_FIELD[index] ?? null;
 }
 
+function inferBatterRelativeZone(
+  coordX: number | null | undefined,
+  coordY: number | null | undefined,
+  batterHand: string | null | undefined
+) {
+  if (coordX == null || coordY == null) return null;
+  const angle = Math.atan2(MLBAM_HP_Y - Number(coordY), Number(coordX) - MLBAM_HP_X);
+  if (!Number.isFinite(angle)) return null;
+
+  const order = String(batterHand ?? "").toUpperCase().startsWith("L") ? ZONE_ORDER_LHB : ZONE_ORDER_RHB;
+  const clamped = Math.max(FAIR_START, Math.min(FAIR_END - 0.0001, angle));
+  const index = Math.floor((clamped - FAIR_START) / ZONE_STEP);
+  return order[index] ?? null;
+}
+
 function getFlightDuration(traj: string, exitVelo: number | null): number {
   // Base duration by trajectory type
   let base: number;
@@ -826,7 +841,7 @@ export function MlbSprayChart({
     filteredEvents.forEach((event) => {
       const zone = playerType === "pitcher"
         ? inferFixedFieldZone(event.coord_x, event.coord_y)
-        : event.zone;
+        : inferBatterRelativeZone(event.coord_x, event.coord_y, event.batter_hand ?? battingHand) ?? event.zone;
       if (!zone) return;
       const current = countByZone.get(zone) ?? { zone, count: 0, hits: 0, avg: null, hr: 0 };
       const result = (event.result ?? "").toLowerCase();
@@ -838,7 +853,7 @@ export function MlbSprayChart({
 
     const derived = Array.from(countByZone.values());
     return derived.length > 0 || playerType === "pitcher" ? derived : rawZoneSummaryArr;
-  }, [filteredEvents, playerType, rawZoneSummaryArr]);
+  }, [battingHand, filteredEvents, playerType, rawZoneSummaryArr]);
   const zoneSummaries = useMemo(() => {
     if (zoneSummaryArr.length === 0) return [];
     return zoneOrder

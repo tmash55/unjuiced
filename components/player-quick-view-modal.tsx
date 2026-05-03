@@ -775,8 +775,7 @@ function inferMlbModalZone(
   event: { zone?: string | null; coord_x?: number | null; coord_y?: number | null },
   battingHand?: string | null
 ) {
-  if (event.zone) return event.zone;
-  if (event.coord_x == null || event.coord_y == null) return null;
+  if (event.coord_x == null || event.coord_y == null) return event.zone ?? null;
 
   const order = battingHand === "L" ? MLB_MODAL_ZONE_ORDER_LHB : MLB_MODAL_ZONE_ORDER_RHB;
   const angle = Math.atan2(MLB_MODAL_HP_Y - event.coord_y, event.coord_x - MLB_MODAL_HP_X);
