@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { HitRateProfile, HitRateResponse, RawHitRateProfile } from "@/lib/hit-rates-schema";
 
 // Valid sort fields
-export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
+export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank";
 
 export interface UseHitRateTableOptions {
   sport?: "nba" | "mlb" | "wnba";
@@ -175,7 +175,7 @@ function isToday(gameDate: string | null): boolean {
 function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir: "asc" | "desc"): HitRateProfile[] {
   if (rows.length === 0) return rows;
   
-  const fieldMap: Record<HitRateSortField, keyof HitRateProfile> = {
+  const fieldMap: Record<Exclude<HitRateSortField, "paceRank">, keyof HitRateProfile> = {
     line: "line",
     l5Avg: "last5Avg",
     l10Avg: "last10Avg",
@@ -188,24 +188,31 @@ function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir
     h2hPct: "h2hPct",
     matchupRank: "matchupRank",
   };
-  
+
   // Default to L5 percentage descending if no sort specified
   const effectiveSort = sort ?? "l5Pct";
   const effectiveDir = sortDir ?? "desc";
   const multiplier = effectiveDir === "asc" ? 1 : -1;
-  const field = fieldMap[effectiveSort];
-  
+
+  // paceRank lives at row.paceContext.opponentRecent.l5Rank — handled via custom getter
+  const getValue = (row: HitRateProfile): number | null => {
+    if (effectiveSort === "paceRank") {
+      return row.paceContext?.opponentRecent.l5Rank ?? null;
+    }
+    return row[fieldMap[effectiveSort as Exclude<HitRateSortField, "paceRank">]] as number | null;
+  };
+
   return [...rows].sort((a, b) => {
     // FIRST: Prioritize today's games over tomorrow's
     const aIsToday = isToday(a.gameDate);
     const bIsToday = isToday(b.gameDate);
-    
+
     if (aIsToday && !bIsToday) return -1; // a (today) comes first
     if (!aIsToday && bIsToday) return 1;  // b (today) comes first
-    
+
     // SECOND: Sort by the specified field within the same day group
-    const aVal = a[field] as number | null;
-    const bVal = b[field] as number | null;
+    const aVal = getValue(a);
+    const bVal = getValue(b);
     
     // ALWAYS push nulls to the END of the list
     if (aVal === null && bVal === null) return 0;

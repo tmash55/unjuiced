@@ -75,6 +75,7 @@ function mapGame(game: any) {
     pie: Number(game.pie ?? 0),
     passes: Number(game.passes ?? 0),
     potentialReb: Number(game.potential_reb ?? 0),
+    potentialAssists: null as number | null, // hydrated after RPC via separate select
     pra: Number(game.pra ?? 0),
     pr: Number(game.pr ?? 0),
     pa: Number(game.pa ?? 0),
@@ -125,6 +126,43 @@ export async function handleRecentTrends(req: NextRequest, sport: RecentTrendSpo
         return [String(playerId), games] as const;
       })
     );
+
+    // Hydrate potentialAssists from the box-score table (RPCs above don't include it).
+    const tableName = sport === "wnba" ? "wnba_player_box_scores" : "nba_player_box_scores";
+    const flatGameIds = [
+      ...new Set(
+        entries.flatMap(([, games]) =>
+          games
+            .map((g: { gameId: string }) => Number(g.gameId))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        )
+      ),
+    ];
+    if (flatGameIds.length > 0 && playerIds.length > 0) {
+      const { data: paData, error: paError } = await supabase
+        .from(tableName)
+        .select("player_id, game_id, potential_assists")
+        .in("player_id", playerIds)
+        .in("game_id", flatGameIds);
+
+      if (paError) {
+        console.error(`[${sport} recent-trends] Potential assists lookup error:`, paError.message);
+      } else if (paData) {
+        const paMap = new Map<string, number>();
+        for (const row of paData) {
+          if (row.potential_assists !== null && row.potential_assists !== undefined) {
+            paMap.set(`${row.player_id}:${row.game_id}`, Number(row.potential_assists));
+          }
+        }
+        for (const [pid, games] of entries) {
+          for (const g of games) {
+            const key = `${pid}:${g.gameId}`;
+            const value = paMap.get(key);
+            if (value !== undefined) g.potentialAssists = value;
+          }
+        }
+      }
+    }
 
     return NextResponse.json(
       { trends: Object.fromEntries(entries) },

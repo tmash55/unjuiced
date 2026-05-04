@@ -32,9 +32,9 @@ interface GatedHitRateTableProps {
   onMarketsChange: (markets: string[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  sortField: "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null;
+  sortField: "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank" | null;
   sortDirection: "asc" | "desc";
-  onSortChange: (field: "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank", direction: "asc" | "desc") => void;
+  onSortChange: (field: "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank", direction: "asc" | "desc") => void;
   scrollRef?: React.RefObject<HTMLDivElement>;
   initialScrollTop?: number;
   hideNoOdds?: boolean;

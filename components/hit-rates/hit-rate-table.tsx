@@ -2,19 +2,23 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, BarChart3, ChevronUp, ChevronDown, ChevronsUpDown, Clock3, Flame, Info, HeartPulse, Loader2, Search, ShieldCheck, Target, Trophy, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
+import { Activity, BarChart3, ChevronUp, ChevronDown, ChevronsUpDown, Clock3, ExternalLink, Flame, Info, HeartPulse, LineChart as LineChartIcon, Loader2, Rows3, Search, ShieldCheck, Target, Trophy, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
 import Chart from "@/icons/chart";
 // Disabled: usePrefetchPlayer was causing excessive API calls on hover
 // import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
+import { Popover } from "@/components/popover";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 // MiniSparkline removed - using color-coded percentage cells instead for performance
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { usePlayerBoxScores, type BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl, getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getHitRateTableConfig } from "@/lib/hit-rates/table-config";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -31,7 +35,7 @@ const getMarketTooltip = (market: string): string | null => {
   return COMBO_MARKET_DESCRIPTIONS[market] || null;
 };
 
-type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
+type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank";
 type SortDirection = "asc" | "desc";
 
 // Market options for filter
@@ -161,6 +165,40 @@ const getMarketStatValue = (game: BoxScoreGame, market: string): number => {
   }
 };
 
+// Returns market-relevant efficiency splits for the bar tooltip — e.g. FG/3PT for
+// scoring, REB/Potential for rebounds, AST/Potential for assists. Empty array when
+// nothing useful is available for the market (steals/blocks/turnovers/MLB markets).
+type EfficiencyPart = { value: string; label: string };
+const getMarketEfficiencyParts = (game: BoxScoreGame, market: string): EfficiencyPart[] => {
+  const fg = game.fga > 0 ? { value: `${game.fgm}/${game.fga}`, label: "FG" } : null;
+  const fg3 = game.fg3a > 0 ? { value: `${game.fg3m}/${game.fg3a}`, label: "3PT" } : null;
+  const ft = game.fta > 0 ? { value: `${game.ftm}/${game.fta}`, label: "FT" } : null;
+  const reb = game.potentialReb > 0 ? { value: `${game.reb}/${game.potentialReb}`, label: "of pot. reb" } : null;
+  const ast =
+    game.potentialAssists != null && game.potentialAssists > 0
+      ? { value: `${game.ast}/${game.potentialAssists}`, label: "of pot. ast" }
+      : null;
+
+  switch (market) {
+    case "player_points":
+      return [fg, fg3, ft].filter((p): p is EfficiencyPart => p !== null);
+    case "player_rebounds":
+      return reb ? [reb] : [];
+    case "player_assists":
+      return ast ? [ast] : [];
+    case "player_threes_made":
+      return fg3 ? [fg3] : [];
+    case "player_points_rebounds_assists":
+    case "player_points_rebounds":
+    case "player_points_assists":
+      return [fg, fg3].filter((p): p is EfficiencyPart => p !== null);
+    case "player_rebounds_assists":
+      return [reb, ast].filter((p): p is EfficiencyPart => p !== null);
+    default:
+      return [];
+  }
+};
+
 type RecentTrendMap = Record<string, BoxScoreGame[]>;
 
 async function fetchRecentTrends(
@@ -196,6 +234,56 @@ const getContextPillClass = (rank: number | null, sport: "nba" | "mlb" | "wnba")
       return "border-red-500/35 bg-red-500/15 text-red-600 dark:text-red-200";
     default:
       return "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400";
+  }
+};
+
+// Pace rank semantics are INVERTED relative to DEF rank:
+//   - DEF: rank #1 = best defense = BAD for offensive props (red)
+//   - Pace: rank #1 = fastest pace = GOOD for offensive props (green)
+// We invert the rank then reuse the existing 5-tier logic.
+const invertRank = (rank: number, total: number) => total - rank + 1;
+
+const getPaceTier = (rank: number | null | undefined, sport: "nba" | "mlb" | "wnba" = "nba") => {
+  if (rank === null || rank === undefined) return null;
+  const total = getDefenseTotalTeams(sport);
+  return getMatchupTier(invertRank(rank, total), total);
+};
+
+const getPaceRankPillClass = (rank: number | null | undefined, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  const tier = getPaceTier(rank, sport);
+  if (!tier) {
+    return "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400";
+  }
+  switch (tier) {
+    case "elite":
+      return "border-[color-mix(in_oklab,var(--accent)_38%,transparent)] bg-[color-mix(in_oklab,var(--accent)_17%,var(--card))] text-[color-mix(in_oklab,var(--accent)_92%,var(--text))]";
+    case "strong":
+      return "border-[color-mix(in_oklab,var(--accent)_24%,transparent)] bg-[color-mix(in_oklab,var(--accent)_9%,var(--card))] text-[color-mix(in_oklab,var(--accent)_78%,var(--text))]";
+    case "bad":
+      return "border-red-500/20 bg-red-500/10 text-red-500 dark:text-red-300";
+    case "worst":
+      return "border-red-500/35 bg-red-500/15 text-red-600 dark:text-red-200";
+    case "neutral":
+    default:
+      return "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400";
+  }
+};
+
+const getPaceRankTextColor = (rank: number | null | undefined, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  const tier = getPaceTier(rank, sport);
+  if (!tier) return "text-neutral-500 dark:text-neutral-400";
+  switch (tier) {
+    case "elite":
+      return "text-emerald-700 dark:text-emerald-300 font-bold";
+    case "strong":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "bad":
+      return "text-red-500 dark:text-red-400";
+    case "worst":
+      return "text-red-600 dark:text-red-300 font-bold";
+    case "neutral":
+    default:
+      return "text-neutral-500 dark:text-neutral-400";
   }
 };
 
@@ -239,34 +327,26 @@ const getProgressBarColor = (value: number | null) => {
   return "bg-red-400";
 };
 
-// Aligned with prop command center / exit velocity tables (see mlb-prop-command-center.tsx:500
-// and mlb-exit-velocity.tsx:115). Drops the dull /18 opacity for amber/orange/red.
+// Locked to the prop command center palette (mlb-prop-command-center.tsx:500) so all of our
+// performance/score tables read the same. 5-tier scale with a neutral grey middle band.
 const getHitRateHeatClass = (value: number | null) => {
   if (value === null || value === undefined) {
     return "bg-neutral-50 text-neutral-500 dark:bg-neutral-900/80 dark:text-neutral-500";
   }
   if (value >= 75) {
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/40 dark:text-white";
+    return "bg-emerald-100 text-emerald-800 font-bold dark:bg-emerald-500/40 dark:text-white";
   }
   if (value >= 60) {
     return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
   }
   if (value >= 50) {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200";
+    // Avg — neutral grey signals "right around the line" without competing with the green/red tiers
+    return "bg-neutral-100 text-neutral-700 dark:bg-neutral-500/15 dark:text-neutral-300";
   }
   if (value >= 35) {
-    return "bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200";
+    return "bg-red-50 text-red-600 dark:bg-red-500/20 dark:text-red-300";
   }
-  return "bg-red-100 text-red-800 dark:bg-red-500/40 dark:text-white";
-};
-
-const getHitRateBorderClass = (value: number | null) => {
-  if (value === null || value === undefined) return "border-neutral-200/70 dark:border-neutral-800/80";
-  if (value >= 75) return "border-emerald-500/40";
-  if (value >= 60) return "border-emerald-500/25";
-  if (value >= 50) return "border-amber-500/35";
-  if (value >= 35) return "border-orange-500/35";
-  return "border-red-500/40";
+  return "bg-red-100 text-red-800 font-bold dark:bg-red-500/40 dark:text-white";
 };
 
 const formatHitRateCount = (value: number | null, sampleSize?: number | null) => {
@@ -275,37 +355,359 @@ const formatHitRateCount = (value: number | null, sampleSize?: number | null) =>
   return `${hits}/${sampleSize}`;
 };
 
-// Heat-map hit rate cell with sample count.
-const HitRateCell = ({ 
-  value, 
+// Heat-map hit rate cell content. The tier background is applied to the parent <td>
+// (edge-to-edge solid fill, matching the prop command center pattern). This component
+// only renders the percentage + sample count text.
+const HitRateCell = ({
+  value,
   sampleSize,
   subLabel,
-  isBlurred = false 
-}: { 
-  value: number | null; 
+  isBlurred = false,
+}: {
+  value: number | null;
   sampleSize?: number | null;
   subLabel?: string;
   isBlurred?: boolean;
 }) => {
   const count = formatHitRateCount(value, sampleSize);
   const secondary = count ?? subLabel ?? "—";
-  
+
   return (
     <div
       className={cn(
-        "mx-auto flex min-h-[58px] w-full max-w-[88px] flex-col items-center justify-center rounded-md border px-2 py-2 text-center transition-colors duration-200",
-        getHitRateHeatClass(value),
-        getHitRateBorderClass(value),
+        "flex flex-col items-center justify-center gap-1",
         isBlurred && "blur-[3px] opacity-60"
       )}
     >
       <span className="text-[15px] font-black leading-none tabular-nums">
         {value !== null && value !== undefined ? `${Math.round(value)}%` : "—"}
       </span>
-      <span className="mt-1 text-[11px] font-bold leading-none tabular-nums opacity-75">
+      <span className="text-[11px] font-bold leading-none tabular-nums">
         {secondary}
       </span>
     </div>
+  );
+};
+
+// Compact-view Over/Under odds cells with sportsbook book chip + dropdown popover.
+// Fetches the odds-line for the row once, then exposes per-side triggers (Over / Under)
+// that open a popover listing every book with that side's price + deep link.
+type OddsLineBook = {
+  book: string;
+  over: number | null;
+  under: number | null;
+  link_over?: string | null;
+  link_under?: string | null;
+};
+type OddsLineApiResponse = {
+  best: { book: string; over: number | null; under: number | null } | null;
+  books: OddsLineBook[];
+};
+
+const findBestPerSide = (books: OddsLineBook[] | undefined, side: "over" | "under") => {
+  if (!books || books.length === 0) return null;
+  let best: { book: string; price: number } | null = null;
+  for (const b of books) {
+    const price = side === "over" ? b.over : b.under;
+    if (price === null || price === undefined) continue;
+    if (best === null || price > best.price) {
+      best = { book: b.book, price };
+    }
+  }
+  return best;
+};
+
+// Sportsbook logo — uses the standard light PNG (e.g. /images/sports-books/draftkings.png).
+// No rounded clipping or chip wrapper, so the logo's own design (round/wordmark/etc.) renders
+// as the source artwork intended.
+const BookLogo = ({ book, size = 16 }: { book: string; size?: number }) => {
+  const sb = getSportsbookById(book);
+  const src = sb?.image?.light ?? null;
+  if (!src) {
+    return (
+      <span
+        aria-hidden="true"
+        className="shrink-0 bg-neutral-200 dark:bg-neutral-700"
+        style={{ height: size, width: size }}
+      />
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={sb?.name ?? book}
+      className="shrink-0 object-contain"
+      style={{ height: size, width: size }}
+    />
+  );
+};
+
+// Per-side trigger + popover that lists every book offering that side. Styled to
+// match the prop command center / HR command center dropdowns: book logo + name +
+// BEST badge + price + ExternalLink, with a "Line Movement" footer.
+const CompactSidePrice = ({
+  side,
+  books,
+  fallback,
+  line,
+  market,
+  isBlurred,
+  gameStarted,
+  isLoading,
+  onOpenLineMovement,
+}: {
+  side: "over" | "under";
+  books: OddsLineBook[] | undefined;
+  fallback: { book: string; price: number } | null;
+  line: number | null;
+  market: string;
+  isBlurred: boolean;
+  gameStarted: boolean;
+  isLoading: boolean;
+  onOpenLineMovement?: (side: "over" | "under") => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const liveBest = findBestPerSide(books, side);
+  const best = liveBest ?? fallback;
+
+  if (isBlurred) {
+    return <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>;
+  }
+  if (gameStarted) {
+    return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+  }
+  if ((isLoading && !best) || !best) {
+    return <span className="text-xs text-neutral-300 dark:text-neutral-600">—</span>;
+  }
+
+  // Build the per-book list filtered to this side
+  const priced = (books ?? [])
+    .map((b) => ({
+      book: b.book,
+      price: (side === "over" ? b.over : b.under) ?? null,
+      link: (side === "over" ? b.link_over : b.link_under) ?? null,
+    }))
+    .filter((b): b is { book: string; price: number; link: string | null } => b.price !== null && b.price !== undefined)
+    .sort((a, b) => b.price - a.price);
+
+  const sideLabel = side === "over" ? "OVER" : "UNDER";
+  const lineLabel = line !== null && line !== undefined ? `${line}+ ${sideLabel}` : sideLabel;
+
+  return (
+    <Popover
+      openPopover={open}
+      setOpenPopover={setOpen}
+      align="center"
+      side="bottom"
+      popoverContentClassName="w-[280px] p-0 overflow-hidden bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-700/80 shadow-2xl ring-1 ring-black/5 dark:ring-white/5"
+      content={
+        <div>
+          {/* Header: market label + book count */}
+          <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-2 dark:border-neutral-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              {formatMarketLabel(market)} · {lineLabel}
+            </span>
+            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+              {priced.length} {priced.length === 1 ? "book" : "books"}
+            </span>
+          </div>
+          {/* Book list */}
+          <div className="max-h-[260px] overflow-y-auto">
+            {priced.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-neutral-500 dark:text-neutral-400">
+                {fallback ? "No live books for this side" : "No books"}
+              </div>
+            ) : (
+              priced.map((b, i) => {
+                const sb = getSportsbookById(b.book);
+                const isBest = i === 0;
+                const hasLink = !!b.link;
+                return (
+                  <a
+                    key={`${b.book}-${i}`}
+                    href={hasLink ? b.link! : undefined}
+                    target={hasLink ? "_blank" : undefined}
+                    rel={hasLink ? "noopener noreferrer" : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!hasLink) e.preventDefault();
+                      else setOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 transition-colors",
+                      "hover:bg-neutral-50 dark:hover:bg-neutral-800/60",
+                      isBest && "bg-emerald-500/5",
+                      !hasLink && "cursor-default"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <BookLogo book={b.book} size={16} />
+                      <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                        {sb?.name ?? b.book}
+                      </span>
+                      {isBest && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 shrink-0">
+                          Best
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={cn(
+                          "text-xs font-bold tabular-nums",
+                          isBest
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-neutral-600 dark:text-neutral-300"
+                        )}
+                      >
+                        {formatOddsPrice(b.price)}
+                      </span>
+                      {hasLink && <ExternalLink className="h-2.5 w-2.5 text-neutral-400" />}
+                    </div>
+                  </a>
+                );
+              })
+            )}
+          </div>
+          {/* Line movement footer */}
+          {onOpenLineMovement && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenLineMovement(side);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-center gap-1.5 border-t border-neutral-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-brand dark:border-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-brand"
+            >
+              <LineChartIcon className="h-3 w-3" />
+              Line Movement
+            </button>
+          )}
+        </div>
+      }
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={cn(
+          "inline-flex items-center justify-center gap-1.5 rounded-md px-1.5 py-1 transition-colors",
+          "hover:bg-neutral-100 dark:hover:bg-neutral-800/60",
+          open && "bg-neutral-100 dark:bg-neutral-800/70 ring-1 ring-brand/30"
+        )}
+      >
+        <BookLogo book={best.book} size={16} />
+        <span
+          className={cn(
+            "text-xs font-black tabular-nums",
+            best.price > 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-neutral-700 dark:text-neutral-200"
+          )}
+        >
+          {formatOddsPrice(best.price)}
+        </span>
+        <ChevronDown className={cn("h-3 w-3 opacity-40 transition-transform", open && "rotate-180")} />
+      </button>
+    </Popover>
+  );
+};
+
+const CompactOddsCells = ({
+  row,
+  sport,
+  isBlurred,
+  isLastColumn,
+  onOpenLineMovement,
+}: {
+  row: HitRateProfile;
+  sport: "nba" | "mlb" | "wnba";
+  isBlurred: boolean;
+  isLastColumn?: boolean;
+  onOpenLineMovement?: (row: HitRateProfile, side: "over" | "under") => void;
+}) => {
+  const playerId = row.selKey ? row.selKey.split(":")[0] : null;
+  const enabled =
+    !isBlurred &&
+    sport !== "mlb" && // MLB doesn't have /props/odds-line for hit-rate context yet
+    !!row.eventId &&
+    !!row.market &&
+    !!playerId &&
+    row.line !== null &&
+    row.line !== undefined;
+
+  const oddsLineQuery = useQuery({
+    queryKey: ["compact-odds-line", sport, row.eventId, row.market, playerId, row.line],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        event_id: row.eventId!,
+        market: row.market,
+        player_id: playerId!,
+        line: String(row.line),
+      });
+      const res = await fetch(`/api/${sport}/props/odds-line?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch odds line");
+      return res.json() as Promise<OddsLineApiResponse>;
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fallback: when the live /odds-line query returns no books for this exact line
+  // (line drift / partial cache miss) but the row has a precomputed bestOdds from
+  // the v2 endpoint, surface that on whichever side the selKey encodes. selKey is
+  // "{playerId}:{side}:{line}" — hit-rate rows are typically the "over" side.
+  const fallbackSide: "over" | "under" | null = (() => {
+    if (!row.selKey) return null;
+    const side = row.selKey.split(":")[1];
+    if (side === "over" || side === "under") return side;
+    return null;
+  })();
+  const overFallback =
+    row.bestOdds && fallbackSide === "over"
+      ? { book: row.bestOdds.book, price: row.bestOdds.price }
+      : null;
+  const underFallback =
+    row.bestOdds && fallbackSide === "under"
+      ? { book: row.bestOdds.book, price: row.bestOdds.price }
+      : null;
+
+  const gameStarted = hasGameStarted(row.gameStatus, row.gameDate);
+  const isLoading = oddsLineQuery.isLoading || (enabled && oddsLineQuery.isFetching && !oddsLineQuery.data);
+
+  return (
+    <>
+      <td className="px-2 py-2 align-middle text-center border-l border-brand/20 dark:border-brand/15">
+        <CompactSidePrice
+          side="over"
+          books={oddsLineQuery.data?.books}
+          fallback={overFallback}
+          line={row.line}
+          market={row.market}
+          isBlurred={isBlurred}
+          gameStarted={gameStarted}
+          isLoading={isLoading}
+          onOpenLineMovement={onOpenLineMovement ? (s) => onOpenLineMovement(row, s) : undefined}
+        />
+      </td>
+      <td className={cn("px-2 py-2 align-middle text-center", isLastColumn && "rounded-r-xl")}>
+        <CompactSidePrice
+          side="under"
+          books={oddsLineQuery.data?.books}
+          fallback={underFallback}
+          line={row.line}
+          market={row.market}
+          isBlurred={isBlurred}
+          gameStarted={gameStarted}
+          isLoading={isLoading}
+          onOpenLineMovement={onOpenLineMovement ? (s) => onOpenLineMovement(row, s) : undefined}
+        />
+      </td>
+    </>
   );
 };
 
@@ -373,11 +775,11 @@ const RecentTrendBars = ({
       <div className="relative flex h-20 items-stretch gap-2 pl-1">
         <div className="relative flex h-full flex-1 flex-col justify-end pb-1">
           <div className="pointer-events-none absolute inset-x-0 bottom-[34px] border-t border-dashed border-neutral-400/30 dark:border-neutral-600/30" />
-          <div className="relative flex w-full items-end justify-between gap-[3px]" style={{ height: 60 }}>
+          <div className="relative flex w-full items-end justify-center gap-[2px]" style={{ height: 60 }}>
             {Array.from({ length: 10 }).map((_, index) => (
-              <div key={index} className="flex h-full min-w-0 flex-1 items-end justify-center">
+              <div key={index} className="flex h-full w-3.5 shrink-0 items-end justify-center">
                 <div
-                  className="w-full max-w-[10px] animate-pulse rounded-t-[2px] bg-neutral-200/70 dark:bg-neutral-800/70"
+                  className="w-full animate-pulse rounded-t-[2px] bg-neutral-200/70 dark:bg-neutral-800/70"
                   style={{ height: 18 + (index % 4) * 6 }}
                 />
               </div>
@@ -419,8 +821,8 @@ const RecentTrendBars = ({
             style={{ bottom: `calc(${linePositionPx}px + 4px)` }}
           />
         )}
-        {/* Bars — all grow from the bottom baseline */}
-        <div className="relative flex w-full items-end justify-between gap-[3px]" style={{ height: chartHeightPx }}>
+        {/* Bars — all grow from the bottom baseline, clustered tight in the center */}
+        <div className="relative flex w-full items-end justify-center gap-[2px]" style={{ height: chartHeightPx }}>
           {chartGames.map((game, index) => {
             const value = values[index];
             const isHit = value >= lineValue;
@@ -496,6 +898,24 @@ const RecentTrendBars = ({
                         </div>
                       )}
                     </div>
+                    {/* Market-specific efficiency: shooting splits / made-of-potential */}
+                    {(() => {
+                      const parts = getMarketEfficiencyParts(game, row.market);
+                      if (parts.length === 0) return null;
+                      return (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-neutral-200/50 pt-2 text-[10px] font-bold tabular-nums text-neutral-500 dark:border-neutral-700/50 dark:text-neutral-400">
+                          {parts.map((p, i) => (
+                            <React.Fragment key={i}>
+                              {i > 0 && <span className="text-neutral-300 dark:text-neutral-600">•</span>}
+                              <span>
+                                <span className="text-neutral-700 dark:text-neutral-200">{p.value}</span>
+                                <span className="ml-1 uppercase tracking-wider">{p.label}</span>
+                              </span>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {/* Context: minutes / usage */}
                     {(game.minutes > 0 || game.usagePct > 0) && (
                       <div className="mt-2 flex items-center gap-2 border-t border-neutral-200/50 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/50 dark:text-neutral-400">
@@ -509,7 +929,7 @@ const RecentTrendBars = ({
                         )}
                         {game.usagePct > 0 && (
                           <span className="tabular-nums">
-                            {game.usagePct.toFixed(1)}% USG
+                            {(game.usagePct < 1 ? game.usagePct * 100 : game.usagePct).toFixed(1)}% USG
                           </span>
                         )}
                       </div>
@@ -517,10 +937,10 @@ const RecentTrendBars = ({
                   </div>
                 }
               >
-                <div className="group/trend flex h-full min-w-0 flex-1 items-end justify-center">
+                <div className="group/trend flex h-full w-3.5 shrink-0 items-end justify-center">
                   <div
                     className={cn(
-                      "w-full max-w-[10px] rounded-t-[2px] transition-all duration-200 group-hover/trend:brightness-115 group-hover/trend:translate-y-[-1px]",
+                      "w-full rounded-t-[2px] transition-all duration-200 group-hover/trend:brightness-115 group-hover/trend:translate-y-[-1px]",
                       isHit
                         ? "bg-emerald-500/90 dark:bg-emerald-400/90 shadow-[0_0_0_1px_rgba(16,185,129,0.2)_inset]"
                         : "bg-rose-500/80 dark:bg-rose-500/80 shadow-[0_0_0_1px_rgba(244,63,94,0.2)_inset]"
@@ -1181,7 +1601,37 @@ export function HitRateTable({
   const hideNoOdds = hideNoOddsControlled ?? hideNoOddsInternal;
   const setHideNoOdds = onHideNoOddsChange ?? setHideNoOddsInternal;
   const filterPopupRef = useRef<HTMLDivElement>(null);
-  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+
+  // Compact view: hides Recent (10) chart column and tightens row padding for power users
+  const [compactView, setCompactView] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("hit-rate-compact-view") === "true";
+  });
+
+  // Line movement dialog state — opened from the compact odds dropdown footer
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
+  const handleOpenLineMovement = useCallback(
+    (row: HitRateProfile, side: "over" | "under") => {
+      if (!row.eventId || !row.market) return;
+      const ctx: LineHistoryContext = {
+        source: "edge",
+        sport,
+        eventId: row.eventId,
+        market: row.market,
+        marketDisplay: formatMarketLabel(row.market),
+        side,
+        line: row.line ?? null,
+        playerName: row.playerName ?? null,
+        team: row.teamAbbr ?? null,
+      };
+      setLineHistoryContext(ctx);
+    },
+    [sport]
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("hit-rate-compact-view", String(compactView));
+  }, [compactView]);
   
   // Check if any advanced filters are active
   const hasActiveFilters = selectedPositions.size > 0 || maxMatchupRank > 0 || hideNoOdds;
@@ -1294,6 +1744,15 @@ export function HitRateTable({
   // Odds are now loaded directly from the main API via bestOdds field
   // No separate odds fetch needed - bestodds:nba keys provide the best price
   const oddsLoading = loading; // Odds load with the main data
+
+  // Derived column widths: column order is player, matchup, prop, recent, str, l5,
+  // l10, l20, season, h2h, defrank, pace, over, under (14 total). Compact view drops
+  // the Recent col (idx 3); the rest carries through.
+  const displayedColumnWidths = useMemo(() => {
+    const base = tableConfig.columnWidths;
+    if (!compactView) return base;
+    return [...base.slice(0, 3), ...base.slice(4)];
+  }, [compactView, tableConfig.columnWidths]);
   
   // Sort rows: All sorting consolidated here
   // Priority: 1) "Out" players to bottom, 2) Primary sort field, 3) Odds availability (tiebreaker)
@@ -1315,23 +1774,35 @@ export function HitRateTable({
     
     const sortFieldKey = sortField ? fieldMap[sortField] : null;
     const multiplier = sortDirection === "asc" ? 1 : -1;
-    
+
+    // Pace rank lives on a nested path (paceContext.opponentRecent.l5Rank), so we
+    // resolve it via a custom getter rather than fieldMap.
+    const getSortValue = (row: HitRateProfile): number | null => {
+      if (sortField === "paceRank") {
+        return row.paceContext?.opponentRecent.l5Rank ?? null;
+      }
+      if (sortFieldKey) {
+        return row[sortFieldKey] as number | null;
+      }
+      return null;
+    };
+
     return [...filteredRows].sort((a, b) => {
       // 0. ALWAYS push "out" players to the bottom
       const aIsOut = a.injuryStatus?.toLowerCase() === "out";
       const bIsOut = b.injuryStatus?.toLowerCase() === "out";
       if (aIsOut && !bIsOut) return 1;
       if (!aIsOut && bIsOut) return -1;
-      
+
       // 1. PRIMARY SORT: by user's selected field (L10%, etc.)
-      if (sortFieldKey) {
-        const aVal = a[sortFieldKey] as number | null;
-        const bVal = b[sortFieldKey] as number | null;
-        
+      if (sortField) {
+        const aVal = getSortValue(a);
+        const bVal = getSortValue(b);
+
         // Push nulls to the end (regardless of sort direction)
         if (aVal === null && bVal !== null) return 1;
         if (aVal !== null && bVal === null) return -1;
-        
+
         // If both have values, compare them
         if (aVal !== null && bVal !== null) {
           const diff = (aVal - bVal) * multiplier;
@@ -1486,6 +1957,28 @@ export function HitRateTable({
             </button>
           )}
         </div>
+
+        {/* Compact View Toggle — hides Recent (10) chart and tightens row padding */}
+        <Tooltip
+          content={compactView ? "Switch to expanded view (with charts)" : "Switch to compact view (hides charts)"}
+          side="top"
+        >
+          <button
+            type="button"
+            onClick={() => setCompactView(!compactView)}
+            aria-pressed={compactView}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200",
+              compactView
+                ? "bg-brand/10 border-brand/40 text-brand shadow-sm shadow-brand/10 dark:bg-brand/20 dark:border-brand/50"
+                : "bg-white dark:bg-neutral-800/90 border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm hover:shadow-md",
+              "border ring-1 ring-black/[0.03] dark:ring-white/[0.03]"
+            )}
+          >
+            <Rows3 className="h-4 w-4" />
+            <span className="hidden lg:inline">Compact</span>
+          </button>
+        </Tooltip>
 
         {/* Advanced Filters Button - Premium */}
         <div ref={filterPopupRef} className="relative z-[9998]">
@@ -1734,41 +2227,51 @@ export function HitRateTable({
       <div ref={scrollRef} className="overflow-auto flex-1 rounded-b-2xl">
       <table className="min-w-full table-fixed border-separate border-spacing-y-1 text-sm">
           <colgroup>
-            {tableConfig.columnWidths.map((width, idx) => (
+            {displayedColumnWidths.map((width, idx) => (
               <col key={`hr-col-${idx}`} style={{ width }} />
             ))}
           </colgroup>
         <thead className="sticky top-0 z-[5]">
           {/* Grouped category row — pairs columns into "Hit Rate %" and "Defense Context" */}
           <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
-            {/* Spacer for Player + Matchup + Prop + Recent + Str */}
-            <th colSpan={5} aria-hidden="true" className="h-9" />
+            {/* Spacer for Player + Matchup + Prop (+ Recent) + Str */}
+            <th colSpan={compactView ? 4 : 5} aria-hidden="true" className="h-9" />
             {/* Hit Rate % group: L5 / L10 / L20 / Season / H2H */}
             <th
               colSpan={5}
               scope="colgroup"
               className="h-9 px-3 pt-3 pb-1 text-center align-bottom text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 border-l border-neutral-200/40 dark:border-neutral-800/40"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-px w-3 bg-gradient-to-r from-transparent to-brand/60" aria-hidden="true" />
-                Hit Rate %
-                <span className="h-px w-3 bg-gradient-to-l from-transparent to-brand/60" aria-hidden="true" />
-              </span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+                <span className="shrink-0">Hit Rate %</span>
+                <span className="h-px flex-1 bg-gradient-to-l from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+              </div>
             </th>
-            {/* Defense Context group: DEF Rank / Allowed / Pace */}
+            {/* Defense Context group: DEF Rank / Pace */}
             <th
-              colSpan={3}
+              colSpan={2}
               scope="colgroup"
               className="h-9 px-3 pt-3 pb-1 text-center align-bottom text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 border-l border-neutral-200/40 dark:border-neutral-800/40"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-px w-3 bg-gradient-to-r from-transparent to-brand/60" aria-hidden="true" />
-                Defense Context
-                <span className="h-px w-3 bg-gradient-to-l from-transparent to-brand/60" aria-hidden="true" />
-              </span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+                <span className="shrink-0">Defense Context</span>
+                <span className="h-px flex-1 bg-gradient-to-l from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+              </div>
             </th>
-            {/* Spacer for Odds */}
-            <th colSpan={1} aria-hidden="true" className="h-9 border-l border-neutral-200/40 dark:border-neutral-800/40" />
+            {/* Odds group: always 2 cols (Over / Under) */}
+            <th
+              colSpan={2}
+              scope="colgroup"
+              className="h-9 px-3 pt-3 pb-1 text-center align-bottom text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 border-l border-neutral-200/40 dark:border-neutral-800/40"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+                <span className="shrink-0">Odds</span>
+                <span className="h-px flex-1 bg-gradient-to-l from-transparent via-brand/30 to-brand/50" aria-hidden="true" />
+              </div>
+            </th>
           </tr>
           <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
             {/* Non-sortable columns */}
@@ -1797,10 +2300,12 @@ export function HitRateTable({
               </div>
             </th>
 
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-              Recent (10)
-            </th>
-            
+            {!compactView && (
+              <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+                Recent (10)
+              </th>
+            )}
+
             {/* Sortable: Streak */}
             <th
               onClick={() => handleSort("streak")}
@@ -1870,21 +2375,31 @@ export function HitRateTable({
             </th>
             
             {/* Defensive context columns (first cell starts Defense Context group) */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40">
-              DEF Rank
+            <th
+              onClick={() => handleSort("matchupRank")}
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+            >
+              <div className="flex items-center justify-center gap-1">
+                DEF Rank
+                <SortIcon field="matchupRank" />
+              </div>
             </th>
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-              <Tooltip content="Opponent defense allowed per game to this player's position for the selected market." side="top">
-                <span className="cursor-help">Allowed</span>
-              </Tooltip>
-            </th>
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-              Pace
+            <th
+              onClick={() => handleSort("paceRank")}
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+            >
+              <div className="flex items-center justify-center gap-1">
+                Pace
+                <SortIcon field="paceRank" />
+              </div>
             </th>
 
-            {/* Non-sortable: Odds (last column, separated from Defense Context group) */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40">
-              Odds
+            {/* Odds — always Over / Under */}
+            <th className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-l border-neutral-200/80 border-l-neutral-200/40 dark:border-neutral-800/80 dark:border-l-neutral-800/40">
+              Over
+            </th>
+            <th className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              Under
             </th>
           </tr>
         </thead>
@@ -1896,10 +2411,9 @@ export function HitRateTable({
             // Use composite key with index to guarantee uniqueness
             // (same player can have duplicate profiles for same game in data)
             const rowKey = `${row.id}-${row.gameId ?? "no-game"}-${row.market}-${idx}`;
-            const isExpanded = expandedRowKey === rowKey;
             const rowSport = sport === "mlb" ? "mlb" : sport === "wnba" ? "wnba" : "nba";
             const defenseTotalTeamsForRow = getDefenseTotalTeams(rowSport);
-            
+
             // Check if this row should be blurred (for gated access)
             const isBlurred = blurAfterIndex !== undefined && idx >= blurAfterIndex;
 
@@ -1911,24 +2425,24 @@ export function HitRateTable({
                   "group overflow-hidden transition-all duration-200",
                   idx % 2 === 0 ? "bg-white/90 dark:bg-neutral-950/70" : "bg-neutral-50/90 dark:bg-neutral-900/70",
                   "shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]",
-                  isExpanded && "bg-brand/[0.05] shadow-[inset_4px_0_0_0_var(--color-brand),inset_0_0_0_1px_rgba(14,165,233,0.28)] dark:bg-brand/10",
-                  isBlurred 
-                    ? "cursor-default select-none pointer-events-none" 
+                  isBlurred
+                    ? "cursor-default select-none pointer-events-none"
                     : "cursor-pointer hover:bg-brand/[0.045] dark:hover:bg-brand/10 hover:shadow-[inset_4px_0_0_0_rgba(14,165,233,0.55),inset_0_0_0_1px_rgba(14,165,233,0.24)]",
-                  // isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
                 )}
               >
-                {/* Player Column: Headshot + Name + Position/Jersey */}
-                <td className="rounded-l-xl px-3 py-4">
+                {/* Player Column: (Headshot in normal mode) + Name + Position/Jersey */}
+                <td className={cn("rounded-l-xl px-3 py-4", compactView && "py-2")}>
                   {isBlurred ? (
                     // Blurred placeholder content
                     <div className="flex items-center gap-3 opacity-50">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs font-black tabular-nums text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900">
                         {idx + 1}
                       </span>
-                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
-                        <User className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
-                      </div>
+                      {!compactView && (
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+                          <User className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-sm text-neutral-400 dark:text-neutral-500 leading-tight blur-[2px]">
@@ -1948,32 +2462,31 @@ export function HitRateTable({
                       "flex items-center gap-3",
                       isPlayerOut(row.injuryStatus) && "opacity-50"
                     )}>
-                      <span className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums transition-all duration-200",
-                        isExpanded
-                          ? "border-brand/40 bg-brand/15 text-brand"
-                          : "border-neutral-200 bg-white text-neutral-500 group-hover:border-brand/30 group-hover:text-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400"
-                      )}>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs font-black tabular-nums text-neutral-500 transition-all duration-200 group-hover:border-brand/30 group-hover:text-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
                         {idx + 1}
                       </span>
-                      {(() => {
+                      {!compactView && (() => {
                         const hasInjury = row.injuryStatus && row.injuryStatus !== "active" && row.injuryStatus !== "available";
                         const injuryTooltip = hasInjury
                           ? `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
                           : "";
-                        
+
                         const headshotElement = (
-                          <div 
+                          <div
                             className={cn(
-                              "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]",
+                              "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800/60 shadow-sm ring-1 ring-neutral-200/70 dark:ring-neutral-800/80 transition-all duration-200 group-hover:scale-[1.03] group-hover:ring-brand/40 group-hover:shadow-md",
                               hasInjury && "cursor-pointer",
                               getStatusBorderClass(row.injuryStatus)
                             )}
-                            style={{ 
-                              background: row.primaryColor && row.secondaryColor 
-                                ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
-                                : row.primaryColor || undefined 
-                            }}
+                            style={
+                              row.primaryColor
+                                ? {
+                                    // Subtle team-color accent: a 2px inner ring + soft glow on hover.
+                                    // Replaces the loud full-bg gradient that fought with row-level data.
+                                    boxShadow: `inset 0 -2px 0 ${row.primaryColor}88`,
+                                  }
+                                : undefined
+                            }
                           >
                             <PlayerHeadshot
                               sport={sport}
@@ -1994,28 +2507,28 @@ export function HitRateTable({
                           headshotElement
                         );
                       })()}
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
+                          <span className="text-sm font-bold leading-tight text-neutral-900 truncate dark:text-white">
                             {row.playerName}
                           </span>
                           {hasInjuryStatus(row.injuryStatus) && (() => {
-                            const isGLeague = row.injuryNotes?.toLowerCase().includes("g league") || 
+                            const isGLeague = row.injuryNotes?.toLowerCase().includes("g league") ||
                                               row.injuryNotes?.toLowerCase().includes("g-league") ||
                                               row.injuryNotes?.toLowerCase().includes("gleague");
                             return (
-                              <Tooltip 
-                                content={isGLeague 
+                              <Tooltip
+                                content={isGLeague
                                   ? `G League${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
                                   : `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
                                 }
                                 side="top"
                               >
                                 {isGLeague ? (
-                                  <ArrowDown className="h-4 w-4 cursor-help text-blue-500" />
+                                  <ArrowDown className="h-4 w-4 shrink-0 cursor-help text-blue-500" />
                                 ) : (
                                   <HeartPulse className={cn(
-                                    "h-4 w-4 cursor-help",
+                                    "h-4 w-4 shrink-0 cursor-help",
                                     getInjuryIconColorClass(row.injuryStatus)
                                   )} />
                                 )}
@@ -2023,37 +2536,70 @@ export function HitRateTable({
                             );
                           })()}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                           {row.teamAbbr && (
                             <img
                               src={getTeamLogoUrl(row.teamAbbr, sport)}
                               alt={row.teamAbbr}
-                              className="h-4 w-4 object-contain"
+                              className="h-3.5 w-3.5 shrink-0 object-contain"
                             />
                           )}
+                          {row.teamAbbr && (
+                            <span className="font-bold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">
+                              {row.teamAbbr}
+                            </span>
+                          )}
+                          <span className="text-neutral-300 dark:text-neutral-600">·</span>
                           <Tooltip content={getPositionLabel(row.position)} side="top">
                             <span className="cursor-help">{formatPosition(row.position)}</span>
                           </Tooltip>
-                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                          <span>#{row.jerseyNumber ?? "—"}</span>
+                          {row.jerseyNumber !== null && row.jerseyNumber !== undefined && (
+                            <>
+                              <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                              <span className="tabular-nums">#{row.jerseyNumber}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                   )}
                 </td>
 
-                {/* Matchup Column — opponent + game time (DEF rank lives in its own column now) */}
-                <td className="px-2 py-4 text-center align-middle">
+                {/* Matchup Column — opponent + game time + game lines (DEF rank lives in its own column) */}
+                <td className={cn("px-2 py-4 text-center align-middle", compactView && "py-2")}>
                   {isBlurred ? (
-                    <div className="mx-auto flex max-w-[96px] flex-col items-center gap-1.5 opacity-50 blur-[2px]">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">vs</span>
-                        <div className="h-7 w-7 rounded-full bg-neutral-200 dark:bg-neutral-700" />
-                      </div>
-                      <span className="text-[10px] font-bold tabular-nums text-neutral-400">—:—</span>
+                    <div className={cn(
+                      "mx-auto flex max-w-[112px] items-center justify-center gap-1.5 opacity-50 blur-[2px]",
+                      compactView ? "flex-row" : "flex-col"
+                    )}>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">vs</span>
+                      <div className={cn(
+                        "shrink-0 rounded-full bg-neutral-200 dark:bg-neutral-700",
+                        compactView ? "h-5 w-5" : "h-7 w-7"
+                      )} />
+                      {!compactView && <span className="text-[10px] font-bold tabular-nums text-neutral-400">—:—</span>}
+                    </div>
+                  ) : compactView ? (
+                    // Compact: single-line opponent (vs/@ + logo + abbr) — drops time and game lines
+                    <div className="mx-auto flex max-w-[112px] items-center justify-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                        {row.homeAway === "H" ? "vs" : "@"}
+                      </span>
+                      {row.opponentTeamAbbr && (
+                        <img
+                          src={getTeamLogoUrl(row.opponentTeamAbbr, sport)}
+                          alt={row.opponentTeamAbbr}
+                          className="h-5 w-5 object-contain"
+                        />
+                      )}
+                      {row.opponentTeamAbbr && (
+                        <span className="text-[11px] font-bold tabular-nums text-neutral-700 dark:text-neutral-300">
+                          {row.opponentTeamAbbr}
+                        </span>
+                      )}
                     </div>
                   ) : (
-                    <div className="mx-auto flex max-w-[124px] flex-col items-center gap-1.5">
+                    <div className="mx-auto flex max-w-[112px] flex-col items-center gap-1">
                       {/* Tomorrow accent (rare, only when the game is next-day) */}
                       {isTomorrow(row.gameDate) && (
                         <span className="rounded-sm bg-amber-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.12em] text-amber-600 leading-none dark:text-amber-300">
@@ -2061,7 +2607,7 @@ export function HitRateTable({
                         </span>
                       )}
 
-                      {/* Opponent: vs/@ + logo + abbr */}
+                      {/* Primary: vs/@ + opponent logo */}
                       <div className="flex items-center justify-center gap-1.5">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
                           {row.homeAway === "H" ? "vs" : "@"}
@@ -2078,32 +2624,36 @@ export function HitRateTable({
                         )}
                       </div>
 
-                      {/* Game time */}
+                      {/* Time */}
                       <span className="text-[10px] font-bold uppercase tracking-[0.06em] tabular-nums leading-none text-neutral-500 dark:text-neutral-400">
                         {formatGameTime(row.gameStatus, row.gameDate)}
                       </span>
 
+                      {/* Game lines — inline strip, muted, no chunky pills */}
                       {(row.total !== null || row.spread !== null) && (
                         <Tooltip
                           content={[
-                            row.total !== null
-                              ? `Over/under from ${formatBookName(row.totalBook) ?? "available books"}`
-                              : null,
                             row.spread !== null
                               ? `Spread from ${formatBookName(row.spreadBook) ?? "available books"}`
+                              : null,
+                            row.total !== null
+                              ? `Total from ${formatBookName(row.totalBook) ?? "available books"}`
                               : null,
                           ].filter(Boolean).join(" • ")}
                           side="top"
                         >
-                          <div className="flex cursor-help items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
-                            {row.total !== null && (
-                              <span className="rounded-sm border border-neutral-700/70 bg-neutral-900/70 px-1.5 py-1 text-neutral-300 dark:border-neutral-700 dark:bg-neutral-900/80">
-                                O/U {formatTotal(row.total)}
+                          <div className="mt-0.5 flex cursor-help items-center justify-center gap-1 text-[10px] font-bold leading-none tabular-nums text-neutral-500 dark:text-neutral-400">
+                            {row.spread !== null && (
+                              <span className="text-neutral-700 dark:text-neutral-200">
+                                {formatSpread(row.spread)}
                               </span>
                             )}
-                            {row.spread !== null && (
-                              <span className="rounded-sm border border-brand/25 bg-brand/10 px-1.5 py-1 text-brand">
-                                {formatSpread(row.spread)}
+                            {row.spread !== null && row.total !== null && (
+                              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+                            )}
+                            {row.total !== null && (
+                              <span>
+                                O/U <span className="text-neutral-700 dark:text-neutral-200">{formatTotal(row.total)}</span>
                               </span>
                             )}
                           </div>
@@ -2113,45 +2663,42 @@ export function HitRateTable({
                   )}
                 </td>
 
-                {/* Prop Column — typography-first, pill-less */}
-                <td className="px-3 py-4 align-middle text-center">
+                {/* Prop Column — line value stacked over market label, no info icon */}
+                <td className={cn("px-3 py-4 align-middle text-center", compactView && "py-2")}>
                   {isBlurred ? (
                     <div className="flex flex-col items-center gap-0.5 opacity-50 blur-[2px]">
-                      <span className="text-[15px] font-black leading-none tabular-nums text-neutral-400">00.0+</span>
+                      <span className="text-[15px] font-black leading-none tabular-nums text-neutral-400">00.0</span>
                       <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">PTS</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-0.5">
                       {row.line !== null && (
                         <span className="text-[15px] font-black leading-none tabular-nums text-neutral-900 dark:text-white">
-                          {row.line}<span className="ml-px text-brand">+</span>
+                          {row.line}
                         </span>
                       )}
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400">
                         {formatMarketLabel(row.market)}
-                        {getMarketTooltip(row.market) && (
-                          <Tooltip content={getMarketTooltip(row.market)!}>
-                            <Info className="h-3 w-3 cursor-help text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300" />
-                          </Tooltip>
-                        )}
                       </span>
                     </div>
                   )}
                 </td>
 
-                {/* Recent trend bars */}
-                <td className="px-3 py-3 align-middle">
-                  <RecentTrendBars
-                    row={row}
-                    games={recentTrendsQuery.data?.[String(row.playerId)]}
-                    isLoading={recentTrendsQuery.isLoading || recentTrendsQuery.isFetching}
-                    isBlurred={isBlurred}
-                    sport={rowSport}
-                  />
-                </td>
+                {/* Recent trend bars — hidden in compact view */}
+                {!compactView && (
+                  <td className="px-3 py-3 align-middle">
+                    <RecentTrendBars
+                      row={row}
+                      games={recentTrendsQuery.data?.[String(row.playerId)]}
+                      isLoading={recentTrendsQuery.isLoading || recentTrendsQuery.isFetching}
+                      isBlurred={isBlurred}
+                      sport={rowSport}
+                    />
+                  </td>
+                )}
 
                 {/* Streak Column */}
-                <td className="px-1 py-5 align-middle text-center">
+                <td className={cn("px-1 py-5 align-middle text-center", compactView && "py-2")}>
                   {isBlurred ? (
                     <span className="text-sm font-medium text-neutral-400 opacity-50 blur-[2px]">0</span>
                   ) : row.hitStreak !== null && row.hitStreak !== undefined ? (
@@ -2163,74 +2710,218 @@ export function HitRateTable({
                   )}
                 </td>
 
-                {/* L5 % - Premium cell with progress bar */}
-                <td className="px-1 py-3 align-middle text-center">
+                {/* L5 % — edge-to-edge tier fill, with brand-tinted left divider for the Hit Rate % group */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200 border-l border-brand/20 dark:border-brand/15",
+                    compactView && "py-1.5",
+                    !isBlurred && getHitRateHeatClass(row.last5Pct)
+                  )}
+                >
                   <HitRateCell value={row.last5Pct} sampleSize={5} isBlurred={isBlurred} />
                 </td>
 
-                {/* L10 % - Premium cell with progress bar */}
-                <td className="px-1 py-3 align-middle text-center">
+                {/* L10 % */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200",
+                    compactView && "py-1.5",
+                    !isBlurred && getHitRateHeatClass(row.last10Pct)
+                  )}
+                >
                   <HitRateCell value={row.last10Pct} sampleSize={10} isBlurred={isBlurred} />
                 </td>
 
-                {/* L20 % - Premium cell with progress bar */}
-                <td className="px-1 py-3 align-middle text-center">
+                {/* L20 % */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200",
+                    compactView && "py-1.5",
+                    !isBlurred && getHitRateHeatClass(row.last20Pct)
+                  )}
+                >
                   <HitRateCell value={row.last20Pct} sampleSize={20} isBlurred={isBlurred} />
                 </td>
 
-                {/* Season % - Premium cell with progress bar */}
-                <td className="px-1 py-3 align-middle text-center">
+                {/* Season % */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200",
+                    compactView && "py-1.5",
+                    !isBlurred && getHitRateHeatClass(row.seasonPct)
+                  )}
+                >
                   <HitRateCell value={row.seasonPct} sampleSize={row.seasonGames} subLabel="SZN" isBlurred={isBlurred} />
                 </td>
-                
-                {/* H2H % - Premium cell with progress bar */}
-                <td className="px-1 py-3 align-middle text-center">
+
+                {/* H2H % */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200",
+                    compactView && "py-1.5",
+                    !isBlurred && getHitRateHeatClass(row.h2hPct)
+                  )}
+                >
                   <HitRateCell value={row.h2hPct} sampleSize={row.h2hGames} isBlurred={isBlurred} />
                 </td>
 
-                {/* Defensive context: rank vs position */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <span
-                    className={cn(
-                      "inline-flex min-w-[58px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
-                      isBlurred ? "opacity-50 blur-[2px]" : getContextPillClass(row.matchupRank, rowSport)
-                    )}
-                  >
-                    {isBlurred ? "—" : row.matchupRank !== null ? `${row.matchupRank}/${defenseTotalTeamsForRow}` : "—"}
-                  </span>
+                {/* Defensive context: rank vs position — start of Defense Context group, brand-tinted divider */}
+                <td className={cn("px-2 py-5 align-middle text-center border-l border-brand/20 dark:border-brand/15", compactView && "py-2")}>
+                  {(() => {
+                    if (isBlurred || row.matchupRank === null) {
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex min-w-[58px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
+                            isBlurred ? "opacity-50 blur-[2px]" : getContextPillClass(row.matchupRank, rowSport)
+                          )}
+                        >
+                          {isBlurred ? "—" : "—"}
+                        </span>
+                      );
+                    }
+                    const tier = getMatchupTier(row.matchupRank, defenseTotalTeamsForRow);
+                    const tierLabel =
+                      tier === "elite"
+                        ? "Easy matchup"
+                        : tier === "strong"
+                        ? "Favorable matchup"
+                        : tier === "bad"
+                        ? "Hard matchup"
+                        : tier === "worst"
+                        ? "Toughest matchup"
+                        : "Average matchup";
+                    const tierBadgeClass =
+                      tier === "elite" || tier === "strong"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : tier === "bad" || tier === "worst"
+                        ? "bg-red-500/15 text-red-600 dark:text-red-300"
+                        : "bg-neutral-500/15 text-neutral-500 dark:text-neutral-400";
+                    const positionLabel = formatPosition(row.position);
+                    const marketLabel = formatMarketLabel(row.market);
+                    return (
+                      <Tooltip
+                        side="top"
+                        content={
+                          <div className="min-w-[220px] px-3 py-2.5">
+                            <div className="border-b border-neutral-200/70 pb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:border-neutral-700/70 dark:text-neutral-400">
+                              Defense vs {positionLabel}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <div className="flex items-baseline gap-1.5 tabular-nums">
+                                <span className={cn("text-base font-black", getMatchupRankColor(row.matchupRank, rowSport))}>
+                                  #{row.matchupRank}
+                                </span>
+                                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                                  / {defenseTotalTeamsForRow}
+                                </span>
+                              </div>
+                              <span className={cn("rounded-sm px-1.5 py-px text-[9px] font-black uppercase tracking-wider", tierBadgeClass)}>
+                                {tierLabel}
+                              </span>
+                            </div>
+                            {row.matchupAvgAllowed !== null && (
+                              <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
+                                <span className="text-neutral-500 dark:text-neutral-400">Allows to {positionLabel}</span>
+                                <span className="font-bold tabular-nums text-neutral-700 dark:text-neutral-200">
+                                  {row.matchupAvgAllowed.toFixed(1)} {marketLabel}/g
+                                </span>
+                              </div>
+                            )}
+                            <div className="mt-2 border-t border-neutral-200/50 pt-1.5 text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:border-neutral-700/50 dark:text-neutral-500">
+                              1 toughest · {defenseTotalTeamsForRow} easiest
+                            </div>
+                          </div>
+                        }
+                      >
+                        <span
+                          className={cn(
+                            "inline-flex min-w-[58px] cursor-help items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
+                            getContextPillClass(row.matchupRank, rowSport)
+                          )}
+                        >
+                          #{row.matchupRank}
+                        </span>
+                      </Tooltip>
+                    );
+                  })()}
                 </td>
 
-                {/* Defensive context: average allowed */}
-                <td className="px-2 py-5 align-middle text-center">
-                  <Tooltip
-                    content={`Opponent defense allowed per game to ${formatPosition(row.position)} for ${formatMarketLabel(row.market)}.`}
-                    side="top"
-                  >
-                    <span
-                      className={cn(
-                        "inline-flex min-w-[58px] items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-bold tabular-nums text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-300",
-                        isBlurred && "opacity-50 blur-[2px]"
-                      )}
-                    >
-                      {isBlurred ? "00.0" : row.matchupAvgAllowed !== null ? row.matchupAvgAllowed.toFixed(1) : "—"}
-                    </span>
-                  </Tooltip>
-                </td>
-
-                {/* Game context: pace */}
-                <td className="px-2 py-5 align-middle text-center">
+                {/* Game context: pace — colored by opponent's L5 pace rank */}
+                <td className={cn("px-2 py-5 align-middle text-center", compactView && "py-2")}>
                   <Tooltip
                     side="top"
                     content={
-                      row.paceContext
-                        ? `Opponent L5 pace #${row.paceContext.opponentRecent.l5Rank ?? "—"} (${row.paceContext.opponentRecent.l5 ?? "—"}), L10 #${row.paceContext.opponentRecent.l10Rank ?? "—"} (${row.paceContext.opponentRecent.l10 ?? "—"}), matchup L5 ${row.paceContext.matchupL5Pace ?? "—"} / ${row.paceContext.confidence} confidence`
-                        : "Pace context unavailable"
+                      row.paceContext ? (
+                        <div className="min-w-[240px] px-3 py-2.5">
+                          <div className="border-b border-neutral-200/70 pb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:border-neutral-700/70 dark:text-neutral-400">
+                            Opponent Pace
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center justify-between gap-3 text-[11px]">
+                              <span className="text-neutral-500 dark:text-neutral-400">Last 5</span>
+                              <span className="flex items-baseline gap-1.5 tabular-nums">
+                                <span className={cn("font-black", getPaceRankTextColor(row.paceContext.opponentRecent.l5Rank ?? null, rowSport))}>
+                                  #{row.paceContext.opponentRecent.l5Rank ?? "—"}
+                                </span>
+                                <span className="text-neutral-400 dark:text-neutral-500">·</span>
+                                <span className="font-bold text-neutral-700 dark:text-neutral-200">
+                                  {row.paceContext.opponentRecent.l5 != null ? row.paceContext.opponentRecent.l5.toFixed(1) : "—"}
+                                </span>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-[11px]">
+                              <span className="text-neutral-500 dark:text-neutral-400">Last 10</span>
+                              <span className="flex items-baseline gap-1.5 tabular-nums">
+                                <span className={cn("font-black", getPaceRankTextColor(row.paceContext.opponentRecent.l10Rank ?? null, rowSport))}>
+                                  #{row.paceContext.opponentRecent.l10Rank ?? "—"}
+                                </span>
+                                <span className="text-neutral-400 dark:text-neutral-500">·</span>
+                                <span className="font-bold text-neutral-700 dark:text-neutral-200">
+                                  {row.paceContext.opponentRecent.l10 != null ? row.paceContext.opponentRecent.l10.toFixed(1) : "—"}
+                                </span>
+                              </span>
+                            </div>
+                            {row.paceContext.opponentRecent.season != null && (
+                              <div className="flex items-center justify-between gap-3 text-[11px]">
+                                <span className="text-neutral-500 dark:text-neutral-400">Season</span>
+                                <span className="flex items-baseline gap-1.5 tabular-nums">
+                                  {row.paceContext.opponentRecent.seasonRank != null && (
+                                    <>
+                                      <span className={cn("font-black", getPaceRankTextColor(row.paceContext.opponentRecent.seasonRank, rowSport))}>
+                                        #{row.paceContext.opponentRecent.seasonRank}
+                                      </span>
+                                      <span className="text-neutral-400 dark:text-neutral-500">·</span>
+                                    </>
+                                  )}
+                                  <span className="font-bold text-neutral-700 dark:text-neutral-200">
+                                    {row.paceContext.opponentRecent.season.toFixed(1)}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
+                            {row.paceContext.matchupL5Pace != null && (
+                              <div className="mt-1 flex items-center justify-between gap-3 border-t border-neutral-200/50 pt-1.5 text-[11px] dark:border-neutral-700/50">
+                                <span className="text-neutral-500 dark:text-neutral-400">Projected matchup</span>
+                                <span className="font-bold tabular-nums text-neutral-700 dark:text-neutral-200">
+                                  {row.paceContext.matchupL5Pace.toFixed(1)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 text-[9px] font-medium text-neutral-400 dark:text-neutral-500">
+                            Projection: average of team L5 + opponent L5 pace.
+                          </div>
+                        </div>
+                      ) : (
+                        "Pace context unavailable"
+                      )
                     }
                   >
                     <span
                       className={cn(
-                        "inline-flex min-w-[56px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
-                        isBlurred ? "opacity-50 blur-[2px]" : getPacePillClass(row.paceContext?.paceLabel)
+                        "inline-flex min-w-[56px] cursor-help items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
+                        isBlurred ? "opacity-50 blur-[2px]" : getPaceRankPillClass(row.paceContext?.opponentRecent.l5Rank ?? null, rowSport)
                       )}
                     >
                       {isBlurred ? "—" : row.paceContext?.opponentRecent.l5Rank ? `#${row.paceContext.opponentRecent.l5Rank}` : "—"}
@@ -2238,60 +2929,30 @@ export function HitRateTable({
                   </Tooltip>
                 </td>
                 
-                {/* Odds Column (last column) */}
-                <td className="rounded-r-xl px-3 py-5 align-middle text-center">
-                  {isBlurred ? (
-                    <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>
-                  ) : hasGameStarted(row.gameStatus, row.gameDate) ? (
-                    <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2">
-                      <OddsDropdown
-                        sport={sport === "wnba" ? "wnba" : "nba"}
-                        eventId={row.eventId}
-                        market={row.market}
-                        selKey={row.selKey}
-                        line={row.line}
-                        bestOdds={row.bestOdds}
-                        loading={oddsLoading}
-                      />
-                      <button
-                        type="button"
-                        aria-label={isExpanded ? "Collapse row insights" : "Expand row insights"}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setExpandedRowKey(isExpanded ? null : rowKey);
-                        }}
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.96]",
-                          isExpanded
-                            ? "border-brand/40 bg-brand/15 text-brand"
-                            : "border-neutral-200 bg-white text-neutral-500 hover:border-brand/30 hover:text-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400"
-                        )}
-                      >
-                        <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")} />
-                      </button>
-                    </div>
-                  )}
-                </td>
+                {/* Odds — Over + Under for both views (compact + default) */}
+                <CompactOddsCells
+                  row={row}
+                  sport={rowSport}
+                  isBlurred={isBlurred}
+                  isLastColumn
+                  onOpenLineMovement={handleOpenLineMovement}
+                />
               </tr>
-              {isExpanded && !isBlurred && (
-                <tr className="border-b border-brand/20 bg-brand/[0.025] dark:bg-brand/[0.06]">
-                  <td colSpan={tableConfig.columnWidths.length} className="p-0" onClick={(event) => event.stopPropagation()}>
-                    <ExpandedRowPanel
-                      row={row}
-                      sport={rowSport}
-                      onOpenFullReport={onRowClick}
-                    />
-                  </td>
-                </tr>
-              )}
               </React.Fragment>
             );
           })}
         </tbody>
       </table>
-      
+
+      {/* Line movement dialog (opened from compact odds dropdown footer) */}
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
+
       {/* Load More Button - Premium */}
       {hasMore && onLoadMore && (
         <div className="sticky bottom-0 flex items-center justify-center py-5 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-neutral-900 dark:via-neutral-900/95">

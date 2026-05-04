@@ -148,7 +148,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   );
   
   // Desktop sort state
-  const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>(
+  const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank" | null>(
     savedState?.sortField || "l10Pct"
   );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(
