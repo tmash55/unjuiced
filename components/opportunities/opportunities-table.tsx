@@ -326,13 +326,18 @@ const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallbac
 const getTeamLogoUrl = (teamName: string, sport: string): string => {
   if (!teamName) return '';
   const abbr = getStandardAbbreviation(teamName, sport);
-  const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+  const sportKey = sport.toLowerCase();
+  const logoSport = sportKey === 'ncaab'
+    ? 'ncaaf'
+    : sportKey === 'basketball_wnba'
+      ? 'wnba'
+      : sport;
   return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
 };
 
 // Check if sport has team logos
 const hasTeamLogos = (sportKey: string): boolean => {
-  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab', 'mlb'];
+  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'wnba', 'basketball_wnba', 'ncaaf', 'ncaab', 'mlb'];
   return sportsWithLogos.includes(sportKey.toLowerCase());
 };
 

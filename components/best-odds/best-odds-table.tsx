@@ -495,13 +495,18 @@ export function BestOddsTable({
     if (!teamName) return '';
     const abbr = getStandardAbbreviation(teamName, sport);
     // NCAAB shares logos with NCAAF (same schools)
-    const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+    const sportKey = sport.toLowerCase();
+    const logoSport = sportKey === 'ncaab'
+      ? 'ncaaf'
+      : sportKey === 'basketball_wnba'
+        ? 'wnba'
+        : sport;
     return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
   };
 
   // Helper function to check if sport has team logos available
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab']; // Sports with team logos
+    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'wnba', 'basketball_wnba', 'ncaaf', 'ncaab']; // Sports with team logos
     return sportsWithLogos.includes(sportKey.toLowerCase());
   };
 

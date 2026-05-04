@@ -245,16 +245,31 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   export const WNBA_TEAM_MAP: Record<string, string> = {
     ATL: "ATL", // Atlanta Dream
     CHI: "CHI", // Chicago Sky
-    CON: "CTN", // Connecticut Sun (changed from CON due to Windows reserved name)
+    CON: "CTN", // Connecticut Sun (CTN filename due to Windows reserved "CON")
+    CONN: "CTN",
+    CTN: "CTN",
     DAL: "DAL", // Dallas Wings
+    GSV: "GSV", // Golden State Valkyries
+    GOL: "GSV",
+    GSW: "GSV",
     IND: "IND", // Indiana Fever
-    LAS: "LAS", // Los Angeles Sparks
-    LVA: "LVA", // Las Vegas Aces
+    LA: "LAS", // Los Angeles Sparks
+    LAS: "LAS",
+    LOS: "LAS",
+    LV: "LVA", // Las Vegas Aces
+    LVA: "LVA",
     MIN: "MIN", // Minnesota Lynx
-    NYL: "NYL", // New York Liberty
-    PHO: "PHO", // Phoenix Mercury
+    NY: "NYL", // New York Liberty
+    NYL: "NYL",
+    NEW: "NYL",
+    PHX: "PHX", // Phoenix Mercury
+    PHO: "PHX",
+    POR: "POR", // Portland expansion team
+    PDX: "PDX",
     SEA: "SEA", // Seattle Storm
-    WAS: "WAS"  // Washington Mystics
+    TOR: "TOR", // Toronto expansion team
+    WAS: "WAS", // Washington Mystics
+    WSH: "WAS",
   }
   
   // Get team logo filename based on abbreviation and sport
@@ -273,6 +288,7 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       case "nba":
         return NBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "basketball_wnba":
+      case "wnba":
         return WNBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "baseball_mlb":
       case "mlb":
@@ -285,8 +301,18 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   export function getStandardAbbreviation(teamName: string, sport: string = "baseball_mlb"): string {
     if (!teamName) return ""
     
-    // Normalize sport name - handle both 'mlb' and 'baseball_mlb'
-    const normalizedSport = sport === "mlb" ? "baseball_mlb" : sport
+    // Normalize sport names used by API routes and logo folders.
+    const normalizedSport = sport === "mlb"
+      ? "baseball_mlb"
+      : sport === "wnba"
+        ? "basketball_wnba"
+        : sport === "nba"
+          ? "basketball_nba"
+          : sport === "nfl"
+            ? "football_nfl"
+            : sport === "nhl"
+              ? "icehockey_nhl"
+        : sport
     
     // First, check if it's a full team name
     const teamMaps: Record<string, Record<string, string>> = {
@@ -436,8 +462,10 @@ export const MLB_TEAM_MAP: Record<string, string> = {
         "Las Vegas Aces": "LVA",
         "Minnesota Lynx": "MIN",
         "New York Liberty": "NYL",
+        "Portland Fire": "POR",
         "Phoenix Mercury": "PHO",
         "Seattle Storm": "SEA",
+        "Toronto Tempo": "TOR",
         "Washington Mystics": "WAS"
       }
     }
@@ -467,6 +495,8 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       VEG: "VGK", // Vegas Golden Knights (alternative abbreviation)
     }
 
+    const wnbaVariationMap: Record<string, string> = WNBA_TEAM_MAP
+
     if (normalizedSport === "baseball_mlb" && mlbVariationMap[teamName]) {
       return mlbVariationMap[teamName]
     }
@@ -477,6 +507,10 @@ export const MLB_TEAM_MAP: Record<string, string> = {
 
     if ((normalizedSport === "icehockey_nhl" || normalizedSport === "nhl") && nhlVariationMap[teamName]) {
       return nhlVariationMap[teamName]
+    }
+
+    if (normalizedSport === "basketball_wnba" && wnbaVariationMap[teamName.toUpperCase()]) {
+      return wnbaVariationMap[teamName.toUpperCase()]
     }
   
   // If no match found, check if it's already a valid abbreviation
@@ -495,7 +529,12 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     if (!teamName) return "";
     const abbr = getStandardAbbreviation(teamName, sport);
     // NCAAB shares logos with NCAAF (same schools)
-    const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+    const sportKey = sport.toLowerCase();
+    const logoSport = sportKey === 'ncaab'
+      ? 'ncaaf'
+      : sportKey === 'basketball_wnba'
+        ? 'wnba'
+        : sport;
     return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
   }
 

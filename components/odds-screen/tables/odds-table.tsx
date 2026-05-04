@@ -30,7 +30,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 // Import standardized types
 import type { OddsScreenItem, TableInteractionHandlers, OddsPrice } from '@/components/odds-screen/types/odds-screen-types'
-import { getSportsbookById, getAllActiveSportsbooks, type SportsbookMeta } from '@/lib/data/sportsbooks'
+import { getSportsbookById, getAllActiveSportsbooks, getSportsbookDisplayId, type SportsbookMeta } from '@/lib/data/sportsbooks'
 import { getStandardAbbreviation } from '@/lib/data/team-mappings'
 import { SINGLE_LINE_MARKETS } from '@/lib/data/markets'
 import { useOddsPreferences } from '@/context/preferences-context'
@@ -63,6 +63,47 @@ const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
   return isMobile ? (mobileLink || link || undefined) : (link || mobileLink || undefined);
 };
+
+const normalizeSportsbookColumnId = (id: string): string => getSportsbookDisplayId(id)
+
+const uniqueSportsbookMetas = (books: SportsbookMeta[]): SportsbookMeta[] => {
+  const seen = new Set<string>()
+  return books.filter((book) => {
+    if (seen.has(book.id)) return false
+    seen.add(book.id)
+    return true
+  })
+}
+
+const getVisibleSportsbookIdSet = (visibleSportsbooks?: string[]): Set<string> => {
+  return new Set((Array.isArray(visibleSportsbooks) ? visibleSportsbooks : []).map(normalizeSportsbookColumnId))
+}
+
+const joinCanonicalBookIds = (bookIds: string[]): string => {
+  return Array.from(new Set(bookIds.map(normalizeSportsbookColumnId))).join(', ')
+}
+
+const getBookLookupKeys = (sportsbookId: string): string[] => {
+  const lower = (sportsbookId || '').toLowerCase()
+  const canonicalId = normalizeSportsbookColumnId(sportsbookId)
+  const keys = [
+    sportsbookId,
+    lower,
+    canonicalId,
+    canonicalId.replace(/-/g, '_'),
+    canonicalId.replace(/_/g, '-'),
+    lower.replace(/-/g, '_'),
+    lower.replace(/_/g, '-'),
+  ]
+
+  if (canonicalId === 'polymarket-us') keys.push('polymarket', 'polymarket_us')
+  if (canonicalId === 'hard-rock') keys.push('hardrock', 'hardrockbet', 'hardrock-indiana', 'hard-rock-indiana')
+  if (canonicalId === 'bally-bet') keys.push('ballybet', 'bally_bet')
+  if (canonicalId === 'sports-interaction') keys.push('sportsinteraction', 'sports_interaction')
+  if (canonicalId === 'betmgm') keys.push('betmgm-michigan', 'betmgm_michigan')
+
+  return Array.from(new Set(keys.filter(Boolean)))
+}
 
 const FULL_MATCHUP_NAME_SPORTS = new Set([
   'ncaaf',
@@ -352,11 +393,11 @@ const calculateUserAverageOdds = (
   }
 
   const allBooks = Object.entries(item.odds.books)
-  const safeSportsbooks = Array.isArray(visibleSportsbooks) ? visibleSportsbooks : []
+  const safeSportsbooks = getVisibleSportsbookIdSet(visibleSportsbooks)
   
   // Get user's selected sportsbooks odds
   const userBooks = allBooks
-    .filter(([bookId]) => safeSportsbooks.length === 0 || safeSportsbooks.includes(bookId))
+    .filter(([bookId]) => safeSportsbooks.size === 0 || safeSportsbooks.has(normalizeSportsbookColumnId(bookId)))
     .map(([bookId, bookData]) => ({ bookId, odds: bookData?.[side] }))
     .filter(book => book.odds?.price !== undefined && !Number.isNaN(book.odds.price))
 
@@ -425,10 +466,10 @@ const calculateUserBestOdds = (
     (((item.odds?.best?.over?.line ?? 0) === 0) && ((item.odds?.best?.under?.line ?? 0) === 0))
   )
   const allBooks = Object.entries(item.odds.books)
-  const safeSportsbooks = Array.isArray(visibleSportsbooks) ? visibleSportsbooks : []
+  const safeSportsbooks = getVisibleSportsbookIdSet(visibleSportsbooks)
   
   const availableBooks = allBooks
-    .filter(([bookId]) => safeSportsbooks.length === 0 || safeSportsbooks.includes(bookId))
+    .filter(([bookId]) => safeSportsbooks.size === 0 || safeSportsbooks.has(normalizeSportsbookColumnId(bookId)))
     .map(([bookId, bookData]) => ({ bookId, odds: bookData?.[side] }))
     .filter(book => book.odds?.price !== undefined && !Number.isNaN(book.odds.price))
   
@@ -449,7 +490,7 @@ const calculateUserBestOdds = (
     userBest = {
       price: bestPrice,
       line: bestLine,
-      book: allBestBooks.map(b => b.bookId).join(', '), // Join all book IDs
+      book: joinCanonicalBookIds(allBestBooks.map(b => b.bookId)),
       link: bestUserBook.odds!.link ?? undefined, // Use first link for clickthrough
       mobileLink: bestUserBook.odds!.mobileLink ?? undefined
     }
@@ -476,7 +517,7 @@ const calculateUserBestOdds = (
     globalBest = {
       price: bestPrice,
       line: bestLine,
-      book: allBestBooks.map(b => b.bookId).join(', '), // Join all book IDs
+      book: joinCanonicalBookIds(allBestBooks.map(b => b.bookId)),
       link: bestGlobalBook.odds!.link ?? undefined,
       mobileLink: bestGlobalBook.odds!.mobileLink ?? undefined
     }
@@ -612,13 +653,10 @@ const formatLineLabel = (value: number) => {
 
 const resolveBookOdds = (books: Record<string, any> | undefined, sportsbookId: string) => {
   if (!books) return undefined
-  return (
-    books[sportsbookId] ??
-    books[sportsbookId.replace(/-/g, '_')] ??
-    books[sportsbookId.replace(/_/g, '-')] ??
-    books[sportsbookId.toLowerCase()] ??
-    books[sportsbookId.toUpperCase()]
-  )
+  for (const key of getBookLookupKeys(sportsbookId)) {
+    if (books[key]) return books[key]
+  }
+  return undefined
 }
 
 const parsePlayerAlternateRows = (data: any, playerId?: string): AlternateRowData[] => {
@@ -1598,7 +1636,8 @@ export function OddsTable({
   
   // Use visibleSportsbooks prop or fall back to user preferences
   const effectiveVisibleSportsbooks = useMemo(() => {
-    return visibleSportsbooks || preferences?.selectedBooks || activeSportsbookIds
+    const sportsbookIds = visibleSportsbooks || preferences?.selectedBooks || activeSportsbookIds
+    return Array.from(new Set(sportsbookIds.map(normalizeSportsbookColumnId)))
   }, [visibleSportsbooks, preferences?.selectedBooks, activeSportsbookIds])
   
   const [columnOrder, setColumnOrder] = useState<string[]>(preferences.columnOrder)
@@ -2072,19 +2111,9 @@ export function OddsTable({
 
   // Determine which sportsbooks to show as columns
   const displaySportsbooks = useMemo(() => {
-    const normalizeBookId = (id: string): string => {
-      const lower = (id || '').toLowerCase()
-      switch (lower) {
-        case 'hardrock': return 'hard-rock'
-        case 'hardrock-indiana': return 'hard-rock-indiana'
-        case 'ballybet': return 'bally-bet'
-        case 'sportsinteraction': return 'sports-interaction'
-        default: return lower
-      }
-    }
     // Build a union of IDs from (in priority): explicit prop, user selection, and data-present books
     const idSet = new Set<string>()
-    const addIds = (ids?: string[]) => ids?.forEach((id) => idSet.add(normalizeBookId(id)))
+    const addIds = (ids?: string[]) => ids?.forEach((id) => idSet.add(normalizeSportsbookColumnId(id)))
 
     // Priority 1: Explicit prop (highest priority)
     if (visibleSportsbooks && visibleSportsbooks.length > 0) {
@@ -2109,25 +2138,27 @@ export function OddsTable({
 
     // Only union with data-present books when there is NO explicit subset selection.
     const allActiveIds = new Set(allActiveSportsbooks.map((sb) => sb.id))
-    const selected = new Set(preferences.selectedBooks || [])
+    const selected = new Set((preferences.selectedBooks || []).map(normalizeSportsbookColumnId))
     const hasExplicitSubset =
       (visibleSportsbooks && visibleSportsbooks.length > 0) ||
       (selected.size > 0 && selected.size < allActiveIds.size)
     if (!hasExplicitSubset) {
-    data.forEach((item) => {
-      const books = item.odds?.books || {}
-      Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
-      // Also include normalized books if available
-      const nbooks = item.odds?.normalized?.books || {}
-      Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
-    })
+      data.forEach((item) => {
+        const books = item.odds?.books || {}
+        Object.keys(books).forEach((id) => idSet.add(normalizeSportsbookColumnId(id)))
+        // Also include normalized books if available
+        const nbooks = item.odds?.normalized?.books || {}
+        Object.keys(nbooks).forEach((id) => idSet.add(normalizeSportsbookColumnId(id)))
+      })
     }
 
     // Convert set to array and get book metadata
     const ids = Array.from(idSet)
-    const books = ids
-      .map((id) => getSportsbookById(id))
-      .filter((book): book is SportsbookMeta => book !== undefined)
+    const books = uniqueSportsbookMetas(
+      ids
+        .map((id) => getSportsbookById(id))
+        .filter((book): book is SportsbookMeta => book !== undefined)
+    )
 
     if (process.env.NODE_ENV === 'development') {
       console.log('[OddsTable] Final displaySportsbooks:', books.map(b => b.id))
@@ -2151,19 +2182,25 @@ export function OddsTable({
   React.useEffect(() => {
     if (availableSportsbooks.length === 0) return
     
-    const allBookIds = availableSportsbooks.map(book => book.id)
+    const allBookIds = Array.from(new Set(availableSportsbooks.map(book => book.id)))
+    const normalizedOrder = Array.from(new Set(sportsbookOrder.map(normalizeSportsbookColumnId)))
     
     // If sportsbookOrder is empty, initialize with all books
-    if (sportsbookOrder.length === 0) {
+    if (normalizedOrder.length === 0) {
       setSportsbookOrder(allBookIds)
       updatePreferences({ sportsbookOrder: allBookIds })
       return
     }
     
     // If there are new books not in sportsbookOrder, append them to the end
-    const missingBooks = allBookIds.filter(id => !sportsbookOrder.includes(id))
-    if (missingBooks.length > 0) {
-      const updatedOrder = [...sportsbookOrder, ...missingBooks]
+    const missingBooks = allBookIds.filter(id => !normalizedOrder.includes(id))
+    const shouldUpdateOrder =
+      missingBooks.length > 0 ||
+      normalizedOrder.length !== sportsbookOrder.length ||
+      normalizedOrder.some((id, index) => id !== sportsbookOrder[index])
+
+    if (shouldUpdateOrder) {
+      const updatedOrder = [...normalizedOrder, ...missingBooks]
       setSportsbookOrder(updatedOrder)
       updatePreferences({ sportsbookOrder: updatedOrder })
     }
@@ -2172,20 +2209,12 @@ export function OddsTable({
   // Create ordered sportsbooks based on current order
   const orderedSportsbooks = useMemo(() => {
     if (!sportsbookOrder || sportsbookOrder.length === 0) return availableSportsbooks
-    const normalizeBookId = (id: string): string => {
-      const lower = (id || '').toLowerCase()
-      switch (lower) {
-        case 'hardrock': return 'hard-rock'
-        case 'hardrock-indiana': return 'hard-rock-indiana'
-        case 'ballybet': return 'bally-bet'
-        case 'sportsinteraction': return 'sports-interaction'
-        default: return lower
-      }
-    }
-    const ordered = sportsbookOrder
-      .map(id => availableSportsbooks.find(book => book.id === normalizeBookId(id)))
+    const normalizedOrder = Array.from(new Set(sportsbookOrder.map(normalizeSportsbookColumnId)))
+    const ordered = normalizedOrder
+      .map(id => availableSportsbooks.find(book => book.id === id))
       .filter(Boolean) as SportsbookMeta[]
-    const missingBooks = availableSportsbooks.filter(book => !sportsbookOrder.includes(book.id))
+    const orderedIds = new Set(ordered.map(book => book.id))
+    const missingBooks = availableSportsbooks.filter(book => !orderedIds.has(book.id))
     return [...ordered, ...missingBooks]
   }, [availableSportsbooks, sportsbookOrder])
 
@@ -2802,11 +2831,7 @@ export function OddsTable({
           cell: (info) => {
             const item = info.row.original
             const n = item.odds.normalized
-            const bookData = item.odds.books?.[book.id] ||
-                              item.odds.books?.[book.id.replace('-', '_')] ||
-                              item.odds.books?.[book.id.replace('_', '-')] ||
-                              item.odds.books?.[book.id.toLowerCase()] ||
-                              item.odds.books?.[book.id.toUpperCase()]
+            const bookData = resolveBookOdds(item.odds.books, book.id)
 
             const renderPlaceholder = () => (
               <div className="block w-full text-xs px-2 py-1.5 mx-auto text-center">
@@ -2833,8 +2858,9 @@ export function OddsTable({
             const sideBottom = (isMoneyline || isSpread) && n?.sideMap?.home ? n!.sideMap!.home : 'under'
             const firstSide = sideTop
             const secondSide = sideBottom
-            const firstData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.away : bookData.over
-            const secondData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.home : bookData.under
+            const normalizedBookData = resolveBookOdds(n?.books, book.id)
+            const firstData = (isMoneyline || isSpread) && n ? normalizedBookData?.away : bookData.over
+            const secondData = (isMoneyline || isSpread) && n ? normalizedBookData?.home : bookData.under
 
             // Fallback when normalized not available - use over (Away) for top, under (Home) for bottom
             const fd = firstData || bookData.over
@@ -3256,7 +3282,7 @@ export function OddsTable({
 
   // Helper function to check if sport has team logos available
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'mlb'] // Sports with team logos
+    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'wnba', 'mlb'] // Sports with team logos
     return sportsWithLogos.includes(sportKey.toLowerCase())
   }
 

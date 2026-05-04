@@ -279,10 +279,20 @@ async function scanKeys(pattern: string): Promise<string[]> {
     }
     seenCursors.add(cursor);
 
-    const [nextCursor, keys] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
-    });
+    let nextCursor: string | number;
+    let keys: string[];
+    try {
+      [nextCursor, keys] = await redis.scan(cursor, {
+        match: pattern,
+        count: SCAN_COUNT,
+      });
+    } catch (error) {
+      console.warn(
+        `[v2/props/alternates] Scan failed for ${pattern}; returning ${results.length} keys`,
+        error instanceof Error ? error.message : error
+      );
+      break;
+    }
     cursor = Number(nextCursor);
     results.push(...keys);
 

@@ -79,8 +79,8 @@ const oddsScreenSports: NavChildItem[] = [
   // Active
   { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
+  { label: "WNBA", href: "/odds/wnba" },
   { label: "NHL", href: "/odds/nhl" },
-  { label: "NCAAB", href: "/odds/ncaab" },
   { label: "NCAA Baseball", href: "/odds/ncaabaseball" },
   { label: "UFC", href: "/odds/ufc" },
   // Soccer
@@ -98,8 +98,8 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Men", href: "/odds/tennis_utr_men" },
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
+  { label: "NCAAB", href: "/odds/ncaab", disabled: true, offSeason: true },
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]
 

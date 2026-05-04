@@ -7,7 +7,7 @@ import { Button } from '@/components/button'
 import { ButtonLink } from '@/components/button-link'
 import { Filter, Building2 } from 'lucide-react'
 import { useOddsPreferences } from '@/context/preferences-context'
-import { getAllActiveSportsbooks } from '@/lib/data/sportsbooks'
+import { getAllActiveSportsbooks, getSportsbookDisplayId, normalizeSportsbookSelection } from '@/lib/data/sportsbooks'
 import Lock from '@/icons/lock'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -37,6 +37,8 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
+  const allSportsbookIds = useMemo(() => normalizeSportsbookSelection(allSportsbooks.map((book) => book.id)), [allSportsbooks])
+  const selectedBookSet = useMemo(() => new Set(normalizeSportsbookSelection(selectedBooks)), [selectedBooks])
   
   const { user } = useAuth()
   const { data: entitlements } = useEntitlements()
@@ -46,7 +48,8 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
 
   useEffect(() => {
     if (!isLoading && preferences) {
-      setSelectedBooks(preferences.selectedBooks)
+      const normalizedSelectedBooks = normalizeSportsbookSelection(preferences.selectedBooks)
+      setSelectedBooks(normalizedSelectedBooks)
       setIncludeAlternates(preferences.includeAlternates)
       setColumnHighlighting(preferences.columnHighlighting)
       setShowBestLine(preferences.showBestLine)
@@ -55,7 +58,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
       
       if (process.env.NODE_ENV === 'development') {
         console.log('[OddsFilters] Loaded preferences:', {
-          selectedBooks: preferences.selectedBooks.length,
+          selectedBooks: normalizedSelectedBooks.length,
           includeAlternates: preferences.includeAlternates,
           columnHighlighting: preferences.columnHighlighting,
           showBestLine: preferences.showBestLine,
@@ -73,9 +76,11 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
   // Track changes to mark as unsaved
   useEffect(() => {
     if (preferences && !isLoading) {
+      const normalizedSelectedBooks = normalizeSportsbookSelection(selectedBooks)
+      const normalizedPreferenceBooks = normalizeSportsbookSelection(preferences.selectedBooks)
       const preferencesChanged = 
-        selectedBooks.length !== preferences.selectedBooks.length ||
-        selectedBooks.some(id => !preferences.selectedBooks.includes(id)) ||
+        normalizedSelectedBooks.length !== normalizedPreferenceBooks.length ||
+        normalizedSelectedBooks.some(id => !normalizedPreferenceBooks.includes(id)) ||
         includeAlternates !== preferences.includeAlternates ||
         columnHighlighting !== preferences.columnHighlighting ||
         showBestLine !== preferences.showBestLine ||
@@ -89,13 +94,19 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
   }, [selectedBooks, includeAlternates, columnHighlighting, showBestLine, showAverageLine, localLiveUpdatesEnabled, preferences, isLoading, isPro, liveUpdatesEnabled])
 
   const toggleBook = (id: string) => {
-    setSelectedBooks(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id])
+    const displayId = getSportsbookDisplayId(id)
+    setSelectedBooks(prev => {
+      const normalized = normalizeSportsbookSelection(prev)
+      return normalized.includes(displayId) ? normalized.filter(b => b !== displayId) : [...normalized, displayId]
+    })
   }
 
   const apply = async () => {
+    const normalizedSelectedBooks = normalizeSportsbookSelection(selectedBooks)
+
     if (process.env.NODE_ENV === 'development') {
       console.log('[OddsFilters] Applying preferences:', {
-        selectedBooks: selectedBooks.length,
+        selectedBooks: normalizedSelectedBooks.length,
         includeAlternates,
         columnHighlighting,
         showBestLine,
@@ -107,12 +118,13 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
     try {
       // Save database preferences
       await updatePreferences({
-        selectedBooks,
+        selectedBooks: normalizedSelectedBooks,
         includeAlternates,
         columnHighlighting,
         showBestLine,
         showAverageLine
       })
+      setSelectedBooks(normalizedSelectedBooks)
       
       // Apply SSE toggle change (not saved to DB, runtime only)
       if (isPro && localLiveUpdatesEnabled !== liveUpdatesEnabled) {
@@ -132,7 +144,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
   }
 
   const reset = async () => {
-    const defaults = allSportsbooks.map(b => b.id)
+    const defaults = allSportsbookIds
     setSelectedBooks(defaults)
     setIncludeAlternates(false)
     setColumnHighlighting(true)
@@ -213,7 +225,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">Choose sportsbooks to include in results</p>
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => setSelectedBooks(allSportsbooks.map(b => b.id))} 
+                      onClick={() => setSelectedBooks(allSportsbookIds)}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
                     >
                       Select All
@@ -230,7 +242,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                   {allSportsbooks
                     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
                     .map((sb) => {
-                      const checked = selectedBooks.includes(sb.id)
+                      const checked = selectedBookSet.has(sb.id)
                       return (
                         <label
                           key={sb.id}

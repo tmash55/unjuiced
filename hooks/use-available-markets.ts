@@ -342,12 +342,12 @@ export const FALLBACK_MARKET_SPORTS: Record<string, string[]> = (() => {
   const sharedGameMarkets = ["game_moneyline", "game_spread", "total_points", "team_total", "overtime", "first_team_to_score", "second_team_to_score", "moneyline_3_way"];
 
   mlbMarkets.forEach(k => { map[k] = [...(map[k] || []), "mlb"]; });
-  basketballMarkets.forEach(k => { map[k] = [...(map[k] || []), "nba", "ncaab"]; });
+  basketballMarkets.forEach(k => { map[k] = [...(map[k] || []), "nba", "ncaab", "wnba"]; });
   footballMarkets.forEach(k => { map[k] = [...(map[k] || []), "nfl", "ncaaf"]; });
   hockeyMarkets.forEach(k => { map[k] = [...(map[k] || []), "nhl"]; });
   soccerMarkets.forEach(k => { map[k] = [...(map[k] || []), "soccer_epl"]; });
   sharedGameMarkets.forEach(k => {
-    map[k] = [...(map[k] || []), "nba", "nfl", "nhl", "ncaab", "mlb"];
+    map[k] = [...(map[k] || []), "nba", "nfl", "nhl", "ncaab", "wnba", "mlb"];
   });
   return map;
 })();

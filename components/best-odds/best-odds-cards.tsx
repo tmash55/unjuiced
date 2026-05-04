@@ -200,12 +200,17 @@ export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, o
     if (!teamName) return '';
     const abbr = getStandardAbbreviation(teamName, sport);
     // NCAAB shares logos with NCAAF (same schools)
-    const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+    const sportKey = sport.toLowerCase();
+    const logoSport = sportKey === 'ncaab'
+      ? 'ncaaf'
+      : sportKey === 'basketball_wnba'
+        ? 'wnba'
+        : sport;
     return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
   };
 
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab'];
+    const sportsWithLogos = ['nfl', 'nhl', 'nba', 'wnba', 'basketball_wnba', 'ncaaf', 'ncaab'];
     return sportsWithLogos.includes(sportKey.toLowerCase());
   };
 
@@ -649,4 +654,3 @@ export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, o
     </div>
   );
 }
-

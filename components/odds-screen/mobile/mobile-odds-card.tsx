@@ -32,7 +32,7 @@ function formatTime(dateString: string): string {
 
 // Check if sport has team logos
 function hasTeamLogos(sport: string): boolean {
-  const sportsWithLogos = ["nfl", "nhl", "nba", "mlb"];
+  const sportsWithLogos = ["nfl", "nhl", "nba", "wnba", "mlb"];
   return sportsWithLogos.includes(sport.toLowerCase());
 }
 

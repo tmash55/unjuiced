@@ -27,6 +27,7 @@ import { useStateLink } from "@/hooks/use-state-link";
 const SPORT_OPTIONS = [
   { value: "all", label: "All" },
   { value: "nba", label: "NBA" },
+  { value: "wnba", label: "WNBA" },
   { value: "nfl", label: "NFL" },
   { value: "ncaaf", label: "NCAAF" },
   { value: "ncaab", label: "NCAAB" },
