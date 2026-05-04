@@ -36,6 +36,21 @@ function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+function isValidDateParam(dateStr: string | null | undefined): dateStr is string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function getSafeDateParam(dateStr: string | null | undefined): string {
+  return isValidDateParam(dateStr) ? dateStr : getETDate();
+}
+
 function addDays(dateStr: string, days: number): string {
   const date = new Date(`${dateStr}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -178,7 +193,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const dateParam = url.searchParams.get("date");
     const marketParam = url.searchParams.get("market"); // optional: filter to one market
-    const targetDate = dateParam || getETDate();
+    const targetDate = getSafeDateParam(dateParam);
 
     const sb = createServerSupabaseClient();
     const availableDatesPromise = getAvailableGameDates(sb, targetDate);

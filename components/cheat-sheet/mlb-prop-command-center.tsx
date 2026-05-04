@@ -432,6 +432,21 @@ function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+function isValidDateParam(dateStr: string | null | undefined): dateStr is string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function getSafeDateParam(dateStr: string | null | undefined): string {
+  return isValidDateParam(dateStr) ? dateStr : getETDate();
+}
+
 function formatOdds(odds: number | string | null): string {
   if (odds == null) return "-";
   const str = String(odds);
@@ -2173,13 +2188,21 @@ export function MlbPropCommandCenter() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate());
+  const [selectedDate, setSelectedDateState] = useState(() => getSafeDateParam(searchParams.get("date")));
   const setSelectedDate = useCallback((date: string) => {
-    setSelectedDateState(date);
+    const safeDate = getSafeDateParam(date);
+    setSelectedDateState(safeDate);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("date", date);
+    params.set("date", safeDate);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
+
+  React.useEffect(() => {
+    const urlDate = searchParams.get("date");
+    if (urlDate && !isValidDateParam(urlDate)) {
+      setSelectedDate(getETDate());
+    }
+  }, [searchParams, setSelectedDate]);
 
   const [selectedMarket, setSelectedMarketState] = useState<string>(() => searchParams.get("market") || "hr");
   const setSelectedMarket = useCallback((market: string) => {
