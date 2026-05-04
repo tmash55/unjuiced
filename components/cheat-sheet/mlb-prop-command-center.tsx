@@ -1008,6 +1008,85 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
   return bar;
 }
 
+function MobileFilterDropdown({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    function handleClick(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen]);
+
+  return (
+    <div ref={ref} className={cn("relative min-w-0", className)}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className={cn(
+          "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 text-left transition-all active:scale-[0.98]",
+          "bg-neutral-100 text-neutral-700 hover:bg-neutral-200/80 dark:bg-neutral-800/70 dark:text-neutral-200 dark:hover:bg-neutral-700/70",
+          isOpen && "ring-1 ring-brand/30"
+        )}
+      >
+        <span className="min-w-0">
+          <span className="block text-[8px] font-black uppercase leading-none tracking-wider text-neutral-400 dark:text-neutral-500">
+            {label}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] font-bold leading-none">
+            {selected?.label}
+          </span>
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-full overflow-hidden rounded-lg border border-neutral-200/70 bg-white shadow-xl dark:border-neutral-700/70 dark:bg-neutral-900">
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold transition-colors",
+                  isSelected
+                    ? "bg-brand/10 text-brand"
+                    : "text-neutral-600 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/70"
+                )}
+              >
+                {option.label}
+                {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OddsCell({
   player,
   marketConfig,
@@ -2054,7 +2133,6 @@ function MobileCard({
   onPlayerQuickView?: (player: PropScorePlayer, marketConfig: MarketConfig, game?: MlbGame) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const scoreTier = getPropScoreTier(player.composite_score);
   const displayLine = getDisplayLine(player);
   const factors = player.factor_scores ?? {};
   const applyState = useStateLink();
@@ -2102,7 +2180,6 @@ function MobileCard({
             >
               {player.player_name}
             </button>
-            <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", scoreTier.bgClass, scoreTier.colorClass)}>{scoreTier.label}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
             <span>{isHome ? "vs " : "@ "}{player.opponent_name || "TBD"}{opposingPitcher && <span className="text-neutral-400"> ({opposingPitcher})</span>}</span>
@@ -2613,6 +2690,27 @@ export function MlbPropCommandCenter() {
     setMinScore(isMinScoreOption(score) ? score : 0);
   }, []);
 
+  const scoreFilterOptions = useMemo(() => (
+    MIN_SCORE_OPTIONS.map((option) => ({
+      label: option.label,
+      value: String(option.value),
+    }))
+  ), []);
+
+  const lineFilterOptions = useMemo(() => [
+    { label: "Default", value: "default" },
+    ...(marketConfig.lineOptions ?? []).map((line) => ({
+      label: `${line}+`,
+      value: String(line),
+    })),
+  ], [marketConfig.lineOptions]);
+
+  const selectedLineValue = selectedLine == null ? "default" : String(selectedLine);
+
+  const handleLineFilterChange = useCallback((value: string) => {
+    setSelectedLine(value === "default" ? null : Number(value));
+  }, []);
+
   return (
     <div className="space-y-0">
       {/* Unified header card: Market Tabs + Filters */}
@@ -2720,10 +2818,7 @@ export function MlbPropCommandCenter() {
               <SegmentedControl
                 value={String(minScore)}
                 onChange={handleMinScoreChange}
-                options={MIN_SCORE_OPTIONS.map((option) => ({
-                  label: option.label,
-                  value: String(option.value),
-                }))}
+                options={scoreFilterOptions}
               />
             </div>
             <div className="flex-1 min-w-0" />
@@ -2742,56 +2837,31 @@ export function MlbPropCommandCenter() {
               <FilterCount count={filteredPlayers.length} label="players" />
             </div>
             <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 shrink-0">
-                Score
-              </span>
-              <SegmentedControl
-                fullWidth
+            <div className="flex w-full items-center gap-2">
+              <MobileFilterDropdown
+                label="Score"
                 value={String(minScore)}
                 onChange={handleMinScoreChange}
-                options={MIN_SCORE_OPTIONS.map((option) => ({
-                  label: option.label,
-                  value: String(option.value),
-                }))}
+                options={scoreFilterOptions}
+                className="w-[88px] shrink-0"
               />
-            </div>
-            <div className="flex items-center gap-2 w-full">
               {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
-                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
-                  <button
-                    onClick={() => setSelectedLine(null)}
-                    className={cn(
-                      "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
-                      selectedLine === null
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    )}
-                  >
-                    Def
-                  </button>
-                  {marketConfig.lineOptions.map((ln) => (
-                    <button
-                      key={ln}
-                      onClick={() => setSelectedLine(ln)}
-                      className={cn(
-                        "px-2 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
-                        selectedLine === ln
-                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                      )}
-                    >
-                      {ln}+
-                    </button>
-                  ))}
-                </div>
+                <MobileFilterDropdown
+                  label="Line"
+                  value={selectedLineValue}
+                  onChange={handleLineFilterChange}
+                  options={lineFilterOptions}
+                  className="w-[88px] shrink-0"
+                />
               )}
               {allGames.length > 1 && (
-                <GameFilterDropdown
-                  games={allGames}
-                  selectedGame={selectedGame}
-                  onSelect={setSelectedGame}
-                />
+                <div className="ml-auto min-w-0 shrink-0">
+                  <GameFilterDropdown
+                    games={allGames}
+                    selectedGame={selectedGame}
+                    onSelect={setSelectedGame}
+                  />
+                </div>
               )}
             </div>
           </div>

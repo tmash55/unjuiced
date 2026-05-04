@@ -46,14 +46,44 @@ export function GameFilterDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const [mobileMenuStyle, setMobileMenuStyle] = useState<React.CSSProperties>();
 
   useEffect(() => {
     if (!open) return;
+
+    const updateMobilePosition = () => {
+      if (!ref.current || window.innerWidth >= 640) {
+        setMobileMenuStyle(undefined);
+        return;
+      }
+
+      const viewportMargin = 12;
+      const menuWidth = Math.min(320, window.innerWidth - viewportMargin * 2);
+      const rootRect = ref.current.getBoundingClientRect();
+      const viewportLeft = Math.min(
+        Math.max(rootRect.left, viewportMargin),
+        window.innerWidth - menuWidth - viewportMargin
+      );
+
+      setMobileMenuStyle({
+        left: viewportLeft - rootRect.left,
+        width: menuWidth,
+      });
+    };
+
+    updateMobilePosition();
+    window.addEventListener("resize", updateMobilePosition);
+    window.addEventListener("orientationchange", updateMobilePosition);
+
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("resize", updateMobilePosition);
+      window.removeEventListener("orientationchange", updateMobilePosition);
+    };
   }, [open]);
 
   const visibleGames = games.filter((g) => {
@@ -90,7 +120,10 @@ export function GameFilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+        <div
+          style={mobileMenuStyle}
+          className="absolute left-0 top-full z-50 mt-1 w-[calc(100vw-1.5rem)] max-w-80 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden sm:w-80"
+        >
           {/* All Games option */}
           <button
             onClick={() => { onSelect("all"); setOpen(false); }}
@@ -106,7 +139,7 @@ export function GameFilterDropdown({
           </button>
 
           {/* Game list */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[min(400px,60dvh)] overflow-y-auto">
             {visibleGames.map((g) => {
               const id = String(g.game_id);
               const isSelected = id === selectedGame;
