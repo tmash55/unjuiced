@@ -60,6 +60,12 @@ import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMlbHotZone } from "@/hooks/use-mlb-hot-zone";
 import { useMlbIndividualMatchup } from "@/hooks/use-mlb-individual-matchup";
+import type {
+  ArsenalHandSplit as MlbArsenalHandSplit,
+  BatterMatchup as MlbBatterMatchup,
+  PitchArsenalRow as MlbPitchArsenalRow,
+  PitcherProfile as MlbPitcherProfile,
+} from "@/app/api/mlb/individual-matchup/route";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
@@ -221,6 +227,21 @@ const formatMlbHeaderRate = (value: number | null | undefined) => {
 const formatMlbHeaderDecimal = (value: number | null | undefined, digits = 1) => {
   if (value === null || value === undefined || !Number.isFinite(value)) return "-";
   return value.toFixed(digits);
+};
+
+const formatMlbRateStat = (value: number | null | undefined, digits = 3) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  return value.toFixed(digits).replace(/^0/, "");
+};
+
+const formatMlbNumberStat = (value: number | null | undefined, digits = 1) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  return value.toFixed(digits);
+};
+
+const formatMlbPercentStat = (value: number | null | undefined, digits = 1) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  return `${value.toFixed(digits)}%`;
 };
 
 const MLB_HIT_RESULTS = new Set(["single", "double", "triple", "home run", "home_run", "1b", "2b", "3b", "hr"]);
@@ -715,6 +736,643 @@ function MlbMetricTile({
         {value}
       </p>
       {sub && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">{sub}</p>}
+    </div>
+  );
+}
+
+type MlbPitchMixRow = MlbPitchArsenalRow | MlbArsenalHandSplit;
+
+const getMlbPitchAccentClass = (pitchType?: string | null) => {
+  switch (pitchType) {
+    case "FF":
+    case "FA":
+    case "SI":
+    case "FC":
+      return "bg-red-500";
+    case "SL":
+    case "ST":
+    case "SV":
+      return "bg-amber-400";
+    case "CU":
+    case "KC":
+      return "bg-emerald-500";
+    case "CH":
+    case "FS":
+      return "bg-sky-500";
+    default:
+      return "bg-slate-400";
+  }
+};
+
+function MlbPitcherTabSkeleton() {
+  return (
+    <div className="space-y-3">
+      <MlbGlassPanel className="p-4">
+        <div className="flex gap-4">
+          <div className="h-20 w-20 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800/70" />
+          <div className="flex-1 space-y-3">
+            <div className="h-5 w-44 animate-pulse rounded bg-neutral-100 dark:bg-neutral-800/70" />
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <div key={idx} className="h-14 animate-pulse rounded-md bg-neutral-100 dark:bg-neutral-800/60" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </MlbGlassPanel>
+      <div className="grid gap-3 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <MlbGlassPanel key={idx} className="h-36 animate-pulse bg-neutral-50 dark:bg-neutral-800/30">
+            <span className="sr-only">Loading pitcher matchup section</span>
+          </MlbGlassPanel>
+        ))}
+      </div>
+      <MlbGlassPanel className="h-56 animate-pulse bg-neutral-50 dark:bg-neutral-800/30">
+        <span className="sr-only">Loading pitch type performance</span>
+      </MlbGlassPanel>
+    </div>
+  );
+}
+
+function MlbPitcherEmptyState({
+  pitcherName,
+}: {
+  pitcherName?: string | null;
+}) {
+  return (
+    <MlbGlassPanel className="p-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-neutral-50 text-muted-foreground dark:bg-neutral-800/45">
+        <Target className="h-5 w-5" />
+      </div>
+      <h3 className="mt-4 text-base font-black text-foreground">Pitcher matchup unavailable</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+        {pitcherName
+          ? `We found ${pitcherName}, but pitch mix and batter matchup data have not loaded for this player pair yet.`
+          : "The probable opposing pitcher is not attached to this quick view yet. Once it is, arsenal and BvP evidence will appear here."}
+      </p>
+    </MlbGlassPanel>
+  );
+}
+
+function MlbPitcherMiniStat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="min-w-0 border-r border-border px-3 py-2 last:border-r-0">
+      <p className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="mt-1 font-mono text-lg font-black leading-none tabular-nums text-foreground">{value}</p>
+      {sub && <p className="mt-1 truncate text-[10px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function MlbPitchMixRows({
+  rows,
+  maxRows = 5,
+}: {
+  rows: MlbPitchMixRow[];
+  maxRows?: number;
+}) {
+  const visibleRows = rows.slice(0, maxRows);
+  const maxUsage = Math.max(...visibleRows.map((row) => normalizePitchUsagePct(row.usage_pct) ?? 0), 1);
+
+  if (visibleRows.length === 0) {
+    return <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">Pitch mix is not available yet.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {visibleRows.map((row) => {
+        const usage = normalizePitchUsagePct(row.usage_pct) ?? 0;
+        return (
+          <div key={row.pitch_type} className="grid grid-cols-[86px_minmax(0,1fr)_54px] items-center gap-2 text-xs">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-foreground">{row.pitch_name || MLB_PITCH_TYPE_LABELS[row.pitch_type] || row.pitch_type}</p>
+              <p className="font-mono text-[10px] text-muted-foreground">{formatMlbNumberStat(row.avg_speed, 1)} mph</p>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800/80">
+              <div
+                className={cn("h-full rounded-full", getMlbPitchAccentClass(row.pitch_type))}
+                style={{ width: `${Math.max(6, Math.min(100, (usage / maxUsage) * 100))}%` }}
+              />
+            </div>
+            <div className="text-right font-mono text-xs font-black tabular-nums text-foreground">{Math.round(usage)}%</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MlbPitcherInsight({
+  tone,
+  children,
+}: {
+  tone: "good" | "warn" | "bad";
+  children: React.ReactNode;
+}) {
+  const Icon = tone === "warn" ? AlertCircle : tone === "good" ? Check : Target;
+  return (
+    <div className="flex gap-2 text-xs leading-relaxed text-foreground/80">
+      <span
+        className={cn(
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+          tone === "good" && "border-emerald-500/60 text-emerald-600 dark:text-emerald-300",
+          tone === "warn" && "border-amber-500/60 text-amber-600 dark:text-amber-300",
+          tone === "bad" && "border-red-500/60 text-red-500 dark:text-red-300"
+        )}
+      >
+        <Icon className="h-2.5 w-2.5" />
+      </span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
+type MlbPitcherHandView = "default" | "L" | "R" | "both";
+
+function getProjectedBatterSide(batterHand?: string | null, pitcherHand?: string | null): "L" | "R" | null {
+  const normalizedBatterHand = (batterHand || "").toUpperCase();
+  const normalizedPitcherHand = (pitcherHand || "").toUpperCase();
+  if (normalizedBatterHand === "L" || normalizedBatterHand === "R") return normalizedBatterHand;
+  if (normalizedBatterHand === "S") {
+    if (normalizedPitcherHand === "R") return "L";
+    if (normalizedPitcherHand === "L") return "R";
+  }
+  return null;
+}
+
+function getPitchSplitByHand(batter: MlbBatterMatchup | null, pitchType: string, hand: "L" | "R" | null) {
+  const rows = hand === "L"
+    ? batter?.pitch_hand_splits?.vs_lhp
+    : hand === "R"
+      ? batter?.pitch_hand_splits?.vs_rhp
+      : batter?.pitch_splits;
+  return rows?.find((row) => row.pitch_type === pitchType) ?? null;
+}
+
+function getPitcherSplitByBatterSide(pitcher: MlbPitcherProfile | null, side: "L" | "R" | null) {
+  if (!pitcher || !side) return null;
+  return side === "L" ? pitcher.pitcher_splits?.vs_lhb ?? null : pitcher.pitcher_splits?.vs_rhb ?? null;
+}
+
+function MlbPitcherTab({
+  pitcherId,
+  pitcherName,
+  pitcherHand,
+  pitcher,
+  batter,
+  batterHand,
+  currentMarket,
+  activeLine,
+  recentGames,
+  isLoading,
+}: {
+  pitcherId: number | null;
+  pitcherName?: string | null;
+  pitcherHand?: string | null;
+  pitcher: MlbPitcherProfile | null;
+  batter: MlbBatterMatchup | null;
+  batterHand?: string | null;
+  currentMarket: string;
+  activeLine: number;
+  recentGames: BoxScoreGame[];
+  isLoading: boolean;
+}) {
+  const [mixHandView, setMixHandView] = useState<MlbPitcherHandView>("default");
+
+  if (isLoading) return <MlbPitcherTabSkeleton />;
+  if (!pitcherId || !pitcher) return <MlbPitcherEmptyState pitcherName={pitcherName} />;
+
+  const pitcherHandUpper = ((pitcher.hand || pitcherHand || "").toUpperCase() === "L" ? "L" : (pitcher.hand || pitcherHand || "").toUpperCase() === "R" ? "R" : null) as "L" | "R" | null;
+  const rawBatterHand = batterHand || batter?.batting_hand || null;
+  const projectedBatterSide = getProjectedBatterSide(rawBatterHand, pitcherHandUpper);
+  const projectedBatterSideLabel = projectedBatterSide ? `${projectedBatterSide}HB` : "batter hand";
+  const pitcherHandLabel = pitcherHandUpper ? `${pitcherHandUpper}HP` : "pitcher hand";
+  const mixSide = mixHandView === "default" ? projectedBatterSide : mixHandView === "both" ? null : mixHandView;
+  const mixHandLabel = mixSide ? `vs ${mixSide}HB` : "Both sides";
+  const projectedPitcherSplit = getPitcherSplitByBatterSide(pitcher, projectedBatterSide);
+  const selectedPitcherSplit = getPitcherSplitByBatterSide(pitcher, mixSide);
+  const arsenalByHand = mixSide === "L" ? pitcher.arsenal_splits?.vs_lhb : mixSide === "R" ? pitcher.arsenal_splits?.vs_rhb : null;
+  const pitchMixRows: MlbPitchMixRow[] = arsenalByHand && arsenalByHand.length > 0 ? arsenalByHand : pitcher.arsenal;
+  const primaryPitch = pitchMixRows[0] ?? null;
+  const primaryBatterSplit = primaryPitch ? getPitchSplitByHand(batter, primaryPitch.pitch_type, pitcherHandUpper) : null;
+  const h2h = batter?.h2h ?? null;
+  const batterVsPitcherHand = pitcherHandUpper === "L" ? batter?.hand_splits?.vs_lhp : pitcherHandUpper === "R" ? batter?.hand_splits?.vs_rhp : null;
+  const recentRows = recentGames.slice(0, 5);
+  const marketLabel = formatMarketLabel(currentMarket);
+  const switchNote = (rawBatterHand || "").toUpperCase() === "S" && projectedBatterSide
+    ? `Switch hitter projected ${projectedBatterSide}HB vs ${pitcherHandLabel}`
+    : projectedBatterSide
+      ? `${batter?.player_name?.split(" ").pop() ?? "Batter"} bats ${projectedBatterSide} vs ${pitcherHandLabel}`
+      : "Handedness projection unavailable";
+
+  const weakSpotRows = [
+    {
+      label: `${projectedBatterSideLabel} wOBA`,
+      value: formatMlbRateStat(projectedPitcherSplit?.woba),
+      tone: projectedPitcherSplit?.woba != null && projectedPitcherSplit.woba >= 0.340 ? "bad" : projectedPitcherSplit?.woba != null && projectedPitcherSplit.woba <= 0.290 ? "good" : "warn",
+      sub: projectedPitcherSplit?.bbs ? `${projectedPitcherSplit.bbs} BBE` : "sample",
+    },
+    {
+      label: "Hard Hit",
+      value: formatMlbPercentStat(projectedPitcherSplit?.hard_hit_pct),
+      tone: projectedPitcherSplit?.hard_hit_pct != null && projectedPitcherSplit.hard_hit_pct >= 42 ? "bad" : projectedPitcherSplit?.hard_hit_pct != null && projectedPitcherSplit.hard_hit_pct <= 34 ? "good" : "warn",
+      sub: "allowed",
+    },
+    {
+      label: "Barrel",
+      value: formatMlbPercentStat(projectedPitcherSplit?.barrel_pct),
+      tone: projectedPitcherSplit?.barrel_pct != null && projectedPitcherSplit.barrel_pct >= 10 ? "bad" : projectedPitcherSplit?.barrel_pct != null && projectedPitcherSplit.barrel_pct <= 6 ? "good" : "warn",
+      sub: "allowed",
+    },
+    {
+      label: "HR/9",
+      value: formatMlbNumberStat(pitcher.hr_per_9, 2),
+      tone: pitcher.hr_per_9 != null && pitcher.hr_per_9 >= 1.25 ? "bad" : pitcher.hr_per_9 != null && pitcher.hr_per_9 <= 0.85 ? "good" : "warn",
+      sub: "season",
+    },
+  ] as const;
+
+  const takeaways: { tone: "good" | "warn" | "bad"; text: string }[] = [];
+  if (batter?.matchup_reason) {
+    takeaways.push({ tone: batter.matchup_grade === "strong" ? "good" : batter.matchup_grade === "weak" ? "bad" : "warn", text: batter.matchup_reason });
+  }
+  if (primaryPitch && primaryBatterSplit?.slg != null) {
+    takeaways.push({
+      tone: primaryBatterSplit.slg >= 0.450 ? "good" : primaryBatterSplit.slg <= 0.300 ? "bad" : "warn",
+      text: `${batter?.player_name?.split(" ").pop() ?? "Batter"} owns ${formatMlbRateStat(primaryBatterSplit.slg)} SLG vs ${pitcherHandLabel} ${primaryPitch.pitch_name || MLB_PITCH_TYPE_LABELS[primaryPitch.pitch_type] || primaryPitch.pitch_type}.`,
+    });
+  }
+  if (projectedPitcherSplit?.hard_hit_pct != null) {
+    takeaways.push({
+      tone: projectedPitcherSplit.hard_hit_pct >= 42 ? "good" : projectedPitcherSplit.hard_hit_pct <= 34 ? "bad" : "warn",
+      text: `${pitcher.name} allows ${formatMlbPercentStat(projectedPitcherSplit.hard_hit_pct)} hard contact vs ${projectedBatterSideLabel}.`,
+    });
+  }
+  if (h2h && h2h.pa > 0) {
+    takeaways.push({
+      tone: h2h.slg != null && h2h.slg >= 0.450 ? "good" : "warn",
+      text: `Career BvP: ${h2h.hits} hits and ${h2h.hrs} HR across ${h2h.pa} tracked PA.`,
+    });
+  }
+
+  const visibleTakeaways = takeaways.slice(0, 4);
+  const handViewOptions: { value: MlbPitcherHandView; label: string }[] = [
+    { value: "default", label: `Default ${projectedBatterSide ? `(${projectedBatterSide}HB)` : ""}`.trim() },
+    { value: "L", label: "vs LHB" },
+    { value: "R", label: "vs RHB" },
+    { value: "both", label: "Both" },
+  ];
+  const h2hPitchMix = h2h?.pitch_mix_since_2023?.filter((row) => row.count > 0) ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.95fr)]">
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">
+              {batter?.player_name?.split(" ").pop() || "Batter"} vs {pitcherHandLabel}
+            </h4>
+            <p className="mt-1 text-[11px] text-muted-foreground">{switchNote}</p>
+          </div>
+          <div className="grid grid-cols-3 border-b border-border">
+            <MlbPitcherMiniStat label="AVG" value={formatMlbRateStat(batterVsPitcherHand?.avg)} />
+            <MlbPitcherMiniStat label="wOBA" value={formatMlbRateStat(batterVsPitcherHand?.woba)} />
+            <MlbPitcherMiniStat label="SLG" value={formatMlbRateStat(batterVsPitcherHand?.slg)} />
+          </div>
+          <div className="grid grid-cols-3">
+            <MlbPitcherMiniStat label="Hard Hit" value={formatMlbPercentStat(batter?.hard_hit_pct)} sub={`${batterVsPitcherHand?.bbs ?? batter?.total_batted_balls ?? 0} BBE`} />
+            <MlbPitcherMiniStat label="Barrel" value={formatMlbPercentStat(batterVsPitcherHand?.brl)} />
+            <MlbPitcherMiniStat label="K%" value={formatMlbPercentStat(batterVsPitcherHand?.k_pct ?? batter?.k_pct)} />
+          </div>
+        </MlbGlassPanel>
+
+        <MlbGlassPanel className="overflow-hidden p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-neutral-100 shadow-sm dark:bg-neutral-800 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <PlayerHeadshot
+                nbaPlayerId={null}
+                mlbPlayerId={pitcher.player_id ?? pitcherId}
+                sport="mlb"
+                name={pitcher.name || pitcherName || "Pitcher"}
+                size="small"
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-black tracking-tight text-foreground">{pitcher.name || pitcherName || "Opposing Pitcher"}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {pitcher.team_abbr ? `${pitcher.team_abbr} starter` : "Probable starter"} · {pitcherHandLabel}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/35">
+            <MlbPitcherMiniStat label="ERA" value={formatMlbNumberStat(pitcher.era, 2)} />
+            <MlbPitcherMiniStat label="WHIP" value={formatMlbNumberStat(pitcher.whip, 2)} />
+            <MlbPitcherMiniStat label="HR/9" value={formatMlbNumberStat(pitcher.hr_per_9, 2)} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/35">
+            <MlbPitcherMiniStat label="K/9" value={formatMlbNumberStat(pitcher.k_per_9, 1)} />
+            <MlbPitcherMiniStat label="BB/9" value={formatMlbNumberStat(pitcher.bb_per_9, 1)} />
+          </div>
+        </MlbGlassPanel>
+
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">
+              {pitcher.name?.split(" ").pop() || "Pitcher"} vs {projectedBatterSideLabel}
+            </h4>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {formatMlbNumberStat(pitcher.innings_pitched, 1)} IP · {pitcher.games_started ?? "-"} starts
+            </p>
+          </div>
+          <div className="grid grid-cols-3 border-b border-border">
+            <MlbPitcherMiniStat label="AVG" value={formatMlbRateStat(projectedPitcherSplit?.avg)} />
+            <MlbPitcherMiniStat label="wOBA" value={formatMlbRateStat(projectedPitcherSplit?.woba)} />
+            <MlbPitcherMiniStat label="SLG" value={formatMlbRateStat(projectedPitcherSplit?.slg)} />
+          </div>
+          <div className="grid grid-cols-3">
+            <MlbPitcherMiniStat label="Hard Hit" value={formatMlbPercentStat(projectedPitcherSplit?.hard_hit_pct)} sub={`${projectedPitcherSplit?.bbs ?? 0} BBE`} />
+            <MlbPitcherMiniStat label="Barrel" value={formatMlbPercentStat(projectedPitcherSplit?.barrel_pct)} />
+            <MlbPitcherMiniStat label="HR" value={String(projectedPitcherSplit?.hr ?? "-")} />
+          </div>
+        </MlbGlassPanel>
+      </div>
+
+      <MlbGlassPanel className="overflow-hidden">
+        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(260px,0.55fr)_minmax(0,1fr)_220px]">
+          <div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Pitch Mix</h4>
+                <p className="mt-1 text-[11px] text-muted-foreground">Pitcher arsenal {mixHandLabel}</p>
+              </div>
+              <div className="inline-flex rounded-lg border border-border bg-neutral-50 p-0.5 dark:bg-neutral-800/45">
+                {handViewOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setMixHandView(option.value)}
+                    className={cn(
+                      "rounded-md px-2 py-1 font-mono text-[10px] font-black uppercase text-muted-foreground transition-colors",
+                      mixHandView === option.value && "bg-background text-foreground shadow-sm dark:bg-neutral-900"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <MlbPitchMixRows rows={pitchMixRows} />
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-border">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="border-b border-border bg-neutral-50/80 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground dark:bg-neutral-800/35">
+                <tr>
+                  <th className="px-4 py-2.5 font-bold">Pitch</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Pitcher Use</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Sees vs RHP</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Sees vs LHP</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Batter wOBA</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Batter SLG</th>
+                  <th className="px-4 py-2.5 text-right font-bold">PA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pitchMixRows.slice(0, 6).map((row) => {
+                  const batterPitchVsR = getPitchSplitByHand(batter, row.pitch_type, "R");
+                  const batterPitchVsL = getPitchSplitByHand(batter, row.pitch_type, "L");
+                  const batterPitchVsOppHand = getPitchSplitByHand(batter, row.pitch_type, pitcherHandUpper);
+                  const batterPitchOverall = batter?.pitch_splits?.find((splitRow) => splitRow.pitch_type === row.pitch_type) ?? null;
+                  const batterPitch = batterPitchVsOppHand ?? batterPitchOverall;
+                  return (
+                    <tr key={row.pitch_type} className="text-foreground/85">
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <span className={cn("h-2 w-2 shrink-0 rounded-full", getMlbPitchAccentClass(row.pitch_type))} />
+                          <span className="truncate font-semibold">{row.pitch_name || MLB_PITCH_TYPE_LABELS[row.pitch_type] || row.pitch_type}</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatPitchUsagePct(row.usage_pct) ?? "-"}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatPitchUsagePct(batterPitchVsR?.usage_pct) ?? "-"}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatPitchUsagePct(batterPitchVsL?.usage_pct) ?? "-"}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbRateStat(batterPitch?.woba)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbRateStat(batterPitch?.slg)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums">{batterPitch?.batted_balls ?? 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="rounded-lg border border-border bg-neutral-50 p-3 dark:bg-neutral-800/35">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Matchup Edge</p>
+            <p
+              className={cn(
+                "mt-3 text-4xl font-black leading-none tracking-tight",
+                batter?.matchup_grade === "strong" && "text-emerald-500",
+                batter?.matchup_grade === "weak" && "text-red-500",
+                (!batter || batter.matchup_grade === "neutral") && "text-amber-500"
+              )}
+            >
+              {batter?.matchup_grade === "strong" ? "B+" : batter?.matchup_grade === "weak" ? "C-" : "C+"}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">
+              {batter?.overlap_score != null ? `${batter.overlap_score}% pitch overlap` : `${marketLabel} ${activeLine}+ context`}
+            </p>
+            <div className="mt-4 border-t border-border pt-3">
+              <MlbPitcherMiniStat label={mixHandLabel} value={formatMlbRateStat(selectedPitcherSplit?.woba)} sub="pitcher wOBA allowed" />
+            </div>
+          </div>
+        </div>
+      </MlbGlassPanel>
+
+      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1.1fr]">
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Weak Spots</h4>
+          </div>
+          <div className="divide-y divide-border px-4">
+            {weakSpotRows.map((row) => (
+              <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_76px_64px] items-center gap-2 py-2.5 text-xs">
+                <span className="truncate text-muted-foreground">{row.label}</span>
+                <span
+                  className={cn(
+                    "text-right font-mono font-black tabular-nums",
+                    row.tone === "bad" && "text-red-500",
+                    row.tone === "good" && "text-emerald-500",
+                    row.tone === "warn" && "text-amber-500"
+                  )}
+                >
+                  {row.value}
+                </span>
+                <span className="truncate text-right text-[10px] text-muted-foreground">{row.sub}</span>
+              </div>
+            ))}
+          </div>
+        </MlbGlassPanel>
+
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Batter Fit</h4>
+          </div>
+          <div className="grid grid-cols-2 border-b border-border">
+            <MlbPitcherMiniStat label={`vs ${pitcherHandLabel}`} value={formatMlbRateStat(batterVsPitcherHand?.woba)} sub="wOBA" />
+            <MlbPitcherMiniStat label="Hard Hit" value={formatMlbPercentStat(batter?.hard_hit_pct)} sub={`${batter?.total_batted_balls ?? 0} BBE`} />
+          </div>
+          <div className="grid grid-cols-3">
+            <MlbPitcherMiniStat label="AVG" value={formatMlbRateStat(batter?.avg)} />
+            <MlbPitcherMiniStat label="SLG" value={formatMlbRateStat(batter?.slg)} />
+            <MlbPitcherMiniStat label="EV" value={formatMlbNumberStat(batter?.avg_exit_velo, 1)} />
+          </div>
+        </MlbGlassPanel>
+
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Hitter Takeaways</h4>
+          </div>
+          <div className="space-y-2.5 px-4 py-3">
+            {visibleTakeaways.length > 0 ? visibleTakeaways.map((item) => (
+              <MlbPitcherInsight key={item.text} tone={item.tone}>{item.text}</MlbPitcherInsight>
+            )) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                No matchup notes are available from the current sample yet.
+              </p>
+            )}
+          </div>
+        </MlbGlassPanel>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-[1.35fr_0.85fr]">
+        <MlbGlassPanel className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Pitch Type Detail</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[660px] text-left text-xs">
+              <thead className="border-b border-border bg-neutral-50/80 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground dark:bg-neutral-800/35">
+                <tr>
+                  <th className="px-4 py-2.5 font-bold">Pitch</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Usage</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Pitcher SLG</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Batter AVG</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Batter SLG</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Batter K%</th>
+                  <th className="px-4 py-2.5 text-right font-bold">Sample</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pitchMixRows.slice(0, 6).map((row) => {
+                  const batterSplit = getPitchSplitByHand(batter, row.pitch_type, pitcherHandUpper)
+                    ?? batter?.pitch_splits?.find((splitRow) => splitRow.pitch_type === row.pitch_type)
+                    ?? null;
+                  return (
+                    <tr key={row.pitch_type} className="text-foreground/85">
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <span className={cn("h-2 w-2 shrink-0 rounded-full", getMlbPitchAccentClass(row.pitch_type))} />
+                          <span className="truncate font-semibold">{row.pitch_name || MLB_PITCH_TYPE_LABELS[row.pitch_type] || row.pitch_type}</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatPitchUsagePct(row.usage_pct) ?? "-"}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbRateStat(row.slg)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbRateStat(batterSplit?.avg)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbRateStat(batterSplit?.slg)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{formatMlbPercentStat(batterSplit?.k_pct)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums">{batterSplit?.batted_balls ?? ("bbs" in row ? row.bbs : row.total_batted_balls)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </MlbGlassPanel>
+
+        <div className="space-y-3">
+          <MlbGlassPanel className="overflow-hidden">
+            <div className="border-b border-border px-4 py-3">
+              <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Career BvP</h4>
+            </div>
+            {h2h ? (
+              <div>
+                <div className="grid grid-cols-4 border-b border-border">
+                  <MlbPitcherMiniStat label="PA" value={String(h2h.pa)} />
+                  <MlbPitcherMiniStat label="AVG" value={formatMlbRateStat(h2h.avg)} />
+                  <MlbPitcherMiniStat label="SLG" value={formatMlbRateStat(h2h.slg)} />
+                  <MlbPitcherMiniStat label="HR" value={String(h2h.hrs)} />
+                </div>
+                <div className="divide-y divide-border px-4">
+                  {h2h.last_meetings.slice(0, 3).map((meeting) => (
+                    <div key={`${meeting.date}-${meeting.pa}`} className="flex items-center justify-between py-2 text-xs">
+                      <span className="text-muted-foreground">{formatMlbBattedBallDate(meeting.date, true)}</span>
+                      <span className="font-mono font-bold tabular-nums text-foreground">{meeting.hits} H · {meeting.hrs} HR · {meeting.pa} PA</span>
+                    </div>
+                  ))}
+                </div>
+                {h2hPitchMix.length > 0 && (
+                  <div className="border-t border-border px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Tracked BIP mix since 2023</p>
+                      <span className="text-[10px] text-muted-foreground">{h2hPitchMix.reduce((sum, row) => sum + row.count, 0)} BIP</span>
+                    </div>
+                    <div className="flex h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                      {h2hPitchMix.map((row) => (
+                        <div
+                          key={row.pitch_type}
+                          className={cn("h-full", getMlbPitchAccentClass(row.pitch_type))}
+                          style={{ width: `${Math.max(4, row.pct)}%` }}
+                          title={`${row.pitch_name}: ${row.pct}%`}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      {h2hPitchMix.map((row) => (
+                        <span key={row.pitch_type} className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <span className={cn("h-1.5 w-1.5 rounded-full", getMlbPitchAccentClass(row.pitch_type))} />
+                          {row.pitch_name} {Math.round(row.pct)}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">No tracked career BvP events for this pair.</div>
+            )}
+          </MlbGlassPanel>
+
+          <MlbGlassPanel className="overflow-hidden">
+            <div className="border-b border-border px-4 py-3">
+              <h4 className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-foreground">Recent Prop Form</h4>
+            </div>
+            <div className="divide-y divide-border px-4">
+              {recentRows.length > 0 ? recentRows.map((game) => {
+                const stat = getMarketStat(game, currentMarket);
+                const hit = stat >= activeLine;
+                return (
+                  <div key={game.gameId} className="grid grid-cols-[72px_minmax(0,1fr)_56px_42px] items-center gap-2 py-2 text-xs">
+                    <span className="font-mono text-[10px] text-muted-foreground">{formatMlbBattedBallDate(game.date)}</span>
+                    <span className="truncate text-foreground/80">{game.homeAway === "H" ? "vs" : "@"} {game.opponentAbbr}</span>
+                    <span className="text-right font-mono font-black tabular-nums text-foreground">{stat}</span>
+                    <span className={cn("text-right font-mono text-[10px] font-black uppercase", hit ? "text-emerald-500" : "text-red-500")}>{hit ? "Hit" : "Miss"}</span>
+                  </div>
+                );
+              }) : (
+                <div className="py-6 text-center text-xs text-muted-foreground">Recent game logs are unavailable for this prop.</div>
+              )}
+            </div>
+          </MlbGlassPanel>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2773,15 +3431,16 @@ export function PlayerQuickViewModal({
     const safeInitialMarket = initial_market && (!isMlb || isMlbPitcherMarketKey(initial_market) === isMlbPitcherProfile)
       ? initial_market
       : null;
-    const uniqueMarkets = Array.from(new Set([safeInitialMarket, ...profileMarkets].filter(Boolean) as string[]));
-    // Sort by FALLBACK_MARKETS order (preferred display order)
+    const uniqueMarkets = Array.from(
+      new Set([
+        safeInitialMarket,
+        ...profileMarkets,
+        ...(isMlb ? fallbackMarkets : []),
+      ].filter(Boolean) as string[])
+    );
+    // Sort by display label so the prop dropdown is easy to scan.
     return uniqueMarkets.sort((a, b) => {
-      const indexA = fallbackMarkets.indexOf(a);
-      const indexB = fallbackMarkets.indexOf(b);
-      // If not in FALLBACK_MARKETS, put at end
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
+      return formatMarketLabel(a).localeCompare(formatMarketLabel(b), undefined, { sensitivity: "base" });
     });
   }, [hasUpcomingProfile, profiles, isMlb, isMlbPitcherProfile, initial_market]);
   const [selectedMarket, setSelectedMarket] = useState<string | null>(initial_market || null);
@@ -3301,10 +3960,10 @@ export function PlayerQuickViewModal({
   const isMlbPitcher = isMlb && (isMlbPitcherProfile || isMlbPitcherMarketKey(currentMarket) || profilePosition === "P");
 
   useEffect(() => {
-    if (isMlb && (activeTab === "correlation" || activeTab === "matchup")) {
+    if (isMlb && (activeTab === "correlation" || (activeTab === "matchup" && isMlbPitcher))) {
       setActiveTab("gamelog");
     }
-  }, [activeTab, isMlb]);
+  }, [activeTab, isMlb, isMlbPitcher]);
 
   // Reset modal-local state when the user switches markets *within* the modal.
   // Skip the initial mount — otherwise it would wipe customLine that was just
@@ -3803,7 +4462,12 @@ export function PlayerQuickViewModal({
     opposingPitcherId,
     open && isMlb && !isMlbPitcher && !!fullProfilePlayerId && !!opposingPitcherId
   );
-  const { pitcher: opposingPitcherProfile } = useMlbIndividualMatchup({
+  const {
+    pitcher: opposingPitcherProfile,
+    batter: individualBatterMatchup,
+    isLoading: isLoadingIndividualMatchup,
+    isFetching: isFetchingIndividualMatchup,
+  } = useMlbIndividualMatchup({
     batterId: open && isMlb && !isMlbPitcher ? fullProfilePlayerId ?? null : null,
     pitcherId: open && isMlb && !isMlbPitcher ? opposingPitcherId : null,
     sample: "season",
@@ -3980,8 +4644,8 @@ export function PlayerQuickViewModal({
     ? [
         { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
         { id: "playstyle" as const, label: "Batted Ball", mobileLabel: "Batted", icon: Zap, proOnly: true },
+        { id: "matchup" as const, label: isMlbPitcher ? "Matchup" : "Pitcher", mobileLabel: "Pitch", icon: Target, proOnly: true, disabled: isMlbPitcher, soon: isMlbPitcher },
         { id: "splits" as const, label: "Splits", mobileLabel: "Splits", icon: Users, proOnly: false, disabled: true, soon: true },
-        { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true, disabled: true, soon: true },
       ]
     : [
         { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
@@ -4353,6 +5017,21 @@ export function PlayerQuickViewModal({
                           />
                         )}
                       </>
+                    )}
+
+                    {activeTab === "matchup" && (
+                      <MlbPitcherTab
+                        pitcherId={opposingPitcherId}
+                        pitcherName={nextGameDetail !== "TBD" ? nextGameDetail : null}
+                        pitcherHand={opposingPitcherHand}
+                        pitcher={opposingPitcherProfile}
+                        batter={individualBatterMatchup}
+                        batterHand={profile?.battingHand}
+                        currentMarket={currentMarket}
+                        activeLine={activeLine}
+                        recentGames={filteredGames}
+                        isLoading={isLoadingIndividualMatchup || isFetchingIndividualMatchup}
+                      />
                     )}
 
                     {activeTab === "playstyle" && (

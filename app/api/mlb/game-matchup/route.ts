@@ -137,6 +137,8 @@ export interface PitcherProfile {
 export interface BatterPitchSplit {
   pitch_type: string;
   pitch_name: string;
+  usage_pct?: number | null;
+  pitches?: number | null;
   avg: number | null;
   slg: number | null;
   iso: number | null;
@@ -180,6 +182,7 @@ export interface BatterMatchup {
     slg: number | null;
     // Last 3 meeting dates with results
     last_meetings: { date: string; hits: number; hrs: number; pa: number }[];
+    pitch_mix_since_2023?: { pitch_type: string; pitch_name: string; count: number; pct: number }[];
   } | null;
   // wOBA (estimated from batted balls)
   woba: number | null;

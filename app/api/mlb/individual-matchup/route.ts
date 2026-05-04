@@ -266,6 +266,22 @@ export async function GET(req: NextRequest) {
       p_season: season,
     });
 
+    const batterPitchHandSplitQueries = seasonsToTry.map((s) =>
+      supabase
+        .from("mlb_batter_pitchtype_hand_splits")
+        .select("player_id, opponent_hand, pitch_type, pa, ba, obp, slg, iso, woba, k_percent, bb_percent, whiff_percent, barrel_percent, hard_hit_percent, avg_exit_velocity, home_runs")
+        .eq("player_id", batterId)
+        .eq("season_year", s)
+    );
+
+    const batterPitchSummaryQueries = seasonsToTry.map((s) =>
+      supabase
+        .from("mlb_batter_pitchtype_summary")
+        .select("player_id, pitch_type, pa, ba, slg, iso, obp, woba, k_percent, whiff_percent, hard_hit_percent, barrel_batted_rate, exit_velocity_avg, pitches")
+        .eq("player_id", batterId)
+        .eq("season_year", s)
+    );
+
     const allResults = await Promise.all([
       ...pitcherBBQueries,    // [0, 1]
       ...batterBBQueries,     // [2, 3]
@@ -278,6 +294,8 @@ export async function GET(req: NextRequest) {
       ...pitchTypeSummaryQueries, // [13, 14]
       batterGameLogQuery,     // [15]
       pitcherHotZoneQuery,    // [16]
+      ...batterPitchHandSplitQueries, // [17, 18]
+      ...batterPitchSummaryQueries,   // [19, 20]
     ]);
 
     // Pick season with data
@@ -292,6 +310,8 @@ export async function GET(req: NextRequest) {
     const pitcherInfo = ((allResults[12].data ?? []) as any[])[0] ?? null;
     const pitchSummaryRows = ((allResults[13].data ?? []) as any[]).length > 0 ? (allResults[13].data as any[]) : (allResults[14].data ?? []) as any[];
     const batterGameLogs = Array.isArray(allResults[15]?.data) ? allResults[15].data as any[] : [];
+    const batterPitchHandRows = ((allResults[17].data ?? []) as any[]).length > 0 ? (allResults[17].data as any[]) : (allResults[18].data ?? []) as any[];
+    const batterPitchSummaryRows = ((allResults[19].data ?? []) as any[]).length > 0 ? (allResults[19].data as any[]) : (allResults[20].data ?? []) as any[];
 
     // Extract pitcher hot zone grid
     const hotZoneRaw = allResults[16]?.data;
@@ -613,30 +633,155 @@ export async function GET(req: NextRequest) {
     const pitcherPitchTypes = arsenal.map((a) => a.pitch_type);
     const primaryPitchType = arsenal.length > 0 ? arsenal[0].pitch_type : null;
 
+    const isEarlySeason = (pitcherSeasonStats.games_started ?? 0) <= 5;
+    const MIN_PA_PITCH_TYPE = isEarlySeason ? 1 : 3;
+
+    const batterPitchTotalPitches = batterPitchSummaryRows.reduce((sum: number, row: any) => sum + Number(row.pitches ?? 0), 0);
+    const batterPitchTotalPa = batterPitchSummaryRows.reduce((sum: number, row: any) => sum + Number(row.pa ?? 0), 0);
+    const batterPitchSummaryMap = new Map<string, {
+      ba: number | null; slg: number | null; iso: number | null; woba: number | null;
+      obp: number | null; k_pct: number | null; whiff_pct: number | null;
+      hard_hit_pct: number | null; barrel_pct: number | null; avg_ev: number | null;
+      pa: number; pitches: number; usage_pct: number | null;
+    }>();
+    for (const row of batterPitchSummaryRows) {
+      if (!row.pitch_type) continue;
+      const pitches = Number(row.pitches ?? 0);
+      const pa = Number(row.pa ?? 0);
+      const usageBase = batterPitchTotalPitches > 0 ? pitches : pa;
+      const usageTotal = batterPitchTotalPitches > 0 ? batterPitchTotalPitches : batterPitchTotalPa;
+      batterPitchSummaryMap.set(row.pitch_type, {
+        ba: row.ba != null ? Number(row.ba) : null,
+        slg: row.slg != null ? Number(row.slg) : null,
+        iso: row.iso != null ? Number(row.iso) : null,
+        woba: row.woba != null ? Number(row.woba) : null,
+        obp: row.obp != null ? Number(row.obp) : null,
+        k_pct: row.k_percent != null ? Number(row.k_percent) : null,
+        whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
+        hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
+        barrel_pct: row.barrel_batted_rate != null ? Number(row.barrel_batted_rate) : null,
+        avg_ev: row.exit_velocity_avg != null ? Number(row.exit_velocity_avg) : null,
+        pa,
+        pitches,
+        usage_pct: usageTotal > 0 ? Math.round((usageBase / usageTotal) * 1000) / 10 : null,
+      });
+    }
+
+    const batterPitchHandTotals = new Map<string, number>();
+    for (const row of batterPitchHandRows) {
+      const hand = row.opponent_hand === "L" || row.opponent_hand === "R" ? row.opponent_hand : null;
+      if (!hand) continue;
+      batterPitchHandTotals.set(hand, (batterPitchHandTotals.get(hand) ?? 0) + Number(row.pa ?? 0));
+    }
+    const batterPitchHandMap = new Map<string, {
+      ba: number | null; slg: number | null; iso: number | null; woba: number | null;
+      obp: number | null; k_pct: number | null; bb_pct: number | null; whiff_pct: number | null;
+      hard_hit_pct: number | null; barrel_pct: number | null; avg_ev: number | null;
+      hrs: number; pa: number; usage_pct: number | null;
+    }>();
+    for (const row of batterPitchHandRows) {
+      const hand = row.opponent_hand === "L" || row.opponent_hand === "R" ? row.opponent_hand : null;
+      if (!row.pitch_type || !hand) continue;
+      const pa = Number(row.pa ?? 0);
+      const handTotal = batterPitchHandTotals.get(hand) ?? 0;
+      batterPitchHandMap.set(`${row.pitch_type}:${hand}`, {
+        ba: row.ba != null ? Number(row.ba) : null,
+        slg: row.slg != null ? Number(row.slg) : null,
+        iso: row.iso != null ? Number(row.iso) : null,
+        woba: row.woba != null ? Number(row.woba) : null,
+        obp: row.obp != null ? Number(row.obp) : null,
+        k_pct: row.k_percent != null ? Number(row.k_percent) : null,
+        bb_pct: row.bb_percent != null ? Number(row.bb_percent) : null,
+        whiff_pct: row.whiff_percent != null ? Number(row.whiff_percent) : null,
+        hard_hit_pct: row.hard_hit_percent != null ? Number(row.hard_hit_percent) : null,
+        barrel_pct: row.barrel_percent != null ? Number(row.barrel_percent) : null,
+        avg_ev: row.avg_exit_velocity != null ? Number(row.avg_exit_velocity) : null,
+        hrs: Number(row.home_runs ?? 0),
+        pa,
+        usage_pct: handTotal > 0 ? Math.round((pa / handTotal) * 1000) / 10 : null,
+      });
+    }
+
     // Pitch splits
     const pitchSplits: BatterPitchSplit[] = pitcherPitchTypes.map((pt) => {
-      const ptBBs = batterBBs.filter((b: any) => b.pitch_type === pt);
-      const ptAvg = computeAVGFromBBs(ptBBs);
-      const ptSlg = computeSLGFromEvents(ptBBs);
-      const ptWoba = computeWOBA(ptBBs);
-      const ptEV = computeAvgEV(ptBBs);
-      const ptHardHit = computeHardHitPct(ptBBs);
+      const realData = batterPitchSummaryMap.get(pt);
+      const ptHRs = batterBBs.filter((b: any) => b.pitch_type === pt && (b.event_type || "").toLowerCase() === "home_run").length;
+      if (realData && realData.pa >= MIN_PA_PITCH_TYPE) {
+        return {
+          pitch_type: pt,
+          pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+          usage_pct: realData.usage_pct,
+          pitches: realData.pitches,
+          avg: realData.ba != null ? Math.round(realData.ba * 1000) / 1000 : null,
+          slg: realData.slg != null ? Math.round(realData.slg * 1000) / 1000 : null,
+          iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
+          batted_balls: realData.pa,
+          hrs: ptHRs,
+          k_pct: realData.k_pct != null ? Math.round(realData.k_pct * 10) / 10 : null,
+          bb_pct: null,
+          barrel_pct: realData.barrel_pct != null ? Math.round(realData.barrel_pct * 10) / 10 : null,
+          woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
+          avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
+          hard_hit_pct: realData.hard_hit_pct != null ? Math.round(realData.hard_hit_pct * 10) / 10 : null,
+        };
+      }
       return {
         pitch_type: pt,
         pitch_name: PITCH_TYPE_NAMES[pt] || pt,
-        avg: ptAvg != null ? Math.round(ptAvg * 1000) / 1000 : null,
-        slg: ptSlg != null ? Math.round(ptSlg * 1000) / 1000 : null,
-        iso: ptAvg != null && ptSlg != null ? Math.round((ptSlg - ptAvg) * 1000) / 1000 : null,
-        batted_balls: ptBBs.length,
-        hrs: ptBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
+        usage_pct: null,
+        pitches: null,
+        avg: null,
+        slg: null,
+        iso: null,
+        batted_balls: 0,
+        hrs: ptHRs,
         k_pct: null,
         bb_pct: null,
-        barrel_pct: computeBarrelPct(ptBBs),
-        woba: ptWoba != null ? Math.round(ptWoba * 1000) / 1000 : null,
-        avg_ev: ptEV != null ? Math.round(ptEV * 10) / 10 : null,
-        hard_hit_pct: ptHardHit != null ? Math.round(ptHardHit * 10) / 10 : null,
+        barrel_pct: null,
+        woba: null,
+        avg_ev: null,
+        hard_hit_pct: null,
       };
     });
+
+    function computePitchSplitsForHand(hand: string): BatterPitchSplit[] {
+      return pitcherPitchTypes.map((pt) => {
+        const realData = batterPitchHandMap.get(`${pt}:${hand}`);
+        if (realData && realData.pa >= MIN_PA_PITCH_TYPE) {
+          return {
+            pitch_type: pt,
+            pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+            usage_pct: realData.usage_pct,
+            pitches: null,
+            avg: realData.ba != null ? Math.round(realData.ba * 1000) / 1000 : null,
+            slg: realData.slg != null ? Math.round(realData.slg * 1000) / 1000 : null,
+            iso: realData.iso != null ? Math.round(realData.iso * 1000) / 1000 : null,
+            batted_balls: realData.pa,
+            hrs: realData.hrs,
+            k_pct: realData.k_pct != null ? Math.round(realData.k_pct * 10) / 10 : null,
+            bb_pct: realData.bb_pct != null ? Math.round(realData.bb_pct * 10) / 10 : null,
+            barrel_pct: realData.barrel_pct != null ? Math.round(realData.barrel_pct * 10) / 10 : null,
+            woba: realData.woba != null ? Math.round(realData.woba * 1000) / 1000 : null,
+            avg_ev: realData.avg_ev != null ? Math.round(realData.avg_ev * 10) / 10 : null,
+            hard_hit_pct: realData.hard_hit_pct != null ? Math.round(realData.hard_hit_pct * 10) / 10 : null,
+          };
+        }
+        return {
+          pitch_type: pt,
+          pitch_name: PITCH_TYPE_NAMES[pt] || pt,
+          usage_pct: null,
+          pitches: null,
+          avg: null, slg: null, iso: null, batted_balls: 0, hrs: 0,
+          k_pct: null, bb_pct: null, barrel_pct: null, woba: null,
+          avg_ev: null, hard_hit_pct: null,
+        };
+      });
+    }
+
+    const pitchHandSplits = {
+      vs_rhp: computePitchSplitsForHand("R"),
+      vs_lhp: computePitchSplitsForHand("L"),
+    };
 
     // H2H
     let h2h: BatterMatchup["h2h"] = null;
@@ -658,6 +803,12 @@ export async function GET(req: NextRequest) {
           hrs: mBBs.filter((b: any) => (b.event_type || "").toLowerCase() === "home_run").length,
         };
       });
+      const h2hPitchRows = h2hBBs.filter((bb: any) => bb.game_date >= "2023-01-01" && bb.pitch_type);
+      const h2hPitchCounts = new Map<string, number>();
+      for (const bb of h2hPitchRows) {
+        h2hPitchCounts.set(bb.pitch_type, (h2hPitchCounts.get(bb.pitch_type) ?? 0) + 1);
+      }
+      const h2hPitchTotal = h2hPitchRows.length;
       h2h = {
         pa: h2hBBs.length,
         hits: h2hBBs.filter((b: any) => b.is_hit || (b.event_type || "").toLowerCase() === "home_run").length,
@@ -665,6 +816,17 @@ export async function GET(req: NextRequest) {
         avg: (() => { const v = computeAVGFromBBs(h2hBBs); return v != null ? Math.round(v * 1000) / 1000 : null; })(),
         slg: (() => { const v = computeSLGFromEvents(h2hBBs); return v != null ? Math.round(v * 1000) / 1000 : null; })(),
         last_meetings: lastMeetings,
+        pitch_mix_since_2023: h2hPitchTotal > 0
+          ? Array.from(h2hPitchCounts.entries())
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 6)
+              .map(([pitchType, count]) => ({
+                pitch_type: pitchType,
+                pitch_name: PITCH_TYPE_NAMES[pitchType] || pitchType,
+                count,
+                pct: Math.round((count / h2hPitchTotal) * 1000) / 10,
+              }))
+          : [],
       };
     }
 
@@ -753,6 +915,7 @@ export async function GET(req: NextRequest) {
       woba: woba != null ? Math.round(woba * 1000) / 1000 : null,
       total_batted_balls: batterBBs.length,
       pitch_splits: pitchSplits,
+      pitch_hand_splits: pitchHandSplits,
       h2h,
       matchup_grade: grade,
       matchup_reason: reason,
