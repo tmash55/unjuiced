@@ -4,6 +4,7 @@ import { useMemo, type CSSProperties } from "react";
 import { AlertTriangle, CloudRain, Thermometer, Wind } from "lucide-react";
 import { MlbWeatherReportRow } from "@/hooks/use-mlb-weather-report";
 import { cn } from "@/lib/utils";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 
 type Point = [number, number];
 
@@ -69,18 +70,6 @@ function normalizeToViewbox(groups: Point[][]): Point[][] {
       VIEWBOX_HEIGHT - offsetY - (y - minY) * scale,
     ])
   );
-}
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "-";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
 }
 
 function formatImpactLabel(value: string | null): string {
@@ -444,7 +433,7 @@ export function LivingStadiumCard({ row, windOverride }: {
   const homeColor = row.homeTeamPrimaryColor ?? "#1e3a5f";
   const gameSubLabel =
     row.venueCity && row.venueState ? `${row.venueName || "Unknown Venue"} • ${row.venueCity}, ${row.venueState}` : row.venueName || "Unknown Venue";
-  const gameTime = getETTime(row.gameDatetime);
+  const gameTime = formatGameTimeForUser(row.gameDatetime, { fallback: "-", includeTimeZoneName: true });
   const insightDrivers = keyDrivers(row);
 
   return (

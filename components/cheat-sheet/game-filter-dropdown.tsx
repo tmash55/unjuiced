@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import type { MlbGame } from "@/hooks/use-mlb-games";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 
 function lastNameOnly(name: string | null): string {
   if (!name) return "TBD";
@@ -20,19 +21,7 @@ function lastNameOnly(name: string | null): string {
 }
 
 function getGameStatusLabel(game: MlbGame): string {
-  const status = game.game_status || "TBD";
-  if (status.toLowerCase().includes("final")) {
-    return game.final_inning && game.final_inning > 9 ? `F/${game.final_inning}` : "Final";
-  }
-
-  const live = game.live;
-  if (live?.current_inning != null) {
-    const half = live.current_inning_half === "top" ? "T" : live.current_inning_half === "bottom" ? "B" : "";
-    return `${half}${live.current_inning}`;
-  }
-
-  if (status.toLowerCase().includes("progress")) return "Live";
-  return status;
+  return formatMlbGameStatusForUser(game);
 }
 
 function isGameLive(game: MlbGame): boolean {

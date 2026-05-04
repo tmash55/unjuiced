@@ -10,6 +10,7 @@ import type {
 } from "@/lib/nrfi-data";
 import { getLeanLabel, getLeanClasses } from "@/lib/nrfi-data";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import { NRFIRecord, StreakBadge } from "./nrfi-record";
 
 function getBookLogo(bookId: string): string | null {
@@ -242,6 +243,10 @@ function OffenseColumn({ offense }: { offense: TeamOffense }) {
 // ─── Collapsed Card ─────────────────────────────────────────────────────────────
 
 function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: () => void; lm: LeanMeta }) {
+  const gameTime = formatGameTimeForUser(game.gameDatetime, {
+    fallback: game.gameTime,
+    includeTimeZoneName: true,
+  });
 
   return (
     <button
@@ -269,7 +274,7 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
             <TeamLogo abbr={game.homeTricode} size={20} />
             {game.homeTeam}
           </h3>
-          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{game.gameTime}</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{gameTime}</span>
         </div>
         <span className={cn("px-2.5 py-1 rounded-lg text-xl font-black tabular-nums leading-none shrink-0", lm.badge)}>
           {game.grade}
@@ -345,6 +350,11 @@ function CollapsedCard({ game, onExpand, lm }: { game: GameCardType; onExpand: (
 // ─── Expanded Card ──────────────────────────────────────────────────────────────
 
 function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse: () => void; lm: LeanMeta }) {
+  const gameTime = formatGameTimeForUser(game.gameDatetime, {
+    fallback: game.gameTime,
+    includeTimeZoneName: true,
+  });
+
   return (
     <div
       className={cn(
@@ -368,7 +378,7 @@ function ExpandedCard({ game, onCollapse, lm }: { game: GameCardType; onCollapse
             <TeamLogo abbr={game.homeTricode} size={22} />
             {game.homeTeam}
           </h3>
-          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{game.gameTime}</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{gameTime}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className={cn("px-2.5 py-1 rounded-lg text-xl font-black tabular-nums leading-none", lm.badge)}>

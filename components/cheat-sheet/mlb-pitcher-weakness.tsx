@@ -20,6 +20,7 @@ import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { formatGameTimeForUser, formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { Loader2, ChevronRight, AlertTriangle, Users, ChevronDown, Zap, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
@@ -129,18 +130,6 @@ function formatOddsPrice(price: number): string {
 function getPreferredLink(desktopLink?: string | null, mobileLink?: string | null): string | null {
   const isMobile = typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
   return isMobile ? (mobileLink || desktopLink || null) : (desktopLink || mobileLink || null);
-}
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "TBD";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
 }
 
 function fmtAvg(val: number | null): string {
@@ -313,7 +302,7 @@ function MobileGameSelector({
                 </div>
                 <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
                 <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                  <span className="text-neutral-400 tabular-nums">{g.game_status}</span>
+                  <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(g)}</span>
                   {g.park_factor != null && (
                     <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
                       PF {g.park_factor}
@@ -375,7 +364,7 @@ function DesktopGameStrip({
                   {lastNameOnly(g.away_probable_pitcher)} vs {lastNameOnly(g.home_probable_pitcher)}
                 </span>
                 <div className="flex items-center gap-1">
-                  <span className="tabular-nums">{g.game_status}</span>
+                  <span className="tabular-nums">{formatMlbGameStatusForUser(g)}</span>
                   {g.park_factor != null && (
                     <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
                       PF {g.park_factor}
@@ -472,7 +461,7 @@ function GameHeaderBar({ game, gameTime }: { game: GameInfo; gameTime: string })
           )}
 
           <span className="font-semibold text-neutral-700 dark:text-neutral-300 tabular-nums">
-            {gameTime} ET
+            {gameTime}
           </span>
         </div>
       </div>
@@ -1976,8 +1965,11 @@ export function MlbPitcherWeakness({
   }, [allPropScores, selectedGameId]);
 
   const gameTime = useMemo(
-    () => currentGame ? getETTime(currentGame.game_status) : "TBD",
-    [currentGame]
+    () => formatGameTimeForUser(game?.game_datetime ?? currentGame?.game_datetime ?? null, {
+      fallback: "TBD",
+      includeTimeZoneName: true,
+    }),
+    [game?.game_datetime, currentGame?.game_datetime]
   );
 
   function handleToggleBatter(id: number) {

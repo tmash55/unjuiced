@@ -11,6 +11,7 @@ import { useMlbIndividualMatchup } from "@/hooks/use-mlb-individual-matchup";
 import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { ChevronRight, Loader2, AlertCircle, Search, X } from "lucide-react";
 import { IconUserSearch } from "@tabler/icons-react";
 
@@ -505,20 +506,6 @@ function PlayerSearchInput({
   );
 }
 
-// ── Game Time Helpers ────────────────────────────────────────────────────────
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "TBD";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
-
 // ── Game Matchup Picker ─────────────────────────────────────────────────────
 
 function GameMatchupPicker({
@@ -620,7 +607,7 @@ function GameMatchupPicker({
                 <p className="text-[11px] font-semibold text-neutral-900 dark:text-white whitespace-nowrap">
                   {g.away_team_tricode} @ {g.home_team_tricode}
                 </p>
-                <p className="text-[10px] text-neutral-500 whitespace-nowrap">{g.game_status}</p>
+                <p className="text-[10px] text-neutral-500 whitespace-nowrap">{formatMlbGameStatusForUser(g)}</p>
               </div>
             </button>
           );

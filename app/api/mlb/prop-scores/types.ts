@@ -17,6 +17,8 @@ export interface PropScorePlayer {
   batting_order: number | null;
   lineup_status: "confirmed" | "projected" | "roster" | null;
   line: number | null;
+  opening_line?: number | null;
+  graded_line?: number | null;
   best_odds: number | null;
   best_odds_book: string | null;
   best_odds_decimal: number | null;

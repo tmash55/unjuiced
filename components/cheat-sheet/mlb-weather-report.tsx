@@ -6,6 +6,7 @@ import { ArrowUpDown, Check, ChevronDown } from "lucide-react";
 import { SheetFilterBar, FilterCount, SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
 import { cn } from "@/lib/utils";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import { useMlbWeatherReport } from "@/hooks/use-mlb-weather-report";
 import type { MlbWeatherReportRow } from "@/hooks/use-mlb-weather-report";
 import { HREnvironmentDetail } from "@/components/cheat-sheet/mlb/hr-environment-detail";
@@ -32,17 +33,6 @@ function getETDate(offsetDays = 0): string {
     month: "2-digit",
     day: "2-digit",
   }).format(now);
-}
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "-";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function formatLongDate(dateValue: string): string {
@@ -118,7 +108,7 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
   const badgeColor = getScoreBadgeColor(score);
   const awayAbbr = row.awayTeamAbbr || "Away";
   const homeAbbr = row.homeTeamAbbr || "Home";
-  const time = getETTime(row.gameDatetime);
+  const time = formatGameTimeForUser(row.gameDatetime, { fallback: "-", includeTimeZoneName: true });
   const temp = row.temperatureF != null ? Math.round(row.temperatureF) : null;
   const precip = row.precipProbability != null ? Math.round(row.precipProbability) : null;
   const windSpeed = row.windSpeedMph != null ? Math.round(row.windSpeedMph) : null;

@@ -4,6 +4,7 @@ import React, { useMemo, useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbGames, type MlbGame } from "@/hooks/use-mlb-games";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { useGameCenter, type GameCenterView, type GameCenterSample } from "@/hooks/use-game-center";
 import { GameScoreboard } from "@/components/game-center/game-scoreboard";
 import { GameHeader } from "@/components/game-center/game-header";
@@ -174,7 +175,7 @@ function GameSwitcher({
                     </div>
                     <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
                       {!isFinal && (
-                        <span className="text-[10px] text-neutral-500 tabular-nums whitespace-nowrap">{g.game_status}</span>
+                        <span className="text-[10px] text-neutral-500 tabular-nums whitespace-nowrap">{formatMlbGameStatusForUser(g)}</span>
                       )}
                       {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
                     </div>

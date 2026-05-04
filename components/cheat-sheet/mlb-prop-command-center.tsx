@@ -18,6 +18,7 @@ import { LineHistoryDialog } from "@/components/opportunities/line-history-dialo
 import { BasesDiamond } from "@/components/game-center/bases-diamond";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite } from "@/hooks/use-favorites";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
 import { toast } from "sonner";
@@ -45,13 +46,18 @@ import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 
 const FREE_MAX_ROWS = 5;
 const UPGRADE_URL = "/pricing";
+const PROP_CENTER_SCORE_FILTER_STORAGE_KEY = "unjuiced:mlb-prop-center:min-score";
 
 const MIN_SCORE_OPTIONS = [
   { value: 0, label: "All" },
-  { value: 50, label: "50+" },
-  { value: 65, label: "65+" },
+  { value: 70, label: "70+" },
+  { value: 75, label: "75+" },
   { value: 80, label: "80+" },
+  { value: 85, label: "85+" },
+  { value: 90, label: "90+" },
 ] as const;
+
+type MinScoreOption = (typeof MIN_SCORE_OPTIONS)[number]["value"];
 
 // ── Market Config ────────────────────────────────────────────────────────────
 
@@ -400,36 +406,137 @@ type PropCenterQuickViewPlayer = {
   }>;
 };
 
-// ── Grade System ─────────────────────────────────────────────────────────────
+// ── Score Tier System ────────────────────────────────────────────────────────
 
-const GRADES = [
-  { grade: "S", min: 90, label: "Elite", color: "text-purple-400", bg: "bg-purple-500/15", border: "border-purple-500/30" },
-  { grade: "A", min: 75, label: "Strong", color: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/30" },
-  { grade: "B", min: 60, label: "Solid", color: "text-blue-400", bg: "bg-blue-500/15", border: "border-blue-500/30" },
-  { grade: "C", min: 40, label: "Average", color: "text-amber-400", bg: "bg-amber-500/15", border: "border-amber-500/30" },
-  { grade: "D", min: 0, label: "Weak", color: "text-neutral-400", bg: "bg-neutral-500/10", border: "border-neutral-500/20" },
-] as const;
+export type PropScoreTier =
+  | "elite"
+  | "prime"
+  | "strong"
+  | "solid"
+  | "watch"
+  | "neutral"
+  | "low";
 
-function getGradeConfig(grade: string) {
-  return GRADES.find((g) => g.grade === grade) ?? GRADES[GRADES.length - 1];
+export function getPropScoreTier(score: number): {
+  key: PropScoreTier;
+  label: string;
+  range: string;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+} {
+  if (score >= 90) {
+    return {
+      key: "elite",
+      label: "Elite",
+      range: "90+",
+      colorClass: "text-fuchsia-700 dark:text-fuchsia-300",
+      bgClass: "bg-fuchsia-50 dark:bg-fuchsia-500/15",
+      borderClass: "border-fuchsia-300 dark:border-fuchsia-400/35",
+    };
+  }
+
+  if (score >= 85) {
+    return {
+      key: "prime",
+      label: "Prime",
+      range: "85-89",
+      colorClass: "text-violet-700 dark:text-violet-300",
+      bgClass: "bg-violet-50 dark:bg-violet-500/15",
+      borderClass: "border-violet-300 dark:border-violet-400/35",
+    };
+  }
+
+  if (score >= 80) {
+    return {
+      key: "strong",
+      label: "Strong",
+      range: "80-84",
+      colorClass: "text-emerald-700 dark:text-emerald-300",
+      bgClass: "bg-emerald-50 dark:bg-emerald-500/15",
+      borderClass: "border-emerald-300 dark:border-emerald-400/35",
+    };
+  }
+
+  if (score >= 75) {
+    return {
+      key: "solid",
+      label: "Solid",
+      range: "75-79",
+      colorClass: "text-sky-700 dark:text-sky-300",
+      bgClass: "bg-sky-50 dark:bg-sky-500/15",
+      borderClass: "border-sky-300 dark:border-sky-400/35",
+    };
+  }
+
+  if (score >= 70) {
+    return {
+      key: "watch",
+      label: "Watch",
+      range: "70-74",
+      colorClass: "text-amber-700 dark:text-amber-300",
+      bgClass: "bg-amber-50 dark:bg-amber-500/15",
+      borderClass: "border-amber-300 dark:border-amber-400/35",
+    };
+  }
+
+  if (score >= 60) {
+    return {
+      key: "neutral",
+      label: "Neutral",
+      range: "60-69",
+      colorClass: "text-neutral-700 dark:text-neutral-300",
+      bgClass: "bg-neutral-100 dark:bg-neutral-500/15",
+      borderClass: "border-neutral-300 dark:border-neutral-400/25",
+    };
+  }
+
+  return {
+    key: "low",
+    label: "Low",
+    range: "<60",
+    colorClass: "text-neutral-500 dark:text-neutral-500",
+    bgClass: "bg-neutral-100 dark:bg-neutral-500/10",
+    borderClass: "border-neutral-200 dark:border-neutral-500/20",
+  };
 }
 
-function getScoreConfig(score: number) {
-  return GRADES.find((g) => score >= g.min) ?? GRADES[GRADES.length - 1];
-}
+const PROP_SCORE_TIER_LEGEND = [92, 87, 82, 77, 72, 65, 50].map(getPropScoreTier);
 
-function getScoreBg(score: number): string {
-  if (score >= 90) return "bg-purple-500";
-  if (score >= 75) return "bg-emerald-500";
-  if (score >= 60) return "bg-blue-500";
-  if (score >= 40) return "bg-amber-500";
-  return "bg-neutral-500";
+function getPropScoreFillClass(score: number): string {
+  switch (getPropScoreTier(score).key) {
+    case "elite":
+      return "bg-fuchsia-400";
+    case "prime":
+      return "bg-violet-400";
+    case "strong":
+      return "bg-emerald-400";
+    case "solid":
+      return "bg-sky-400";
+    case "watch":
+      return "bg-amber-400";
+    case "neutral":
+      return "bg-neutral-400";
+    case "low":
+      return "bg-neutral-500";
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function isMinScoreOption(value: number): value is MinScoreOption {
+  return MIN_SCORE_OPTIONS.some((option) => option.value === value);
+}
+
+function getStoredMinScore(): MinScoreOption {
+  if (typeof window === "undefined") return 0;
+
+  const stored = Number(window.localStorage.getItem(PROP_CENTER_SCORE_FILTER_STORAGE_KEY));
+  return Number.isFinite(stored) && isMinScoreOption(stored) ? stored : 0;
 }
 
 function isValidDateParam(dateStr: string | null | undefined): dateStr is string {
@@ -454,6 +561,13 @@ function formatOdds(odds: number | string | null): string {
   const num = Number(odds);
   if (Number.isNaN(num)) return str;
   return num > 0 ? `+${num}` : String(num);
+}
+
+function getDisplayLine(player: PropScorePlayer): number | null {
+  if (player.hit_over != null || player.resolved_at) {
+    return player.graded_line ?? player.opening_line ?? player.line ?? null;
+  }
+  return player.line ?? null;
 }
 
 function formatStatValue(val: any, format: MarketColumnDef["format"]): string {
@@ -858,15 +972,21 @@ type SortDirection = "asc" | "desc";
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function ScorePill({ score, grade }: { score: number; grade: string }) {
-  const config = getGradeConfig(grade);
+function ScoreBadge({
+  score,
+  size = "md",
+}: {
+  score: number;
+  size?: "sm" | "md" | "lg";
+}) {
+  const tier = getPropScoreTier(score);
+  const sizeClass = size === "lg" ? "w-11 h-11" : size === "sm" ? "w-9 h-9" : "w-10 h-10";
+  const textClass = size === "lg" ? "text-sm" : "text-xs";
+
   return (
-    <Tooltip content={`${config.label} (${grade}): Score ${Math.round(score)}/100`} side="top">
-      <div className="flex flex-col items-center gap-0.5 cursor-help">
-        <div className={cn("relative w-12 h-12 rounded-full flex items-center justify-center border-2", config.border, config.bg)}>
-          <span className={cn("text-base font-black tabular-nums", config.color)}>{Math.round(score)}</span>
-        </div>
-        <span className={cn("text-[9px] font-bold uppercase tracking-wider", config.color)}>{config.label}</span>
+    <Tooltip content={`${tier.label} (${tier.range}): Score ${Math.round(score)}/100`} side="top">
+      <div className={cn("inline-flex shrink-0 cursor-help items-center justify-center rounded-full border-2", sizeClass, tier.borderClass, tier.bgClass)}>
+        <span className={cn("font-black tabular-nums", textClass, tier.colorClass)}>{Math.round(score)}</span>
       </div>
     </Tooltip>
   );
@@ -877,9 +997,9 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
     <div className="flex items-center gap-2">
       <span className={cn("text-[10px] text-neutral-500 w-20 shrink-0 text-right", tooltip && "cursor-help border-b border-dotted border-neutral-400/40")}>{label}</span>
       <div className="flex-1 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-        <div className={cn("h-full rounded-full", getScoreBg(value))} style={{ width: `${value}%` }} />
+        <div className={cn("h-full rounded-full", getPropScoreFillClass(value))} style={{ width: `${value}%` }} />
       </div>
-      <span className={cn("text-[10px] font-bold tabular-nums w-6 shrink-0", getScoreConfig(value).color)}>{Math.round(value)}</span>
+      <span className={cn("text-[10px] font-bold tabular-nums w-6 shrink-0", getPropScoreTier(value).colorClass)}>{Math.round(value)}</span>
     </div>
   );
   if (tooltip) {
@@ -904,6 +1024,7 @@ function OddsCell({
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
+  const displayLine = getDisplayLine(player);
 
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -945,7 +1066,7 @@ function OddsCell({
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 bg-neutral-50/80 dark:bg-neutral-800/50 border-b border-neutral-100 dark:border-neutral-800/80">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                {marketConfig.lineLabel} {player.line}+ Over
+                {marketConfig.lineLabel} {displayLine != null ? `${displayLine}+` : "-"} Over
               </span>
               <div className="flex items-center gap-2">
                 {spread >= 30 && (
@@ -1933,7 +2054,8 @@ function MobileCard({
   onPlayerQuickView?: (player: PropScorePlayer, marketConfig: MarketConfig, game?: MlbGame) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const config = getGradeConfig(player.grade);
+  const scoreTier = getPropScoreTier(player.composite_score);
+  const displayLine = getDisplayLine(player);
   const factors = player.factor_scores ?? {};
   const applyState = useStateLink();
 
@@ -1980,12 +2102,12 @@ function MobileCard({
             >
               {player.player_name}
             </button>
-            <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", config.bg, config.color)}>{player.grade}</span>
+            <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", scoreTier.bgClass, scoreTier.colorClass)}>{scoreTier.label}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
             <span>{isHome ? "vs " : "@ "}{player.opponent_name || "TBD"}{opposingPitcher && <span className="text-neutral-400"> ({opposingPitcher})</span>}</span>
-            {player.line != null && (
-              <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{player.line} {marketConfig.lineLabel}</span>
+            {displayLine != null && (
+              <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{displayLine} {marketConfig.lineLabel}</span>
             )}
             {player.hit_over != null && (
               <span className={cn(
@@ -2015,9 +2137,7 @@ function MobileCard({
               </span>
             </div>
           )}
-          <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
-            <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
-          </div>
+          <ScoreBadge score={player.composite_score} size="lg" />
         </div>
       </div>
 
@@ -2153,12 +2273,16 @@ function MobileCard({
 
 // ── Table Helpers ────────────────────────────────────────────────────────────
 
-function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
+function Th({
+  children,
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement> & { children?: React.ReactNode }) {
   return (
     <th className={cn(
       "h-10 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 bg-neutral-50/95 dark:bg-neutral-800/95",
       className
-    )}>
+    )} {...props}>
       {children}
     </th>
   );
@@ -2212,7 +2336,7 @@ export function MlbPropCommandCenter() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
 
-  const [minScore, setMinScore] = useState(0);
+  const [minScore, setMinScore] = useState<MinScoreOption>(() => getStoredMinScore());
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -2347,12 +2471,19 @@ export function MlbPropCommandCenter() {
   const isLoading = propResult.isLoading;
   const availableDates = propResult.availableDates;
 
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(PROP_CENTER_SCORE_FILTER_STORAGE_KEY, String(minScore));
+    } catch {
+      // Ignore storage failures in private browsing or locked-down browsers.
+    }
+  }, [minScore]);
+
   // Reset state when market changes
   React.useEffect(() => {
     setExpandedPlayerId(null);
     setSortField("score");
     setSortDirection("desc");
-    setSelectedGame("all");
     setSelectedLine(null);
   }, [selectedMarket]);
 
@@ -2477,6 +2608,11 @@ export function MlbPropCommandCenter() {
     }
   };
 
+  const handleMinScoreChange = useCallback((value: string) => {
+    const score = Number(value);
+    setMinScore(isMinScoreOption(score) ? score : 0);
+  }, []);
+
   return (
     <div className="space-y-0">
       {/* Unified header card: Market Tabs + Filters */}
@@ -2576,6 +2712,20 @@ export function MlbPropCommandCenter() {
                 />
               </>
             )}
+            <FilterDivider />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Score
+              </span>
+              <SegmentedControl
+                value={String(minScore)}
+                onChange={handleMinScoreChange}
+                options={MIN_SCORE_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: String(option.value),
+                }))}
+              />
+            </div>
             <div className="flex-1 min-w-0" />
             <div className="flex items-center gap-3 shrink-0">
               <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
@@ -2592,6 +2742,20 @@ export function MlbPropCommandCenter() {
               <FilterCount count={filteredPlayers.length} label="players" />
             </div>
             <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
+            <div className="flex items-center gap-2 w-full">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 shrink-0">
+                Score
+              </span>
+              <SegmentedControl
+                fullWidth
+                value={String(minScore)}
+                onChange={handleMinScoreChange}
+                options={MIN_SCORE_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: String(option.value),
+                }))}
+              />
+            </div>
             <div className="flex items-center gap-2 w-full">
               {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
                 <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
@@ -2633,12 +2797,12 @@ export function MlbPropCommandCenter() {
           </div>
         )}
 
-        {/* Grade legend */}
+        {/* Score tier legend */}
         <div className="hidden md:flex px-4 py-1.5 items-center gap-4 border-t border-neutral-200/40 dark:border-neutral-800/30 text-[10px] text-neutral-400">
-          <span className="font-medium text-neutral-500">Grades:</span>
-          {GRADES.map((g) => (
-            <span key={g.grade} className="flex items-center gap-1">
-              <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold", g.bg, g.color)}>{g.grade} {g.label}</span>
+          <span className="font-medium text-neutral-500">Score tiers:</span>
+          {PROP_SCORE_TIER_LEGEND.map((tier) => (
+            <span key={tier.key} className="flex items-center gap-1">
+              <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold", tier.bgClass, tier.colorClass)}>{tier.label} {tier.range}</span>
             </span>
           ))}
         </div>
@@ -2682,7 +2846,7 @@ export function MlbPropCommandCenter() {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center max-w-sm">
                   <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">No data</h3>
-                  <p className="text-sm text-neutral-500">{searchQuery ? "No players match your search." : "No prop scores available for this date and market."}</p>
+                  <p className="text-sm text-neutral-500">Adjust filters or try another market/date.</p>
                 </div>
               </div>
             ) : (
@@ -2691,13 +2855,13 @@ export function MlbPropCommandCenter() {
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
                       <Th className="w-8 text-center">#</Th>
+                      <Th className="w-16">
+                        <SortBtn field="score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn>
+                      </Th>
                       <Th className="min-w-[160px] text-left">
                         <SortBtn field="player" current={sortField} dir={sortDirection} onClick={handleSort}>Player</SortBtn>
                       </Th>
                       <Th className="text-left">Opponent</Th>
-                      <Th className="w-16">
-                        <SortBtn field="score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn>
-                      </Th>
                       {/* Market-specific columns */}
                       {marketConfig.columns.map((col, i) => (
                         <Th key={col.key}>
@@ -2731,14 +2895,17 @@ export function MlbPropCommandCenter() {
                           </Tooltip>
                         </Th>
                       )}
-                      {!marketConfig.hideOdds && <Th className="w-10" />}
-                      <Th className="w-8" />
+                      <Th
+                        className="text-center"
+                        colSpan={marketConfig.hideOdds ? 1 : 2}
+                      >
+                        Actions
+                      </Th>
                     </tr>
                   </thead>
                   <tbody>
                     {displayPlayers.map((player, idx) => {
                       const isExpanded = expandedPlayerId === player.player_id;
-                      const config = getGradeConfig(player.grade);
                       const rank = rankMap.get(player.player_id) ?? idx + 1;
                       const game = gameMap.get(player.game_id);
                       const gameState = getGameState(game?.game_status ?? null, game?.live);
@@ -2746,6 +2913,7 @@ export function MlbPropCommandCenter() {
                       const isOnHomeTeam = game ? player.team_abbr.toUpperCase() === game.home_team_tricode.toUpperCase() : false;
                       const opposingPitcher = game ? (isOnHomeTeam ? game.away_probable_pitcher : game.home_probable_pitcher) : null;
                       const opposingPitcherShort = opposingPitcher ? opposingPitcher.split(" ").pop() ?? opposingPitcher : null;
+                      const displayLine = getDisplayLine(player);
                       return (
                         <React.Fragment key={`${player.player_id}-${player.market}-${player.game_id}`}>
                           <tr
@@ -2766,6 +2934,11 @@ export function MlbPropCommandCenter() {
                               )}>
                                 {rank}
                               </span>
+                            </td>
+
+                            {/* Score */}
+                            <td className="px-2 py-2 text-center">
+                              <ScoreBadge score={player.composite_score} size="sm" />
                             </td>
 
                             {/* Player — compact with line badge */}
@@ -2808,9 +2981,9 @@ export function MlbPropCommandCenter() {
                                     <LineupBadge status={player.lineup_status} />
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    {player.line != null && (
+                                    {displayLine != null && (
                                       <span className="text-[10px] font-mono font-semibold text-neutral-500 tabular-nums">
-                                        {player.line}+ {marketConfig.lineLabel}
+                                        {displayLine}+ {marketConfig.lineLabel}
                                       </span>
                                     )}
                                     {player.hit_over != null && (
@@ -2937,17 +3110,10 @@ export function MlbPropCommandCenter() {
                                     </span>
                                   ) : game ? (
                                     <span className="text-[9px] text-neutral-400 tabular-nums">
-                                      {game.game_status}
+                                      {formatMlbGameStatusForUser(game)}
                                     </span>
                                   ) : null}
                                 </div>
-                              </div>
-                            </td>
-
-                            {/* Score */}
-                            <td className="px-2 py-2 text-center">
-                              <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
-                                <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
                               </div>
                             </td>
 

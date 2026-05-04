@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { MlbGame } from "@/hooks/use-mlb-games";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { ChevronRight, Thermometer, Wind, CloudSun } from "lucide-react";
 import { BasesDiamond } from "@/components/game-center/bases-diamond";
 
@@ -65,9 +66,10 @@ function ScoreboardCard({
 }) {
   const w = game.weather;
   const odds = game.odds;
-  const gameStatus = game.game_status || "TBD";
-  const isFinal = isGameFinal(gameStatus);
-  const isLive = !!game.live || gameStatus.toLowerCase().includes("progress") || gameStatus.toLowerCase().includes("challenge") || gameStatus.toLowerCase().includes("review");
+  const rawGameStatus = game.game_status || "TBD";
+  const gameStatus = formatMlbGameStatusForUser(game);
+  const isFinal = isGameFinal(rawGameStatus);
+  const isLive = !!game.live || rawGameStatus.toLowerCase().includes("progress") || rawGameStatus.toLowerCase().includes("challenge") || rawGameStatus.toLowerCase().includes("review");
   const hasScore = game.away_team_score != null && game.home_team_score != null && (isFinal || isLive);
   const fdLogo = getBookLogo("fanduel");
   const isRetractable = w?.roof_type === "retractable" || w?.roof_type === "dome";

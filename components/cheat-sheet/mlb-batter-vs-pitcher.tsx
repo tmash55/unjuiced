@@ -20,6 +20,7 @@ import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Tooltip } from "@/components/tooltip";
@@ -194,18 +195,6 @@ const SAMPLE_OPTIONS = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "TBD";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
 
 function fmtPct(val: number | null, digits = 1): string {
   if (val == null) return "-";
@@ -498,7 +487,7 @@ function GameChip({
 
       {/* Row 3: Time + Park Factor */}
       <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px]">
-        <span className="text-neutral-400 tabular-nums">{game.game_status}</span>
+        <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(game)}</span>
         {game.park_factor != null && (
           <span className={cn("font-semibold tabular-nums", parkFactorColor(game.park_factor))}>
             PF {game.park_factor}
@@ -602,7 +591,7 @@ function MobileGameSelector({
                     </div>
                     <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
                     <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                      <span className="text-neutral-400 tabular-nums">{g.game_status}</span>
+                      <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(g)}</span>
                       {g.park_factor != null && (
                         <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
                           PF {g.park_factor}
@@ -3594,7 +3583,7 @@ export function MlbBatterVsPitcher({
                       )}
                       {gameOdds && <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />}
                       {selectedGame && (
-                        <span className="text-[11px] text-neutral-400 tabular-nums">{selectedGame.game_status}</span>
+                        <span className="text-[11px] text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(selectedGame)}</span>
                       )}
                       {isFetching && !matchupLoading && (
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />

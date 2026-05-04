@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { getAllActiveSportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
@@ -308,17 +309,10 @@ const getMlbSeasonFromDate = (dateStr: string) => {
 
 const formatQuickViewGameStatus = (status?: string | null, gameDatetime?: string | null) => {
   if (status && !/^scheduled$/i.test(status)) return status;
-  if (!gameDatetime) return status || "";
-
-  const parsed = new Date(gameDatetime);
-  if (Number.isNaN(parsed.getTime())) return status || "";
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(parsed);
+  return formatGameTimeForUser(gameDatetime, {
+    fallback: status || "",
+    includeTimeZoneName: true,
+  });
 };
 
 // Fallback markets - ordered by popularity

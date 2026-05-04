@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { MlbGame } from "@/hooks/use-mlb-games";
 import { ChevronDown } from "lucide-react";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 
 function lastNameOnly(name: string | null): string {
   if (!name) return "TBD";
@@ -85,7 +86,7 @@ function GameChip({
         {lastNameOnly(game.away_probable_pitcher)} vs {lastNameOnly(game.home_probable_pitcher)}
       </div>
       <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px]">
-        <span className="text-neutral-400 tabular-nums">{game.game_status}</span>
+        <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(game)}</span>
         {game.park_factor != null && (
           <span className={cn("font-semibold tabular-nums", parkFactorColor(game.park_factor))}>
             PF {game.park_factor}
@@ -216,7 +217,7 @@ function MobileGameSelector({
                     </div>
                     <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
                     <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                      <span className="text-neutral-400 tabular-nums">{g.game_status}</span>
+                      <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(g)}</span>
                       {g.park_factor != null && (
                         <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
                           PF {g.park_factor}
