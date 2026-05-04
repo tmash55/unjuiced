@@ -385,6 +385,7 @@ export default function EdgeFinderPage() {
     isConnected: sseConnected,
     isReconnecting: sseReconnecting,
     hasFailed: sseFailed,
+    reconnect: sseReconnect,
   } = useSSE(sseUrl, {
     enabled: autoRefresh && effectiveIsPro && !!sseUrl,
     onMessage: handleSSEMessage,
@@ -633,6 +634,14 @@ export default function EdgeFinderPage() {
           onKellyPercentChange={handleKellyPercentChange}
           onRequestMoreResults={handleRequestMoreResults}
           onLineHistoryClick={handleOpenLineHistory}
+          autoRefresh={autoRefresh}
+          onAutoRefreshChange={setAutoRefresh}
+          streamChanges={streamChanges}
+          streamAdded={streamAdded}
+          streamConnected={sseConnected}
+          streamReconnecting={sseReconnecting}
+          streamFailed={sseFailed}
+          onStreamReconnect={sseReconnect}
         />
         
         {/* Player Quick View Modal */}
