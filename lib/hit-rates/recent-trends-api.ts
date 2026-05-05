@@ -127,38 +127,40 @@ export async function handleRecentTrends(req: NextRequest, sport: RecentTrendSpo
       })
     );
 
-    // Hydrate potentialAssists from the box-score table (RPCs above don't include it).
-    const tableName = sport === "wnba" ? "wnba_player_box_scores" : "nba_player_box_scores";
-    const flatGameIds = [
-      ...new Set(
-        entries.flatMap(([, games]) =>
-          games
-            .map((g: { gameId: string }) => Number(g.gameId))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-        )
-      ),
-    ];
-    if (flatGameIds.length > 0 && playerIds.length > 0) {
-      const { data: paData, error: paError } = await supabase
-        .from(tableName)
-        .select("player_id, game_id, potential_assists")
-        .in("player_id", playerIds)
-        .in("game_id", flatGameIds);
+    // NBA only: hydrate potential_assists from the box-score table (the RPC doesn't
+    // return it). WNBA box scores don't track these advanced fields, so we skip the
+    // fetch entirely and let the tooltip gracefully omit those rows.
+    if (sport === "nba") {
+      const flatGameIds = [
+        ...new Set(
+          entries.flatMap(([, games]) =>
+            games
+              .map((g: { gameId: string }) => Number(g.gameId))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          )
+        ),
+      ];
+      if (flatGameIds.length > 0 && playerIds.length > 0) {
+        const { data: paData, error: paError } = await supabase
+          .from("nba_player_box_scores")
+          .select("player_id, game_id, potential_assists")
+          .in("player_id", playerIds)
+          .in("game_id", flatGameIds);
 
-      if (paError) {
-        console.error(`[${sport} recent-trends] Potential assists lookup error:`, paError.message);
-      } else if (paData) {
-        const paMap = new Map<string, number>();
-        for (const row of paData) {
-          if (row.potential_assists !== null && row.potential_assists !== undefined) {
-            paMap.set(`${row.player_id}:${row.game_id}`, Number(row.potential_assists));
+        if (paError) {
+          console.error(`[nba recent-trends] Potential assists lookup error:`, paError.message);
+        } else if (paData) {
+          const paMap = new Map<string, number>();
+          for (const row of paData) {
+            if (row.potential_assists !== null && row.potential_assists !== undefined) {
+              paMap.set(`${row.player_id}:${row.game_id}`, Number(row.potential_assists));
+            }
           }
-        }
-        for (const [pid, games] of entries) {
-          for (const g of games) {
-            const key = `${pid}:${g.gameId}`;
-            const value = paMap.get(key);
-            if (value !== undefined) g.potentialAssists = value;
+          for (const [pid, games] of entries) {
+            for (const g of games) {
+              const value = paMap.get(`${pid}:${g.gameId}`);
+              if (value !== undefined) g.potentialAssists = value;
+            }
           }
         }
       }

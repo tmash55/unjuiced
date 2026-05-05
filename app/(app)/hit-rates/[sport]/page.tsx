@@ -3,7 +3,6 @@
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
-import { DailyInsightStrip } from "@/components/hit-rates/hit-rate-table";
 import { GamesFilterDropdown, hasGameStarted } from "@/components/hit-rates/games-filter-dropdown";
 import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
 import { GlossaryModal, GlossaryButton } from "@/components/hit-rates/glossary-modal";
@@ -569,14 +568,6 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     >
       {/* Glossary Modal */}
       <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
-
-      <div className="mb-4">
-        <DailyInsightStrip
-          sport={sport}
-          rows={filteredRows}
-          totalCount={filteredRows.length}
-        />
-      </div>
 
       {/* Hit Rate Table - with Games Filter passed as additional filter */}
       <GatedHitRateTable 

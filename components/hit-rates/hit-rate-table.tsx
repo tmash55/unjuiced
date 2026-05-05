@@ -237,6 +237,36 @@ const getContextPillClass = (rank: number | null, sport: "nba" | "mlb" | "wnba")
   }
 };
 
+// Edge-to-edge tier classes for DEF Rank and Pace cells — matches the Hit Rate cell
+// palette so the three colored sections of the table read with one consistent treatment.
+const tierToCellClass = (tier: MatchupTier | null): string => {
+  if (!tier) return "bg-neutral-50 text-neutral-500 dark:bg-neutral-900/80 dark:text-neutral-500";
+  switch (tier) {
+    case "elite":
+      return "bg-emerald-100 text-emerald-800 font-bold dark:bg-emerald-500/40 dark:text-white";
+    case "strong":
+      return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
+    case "neutral":
+      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-500/15 dark:text-neutral-300";
+    case "bad":
+      return "bg-red-50 text-red-600 dark:bg-red-500/20 dark:text-red-300";
+    case "worst":
+      return "bg-red-100 text-red-800 font-bold dark:bg-red-500/40 dark:text-white";
+    default:
+      return "bg-neutral-50 text-neutral-500 dark:bg-neutral-900/80 dark:text-neutral-500";
+  }
+};
+
+const getDefRankCellClass = (rank: number | null | undefined, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  if (rank === null || rank === undefined) return tierToCellClass(null);
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
+  return tierToCellClass(tier);
+};
+
+const getPaceCellClass = (rank: number | null | undefined, sport: "nba" | "mlb" | "wnba" = "nba"): string => {
+  return tierToCellClass(getPaceTier(rank, sport));
+};
+
 // Pace rank semantics are INVERTED relative to DEF rank:
 //   - DEF: rank #1 = best defense = BAD for offensive props (red)
 //   - Pace: rank #1 = fastest pace = GOOD for offensive props (green)
@@ -916,24 +946,39 @@ const RecentTrendBars = ({
                         </div>
                       );
                     })()}
-                    {/* Context: minutes / usage */}
-                    {(game.minutes > 0 || game.usagePct > 0) && (
-                      <div className="mt-2 flex items-center gap-2 border-t border-neutral-200/50 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/50 dark:text-neutral-400">
-                        {game.minutes > 0 && (
-                          <span className="tabular-nums">
-                            {Math.round(game.minutes)} min
-                          </span>
-                        )}
-                        {game.minutes > 0 && game.usagePct > 0 && (
-                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                        )}
-                        {game.usagePct > 0 && (
-                          <span className="tabular-nums">
-                            {(game.usagePct < 1 ? game.usagePct * 100 : game.usagePct).toFixed(1)}% USG
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {/* Context: minutes / usage / passes (passes shown only on assist markets) */}
+                    {(() => {
+                      const isAssistMarket =
+                        row.market === "player_assists" ||
+                        row.market === "player_points_assists" ||
+                        row.market === "player_rebounds_assists" ||
+                        row.market === "player_points_rebounds_assists";
+                      const showMinutes = game.minutes > 0;
+                      const showUsage = game.usagePct > 0;
+                      const showPasses = isAssistMarket && game.passes > 0;
+                      if (!showMinutes && !showUsage && !showPasses) return null;
+                      return (
+                        <div className="mt-2 flex items-center gap-2 border-t border-neutral-200/50 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/50 dark:text-neutral-400">
+                          {showMinutes && (
+                            <span className="tabular-nums">{Math.round(game.minutes)} min</span>
+                          )}
+                          {showMinutes && (showUsage || showPasses) && (
+                            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                          )}
+                          {showUsage && (
+                            <span className="tabular-nums">
+                              {(game.usagePct < 1 ? game.usagePct * 100 : game.usagePct).toFixed(1)}% USG
+                            </span>
+                          )}
+                          {showUsage && showPasses && (
+                            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                          )}
+                          {showPasses && (
+                            <span className="tabular-nums">{game.passes} PASS</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 }
               >
@@ -2765,21 +2810,17 @@ export function HitRateTable({
                   <HitRateCell value={row.h2hPct} sampleSize={row.h2hGames} isBlurred={isBlurred} />
                 </td>
 
-                {/* Defensive context: rank vs position — start of Defense Context group, brand-tinted divider */}
-                <td className={cn("px-2 py-5 align-middle text-center border-l border-brand/20 dark:border-brand/15", compactView && "py-2")}>
-                  {(() => {
-                    if (isBlurred || row.matchupRank === null) {
-                      return (
-                        <span
-                          className={cn(
-                            "inline-flex min-w-[58px] items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
-                            isBlurred ? "opacity-50 blur-[2px]" : getContextPillClass(row.matchupRank, rowSport)
-                          )}
-                        >
-                          {isBlurred ? "—" : "—"}
-                        </span>
-                      );
-                    }
+                {/* Defensive context: rank vs position — edge-to-edge tier fill matching Hit Rate cells */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200 border-l border-brand/20 dark:border-brand/15",
+                    compactView && "py-1.5",
+                    !isBlurred && getDefRankCellClass(row.matchupRank, rowSport)
+                  )}
+                >
+                  {isBlurred || row.matchupRank === null ? (
+                    <span className="text-xs font-black tabular-nums">—</span>
+                  ) : (() => {
                     const tier = getMatchupTier(row.matchupRank, defenseTotalTeamsForRow);
                     const tierLabel =
                       tier === "elite"
@@ -2834,12 +2875,7 @@ export function HitRateTable({
                           </div>
                         }
                       >
-                        <span
-                          className={cn(
-                            "inline-flex min-w-[58px] cursor-help items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
-                            getContextPillClass(row.matchupRank, rowSport)
-                          )}
-                        >
+                        <span className="cursor-help text-xs font-black tabular-nums">
                           #{row.matchupRank}
                         </span>
                       </Tooltip>
@@ -2847,8 +2883,14 @@ export function HitRateTable({
                   })()}
                 </td>
 
-                {/* Game context: pace — colored by opponent's L5 pace rank */}
-                <td className={cn("px-2 py-5 align-middle text-center", compactView && "py-2")}>
+                {/* Game context: pace — edge-to-edge tier fill matching Hit Rate cells */}
+                <td
+                  className={cn(
+                    "px-2 py-3 align-middle text-center transition-colors duration-200",
+                    compactView && "py-1.5",
+                    !isBlurred && getPaceCellClass(row.paceContext?.opponentRecent.l5Rank ?? null, rowSport)
+                  )}
+                >
                   <Tooltip
                     side="top"
                     content={
@@ -2918,12 +2960,7 @@ export function HitRateTable({
                       )
                     }
                   >
-                    <span
-                      className={cn(
-                        "inline-flex min-w-[56px] cursor-help items-center justify-center rounded-md border px-2 py-1 text-xs font-black tabular-nums",
-                        isBlurred ? "opacity-50 blur-[2px]" : getPaceRankPillClass(row.paceContext?.opponentRecent.l5Rank ?? null, rowSport)
-                      )}
-                    >
+                    <span className={cn("cursor-help text-xs font-black tabular-nums", isBlurred && "opacity-50 blur-[2px]")}>
                       {isBlurred ? "—" : row.paceContext?.opponentRecent.l5Rank ? `#${row.paceContext.opponentRecent.l5Rank}` : "—"}
                     </span>
                   </Tooltip>
