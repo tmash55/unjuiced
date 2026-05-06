@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
+import { PlayerDrilldownV2 } from "@/components/hit-rates/drilldown-v2";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import { useNbaGames } from "@/hooks/use-nba-games";
@@ -193,6 +194,24 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
         onMarketChange={handleMarketChange}
         sport={sport}
       />
+    );
+  }
+
+  // v2 opt-in: append ?v=2 to the URL to preview the redesigned drilldown while
+  // we iterate. Once parity is reached, swap the default and remove this branch.
+  const useV2 = searchParams.get("v") === "2";
+
+  if (useV2) {
+    return (
+      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-6">
+        <PlayerDrilldownV2
+          profile={profile}
+          allPlayerProfiles={playerProfiles}
+          sport={sport}
+          onMarketChange={handleMarketChange}
+          backHref={backHref}
+        />
+      </div>
     );
   }
 
