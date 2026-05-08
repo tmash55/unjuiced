@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Popover } from "@/components/popover";
 import { Tooltip } from "@/components/tooltip";
+import { formatMarketLabel } from "@/lib/data/markets";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import {
   METRIC_FILTERS,
@@ -669,7 +670,10 @@ export function FiltersDrawer({
                       : total / 2;
                   return (
                     <MetricSliderRow
-                      config={DVP_RANK_CONFIG}
+                      config={{
+                        ...DVP_RANK_CONFIG,
+                        label: `Opp Defense Rank vs ${formatMarketLabel(market)}`,
+                      }}
                       min={1}
                       max={total}
                       avg={avg}

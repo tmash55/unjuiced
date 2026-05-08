@@ -1139,7 +1139,8 @@ export function HitRateChart({
             <button
               key={opt.value}
               type="button"
-              onClick={() => onSplitChange(opt.value)}
+              onClick={() => onSplitChange(active ? "all" : opt.value)}
+              aria-pressed={active}
               className={cn(
                 "rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150",
                 active
@@ -1194,6 +1195,7 @@ export function HitRateChart({
                   return (
                     <MetricRangePopover
                       config={DVP_RANK_CONFIG}
+                      labelOverride={`Opp Defense Rank vs ${formatMarketLabel(market)}`}
                       recentGames={games}
                       activeRange={activeRange}
                       active={activeRange !== null || legacyActive}
@@ -1913,6 +1915,7 @@ function formatLine(value: number): string {
 function isPlayoffSeasonType(seasonType: string | undefined | null): boolean {
   if (!seasonType) return false;
   const lower = seasonType.toLowerCase();
+  if (isCupSeasonType(lower)) return false;
   return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(lower);
 }
 function isRegularSeasonType(seasonType: string | undefined | null): boolean {
@@ -1923,6 +1926,10 @@ function isRegularSeasonType(seasonType: string | undefined | null): boolean {
   // Cup / international showcase / Rivals Week games count as regular for
   // stat purposes — they're regular-season slate games dressed up.
   return true;
+}
+
+function isCupSeasonType(lowerSeasonType: string): boolean {
+  return /\b(cup|in-season|ist|emirates|commissioner)\b/.test(lowerSeasonType);
 }
 
 // Range-button tier coloring — same thresholds as the hit-rate table so the

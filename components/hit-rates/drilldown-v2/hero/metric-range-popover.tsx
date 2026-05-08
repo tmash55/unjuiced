@@ -21,6 +21,7 @@ export function MetricRangePopover({
   getValueOverride,
   minOverride,
   maxOverride,
+  labelOverride,
 }: {
   config: MetricFilterConfig;
   recentGames: BoxScoreGame[];
@@ -34,6 +35,9 @@ export function MetricRangePopover({
   // 1..totalTeams regardless of how many games are loaded).
   minOverride?: number;
   maxOverride?: number;
+  // Override the popover header title — useful when the label needs the
+  // active market baked in (e.g., "Opp Defense Rank vs Assists").
+  labelOverride?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -98,6 +102,7 @@ export function MetricRangePopover({
       content={
         <RangeBody
           config={config}
+          labelOverride={labelOverride}
           min={min}
           max={max}
           avg={avg}
@@ -146,6 +151,7 @@ export function MetricRangePopover({
 // continuously since the parent recomputes filtered games efficiently).
 function RangeBody({
   config,
+  labelOverride,
   min,
   max,
   avg,
@@ -156,6 +162,7 @@ function RangeBody({
   onClear,
 }: {
   config: MetricFilterConfig;
+  labelOverride?: string;
   min: number;
   max: number;
   avg: number;
@@ -193,7 +200,7 @@ function RangeBody({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[12px] font-black text-neutral-900 dark:text-white">
-            {config.label}
+            {labelOverride ?? config.label}
           </div>
           <div className="mt-0.5 text-[10px] font-medium leading-snug text-neutral-500 dark:text-neutral-500">
             {config.description} · avg {display(avg)}
