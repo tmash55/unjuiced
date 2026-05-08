@@ -381,7 +381,7 @@ export function resolveQuickFilter(
     const source = ctx.playTypeDefenseFilters.find((f) => f.playType === playType);
     if (!source || !["tough", "neutral", "favorable"].includes(tier ?? "")) return null;
     const label =
-      tier === "tough" ? "Top 10" : tier === "favorable" ? "Bottom 10" : "Mid";
+      tier === "tough" ? "1-10" : tier === "favorable" ? "21-30" : "11-20";
     return {
       id,
       label: `${source.label} ${label}`,
@@ -421,28 +421,31 @@ function pickMinutesThreshold(avgMin: number): number | null {
   return 25;
 }
 
-const venueChip = (upcomingHomeAway: string | null | undefined): QuickFilter | null => {
+// Both Home and Away filters are always available — the drawer surfaces
+// them as a pair under the Schedule category. The inline chip on the
+// chart pins to whichever venue tonight's matchup is (see
+// getInlineQuickFilters below).
+const venueFilters = (): QuickFilter[] => [
+  {
+    id: "venueHome",
+    label: "Home",
+    predicate: (g) => g.homeAway === "H",
+  },
+  {
+    id: "venueAway",
+    label: "Away",
+    predicate: (g) => g.homeAway === "A",
+  },
+];
+
+function isUpcomingHome(upcomingHomeAway: string | null | undefined): boolean {
   const v = (upcomingHomeAway ?? "").trim().toLowerCase();
-  // Normalize the upstream value — APIs ship a mix of "H"/"A", "home"/"away",
-  // and 1/0. Anything that doesn't decode is treated as "no venue context".
-  const isHome = v === "h" || v === "home" || v === "1" || v === "true";
-  const isAway = v === "a" || v === "away" || v === "0" || v === "false";
-  if (isHome) {
-    return {
-      id: "venueHome",
-      label: "Home",
-      predicate: (g) => g.homeAway === "H",
-    };
-  }
-  if (isAway) {
-    return {
-      id: "venueAway",
-      label: "Away",
-      predicate: (g) => g.homeAway === "A",
-    };
-  }
-  return null;
-};
+  return v === "h" || v === "home" || v === "1" || v === "true";
+}
+function isUpcomingAway(upcomingHomeAway: string | null | undefined): boolean {
+  const v = (upcomingHomeAway ?? "").trim().toLowerCase();
+  return v === "a" || v === "away" || v === "0" || v === "false";
+}
 
 // ── Per-market filter sets ───────────────────────────────────────────────
 
@@ -674,7 +677,7 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
       filters.push(
         {
           id: `playType:${encoded}:tough`,
-          label: `${playType.label} Top 10`,
+          label: `${playType.label} 1-10`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
             return rank != null && rank <= 10;
@@ -682,7 +685,7 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
         },
         {
           id: `playType:${encoded}:neutral`,
-          label: `${playType.label} Mid`,
+          label: `${playType.label} 11-20`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
             return rank != null && rank > 10 && rank < 21;
@@ -690,7 +693,7 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
         },
         {
           id: `playType:${encoded}:favorable`,
-          label: `${playType.label} Bottom 10`,
+          label: `${playType.label} 21-30`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
             return rank != null && rank >= 21;
@@ -700,8 +703,10 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
     }
   }
 
-  const venue = venueChip(upcomingHomeAway);
-  if (venue) filters.push(venue);
+  // Both venue filters are always present so the drawer's Schedule category
+  // can offer them as a pair. The inline chip in the chart pins to tonight's
+  // venue via getInlineQuickFilters below.
+  filters.push(...venueFilters());
 
   return filters;
 }
@@ -736,7 +741,14 @@ export function getInlineQuickFilters(
     "ast",
     "venue",
   ];
+  // Venue inline chip pins to tonight's matchup — both Home and Away exist
+  // in `filters` (so the drawer can show both), but we only want one chip
+  // surfaced in the chart's narrow inline row.
+  const tonightHome = isUpcomingHome(ctx.upcomingHomeAway);
+  const tonightAway = isUpcomingAway(ctx.upcomingHomeAway);
   for (const f of filters) {
+    if (f.id === "venueHome" && !tonightHome) continue;
+    if (f.id === "venueAway" && !tonightAway) continue;
     if (alwaysPrefixes.some((p) => f.id.startsWith(p))) include(f);
   }
 

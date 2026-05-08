@@ -376,8 +376,8 @@ export function HitRateChart({
       if (split === "loss" && g.result !== "L") return false;
       if (split === "winBy10" && (g.result !== "W" || g.margin < 10)) return false;
       if (split === "lossBy10" && (g.result !== "L" || g.margin > -10)) return false;
-      if (split === "reg" && g.seasonType !== "regular") return false;
-      if (split === "playoffs" && g.seasonType !== "playoffs") return false;
+      if (split === "reg" && !isRegularSeasonType(g.seasonType)) return false;
+      if (split === "playoffs" && !isPlayoffSeasonType(g.seasonType)) return false;
       // Market-aware quick filters compose with AND.
       for (const qf of activeQuickFilters) {
         if (!qf.predicate(g)) return false;
@@ -1897,6 +1897,26 @@ function ChartEmpty() {
 
 function formatLine(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
+// The DB ships season_type as full strings like "Regular Season",
+// "East First Round", "West Conf. Semifinals", "Emirates NBA Cup", etc.
+// The split filter previously compared against lowercase short forms
+// ("regular" / "playoffs") which never matched anything, so toggling the
+// chip dropped every game. These helpers cover the full vocabulary.
+function isPlayoffSeasonType(seasonType: string | undefined | null): boolean {
+  if (!seasonType) return false;
+  const lower = seasonType.toLowerCase();
+  return /\b(round|conf\.?|finals?|play-in)\b/.test(lower);
+}
+function isRegularSeasonType(seasonType: string | undefined | null): boolean {
+  if (!seasonType) return false;
+  const lower = seasonType.toLowerCase();
+  if (isPlayoffSeasonType(seasonType)) return false;
+  if (lower === "preseason") return false;
+  // Cup / international showcase / Rivals Week games count as regular for
+  // stat purposes — they're regular-season slate games dressed up.
+  return true;
 }
 
 // Range-button tier coloring — same thresholds as the hit-rate table so the
