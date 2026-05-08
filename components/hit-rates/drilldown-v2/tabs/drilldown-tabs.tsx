@@ -22,6 +22,7 @@ import type { ChartRange } from "../hero/hit-rate-chart";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { useQuery } from "@tanstack/react-query";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { InlineLineMovementCard } from "@/components/line-history/inline-line-movement-card";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
@@ -1774,6 +1775,88 @@ function OddsPanel({
   isLoading: boolean;
 }) {
   const rawLines = odds?.allLines?.length ? odds.allLines : [];
+  // Pull the comprehensive line list directly from the same v2 endpoint the
+  // odds-screen tool uses. The drilldown's `useAlternateLines` route is built
+  // on a precomputed `linesidx` ZSET that can lag/be incomplete, so it
+  // sometimes drops lines that exist in the source-of-truth per-book odds
+  // blobs. This fetch backfills those missing lines so the table mirrors what
+  // a user would see on the main Odds Screen.
+  const v2PlayerKey = useMemo(() => {
+    if (!profile.playerName) return null;
+    return profile.playerName.toLowerCase().replace(/\s+/g, "_");
+  }, [profile.playerName]);
+  const v2AlternatesQuery = useQuery<{
+    all_lines?: Array<{
+      ln: number;
+      books?: Record<string, {
+        over?: { price: number; u?: string | null; m?: string | null };
+        under?: { price: number; u?: string | null; m?: string | null };
+      }>;
+      best?: {
+        over?: { bk: string; price: number };
+        under?: { bk: string; price: number };
+      };
+    }>;
+  }>({
+    queryKey: ["odds-tab-v2-alts", sport, profile.eventId, profile.market, v2PlayerKey],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        sport,
+        eventId: profile.eventId!,
+        market: profile.market,
+        player: v2PlayerKey!,
+      });
+      const res = await fetch(`/api/v2/props/alternates?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load alternates");
+      return res.json();
+    },
+    enabled: !!profile.eventId && !!profile.market && !!v2PlayerKey,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const mergedRawLines = useMemo(() => {
+    const v2Entries = v2AlternatesQuery.data?.all_lines ?? [];
+    if (v2Entries.length === 0) return rawLines;
+    const v2Mapped = v2Entries.map((entry) => ({
+      line: entry.ln,
+      bestOver: entry.best?.over
+        ? {
+            book: entry.best.over.bk,
+            price: entry.best.over.price,
+            url: null as string | null,
+            mobileUrl: null as string | null,
+          }
+        : null,
+      bestUnder: entry.best?.under
+        ? {
+            book: entry.best.under.bk,
+            price: entry.best.under.price,
+            url: null as string | null,
+            mobileUrl: null as string | null,
+          }
+        : null,
+      books: Object.fromEntries(
+        Object.entries(entry.books ?? {}).map(([book, sides]) => [
+          book,
+          {
+            over: sides.over
+              ? { price: sides.over.price, url: sides.over.u ?? null, mobileUrl: sides.over.m ?? null }
+              : undefined,
+            under: sides.under
+              ? { price: sides.under.price, url: sides.under.u ?? null, mobileUrl: sides.under.m ?? null }
+              : undefined,
+          },
+        ]),
+      ),
+    }));
+    // v2 wins for lines present in both — its book coverage is more complete.
+    // Keep any rawLines that v2 doesn't have so we don't regress.
+    const byLine = new Map<number, (typeof rawLines)[number]>();
+    for (const line of rawLines) byLine.set(line.line, line);
+    for (const v2 of v2Mapped) byLine.set(v2.line, v2 as (typeof rawLines)[number]);
+    return Array.from(byLine.values()).sort((a, b) => a.line - b.line);
+  }, [rawLines, v2AlternatesQuery.data]);
   const [selectedSide, setSelectedSide] = useState<"over" | "under">("over");
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [lineHistoryContext, setLineHistoryContext] =
@@ -1784,7 +1867,7 @@ function OddsPanel({
   // bookColumns keys on the raw upstream id while the BookHeader name comes
   // from the normalized id.
   const lines = useMemo(() => {
-    return rawLines.map((line) => {
+    return mergedRawLines.map((line) => {
       const merged: typeof line.books = {};
       for (const [book, sides] of Object.entries(line.books ?? {})) {
         const canonical = normalizeSportsbookId(book);
@@ -1809,7 +1892,7 @@ function OddsPanel({
           : line.bestUnder,
       };
     });
-  }, [rawLines]);
+  }, [mergedRawLines]);
   const activeLineOdds =
     activeLine !== null
       ? (lines.find((line) => Math.abs(line.line - activeLine) < 0.001) ?? null)
@@ -1842,8 +1925,7 @@ function OddsPanel({
         if (countA !== countB) return countB - countA;
         return getBookDisplayName(bookA).localeCompare(getBookDisplayName(bookB));
       })
-      .map(([book]) => book)
-      .slice(0, 9);
+      .map(([book]) => book);
   }, [lines]);
 
   useEffect(() => {
