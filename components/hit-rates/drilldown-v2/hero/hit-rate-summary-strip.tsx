@@ -16,8 +16,12 @@ interface HitRateSummaryStripProps {
   isCustomLine?: boolean;
 }
 
-// Tier classes mirror the hit-rate table's getHitRateHeatClass so the drilldown
-// reads as a continuation of the table — same color language for the same data.
+// 70 / 50 / below — same thresholds the desktop hit-rate table, the mobile
+// drilldown chips, and the mobile player-card all use, so a player reads the
+// same tier across every surface they appear on. Three tiers (emerald /
+// amber / red) instead of the previous five-tier scheme; the strip's pill
+// background carries the visual weight, so we don't need extra gradient
+// stops to convey "very good" vs "good".
 const tierClasses = (
   value: number | null
 ): { bg: string; text: string; label: string; ring: string } => {
@@ -29,43 +33,27 @@ const tierClasses = (
       ring: "ring-neutral-200/60 dark:ring-neutral-800/60",
     };
   }
-  if (value >= 75) {
-    return {
-      bg: "bg-emerald-100 dark:bg-emerald-500/40",
-      text: "text-emerald-800 dark:text-white",
-      label: "text-emerald-700 dark:text-white/80",
-      ring: "ring-emerald-500/30 dark:ring-emerald-400/30",
-    };
-  }
-  if (value >= 60) {
+  if (value >= 70) {
     return {
       bg: "bg-emerald-50 dark:bg-emerald-500/20",
-      text: "text-emerald-700 dark:text-emerald-300",
+      text: "text-emerald-600 dark:text-emerald-400",
       label: "text-emerald-700/70 dark:text-emerald-300/70",
       ring: "ring-emerald-500/20 dark:ring-emerald-400/20",
     };
   }
   if (value >= 50) {
     return {
-      bg: "bg-neutral-100 dark:bg-neutral-500/15",
-      text: "text-neutral-700 dark:text-neutral-300",
-      label: "text-neutral-500 dark:text-neutral-400",
-      ring: "ring-neutral-300/50 dark:ring-neutral-600/40",
-    };
-  }
-  if (value >= 35) {
-    return {
-      bg: "bg-red-50 dark:bg-red-500/20",
-      text: "text-red-600 dark:text-red-300",
-      label: "text-red-600/70 dark:text-red-300/70",
-      ring: "ring-red-500/20 dark:ring-red-400/20",
+      bg: "bg-amber-50 dark:bg-amber-500/15",
+      text: "text-amber-600 dark:text-amber-400",
+      label: "text-amber-700/70 dark:text-amber-300/70",
+      ring: "ring-amber-500/20 dark:ring-amber-400/20",
     };
   }
   return {
-    bg: "bg-red-100 dark:bg-red-500/40",
-    text: "text-red-800 dark:text-white",
-    label: "text-red-700 dark:text-white/80",
-    ring: "ring-red-500/30 dark:ring-red-400/30",
+    bg: "bg-red-50 dark:bg-red-500/20",
+    text: "text-red-500 dark:text-red-400",
+    label: "text-red-600/70 dark:text-red-300/70",
+    ring: "ring-red-500/20 dark:ring-red-400/20",
   };
 };
 
