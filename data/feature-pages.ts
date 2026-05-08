@@ -776,21 +776,21 @@ export const featurePages: FeaturePage[] = [
   },
   // ── MLB Tools ───────────────────────────────────────────────────────────
   {
-    slug: "slate-insights",
-    title: "Slate Insights",
-    tagline: "Every MLB matchup broken down pitch by pitch",
+    slug: "game-center",
+    title: "Game Center",
+    tagline: "One MLB game hub for matchup context, pitcher weakness, and live edges",
     description:
-      "See exactly how every batter matches up against today's starting pitcher. Filter by pitch type, handedness, and sample size to find home run opportunities, strikeout risks, and hidden value in player props — all backed by Statcast data.",
+      "Start from the matchup, then move through pitcher arsenals, batter splits, weakness profiles, weather context, and live odds without jumping between tools. Game Center brings Slate Insights and Pitcher Weakness into one MLB research workspace.",
     category: "MLB Research",
     badge: "NEW",
     accentColor: "#EF4444",
-    toolPath: "/cheatsheets/mlb/slate-insights",
+    toolPath: "/cheatsheets/mlb/game-center",
     benefits: [
+      "Unified game workspace",
       "Pitch-level matchup splits",
-      "Real Statcast BA/SLG/wOBA",
-      "HR Score & factors",
-      "Strike zone heat maps",
-      "Multi-pitch filtering",
+      "Pitcher weakness profiles",
+      "Weather and stadium context",
+      "Live odds comparison",
     ],
     features: [
       {
@@ -875,13 +875,13 @@ export const featurePages: FeaturePage[] = [
       {
         question: "What plan do I need?",
         answer:
-          "Slate Insights requires a Scout plan or higher. The Weather Report is free for all users.",
+          "Game Center requires a Scout plan or higher. The Weather Report is free for all users.",
       },
     ],
     seo: {
-      title: "Slate Insights | Unjuiced - MLB Batter vs Pitcher Matchup Tool",
+      title: "Game Center | Unjuiced - MLB Matchup Research Hub",
       description:
-        "Break down every MLB matchup pitch by pitch. See Statcast batting splits, HR scores, strike zone analysis, and pitcher arsenal data to find the best player prop bets.",
+        "Research every MLB game in one hub with batter-vs-pitcher matchups, pitcher weakness profiles, Statcast splits, weather context, and live odds.",
     },
   },
   {
@@ -1018,5 +1018,6 @@ export const featurePages: FeaturePage[] = [
 ];
 
 export function getFeatureBySlug(slug: string) {
-  return featurePages.find((feature) => feature.slug === slug);
+  const normalizedSlug = slug === "slate-insights" ? "game-center" : slug;
+  return featurePages.find((feature) => feature.slug === normalizedSlug);
 }

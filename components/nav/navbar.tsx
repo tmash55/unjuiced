@@ -375,7 +375,7 @@ function MobileNav({ domain }: { domain: string }) {
     {
       group: "MLB",
       items: [
-        { title: "Slate Insights", href: "/cheatsheets/mlb/slate-insights" },
+        { title: "Game Center", href: "/cheatsheets/mlb/game-center" },
         { title: "HR Command Center", href: "/cheatsheets/mlb/hr-command-center" },
         { title: "NRFI", href: "/cheatsheets/mlb/nrfi" },
         { title: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
