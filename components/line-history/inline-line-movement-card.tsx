@@ -184,7 +184,7 @@ export function InlineLineMovementCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-neutral-200/70 bg-white/55 dark:border-neutral-800/70 dark:bg-neutral-900/35",
+        "overflow-hidden rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white via-neutral-50/40 to-neutral-50/70 shadow-sm ring-1 ring-black/[0.03] dark:border-neutral-800/70 dark:from-neutral-900/80 dark:via-neutral-900/55 dark:to-neutral-950/45 dark:ring-white/[0.03]",
         className,
       )}
     >
@@ -254,7 +254,7 @@ export function InlineLineMovementCard({
           </label>
         </div>
 
-        <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 p-3 dark:border-neutral-800/70 dark:bg-neutral-950/55">
+        <div className="rounded-xl border border-neutral-200/70 bg-gradient-to-br from-neutral-50 via-white/40 to-neutral-50/80 p-3 shadow-inner dark:border-neutral-800/70 dark:from-neutral-950/60 dark:via-neutral-900/40 dark:to-neutral-950/70">
           <MiniLineMovementChart
             entries={entries}
             isLoading={isLoading}

@@ -1913,7 +1913,7 @@ function formatLine(value: number): string {
 function isPlayoffSeasonType(seasonType: string | undefined | null): boolean {
   if (!seasonType) return false;
   const lower = seasonType.toLowerCase();
-  return /\b(round|conf\.?|finals?|play-in)\b/.test(lower);
+  return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(lower);
 }
 function isRegularSeasonType(seasonType: string | undefined | null): boolean {
   if (!seasonType) return false;

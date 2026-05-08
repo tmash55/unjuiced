@@ -2017,7 +2017,7 @@ function OddsPanel({
       <div className="mt-4 flex flex-col gap-4">
         {/* Best Current — compact horizontal banner. Was a sidebar card, now
             a single-row strip so the table below gets the full width. */}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-2.5 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200/70 bg-gradient-to-br from-neutral-50 via-white/50 to-neutral-50/70 px-3 py-2.5 shadow-sm ring-1 ring-black/[0.02] dark:border-neutral-800/70 dark:from-neutral-950/50 dark:via-neutral-900/40 dark:to-neutral-950/60 dark:ring-white/[0.03]">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
               Best at
@@ -2191,7 +2191,7 @@ function OddsPanel({
         )}
 
         {oddsSubTab === "lines" && isSingleLineOddsMarket && (
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-3 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+          <div className="rounded-xl border border-neutral-200/70 bg-gradient-to-br from-neutral-50 via-white/50 to-neutral-50/70 p-3 shadow-sm ring-1 ring-black/[0.02] dark:border-neutral-800/70 dark:from-neutral-950/50 dark:via-neutral-900/40 dark:to-neutral-950/60 dark:ring-white/[0.03]">
             <SgpBuildComparison
               comparison={sgpComparison}
               isLoading={
@@ -2255,11 +2255,51 @@ function GameLogPanel({
   line: number | null;
   isLoading: boolean;
 }) {
-  const shownGames = games.slice(0, 30);
+  const [selectedWnbaSeason, setSelectedWnbaSeason] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setSelectedWnbaSeason(null);
+  }, [profile.playerId, sport]);
+
+  const wnbaSeasonCounts = useMemo(() => {
+    if (sport !== "wnba") return new Map<string, number>();
+    const counts = new Map<string, number>();
+    for (const game of games) {
+      const season = getWnbaSeasonFromDate(game.date);
+      if (!season) continue;
+      counts.set(season, (counts.get(season) ?? 0) + 1);
+    }
+    return counts;
+  }, [games, sport]);
+
+  const defaultWnbaSeason =
+    (wnbaSeasonCounts.get("2026") ?? 0) > 0
+      ? "2026"
+      : (wnbaSeasonCounts.get("2025") ?? 0) > 0
+        ? "2025"
+        : "2026";
+  const activeWnbaSeason =
+    sport === "wnba" ? (selectedWnbaSeason ?? defaultWnbaSeason) : null;
+  const shownGames = useMemo(() => {
+    if (sport !== "wnba" || !activeWnbaSeason) return games;
+    return games.filter(
+      (game) => getWnbaSeasonFromDate(game.date) === activeWnbaSeason,
+    );
+  }, [activeWnbaSeason, games, sport]);
   const propLabel = MARKET_LABELS[profile.market] ?? "PROP";
   const isBinaryMarket =
     profile.market === "player_double_double" ||
     profile.market === "player_triple_double";
+  const logKicker =
+    sport === "wnba"
+      ? `${activeWnbaSeason} season · ${shownGames.length} games · prop ${propLabel}${
+          line !== null ? ` ${formatDecimal(line)}+` : ""
+        }`
+      : `Season · ${shownGames.length || 0} games · prop ${propLabel}${
+          line !== null ? ` ${formatDecimal(line)}+` : ""
+        }`;
 
   // Per-stat averages across the visible games — drives the AVG footer row.
   // Mirrors what ESPN / NBA.com surface at the bottom of a player game log.
@@ -2293,17 +2333,53 @@ function GameLogPanel({
 
   return (
     <div>
-      <PreviewHeader
-        title="Game Log"
-        kicker={`Last ${shownGames.length || 0} · prop ${propLabel}${
-          line !== null ? ` ${formatDecimal(line)}+` : ""
-        }`}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <PreviewHeader title="Game Log" kicker={logKicker} />
+        {sport === "wnba" && (
+          <div className="flex rounded-lg border border-neutral-200/80 bg-neutral-100/70 p-0.5 dark:border-neutral-800/80 dark:bg-neutral-950/50">
+            {["2026", "2025"].map((season) => {
+              const active = activeWnbaSeason === season;
+              const count = wnbaSeasonCounts.get(season) ?? 0;
+              return (
+                <button
+                  key={season}
+                  type="button"
+                  onClick={() => setSelectedWnbaSeason(season)}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[10px] font-black tracking-[0.12em] uppercase transition-colors",
+                    active
+                      ? "bg-brand text-neutral-950 shadow-sm dark:text-neutral-950"
+                      : "text-neutral-500 hover:bg-white/70 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/70 dark:hover:text-neutral-100",
+                  )}
+                >
+                  <span>{season}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[9px] tabular-nums",
+                      active
+                        ? "bg-neutral-950/10 text-neutral-950"
+                        : "bg-neutral-200/80 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400",
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <div className="mt-4 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         {isLoading ? (
           <SkeletonRows rows={10} />
         ) : shownGames.length === 0 ? (
-          <EmptyPreview label="Game log rows will appear here." />
+          <EmptyPreview
+            label={
+              sport === "wnba"
+                ? `No ${activeWnbaSeason} game log rows for this player yet.`
+                : "Game log rows will appear here."
+            }
+          />
         ) : (
           <div className="max-h-[560px] overflow-auto">
             <table className="w-full min-w-[940px] border-separate border-spacing-0 text-xs">
@@ -5588,6 +5664,12 @@ function formatDate(date: string | null | undefined) {
   if (!date) return "—";
   const [, month, day] = date.match(/^(\d{4})-(\d{2})-(\d{2})$/) ?? [];
   return month && day ? `${Number(month)}/${Number(day)}` : date;
+}
+
+function getWnbaSeasonFromDate(date: string | null | undefined): string | null {
+  if (!date) return null;
+  const [, year] = date.match(/^(\d{4})-/) ?? [];
+  return year ?? null;
 }
 
 function formatWeekdayDate(date: string | null | undefined) {

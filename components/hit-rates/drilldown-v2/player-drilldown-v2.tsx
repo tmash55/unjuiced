@@ -2,7 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
-import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
+import {
+  usePlayerBoxScores,
+  type BoxScoreGame,
+} from "@/hooks/use-player-box-scores";
 import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { useTeamRoster } from "@/hooks/use-team-roster";
 import {
@@ -73,6 +76,43 @@ const normalizeInjuryGameId = (
 ): string => {
   if (id === null || id === undefined) return "";
   return String(id).replace(/^0+/, "") || "0";
+};
+
+const isPlayoffSeasonType = (seasonType: string | null | undefined) => {
+  if (!seasonType) return false;
+  return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(
+    seasonType.toLowerCase(),
+  );
+};
+
+const isRegularSeasonType = (seasonType: string | null | undefined) => {
+  if (!seasonType) return false;
+  const lower = seasonType.toLowerCase();
+  if (isPlayoffSeasonType(seasonType)) return false;
+  return lower !== "preseason";
+};
+
+const gameMatchesChartSplit = (game: BoxScoreGame, split: ChartSplit) => {
+  switch (split) {
+    case "home":
+      return game.homeAway === "H";
+    case "away":
+      return game.homeAway === "A";
+    case "win":
+      return game.result === "W";
+    case "loss":
+      return game.result === "L";
+    case "winBy10":
+      return game.result === "W" && game.margin >= 10;
+    case "lossBy10":
+      return game.result === "L" && game.margin <= -10;
+    case "reg":
+      return isRegularSeasonType(game.seasonType);
+    case "playoffs":
+      return isPlayoffSeasonType(game.seasonType);
+    default:
+      return true;
+  }
 };
 
 const SINGLE_LINE_ODDS_MARKETS = new Set([
@@ -638,7 +678,13 @@ export function PlayerDrilldownV2({
   // the chart bars are drawn from. Without this the strip would still show
   // unfiltered hit rates while the bars change underneath.
   const fullyFilteredBoxScores = useMemo(() => {
-    if (quickFilters.size === 0) return filteredBoxScores;
+    const splitFiltered =
+      chartSplit === "all"
+        ? filteredBoxScores
+        : filteredBoxScores.filter((game) =>
+            gameMatchesChartSplit(game, chartSplit),
+          );
+    if (quickFilters.size === 0) return splitFiltered;
     const ctx = {
       market: profile.market,
       upcomingHomeAway: profile.homeAway,
@@ -654,12 +700,13 @@ export function PlayerDrilldownV2({
     const predicates = [...quickFilters]
       .map((id) => resolveQuickFilter(id, available, ctx))
       .filter((qf): qf is NonNullable<typeof qf> => qf !== null);
-    if (predicates.length === 0) return filteredBoxScores;
-    return filteredBoxScores.filter((g) =>
+    if (predicates.length === 0) return splitFiltered;
+    return splitFiltered.filter((g) =>
       predicates.every((qf) => qf.predicate(g)),
     );
   }, [
     filteredBoxScores,
+    chartSplit,
     quickFilters,
     profile.market,
     profile.homeAway,
@@ -677,7 +724,10 @@ export function PlayerDrilldownV2({
   // The chart header chips (L5/L10/L20/SZN/H2H) and BarColumn ghosts both
   // consume this.
   const shouldRecompute =
-    isCustomLine || teammateFilters.length > 0 || quickFilters.size > 0;
+    isCustomLine ||
+    teammateFilters.length > 0 ||
+    quickFilters.size > 0 ||
+    chartSplit !== "all";
   const computedRates = useMemo(() => {
     if (!shouldRecompute || fullyFilteredBoxScores.length === 0) return null;
     return computeHitRates(
