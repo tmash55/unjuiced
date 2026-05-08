@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
@@ -49,23 +49,22 @@ export function LineStepper({
           onClick={() => onChange(Math.max(min, value - step))}
           ariaLabel="Decrease line"
         />
-        <div
-          className={cn(
+        <EditableLineValue
+          value={value}
+          min={min}
+          step={step}
+          onChange={onChange}
+          containerClassName={cn(
             "inline-flex h-9 w-20 items-center justify-center rounded-lg transition-all duration-200",
             isCustom
               ? "bg-brand/10 ring-brand/30 dark:bg-brand/15 ring-1"
-              : "bg-transparent ring-1 ring-transparent",
+              : "bg-transparent ring-1 ring-transparent hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40",
           )}
-        >
-          <span
-            className={cn(
-              "text-2xl leading-none font-black tracking-tight tabular-nums",
-              isCustom ? "text-brand" : "text-neutral-900 dark:text-white",
-            )}
-          >
-            {formatLine(value)}
-          </span>
-        </div>
+          textClassName={cn(
+            "text-2xl leading-none font-black tracking-tight tabular-nums",
+            isCustom ? "text-brand" : "text-neutral-900 dark:text-white",
+          )}
+        />
         <StepperButton
           icon="plus"
           onClick={() => onChange(value + step)}
@@ -112,12 +111,20 @@ export function LineStepper({
           "px-3 py-1",
           isCustom
             ? "bg-brand/10 ring-brand/30 dark:bg-brand/15 ring-1"
-            : "bg-transparent ring-1 ring-transparent",
+            : "bg-transparent ring-1 ring-transparent hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40",
         )}
       >
-        <span className="text-xl leading-none font-black text-neutral-900 tabular-nums lg:text-2xl dark:text-white">
-          {formatLine(value)}
-        </span>
+        <EditableLineValue
+          value={value}
+          min={min}
+          step={step}
+          onChange={onChange}
+          textClassName={cn(
+            "text-xl leading-none font-black tabular-nums lg:text-2xl",
+            isCustom ? "text-brand" : "text-neutral-900 dark:text-white",
+          )}
+          inline
+        />
         <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
           Line
         </span>
@@ -148,6 +155,103 @@ export function LineStepper({
         </Tooltip>
       )}
     </div>
+  );
+}
+
+// Click the value to type a custom line directly. Enter / blur commits,
+// Escape cancels. Keeps the same visible width as the static span so the
+// surrounding stepper buttons don't shift around when entering edit mode.
+function EditableLineValue({
+  value,
+  min,
+  step,
+  onChange,
+  textClassName,
+  containerClassName,
+  inline = false,
+}: {
+  value: number;
+  min: number;
+  step: number;
+  onChange: (value: number) => void;
+  textClassName: string;
+  containerClassName?: string;
+  inline?: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing) {
+      // Auto-focus + select-all so the user can immediately type a
+      // replacement value without deleting the old one first.
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const startEdit = () => {
+    setDraft(formatLine(value));
+    setIsEditing(true);
+  };
+
+  const commitEdit = () => {
+    const parsed = Number(draft);
+    if (Number.isFinite(parsed) && parsed >= min) {
+      // Snap to the same precision the steppers produce. Without this a
+      // typed `22.55` would silently round somewhere else.
+      const rounded = Math.round(parsed / step) * step;
+      onChange(Number(rounded.toFixed(2)));
+    }
+    setIsEditing(false);
+  };
+
+  const cancelEdit = () => setIsEditing(false);
+
+  const inputEl = (
+    <input
+      ref={inputRef}
+      type="number"
+      step={step}
+      min={min}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commitEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitEdit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelEdit();
+        }
+      }}
+      className={cn(
+        textClassName,
+        "w-full bg-transparent text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+      )}
+    />
+  );
+
+  const span = (
+    <button
+      type="button"
+      onClick={startEdit}
+      className={cn(textClassName, "cursor-text bg-transparent")}
+      title="Click to type a custom line"
+    >
+      {formatLine(value)}
+    </button>
+  );
+
+  // Hero variant wraps the value in its own pill container so the input
+  // can take w-full inside that fixed-width box. Default variant is
+  // inline alongside the "Line" label so we just swap span↔input directly.
+  if (inline) return isEditing ? inputEl : span;
+
+  return (
+    <div className={containerClassName}>{isEditing ? inputEl : span}</div>
   );
 }
 
