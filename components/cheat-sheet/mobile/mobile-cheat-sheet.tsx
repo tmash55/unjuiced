@@ -851,34 +851,22 @@ export function MobileCheatSheet({
                           idx % 2 === 0 ? "bg-white dark:bg-[#171717]" : "bg-[#f0f9ff] dark:bg-[#1c1c1f]"
                         )}>
                           <div className="flex items-center gap-1.5">
-                            {/* Headshot with team logo overlay */}
+                            {/* Headshot with team logo overlay — neutral
+                                surface (no team gradient) per design polish. */}
                             <div className="relative shrink-0">
-                              <div 
-                                className="w-7 h-7 rounded-full p-[1px]"
-                                style={{
-                                  background: row.primaryColor 
-                                    ? `linear-gradient(135deg, ${row.primaryColor} 0%, ${row.secondaryColor || row.primaryColor} 100%)`
-                                    : '#374151'
-                                }}
-                              >
-                                <div 
-                                  className="w-full h-full rounded-full overflow-hidden relative"
-                                  style={{
-                                    background: row.primaryColor && row.secondaryColor
-                                      ? `linear-gradient(180deg, ${row.primaryColor}dd 0%, ${row.primaryColor} 50%, ${row.secondaryColor} 100%)`
-                                      : row.primaryColor || '#374151'
-                                  }}
-                                >
-                                  <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
-                                    <PlayerHeadshot
-                                      nbaPlayerId={row.nbaPlayerId ?? (sport === "nba" ? row.playerId : null)}
-                                      mlbPlayerId={sport === "mlb" ? row.playerId : null}
-                                      sport={sport as "nba" | "wnba" | "mlb"}
-                                      name={row.playerName}
-                                      size="small"
-                                      className="w-full h-auto"
-                                    />
-                                  </div>
+                              <div className="w-7 h-7 rounded-full overflow-hidden relative bg-neutral-200 dark:bg-neutral-800">
+                                <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
+                                  <PlayerHeadshot
+                                    nbaPlayerId={
+                                      row.nbaPlayerId ??
+                                      (sport === "nba" || sport === "wnba" ? row.playerId : null)
+                                    }
+                                    mlbPlayerId={sport === "mlb" ? row.playerId : null}
+                                    sport={sport as "nba" | "wnba" | "mlb"}
+                                    name={row.playerName}
+                                    size="small"
+                                    className="w-full h-auto"
+                                  />
                                 </div>
                               </div>
                               {/* Team logo overlay */}

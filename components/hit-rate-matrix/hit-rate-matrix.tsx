@@ -802,18 +802,14 @@ function MatrixRow({ row, sport, isEven, market, minEdge, onPlayerClick }: {
       {/* Player Info - Sticky, no vertical borders */}
       <td className={cn("sticky left-0 z-20 px-1.5 md:px-3 py-1.5 md:py-3 border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
         <div className="flex items-center gap-1.5 md:gap-3">
-          <div
-            className="h-8 w-8 md:h-14 md:w-14 rounded-md md:rounded-xl overflow-hidden shrink-0 shadow-sm transition-transform duration-150 group-hover:scale-[1.03]"
-            style={{
-              background:
-                row.primaryColor
-                  ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor || row.primaryColor} 100%)`
-                  : "#374151",
-            }}
-          >
+          {/* Headshot — neutral surface (no team gradient) so the photo
+              reads cleanly against the row. Sport prop wired through so
+              WNBA pulls from the WNBA CDN instead of falling back to NBA. */}
+          <div className="h-8 w-8 md:h-14 md:w-14 rounded-md md:rounded-xl overflow-hidden shrink-0 shadow-sm transition-transform duration-150 group-hover:scale-[1.03] bg-neutral-200 dark:bg-neutral-800">
             <PlayerHeadshot
               nbaPlayerId={row.nbaPlayerId ?? row.playerId}
               name={row.playerName}
+              sport={sport}
               size="tiny"
               className="w-full h-full object-cover"
             />

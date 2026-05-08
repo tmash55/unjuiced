@@ -657,20 +657,18 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
                       : "";
 
                     const headshotElement = (
-                      <div 
+                      <div
                         className={cn(
-                          "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]",
+                          "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03] bg-neutral-200 dark:bg-neutral-800",
                           hasInjury && "cursor-pointer",
                           getStatusBorderClass(row.injuryStatus)
                         )}
-                        style={{ 
-                          background: row.primaryColor && row.secondaryColor 
-                            ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
-                            : row.primaryColor || "#6b7280"
-                        }}
                       >
                         <PlayerHeadshot
-                          nbaPlayerId={row.nbaPlayerId ?? (sport === "nba" ? row.playerId : null)}
+                          nbaPlayerId={
+                            row.nbaPlayerId ??
+                            (sport === "nba" || sport === "wnba" ? row.playerId : null)
+                          }
                           mlbPlayerId={sport === "mlb" ? row.playerId : null}
                           sport={sport}
                           name={row.playerName}
