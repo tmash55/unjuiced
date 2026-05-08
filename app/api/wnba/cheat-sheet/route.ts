@@ -25,6 +25,12 @@ interface BestOddsData {
   updated_at: number;
 }
 
+interface HistoricalContext {
+  seasonPct: number | null;
+  seasonAvg: number | null;
+  seasonGames: number | null;
+}
+
 export interface CheatSheetRow {
   // Player/Game Context
   playerId: number;
@@ -142,6 +148,58 @@ async function fetchBestOddsForRows(
   return result;
 }
 
+function profileContextKey(row: {
+  player_id?: number | string | null;
+  game_id?: number | string | null;
+  game_date?: string | null;
+  market?: string | null;
+  line?: number | string | null;
+}) {
+  const line = row.line === null || row.line === undefined ? "" : Number(row.line);
+  return `${row.player_id ?? ""}:${row.game_id ?? ""}:${row.game_date ?? ""}:${row.market ?? ""}:${line}`;
+}
+
+function normalizePct(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value > 1 ? value / 100 : value;
+}
+
+async function fetchHistoricalContextForRows(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  rows: any[]
+): Promise<Map<string, HistoricalContext>> {
+  const result = new Map<string, HistoricalContext>();
+  const playerIds = [...new Set(rows.map((row) => row.player_id).filter(Boolean))];
+  const gameIds = [...new Set(rows.map((row) => row.game_id).filter(Boolean))];
+  const markets = [...new Set(rows.map((row) => row.market).filter(Boolean))];
+
+  if (playerIds.length === 0 || gameIds.length === 0 || markets.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("wnba_hit_rate_profiles")
+    .select("player_id, game_id, game_date, market, line, season_2025_pct, season_2025_avg, season_2025_games")
+    .in("player_id", playerIds)
+    .in("game_id", gameIds)
+    .in("market", markets);
+
+  if (error) {
+    console.error("[Cheat Sheet WNBA] Historical profile context fetch error:", error.message);
+    return result;
+  }
+
+  for (const profile of data || []) {
+    result.set(profileContextKey(profile), {
+      seasonPct: normalizePct(profile.season_2025_pct),
+      seasonAvg: profile.season_2025_avg ?? null,
+      seasonGames: profile.season_2025_games ?? null,
+    });
+  }
+
+  return result;
+}
+
 // Request body interface
 interface CheatSheetRequest {
   timeWindow?: "last_5_pct" | "last_10_pct" | "last_20_pct" | "season_pct";
@@ -152,10 +210,23 @@ interface CheatSheetRequest {
   dates?: string[];
 }
 
-function transformRows(rawRows: any[], bestOddsMap: Map<string, BestOddsData | null>): CheatSheetRow[] {
+function transformRows(
+  rawRows: any[],
+  bestOddsMap: Map<string, BestOddsData | null>,
+  historicalContextMap: Map<string, HistoricalContext>,
+  timeWindow: CheatSheetRequest["timeWindow"] = "last_10_pct"
+): CheatSheetRow[] {
   return rawRows.map((row: any) => {
     const compositeKey = `${row.event_id}:${row.market}:${row.odds_selection_id}`;
     const bestOddsData = bestOddsMap.get(compositeKey);
+    const historicalContext = historicalContextMap.get(profileContextKey(row));
+    const hasPreviousSeasonSample = Boolean(
+      historicalContext?.seasonGames && historicalContext.seasonGames > 0
+    );
+    const seasonPct = hasPreviousSeasonSample
+      ? (historicalContext?.seasonPct ?? row.season_pct)
+      : row.season_pct;
+    const isSeasonWindow = timeWindow === "season_pct";
 
     return {
       playerId: row.player_id,
@@ -178,13 +249,15 @@ function transformRows(rawRows: any[], bestOddsMap: Map<string, BestOddsData | n
       line: row.line,
       overOdds: row.over_odds,
       overOddsDecimal: row.over_odds_decimal,
-      hitRate: row.hit_rate,
+      hitRate: isSeasonWindow ? seasonPct : row.hit_rate,
       last5Pct: row.last_5_pct,
       last10Pct: row.last_10_pct,
       last20Pct: row.last_20_pct,
-      seasonPct: row.season_pct,
+      seasonPct,
       hitStreak: row.hit_streak,
-      avgStat: row.avg_stat,
+      avgStat: isSeasonWindow && hasPreviousSeasonSample && typeof historicalContext?.seasonAvg === "number"
+        ? historicalContext.seasonAvg
+        : row.avg_stat,
       edge: row.edge,
       edgePct: row.edge_pct,
       dvpRank: row.dvp_rank,
@@ -211,6 +284,18 @@ function transformRows(rawRows: any[], bestOddsMap: Map<string, BestOddsData | n
   });
 }
 
+function applySeasonFallbackFilter(
+  rows: CheatSheetRow[],
+  timeWindow: CheatSheetRequest["timeWindow"],
+  minHitRate: number
+): CheatSheetRow[] {
+  if (timeWindow !== "season_pct") return rows;
+
+  return rows
+    .filter((row) => (row.seasonPct ?? 0) >= minHitRate)
+    .sort((a, b) => (b.seasonPct ?? 0) - (a.seasonPct ?? 0));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: CheatSheetRequest = await req.json().catch(() => ({}));
@@ -223,12 +308,14 @@ export async function POST(req: NextRequest) {
       markets = null,
       dates = null,
     } = body;
+    const rpcTimeWindow = timeWindow === "season_pct" ? "last_10_pct" : timeWindow;
+    const rpcMinHitRate = timeWindow === "season_pct" ? 0 : minHitRate;
 
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase.rpc("get_wnba_hit_rate_cheatsheet_v2", {
-      p_time_window: timeWindow,
-      p_min_hit_rate: minHitRate,
+      p_time_window: rpcTimeWindow,
+      p_min_hit_rate: rpcMinHitRate,
       // WNBA profiles are built from season averages and have no live odds yet.
       // Pass null so the RPC skips the odds filter rather than eliminating all rows.
       p_odds_floor: null,
@@ -254,8 +341,13 @@ export async function POST(req: NextRequest) {
         sel_key: row.odds_selection_id,
       }))
     );
+    const historicalContextMap = await fetchHistoricalContextForRows(supabase, rawRows);
 
-    const rows = transformRows(rawRows, bestOddsMap);
+    const rows = applySeasonFallbackFilter(
+      transformRows(rawRows, bestOddsMap, historicalContextMap, timeWindow),
+      timeWindow,
+      minHitRate
+    );
 
     return NextResponse.json(
       { rows, count: rows.length },
@@ -284,12 +376,14 @@ export async function GET(req: NextRequest) {
   const oddsCeiling = parseInt(searchParams.get("oddsCeiling") || "200");
   const markets = searchParams.get("markets")?.split(",").filter(Boolean) || null;
   const dates = searchParams.get("dates")?.split(",").filter(Boolean) || null;
+  const rpcTimeWindow = timeWindow === "season_pct" ? "last_10_pct" : timeWindow;
+  const rpcMinHitRate = timeWindow === "season_pct" ? 0 : minHitRate;
 
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase.rpc("get_wnba_hit_rate_cheatsheet_v2", {
-    p_time_window: timeWindow,
-    p_min_hit_rate: minHitRate,
+    p_time_window: rpcTimeWindow,
+    p_min_hit_rate: rpcMinHitRate,
     p_odds_floor: null,
     p_odds_ceiling: null,
     p_markets: markets,
@@ -313,8 +407,13 @@ export async function GET(req: NextRequest) {
       sel_key: row.odds_selection_id,
     }))
   );
+  const historicalContextMap = await fetchHistoricalContextForRows(supabase, rawRows);
 
-  const rows = transformRows(rawRows, bestOddsMap);
+  const rows = applySeasonFallbackFilter(
+    transformRows(rawRows, bestOddsMap, historicalContextMap, timeWindow as CheatSheetRequest["timeWindow"]),
+    timeWindow as CheatSheetRequest["timeWindow"],
+    minHitRate
+  );
 
   return NextResponse.json(
     { rows, count: rows.length },

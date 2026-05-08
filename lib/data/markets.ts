@@ -284,7 +284,7 @@ export interface SportMarket {
     // -------------------------------------------------------------------------
     {
       value: "1st_quarter_player_points",
-      label: "Points (1Q)",
+      label: "1Q Points",
       apiKey: "1st_quarter_player_points",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_points_alternate",
@@ -294,7 +294,7 @@ export interface SportMarket {
     },
     {
       value: "1st_quarter_player_assists",
-      label: "Assists (1Q)",
+      label: "1Q Assists",
       apiKey: "1st_quarter_player_assists",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_assists_alternate",
@@ -304,7 +304,7 @@ export interface SportMarket {
     },
     {
       value: "1st_quarter_player_rebounds",
-      label: "Rebounds (1Q)",
+      label: "1Q Rebounds",
       apiKey: "1st_quarter_player_rebounds",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_rebounds_alternate",
@@ -1753,6 +1753,11 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_bs': 'Blk+Stl',
       'player_double_double': 'Double Double',
       'player_triple_double': 'Triple Double',
+
+      // Basketball - 1st Quarter player props (1Q in front for the scroller)
+      '1st_quarter_player_points': '1Q Points',
+      '1st_quarter_player_rebounds': '1Q Rebounds',
+      '1st_quarter_player_assists': '1Q Assists',
       // Legacy combo keys (for backwards compatibility)
       'player_points_rebounds_assists': 'Pts+Reb+Ast',
       'player_points_rebounds': 'Pts+Reb',
@@ -1807,10 +1812,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'moneyline_decision_only': 'Moneyline (Decision Only)',
       '1st_round_moneyline_finish_only': '1st Round Finish Only',
       
-      // Basketball - 1st Quarter Player Props
-      '1st_quarter_player_points': 'Points (1Q)',
-      '1st_quarter_player_assists': 'Assists (1Q)',
-      '1st_quarter_player_rebounds': 'Rebounds (1Q)',
+      // Basketball - 1st Quarter Player Props (defined earlier with "1Q in front" labels)
       
       // Basketball - 1st 3 Minutes Player Props
       '1st_3_minutes_player_points': 'Points (1st 3 Min)',

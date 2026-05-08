@@ -8,6 +8,10 @@ interface TileProps {
   label?: React.ReactNode;
   /** Optional content rendered to the right of the label (counts, badges, toggles). */
   headerRight?: React.ReactNode;
+  /** Optional row that renders ABOVE the label/headerRight strip — used to bake
+   *  a richer header (player identity, matchup, line, odds) into the same card
+   *  as the body. Renders with its own bottom hairline. */
+  topSlot?: React.ReactNode;
   /** Tailwind grid class — span control comes from the parent grid. */
   className?: string;
   /** Body content. Pass `padded={false}` if you need to handle padding yourself. */
@@ -23,6 +27,7 @@ interface TileProps {
 export function Tile({
   label,
   headerRight,
+  topSlot,
   className,
   children,
   padded = true,
@@ -34,6 +39,11 @@ export function Tile({
         className
       )}
     >
+      {topSlot && (
+        <div className="border-b border-neutral-200/60 px-4 py-3 dark:border-neutral-800/60">
+          {topSlot}
+        </div>
+      )}
       {(label || headerRight) && (
         <div className="flex items-center justify-between gap-3 border-b border-neutral-200/60 px-4 py-2 dark:border-neutral-800/60">
           {label ? (

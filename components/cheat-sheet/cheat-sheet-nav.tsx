@@ -143,6 +143,12 @@ const WNBA_TABS: CheatSheetTab[] = [
     href: "/cheatsheets/wnba/hit-rates",
   },
   {
+    slug: "hit-rate-matrix",
+    label: "Hit Rate Matrix",
+    shortLabel: "Matrix",
+    icon: LayoutGrid,
+  },
+  {
     slug: "dvp",
     label: "Def vs Position",
     shortLabel: "DVP",

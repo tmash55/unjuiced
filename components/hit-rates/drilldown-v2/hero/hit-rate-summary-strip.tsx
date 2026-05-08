@@ -81,10 +81,11 @@ const formatCount = (pct: number | null, sample: number | null | undefined) => {
   return `${hits}/${sample}`;
 };
 
-// One-row "consistency profile" the user reads BEFORE the chart — color tiers
-// communicate strength at a glance. When `computedRates` is provided (custom
-// line in play), the strip recomputes from box scores so the user's what-if
-// adjustment is reflected immediately.
+// Inline "consistency profile" — one tight row of chips the user reads before
+// the chart. Tier colors carry the same meaning as the hit-rate table so the
+// drilldown reads as a continuation of it. When `computedRates` is provided
+// (custom line in play), the strip recomputes from box scores so the user's
+// what-if adjustment is reflected immediately.
 export function HitRateSummaryStrip({
   profile,
   sport,
@@ -93,8 +94,6 @@ export function HitRateSummaryStrip({
 }: HitRateSummaryStripProps) {
   const config = getHitRateTableConfig(sport);
 
-  // Prefer client-side computations when on a custom line, otherwise trust the
-  // server's pre-computed values (split logic, season-type filtering, etc.).
   const segments = computedRates
     ? [
         { label: "L5", pct: computedRates.last5Pct, sample: computedRates.last5Sample },
@@ -112,50 +111,50 @@ export function HitRateSummaryStrip({
       ];
 
   return (
-    <div className="space-y-2">
-      {isCustomLine && (
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-brand ring-1 ring-brand/20">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-          Custom line — recalculated from game logs
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-5">
-      {segments.map((seg) => {
-        const tone = tierClasses(seg.pct);
-        const count = formatCount(seg.pct, seg.sample ?? null);
-        const hasValue = seg.pct !== null && seg.pct !== undefined;
-        return (
-          <div
-            key={seg.label}
-            className={cn(
-              "rounded-xl px-3 py-2.5 ring-1 transition-all duration-200",
-              "hover:scale-[1.015] hover:shadow-sm",
-              tone.bg,
-              tone.ring
-            )}
-          >
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">
+        Hit Rates
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {segments.map((seg) => {
+          const tone = tierClasses(seg.pct);
+          const count = formatCount(seg.pct, seg.sample ?? null);
+          const hasValue = seg.pct !== null && seg.pct !== undefined;
+          return (
             <div
+              key={seg.label}
               className={cn(
-                "text-[9px] font-bold uppercase tracking-[0.18em]",
-                tone.label
+                "inline-flex items-baseline gap-1.5 rounded-md px-2 py-1 ring-1 transition-colors",
+                tone.bg,
+                tone.ring
               )}
             >
-              {seg.label}
-            </div>
-            <div className={cn("mt-1 flex items-baseline gap-1.5", tone.text)}>
-              <span className="text-lg font-black leading-none tabular-nums">
+              <span
+                className={cn(
+                  "text-[9px] font-bold uppercase tracking-[0.16em]",
+                  tone.label
+                )}
+              >
+                {seg.label}
+              </span>
+              <span className={cn("text-xs font-black leading-none tabular-nums", tone.text)}>
                 {formatPct(seg.pct)}
               </span>
               {hasValue && count && (
-                <span className="text-[10px] font-bold tabular-nums opacity-60">
+                <span className={cn("text-[10px] font-bold tabular-nums opacity-60", tone.text)}>
                   {count}
                 </span>
               )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
       </div>
+      {isCustomLine && (
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-brand ring-1 ring-brand/20">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+          Custom line
+        </span>
+      )}
     </div>
   );
 }

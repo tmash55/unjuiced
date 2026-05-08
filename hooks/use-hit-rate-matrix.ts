@@ -33,6 +33,7 @@ export interface ThresholdData {
 
 export interface HitRateMatrixRow {
   playerId: number;
+  nbaPlayerId?: number | null;
   playerName: string;
   teamAbbr: string;
   position: string;
@@ -61,6 +62,7 @@ export interface HitRateMatrixResponse {
 export type HitRateMatrixTimeWindow = "last_5" | "last_10" | "last_20" | "season";
 
 export interface UseHitRateMatrixOptions {
+  sport?: "nba" | "wnba";
   market?: string;
   gameDate?: string;
   timeWindow?: HitRateMatrixTimeWindow;
@@ -101,6 +103,12 @@ export const POSITION_OPTIONS = [
   { value: "C", label: "Center" },
 ];
 
+export const WNBA_POSITION_OPTIONS = [
+  { value: "G", label: "Guard" },
+  { value: "F", label: "Forward" },
+  { value: "C", label: "Center" },
+];
+
 /**
  * Convert decimal odds back to American odds for display
  * 2.50 → +150
@@ -122,7 +130,8 @@ export function decimalToAmerican(decimal: number | null): number | null {
 // =============================================================================
 
 async function fetchHitRateMatrix(options: UseHitRateMatrixOptions): Promise<HitRateMatrixResponse> {
-  const res = await fetch("/api/nba/hit-rate-matrix", {
+  const sport = options.sport ?? "nba";
+  const res = await fetch(`/api/${sport}/hit-rate-matrix`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -146,11 +155,11 @@ async function fetchHitRateMatrix(options: UseHitRateMatrixOptions): Promise<Hit
 // =============================================================================
 
 export function useHitRateMatrix(options: UseHitRateMatrixOptions = {}) {
-  const { market = "player_points", gameDate, timeWindow = "last_10", positions, enabled = true } = options;
+  const { sport = "nba", market = "player_points", gameDate, timeWindow = "last_10", positions, enabled = true } = options;
 
   const query = useQuery<HitRateMatrixResponse>({
-    queryKey: ["hit-rate-matrix", market, gameDate, timeWindow, positions],
-    queryFn: () => fetchHitRateMatrix({ market, gameDate, timeWindow, positions }),
+    queryKey: ["hit-rate-matrix", sport, market, gameDate, timeWindow, positions],
+    queryFn: () => fetchHitRateMatrix({ sport, market, gameDate, timeWindow, positions }),
     enabled,
     staleTime: 60_000, // 1 minute
     gcTime: 5 * 60_000, // 5 minutes

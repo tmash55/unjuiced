@@ -18,7 +18,8 @@ import {
   BarChart3,
   User,
   Hash,
-  BookOpen
+  BookOpen,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeGameId } from "@/components/hit-rates/games-filter-dropdown";
@@ -28,6 +29,9 @@ const MARKET_OPTIONS = [
   { value: "player_points", label: "PTS" },
   { value: "player_rebounds", label: "REB" },
   { value: "player_assists", label: "AST" },
+  { value: "1st_quarter_player_points", label: "1Q PTS" },
+  { value: "1st_quarter_player_rebounds", label: "1Q REB" },
+  { value: "1st_quarter_player_assists", label: "1Q AST" },
   { value: "player_threes_made", label: "3PM" },
   { value: "player_points_rebounds_assists", label: "PRA" },
   { value: "player_points_rebounds", label: "P+R" },
@@ -134,6 +138,11 @@ const MARKET_CATEGORIES = {
     label: "Main Stats",
     icon: Target,
     markets: ["player_points", "player_rebounds", "player_assists"]
+  },
+  firstQuarter: {
+    label: "1st Quarter",
+    icon: Clock,
+    markets: ["1st_quarter_player_points", "1st_quarter_player_rebounds", "1st_quarter_player_assists"]
   },
   combos: {
     label: "Combo Stats", 

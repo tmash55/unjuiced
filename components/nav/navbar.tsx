@@ -373,6 +373,15 @@ function MobileNav({ domain }: { domain: string }) {
       ],
     },
     {
+      group: "WNBA",
+      items: [
+        { title: "Hit Rates", href: "/hit-rates/wnba" },
+        { title: "Top Props", href: "/cheatsheets/wnba/hit-rates" },
+        { title: "Hit Rate Matrix", href: "/cheatsheets/wnba/hit-rate-matrix" },
+        { title: "Defense vs Position", href: "/cheatsheets/wnba/dvp" },
+      ],
+    },
+    {
       group: "MLB",
       items: [
         { title: "Slate Insights", href: "/cheatsheets/mlb/slate-insights" },

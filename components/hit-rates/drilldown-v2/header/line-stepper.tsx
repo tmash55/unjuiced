@@ -15,11 +15,16 @@ interface LineStepperProps {
   /** Step size — sports props always step by 0.5 unless told otherwise. */
   step?: number;
   min?: number;
+  /** "default" = compact inline stepper. "hero" = oversized value with market cap above. */
+  size?: "default" | "hero";
+  /** Short market label shown above the value in hero mode (e.g. "PTS+REB", "3PM"). */
+  marketLabel?: string;
 }
 
 // Premium +/- stepper for the prop line. Active "custom" state is brand-tinted
 // with a subtle ring + reset affordance — clear visual diff from the default.
-// Buttons get a press-feel via `active:scale-95` + brand-tint on hover.
+// Hero variant promotes the value to ~text-3xl/4xl with a market label cap, used
+// in the drilldown command-bar so the line reads as the page's anchor metric.
 export function LineStepper({
   value,
   defaultValue,
@@ -27,8 +32,65 @@ export function LineStepper({
   onReset,
   step = 0.5,
   min = 0.5,
+  size = "default",
+  marketLabel,
 }: LineStepperProps) {
   const isCustom = Math.abs(value - defaultValue) > 1e-6;
+  const isHero = size === "hero";
+
+  if (isHero) {
+    return (
+      <div className="grid grid-cols-[3rem_1.75rem_5rem_1.75rem_1.75rem] items-center gap-1.5">
+        <span className="justify-self-end text-[10px] font-bold tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
+          {marketLabel}
+        </span>
+        <StepperButton
+          icon="minus"
+          onClick={() => onChange(Math.max(min, value - step))}
+          ariaLabel="Decrease line"
+        />
+        <div
+          className={cn(
+            "inline-flex h-9 w-20 items-center justify-center rounded-lg transition-all duration-200",
+            isCustom
+              ? "bg-brand/10 ring-brand/30 dark:bg-brand/15 ring-1"
+              : "bg-transparent ring-1 ring-transparent",
+          )}
+        >
+          <span
+            className={cn(
+              "text-2xl leading-none font-black tracking-tight tabular-nums",
+              isCustom ? "text-brand" : "text-neutral-900 dark:text-white",
+            )}
+          >
+            {formatLine(value)}
+          </span>
+        </div>
+        <StepperButton
+          icon="plus"
+          onClick={() => onChange(value + step)}
+          ariaLabel="Increase line"
+        />
+        <span className="inline-flex h-7 w-7 items-center justify-center">
+          {isCustom && (
+            <Tooltip
+              content={`Reset to ${formatLine(defaultValue)}`}
+              side="top"
+            >
+              <button
+                type="button"
+                onClick={onReset}
+                aria-label="Reset to default line"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 active:scale-95 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            </Tooltip>
+          )}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="inline-flex items-center gap-1.5">
@@ -36,23 +98,27 @@ export function LineStepper({
         type="button"
         onClick={() => onChange(Math.max(min, value - step))}
         aria-label="Decrease line"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all hover:border-brand/40 hover:text-brand active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:text-brand"
+        className={cn(
+          "hover:border-brand/40 hover:text-brand dark:hover:text-brand inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400",
+          "h-8 w-8",
+        )}
       >
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="h-3 w-3" />
       </button>
 
       <div
         className={cn(
-          "inline-flex items-baseline gap-1.5 rounded-lg px-3 py-1 transition-all duration-200",
+          "inline-flex items-baseline gap-1.5 rounded-lg transition-all duration-200",
+          "px-3 py-1",
           isCustom
-            ? "bg-brand/10 ring-1 ring-brand/30 dark:bg-brand/15"
-            : "bg-transparent ring-1 ring-transparent"
+            ? "bg-brand/10 ring-brand/30 dark:bg-brand/15 ring-1"
+            : "bg-transparent ring-1 ring-transparent",
         )}
       >
-        <span className="text-xl font-black leading-none tabular-nums text-neutral-900 dark:text-white lg:text-2xl">
+        <span className="text-xl leading-none font-black text-neutral-900 tabular-nums lg:text-2xl dark:text-white">
           {formatLine(value)}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+        <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
           Line
         </span>
       </div>
@@ -61,9 +127,12 @@ export function LineStepper({
         type="button"
         onClick={() => onChange(value + step)}
         aria-label="Increase line"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all hover:border-brand/40 hover:text-brand active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:text-brand"
+        className={cn(
+          "hover:border-brand/40 hover:text-brand dark:hover:text-brand inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400",
+          "h-8 w-8",
+        )}
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-3 w-3" />
       </button>
 
       {isCustom && (
@@ -72,13 +141,35 @@ export function LineStepper({
             type="button"
             onClick={onReset}
             aria-label="Reset to default line"
-            className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 active:scale-95 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+            className="ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 active:scale-95 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3 w-3" />
           </button>
         </Tooltip>
       )}
     </div>
+  );
+}
+
+function StepperButton({
+  icon,
+  onClick,
+  ariaLabel,
+}: {
+  icon: "minus" | "plus";
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  const Icon = icon === "minus" ? Minus : Plus;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="hover:border-brand/40 hover:text-brand dark:hover:text-brand inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400"
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
   );
 }
 

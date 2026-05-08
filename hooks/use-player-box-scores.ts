@@ -40,6 +40,7 @@ export interface BoxScoreGame {
   date: string;
   seasonType: string;
   homeAway: "H" | "A";
+  isStarter?: boolean | null;
   opponentTeamId: number;
   opponentAbbr: string;
   opponentName: string;
@@ -52,6 +53,16 @@ export interface BoxScoreGame {
   pts: number;
   reb: number;
   ast: number;
+  q1Pts?: number;
+  q1Reb?: number;
+  q1Ast?: number;
+  q1Minutes?: number;
+  q1Stl?: number;
+  q1Blk?: number;
+  q1Fgm?: number;
+  q1Fga?: number;
+  q1Fg3m?: number;
+  q1Fg3a?: number;
   stl: number;
   blk: number;
   tov: number;

@@ -10,6 +10,7 @@ import {
   HIT_RATE_MATRIX_MARKETS,
   TIME_WINDOW_OPTIONS,
   POSITION_OPTIONS,
+  WNBA_POSITION_OPTIONS,
   getDvpColor,
   formatOdds,
   getHitRateBackground,
@@ -21,6 +22,7 @@ import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Loader2, ChevronDown, ChevronUp, ChevronsUpDown, ExternalLink, Filter, X, Check, Search } from "lucide-react";
 import { useNbaGames } from "@/hooks/use-nba-games";
+import { useWnbaGames } from "@/hooks/use-wnba-games";
 import { GamesFilterDropdown, normalizeGameId } from "@/components/hit-rates/games-filter-dropdown";
 import { Tooltip } from "@/components/tooltip";
 import { useFavorites, BookSnapshot } from "@/hooks/use-favorites";
@@ -29,6 +31,7 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { toast } from "sonner";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import { useStateLink } from "@/hooks/use-state-link";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 
 // =============================================================================
 // TYPES
@@ -59,6 +62,8 @@ function getImpliedProbability(bestDecimal: number | null, bestOdds: number | nu
 // =============================================================================
 
 export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) {
+  const matrixSport = sport === "wnba" ? "wnba" : "nba";
+  const isWnba = matrixSport === "wnba";
   // Filter state
   const [selectedMarket, setSelectedMarket] = useState("player_points");
   const [timeWindow, setTimeWindow] = useState<HitRateMatrixTimeWindow>("last_10");
@@ -138,16 +143,26 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
     return now.toLocaleDateString("en-CA", etOptions);
   }, []);
 
+  // Fetch games first so WNBA can default to opening day before the season starts.
+  const { games: nbaGames, primaryDate: nbaPrimaryDate } = useNbaGames(!isWnba);
+  const { games: wnbaGames, primaryDate: wnbaPrimaryDate } = useWnbaGames(isWnba);
+  const activeGames = isWnba ? wnbaGames : nbaGames;
+  const matrixDate = (isWnba ? wnbaPrimaryDate : nbaPrimaryDate) ?? todayET;
+  const positionOptions = isWnba ? WNBA_POSITION_OPTIONS : POSITION_OPTIONS;
+
+  useEffect(() => {
+    const validPositions = new Set(positionOptions.map((option) => option.value));
+    setSelectedPositions((prev) => prev.filter((position) => validPositions.has(position)));
+  }, [positionOptions]);
+
   // Fetch data
   const { rows: rawRows, thresholdLines, isLoading, error } = useHitRateMatrix({
+    sport: matrixSport,
     market: selectedMarket,
-    gameDate: todayET,
+    gameDate: matrixDate,
     timeWindow,
     positions: selectedPositions.length > 0 ? selectedPositions : undefined,
   });
-
-  // Fetch games from the useNbaGames hook for consistent filtering
-  const { games: nbaGames } = useNbaGames();
 
   // Extract unique gameIds from matrix data (numeric IDs that match useNbaGames)
   const matrixGameIds = useMemo(() => {
@@ -163,9 +178,9 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
 
   // Filter nbaGames to only include games that have players in the matrix
   const filteredGames = useMemo(() => {
-    const matches = nbaGames.filter(game => matrixGameIds.has(normalizeGameId(game.game_id)));
-    return matches.length > 0 ? matches : nbaGames;
-  }, [nbaGames, matrixGameIds]);
+    const matches = activeGames.filter(game => matrixGameIds.has(normalizeGameId(game.game_id)));
+    return matches.length > 0 ? matches : activeGames;
+  }, [activeGames, matrixGameIds]);
 
   // Filter rows by search, game, etc.
   const filteredRows = useMemo(() => {
@@ -388,6 +403,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
 
             {/* Game Filter Dropdown - Using shared component */}
             <GamesFilterDropdown
+              sport={matrixSport}
               games={filteredGames}
               selectedGameIds={selectedGameIds}
               onToggleGame={handleToggleGame}
@@ -507,7 +523,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                       Clear all
                     </button>
                   )}
-                  {POSITION_OPTIONS.map((pos) => (
+                  {positionOptions.map((pos) => (
                     <button
                       key={pos.value}
                       type="button"
@@ -673,11 +689,12 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                   <MatrixRow 
                     key={`${row.playerId}-${row.eventId}`} 
                     row={row} 
+                    sport={matrixSport}
                     isEven={idx % 2 === 0} 
                     market={selectedMarket} 
                     minEdge={minEdge}
                     onPlayerClick={(r) => setSelectedPlayer({
-                      nba_player_id: r.playerId,
+                      nba_player_id: r.nbaPlayerId ?? r.playerId,
                       player_name: r.playerName,
                       market: selectedMarket,
                       event_id: r.eventId,
@@ -762,8 +779,9 @@ function SortIcon({ field, sortField, sortDirection }: { field: SortField; sortF
 // ROW COMPONENT
 // =============================================================================
 
-function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: { 
+function MatrixRow({ row, sport, isEven, market, minEdge, onPlayerClick }: { 
   row: HitRateMatrixRow; 
+  sport: "nba" | "wnba";
   isEven: boolean; 
   market: string; 
   minEdge: number;
@@ -794,7 +812,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
             }}
           >
             <PlayerHeadshot
-              nbaPlayerId={row.playerId}
+              nbaPlayerId={row.nbaPlayerId ?? row.playerId}
               name={row.playerName}
               size="tiny"
               className="w-full h-full object-cover"
@@ -813,7 +831,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
             <div className="flex items-center gap-1 text-[9px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
               {row.teamAbbr && (
                 <img
-                  src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                  src={getTeamLogoUrl(row.teamAbbr, sport)}
                   alt={row.teamAbbr}
                   className="h-3 w-3 md:h-4 md:w-4 object-contain"
                 />
@@ -867,6 +885,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
         <ThresholdCell 
           key={threshold.line} 
           threshold={threshold} 
+          sport={sport}
           eventId={row.eventId}
           market={market}
           selKey={row.selKey}
@@ -890,6 +909,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
 
 interface ThresholdCellProps {
   threshold: ThresholdData;
+  sport: "nba" | "wnba";
   eventId: string;
   market: string;
   selKey: string;
@@ -924,6 +944,7 @@ interface OddsLineResponse {
 
 function ThresholdCell({ 
   threshold, 
+  sport,
   eventId, 
   market, 
   selKey, 
@@ -1007,7 +1028,7 @@ function ThresholdCell({
 
       await toggleFavorite({
         type: "player",
-        sport: "nba",
+        sport,
         event_id: eventId,
         game_date: gameDate,
         home_team: homeTeam,
@@ -1019,7 +1040,7 @@ function ThresholdCell({
         market: market,
         line: lineValue,
         side: "over",
-        odds_key: `odds:nba:${eventId}:${market}`,
+        odds_key: `odds:${sport}:${eventId}:${market}`,
         odds_selection_id: `${playerName.toLowerCase().replace(/\s+/g, "_")}|over|${lineValue}`,
         books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
         best_price_at_save: threshold.bestOdds,
@@ -1031,7 +1052,7 @@ function ThresholdCell({
     } finally {
       setIsTogglingFavorite(false);
     }
-  }, [isLoggedIn, toggleFavorite, eventId, gameDate, homeTeam, awayTeam, playerId, playerName, teamAbbr, position, market, lineValue, oddsData, threshold.bestOdds, threshold.bestBook]);
+  }, [isLoggedIn, toggleFavorite, sport, eventId, gameDate, homeTeam, awayTeam, playerId, playerName, teamAbbr, position, market, lineValue, oddsData, threshold.bestOdds, threshold.bestBook]);
 
   // Extract player UUID from selKey (for API calls)
   const playerUuid = useMemo(() => {
@@ -1083,7 +1104,8 @@ function ThresholdCell({
         line: String(lineToFetch),
       });
       params.set("include_sgp", "true");
-      const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
+      params.set("sport", sport);
+      const response = await fetch(`/api/${sport}/props/odds-line?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch odds");
       const data: OddsLineResponse = await response.json();
       setOddsData(data);
@@ -1093,7 +1115,7 @@ function ThresholdCell({
     } finally {
       setIsLoading(false);
     }
-  }, [eventId, market, playerUuid, threshold.line, threshold.actualLine]);
+  }, [eventId, market, playerUuid, sport, threshold.line, threshold.actualLine]);
 
   const handleCellClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

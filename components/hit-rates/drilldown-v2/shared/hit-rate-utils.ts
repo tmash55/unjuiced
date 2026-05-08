@@ -28,9 +28,32 @@ export function getMarketStatValue(game: BoxScoreGame, market: string): number {
       return game.ra;
     case "player_blocks_steals":
       return game.bs;
+    case "player_double_double":
+      return countDoubleDigitCategories(game) >= 2 ? 1 : 0;
+    case "player_triple_double":
+      return countDoubleDigitCategories(game) >= 3 ? 1 : 0;
+    case "1st_quarter_player_points":
+      return game.q1Pts ?? game.pts;
+    case "1st_quarter_player_rebounds":
+      return game.q1Reb ?? game.reb;
+    case "1st_quarter_player_assists":
+      return game.q1Ast ?? game.ast;
     default:
       return 0;
   }
+}
+
+// Count how many of the 5 traditional categories (PTS / REB / AST / STL / BLK)
+// reached double figures. Used to derive double/triple-double per-game flags
+// from the box-score response without needing a dedicated backend column.
+function countDoubleDigitCategories(game: BoxScoreGame): number {
+  let count = 0;
+  if ((game.pts ?? 0) >= 10) count++;
+  if ((game.reb ?? 0) >= 10) count++;
+  if ((game.ast ?? 0) >= 10) count++;
+  if ((game.stl ?? 0) >= 10) count++;
+  if ((game.blk ?? 0) >= 10) count++;
+  return count;
 }
 
 export interface HitRateBuckets {
