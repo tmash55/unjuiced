@@ -318,7 +318,7 @@ export function HitRateChart({
   // bottom based on available room — same idea as Radix collision avoidance.
   const innerTrackRef = useRef<HTMLDivElement>(null);
   const [hoverAnchor, setHoverAnchor] = useState<
-    | { left: number; top: number; placement: "above" | "below"; maxHeight: number }
+    | { left: number; top: number; placement: "above" | "below" }
     | null
   >(null);
   // Filter by range + split + roster filters, then take the most recent N
@@ -538,13 +538,11 @@ export function HitRateChart({
       const GUTTER = 8; // gap between bar edge and card
 
       // Vertical: pick the side with more room (above vs below the chart).
-      // We then cap the card's max-height to the available space and let it
-      // scroll internally — keeps the tooltip readable on small screens
-      // where neither side fully fits the swelling teammates_out list.
+      // The card itself stays overflow-visible; the compact tooltip layout is
+      // preferable to an internal scrollbar over the chart.
       const roomAbove = Math.max(0, rect.top - EDGE_PAD - GUTTER);
       const roomBelow = Math.max(0, viewportHeight - rect.bottom - EDGE_PAD - GUTTER);
       const placement: "above" | "below" = roomAbove >= roomBelow ? "above" : "below";
-      const maxHeight = Math.max(160, placement === "above" ? roomAbove : roomBelow);
       const top =
         placement === "above"
           ? rect.top + window.scrollY - GUTTER
@@ -558,7 +556,7 @@ export function HitRateChart({
       const maxLeft = viewportWidth - CARD_HALF_WIDTH - EDGE_PAD + window.scrollX;
       const left = Math.max(minLeft, Math.min(maxLeft, rawLeft));
 
-      setHoverAnchor({ left, top, placement, maxHeight });
+      setHoverAnchor({ left, top, placement });
     };
     update();
     window.addEventListener("scroll", update, { passive: true, capture: true });
@@ -1403,15 +1401,13 @@ export function HitRateChart({
           // pointer-events-auto + a sticky-handoff: when the cursor leaves a
           // bar we don't immediately clear hoveredIndex (a 120ms timer does).
           // If the cursor enters this tooltip during that window, we cancel
-          // the timer so the tooltip stays open and the user can scroll it
-          // (necessary on small screens where maxHeight clips long
-          // teammates_out lists). Leaving the tooltip clears immediately.
+          // the timer so the tooltip stays open. Leaving the tooltip clears
+          // immediately.
           <div
-            className="pointer-events-auto absolute z-[100] overflow-y-auto overscroll-contain transition-[left,top] duration-150 ease-out [scrollbar-width:thin]"
+            className="pointer-events-auto absolute z-[100] overflow-visible transition-[left,top] duration-150 ease-out"
             style={{
               left: hoverAnchor.left,
               top: hoverAnchor.top,
-              maxHeight: hoverAnchor.maxHeight,
               transform:
                 hoverAnchor.placement === "above"
                   ? "translate(-50%, -100%)"
@@ -1622,9 +1618,9 @@ function renderBarTooltip({
     showPotential && potential! > 0 ? Math.round((value / potential!) * 100) : null;
 
   return (
-    <div className="min-w-[260px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-xl border border-neutral-200/70 bg-white shadow-2xl dark:border-neutral-700/60 dark:bg-neutral-900">
+    <div className="w-[300px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-2xl dark:border-neutral-700/60 dark:bg-neutral-900">
       {/* Header — opponent, date, result */}
-      <div className="flex items-center justify-between gap-3 border-b border-neutral-200/60 px-3.5 py-2.5 dark:border-neutral-800/60">
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200/60 px-3 py-2 dark:border-neutral-800/60">
         <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
           {game.opponentAbbr && (
             <img
@@ -1657,11 +1653,11 @@ function renderBarTooltip({
       </div>
 
       {/* Hero — actual value + market label, margin vs line */}
-      <div className="flex items-end justify-between gap-3 px-3.5 pt-3 pb-2">
+      <div className="flex items-end justify-between gap-3 px-3 pt-2.5 pb-1.5">
         <div className="flex items-baseline gap-1.5">
           <span
             className={cn(
-              "text-3xl font-black leading-none tabular-nums tracking-tight",
+              "text-2xl font-black leading-none tabular-nums tracking-tight sm:text-3xl",
               isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
             )}
           >
@@ -1690,8 +1686,8 @@ function renderBarTooltip({
       {/* Potential context — only when the active market has it. Label and
           value pair on the left ("POTENTIAL  26"), conversion % anchored right. */}
       {showPotential && (
-        <div className="px-3.5 pb-2">
-          <div className="flex items-center justify-between gap-2 rounded-md bg-neutral-50 px-2.5 py-1.5 dark:bg-neutral-800/60">
+        <div className="px-3 pb-1.5">
+          <div className="flex items-center justify-between gap-2 rounded-md bg-neutral-50 px-2.5 py-1 dark:bg-neutral-800/60">
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm font-black tabular-nums text-neutral-700 dark:text-neutral-200">
                 {potential}
@@ -1710,7 +1706,7 @@ function renderBarTooltip({
       )}
 
       {/* Per-market stats — minutes, usage, rebounds breakdown, etc. */}
-      <div className="px-3.5 pb-3">{getGameStatRows(game, market)}</div>
+      <div className="px-3 pb-2.5">{getGameStatRows(game, market)}</div>
 
       {/* Matchup context strip — DvP / Pace ranks for this game. Sits
           between the per-market stats and Teammates Out as supporting
@@ -1718,7 +1714,7 @@ function renderBarTooltip({
           compact instead of large card-style cells. */}
       {(typeof dvpRank === "number" || typeof paceRank === "number") &&
         typeof totalTeams === "number" && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-200/40 px-3.5 py-2 text-[11px] dark:border-neutral-800/40">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-200/40 px-3 py-1.5 text-[11px] dark:border-neutral-800/40">
             {typeof dvpRank === "number" && (
               <RankInline
                 label="Opp DvP"
@@ -1830,8 +1826,8 @@ function TeammatesOutSection({
   };
 
   return (
-    <div className="border-t border-neutral-200/60 bg-neutral-50/60 px-3.5 py-2.5 dark:border-neutral-800/60 dark:bg-neutral-950/40">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="border-t border-neutral-200/60 bg-neutral-50/60 px-3 py-2 dark:border-neutral-800/60 dark:bg-neutral-950/40">
+      <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
           Teammates Out
         </span>
@@ -1841,10 +1837,10 @@ function TeammatesOutSection({
           </span>
         )}
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {top.map((t) => (
           <div key={t.player_id} className="flex items-center gap-2">
-            <div className="h-5 w-5 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200/60 dark:bg-neutral-800 dark:ring-white/10">
+            <div className="h-[18px] w-[18px] shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200/60 dark:bg-neutral-800 dark:ring-white/10">
               <PlayerHeadshot
                 sport={sport}
                 nbaPlayerId={t.nba_player_id ?? t.player_id}
