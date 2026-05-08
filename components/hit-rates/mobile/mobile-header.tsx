@@ -25,12 +25,16 @@ import { cn } from "@/lib/utils";
 import { getTeamLogoUrl as getMappedTeamLogoUrl } from "@/lib/data/team-mappings";
 import { normalizeGameId } from "@/components/hit-rates/games-filter-dropdown";
 
+// Sports surfaced on mobile. Active sports come first, disabled ones tail.
+// MLB is intentionally disabled on mobile right now — the mobile drilldown
+// doesn't have full MLB hit-rate support yet, so opening an MLB row
+// produces an empty / broken state.
 const SPORT_OPTIONS = [
   { value: "nba", label: "NBA", enabled: true },
+  { value: "wnba", label: "WNBA", enabled: true },
+  { value: "mlb", label: "MLB", enabled: false },
   { value: "nfl", label: "NFL", enabled: false },
   { value: "nhl", label: "NHL", enabled: false },
-  { value: "wnba", label: "WNBA", enabled: false },
-  { value: "mlb", label: "MLB", enabled: true },
 ];
 
 interface GameOption {
