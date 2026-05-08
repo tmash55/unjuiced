@@ -765,6 +765,19 @@ export async function GET(req: NextRequest) {
       recent_ev_sparkline: recentEvSparkline,
       k_pct: batterKPct,
       bb_pct: batterBBPct,
+      statcast_contact_pct: null,
+      statcast_bip_pct: null,
+      statcast_avg_ev: (() => {
+        const evs = batterBBs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
+        return evs.length > 0 ? Math.round(evs.reduce((a: number, b: number) => a + b, 0) / evs.length * 10) / 10 : null;
+      })(),
+      statcast_hard_hit_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => Number(b.exit_velocity) >= 95).length / batterBBs.length * 1000) / 10 : null,
+      statcast_barrel_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => b.is_barrel === true).length / batterBBs.length * 1000) / 10 : null,
+      statcast_sweet_spot_pct: batterBBs.length > 0 ? Math.round(batterBBs.filter((b: any) => { const la = Number(b.launch_angle); return !isNaN(la) && la >= 8 && la <= 32; }).length / batterBBs.length * 1000) / 10 : null,
+      statcast_max_ev: (() => {
+        const evs = batterBBs.map((b: any) => Number(b.exit_velocity)).filter((v: number) => !isNaN(v) && v > 0);
+        return evs.length > 0 ? Math.round(Math.max(...evs) * 10) / 10 : null;
+      })(),
       hand_splits: (() => {
         function computeHS(hand: string) {
           const hBBs = batterBBs.filter((b: any) => b.pitcher_hand === hand);
@@ -788,6 +801,34 @@ export async function GET(req: NextRequest) {
           };
         }
         return { vs_rhp: computeHS("R"), vs_lhp: computeHS("L") };
+      })(),
+      statcast_splits: (() => {
+        if (batterBBs.length < 5) return null;
+        function imBucket(bbs: any[]) {
+          if (bbs.length < 5) return null;
+          const evBalls = bbs.filter((b: any) => b.exit_velocity != null && b.exit_velocity > 0);
+          const laBalls = bbs.filter((b: any) => b.launch_angle != null);
+          return {
+            contact_pct: null as null,
+            bip_pct: null as null,
+            avg_ev: evBalls.length > 0 ? +(evBalls.reduce((s: number, b: any) => s + b.exit_velocity, 0) / evBalls.length).toFixed(1) : null,
+            hard_hit_pct: evBalls.length > 0 ? +(evBalls.filter((b: any) => b.exit_velocity >= 95).length / evBalls.length * 100).toFixed(1) : null,
+            barrel_pct: bbs.length > 0 ? +(bbs.filter((b: any) => b.is_barrel === true || b.is_barrel === 1).length / bbs.length * 100).toFixed(1) : null,
+            sweet_spot_pct: laBalls.length > 0 ? +(laBalls.filter((b: any) => b.launch_angle >= 8 && b.launch_angle <= 32).length / laBalls.length * 100).toFixed(1) : null,
+            max_ev: evBalls.length > 0 ? +Math.max(...evBalls.map((b: any) => b.exit_velocity)).toFixed(1) : null,
+            sample_bbs: bbs.length,
+          };
+        }
+        const imPitchTypes = [...new Set(batterBBs.map((b: any) => b.pitch_type).filter(Boolean))] as string[];
+        const imByPitch: Record<string, ReturnType<typeof imBucket>> = {};
+        for (const pt of imPitchTypes) {
+          imByPitch[pt] = imBucket(batterBBs.filter((b: any) => b.pitch_type === pt));
+        }
+        return {
+          vs_rhp: imBucket(batterBBs.filter((b: any) => b.pitcher_hand === "R")),
+          vs_lhp: imBucket(batterBBs.filter((b: any) => b.pitcher_hand === "L")),
+          by_pitch: imByPitch,
+        };
       })(),
     };
 

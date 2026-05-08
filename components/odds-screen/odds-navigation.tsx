@@ -57,7 +57,7 @@ const SPORTS: SportConfig[] = [
   { id: "mlb", label: "MLB" },
   { id: "nba", label: "NBA" },
   { id: "nhl", label: "NHL" },
-  { id: "ncaab", label: "NCAAB" },
+  { id: "wnba", label: "WNBA" },
   { id: "ncaabaseball", label: "NCAA Baseball" },
   { id: "soccer_epl", label: "EPL" },
   { id: "soccer_laliga", label: "LaLiga" },
@@ -73,15 +73,15 @@ const SPORTS: SportConfig[] = [
   { id: "tennis_utr_women", label: "UTR Women" },
   { id: "ufc", label: "UFC" },
   // Off season
-  { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
+  { id: "ncaab", label: "NCAAB", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
   { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
 
-const LEADING_SPORT_IDS = ["mlb", "nba", "nhl", "ncaab", "ncaabaseball"] as const;
+const LEADING_SPORT_IDS = ["mlb", "nba", "wnba", "nhl", "ncaabaseball"] as const;
 const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
 const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
-const TRAILING_SPORT_IDS = ["ufc", "wnba", "ncaaf", "nfl"] as const;
+const TRAILING_SPORT_IDS = ["ufc", "ncaab", "ncaaf", "nfl"] as const;
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
 interface MarketTab {
@@ -193,7 +193,6 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "hrr", label: "H+R+RBI", apiKey: "player_hits__runs__rbis", type: "player" },
     { id: "sb", label: "SB", apiKey: "player_stolen_bases", type: "player" },
   ],
-  wnba: [],
 };
 
 // Tier 2: Secondary markets in "More" dropdown
@@ -355,7 +354,6 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "walks_allowed", label: "BB Allowed", apiKey: "player_walks_allowed", type: "player" },
     { id: "outs", label: "Outs", apiKey: "player_outs", type: "player" },
   ],
-  wnba: [],
 };
 
 const SOCCER_CORE_PRIMARY_GAME_MARKETS: MarketTab[] = [
@@ -496,11 +494,6 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "finish_only", label: "Finish Only", apiKey: "moneyline_finish_only", type: "game" },
     { id: "total", label: "Total Rounds", apiKey: "fight_total_rounds", type: "game" },
   ],
-  wnba: [
-    { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Spread", apiKey: "game_spread", type: "game" },
-    { id: "total", label: "Total", apiKey: "total_points", type: "game" },
-  ],
 };
 
 // Tier 2: Secondary game markets (in "More" dropdown)
@@ -631,7 +624,6 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "decision_only", label: "Decision Only", apiKey: "moneyline_decision_only", type: "game" },
     { id: "r1_finish", label: "1R Finish", apiKey: "1st_round_moneyline_finish_only", type: "game" },
   ],
-  wnba: [],
 };
 
 // Default game market for each sport (used when switching to Game mode)
@@ -659,6 +651,12 @@ const DEFAULT_GAME_MARKET: Record<string, string> = {
   tennis_wta: "match_moneyline",
   ufc: "fight_moneyline",
 };
+
+// WNBA uses the same consumer keys and market surface as NBA.
+PRIMARY_MARKETS.wnba = PRIMARY_MARKETS.nba;
+SECONDARY_MARKETS.wnba = SECONDARY_MARKETS.nba;
+PRIMARY_GAME_MARKETS.wnba = PRIMARY_GAME_MARKETS.nba;
+SECONDARY_GAME_MARKETS.wnba = SECONDARY_GAME_MARKETS.nba;
 
 interface OddsNavigationProps {
   sport: string;

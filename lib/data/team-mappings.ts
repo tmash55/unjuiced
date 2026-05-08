@@ -265,6 +265,7 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     PHX: "PHX", // Phoenix Mercury (stats.wnba.com uses "PHX")
     PHO: "PHX",
     POR: "POR", // Portland expansion team
+    PDX: "PDX", // From main — Portland alt abbreviation
     SEA: "SEA", // Seattle Storm
     TOR: "TOR", // Toronto expansion team
     WAS: "WAS", // Washington Mystics
@@ -300,12 +301,20 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   export function getStandardAbbreviation(teamName: string, sport: string = "baseball_mlb"): string {
     if (!teamName) return ""
     
-    // Normalize sport name - handle both 'mlb' and 'baseball_mlb'
-    let normalizedSport = sport === "mlb" ? "baseball_mlb" : sport
-    if (normalizedSport === "wnba") normalizedSport = "basketball_wnba"
-    if (normalizedSport === "nba") normalizedSport = "basketball_nba"
-    if (normalizedSport === "nfl") normalizedSport = "football_nfl"
-    if (normalizedSport === "nhl") normalizedSport = "icehockey_nhl"
+    // Normalize sport names used by API routes and logo folders.
+    // Took main's ternary form — same behavior as HEAD's if-chain for the
+    // five known sports, with a clean passthrough for anything else.
+    const normalizedSport = sport === "mlb"
+      ? "baseball_mlb"
+      : sport === "wnba"
+        ? "basketball_wnba"
+        : sport === "nba"
+          ? "basketball_nba"
+          : sport === "nfl"
+            ? "football_nfl"
+            : sport === "nhl"
+              ? "icehockey_nhl"
+              : sport
     
     // First, check if it's a full team name
     const teamMaps: Record<string, Record<string, string>> = {
@@ -455,8 +464,10 @@ export const MLB_TEAM_MAP: Record<string, string> = {
         "Las Vegas Aces": "LVA",
         "Minnesota Lynx": "MIN",
         "New York Liberty": "NYL",
+        "Portland Fire": "POR",
         "Phoenix Mercury": "PHO",
         "Seattle Storm": "SEA",
+        "Toronto Tempo": "TOR",
         "Washington Mystics": "WAS"
       }
     }
@@ -486,6 +497,8 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       VEG: "VGK", // Vegas Golden Knights (alternative abbreviation)
     }
 
+    const wnbaVariationMap: Record<string, string> = WNBA_TEAM_MAP
+
     if (normalizedSport === "baseball_mlb" && mlbVariationMap[teamName]) {
       return mlbVariationMap[teamName]
     }
@@ -498,10 +511,13 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       return nhlVariationMap[teamName]
     }
 
-    // WNBA abbreviation variants (DB may send stats.wnba.com style: NY, LA, LV, PHX, WSH)
+    // WNBA abbreviation variants (DB may send stats.wnba.com style: NY, LA, LV, PHX, WSH).
+    // Both `WNBA_TEAM_MAP` and `wnbaVariationMap` (alias above) point to the same
+    // record; using the underlying constant directly to skip the alias hop.
     if (normalizedSport === "basketball_wnba" && WNBA_TEAM_MAP[teamName.toUpperCase()]) {
       return WNBA_TEAM_MAP[teamName.toUpperCase()]
     }
+
 
   // If no match found, check if it's already a valid abbreviation
   const validAbbrs = new Set(Object.values(teamMaps[normalizedSport] || {}))
@@ -519,7 +535,12 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     if (!teamName) return "";
     const abbr = getStandardAbbreviation(teamName, sport);
     // NCAAB shares logos with NCAAF (same schools)
-    const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+    const sportKey = sport.toLowerCase();
+    const logoSport = sportKey === 'ncaab'
+      ? 'ncaaf'
+      : sportKey === 'basketball_wnba'
+        ? 'wnba'
+        : sport;
     return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
   }
 

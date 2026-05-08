@@ -50,6 +50,8 @@ const FEATURE_PREVIEW_REDIRECTS: Record<string, string> = {
   '/features/odds-screen': '/odds/nfl',
   '/features/hit-rates': '/hit-rates/nba',
   '/features/cheat-sheets': '/cheatsheets/nba/props',
+  '/features/game-center': '/cheatsheets/mlb/game-center',
+  '/features/slate-insights': '/cheatsheets/mlb/game-center',
   '/features/my-slips': '/my-slips',
 };
 

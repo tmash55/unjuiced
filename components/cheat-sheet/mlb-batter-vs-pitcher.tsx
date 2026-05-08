@@ -20,9 +20,13 @@ import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getMlbPropMarketFromOddsMarket, getMlbPropMarketLabel } from "@/lib/mlb/prop-score-markets";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
 import { ChevronRight, ChevronDown, Users, Loader2, AlertCircle, TableProperties, GitCompare, Info } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip } from "@/components/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
+import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
+import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -191,18 +195,6 @@ const SAMPLE_OPTIONS = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "TBD";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
 
 function fmtPct(val: number | null, digits = 1): string {
   if (val == null) return "-";
@@ -495,7 +487,7 @@ function GameChip({
 
       {/* Row 3: Time + Park Factor */}
       <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px]">
-        <span className="text-neutral-400 tabular-nums">{game.game_status}</span>
+        <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(game)}</span>
         {game.park_factor != null && (
           <span className={cn("font-semibold tabular-nums", parkFactorColor(game.park_factor))}>
             PF {game.park_factor}
@@ -599,7 +591,7 @@ function MobileGameSelector({
                     </div>
                     <img src={`/team-logos/mlb/${g.home_team_tricode.toUpperCase()}.svg`} className="w-4 h-4 object-contain shrink-0" alt="" loading="lazy" />
                     <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                      <span className="text-neutral-400 tabular-nums">{g.game_status}</span>
+                      <span className="text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(g)}</span>
                       {g.park_factor != null && (
                         <span className={cn("font-semibold tabular-nums", parkFactorColor(g.park_factor))}>
                           PF {g.park_factor}
@@ -868,9 +860,89 @@ function PitcherOddsSection({ gameId, pitcherName, hasSharpAccess }: { gameId: n
   );
 }
 
-function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean }) {
+function TbdPitcherCard({ teamPitchers, onChangePitcher }: { teamPitchers?: TeamPitcher[]; onChangePitcher: (id: number | null) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  return (
+    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+          <span className="text-xl text-neutral-400 dark:text-neutral-600">?</span>
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-white">Pitcher TBD</p>
+            {teamPitchers && teamPitchers.length > 0 && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+                    menuOpen
+                      ? "bg-brand/10 text-brand border-brand/30 shadow-sm shadow-brand/10"
+                      : "bg-white dark:bg-neutral-800/80 text-neutral-500 border-neutral-200/80 dark:border-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+                  )}
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+                  </svg>
+                  Select
+                  <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", menuOpen && "rotate-180")} />
+                </button>
+                {menuOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Pitching Staff</span>
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {teamPitchers.map((tp) => (
+                        <button
+                          key={tp.player_id}
+                          onClick={() => { onChangePitcher(tp.player_id); setMenuOpen(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        >
+                          <img
+                            src={getMlbHeadshotUrl(tp.player_id, "tiny")}
+                            alt={tp.name}
+                            className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate block">{tp.name}</span>
+                            <span className="text-[10px] text-neutral-500">{tp.throw_hand === "L" ? "LHP" : "RHP"}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-neutral-400 mt-0.5">Starting pitcher has not been announced</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-3/4 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+        <div className="h-3 w-1/2 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+        <div className="h-3 w-2/3 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
+      </div>
+    </div>
+  );
+}
+
+function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
-  const maxUsage = Math.max(...pitcher.arsenal.map((a) => a.usage_pct), 1);
 
   const vsLHB = pitcher.pitcher_splits?.vs_lhb;
   const vsRHB = pitcher.pitcher_splits?.vs_rhb;
@@ -902,14 +974,17 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
     if (arsenalSplitView === "all" || !pitcher.arsenal_splits) return pitcher.arsenal;
     const splits = arsenalSplitView === "lhb" ? pitcher.arsenal_splits.vs_lhb : pitcher.arsenal_splits.vs_rhb;
     if (!splits || !splits.length) return pitcher.arsenal;
-    console.log(`[arsenal] view=${arsenalSplitView}, splits[0]=`, JSON.stringify(splits[0]));
+    const splitMap = new Map(splits.map((s) => [s.pitch_type, s]));
     // Map splits to PitchArsenalRow-like objects using the overall row as base
     return pitcher.arsenal.map((a) => {
-      const split = splits.find((s: any) => s.pitch_type === a.pitch_type);
-      if (!split) return { ...a, usage_pct: 0, baa: null, slg: null, total_batted_balls: 0 };
+      const split = splitMap.get(a.pitch_type);
+      if (!split) return { ...a, usage_pct: 0, l30_usage_pct: null, baa: null, slg: null, total_batted_balls: 0 };
+      const splitUsage = Number(split.usage_pct);
       return {
         ...a,
-        usage_pct: split.usage_pct,
+        usage_pct: Number.isFinite(splitUsage) ? splitUsage : a.usage_pct,
+        l30_usage_pct: null,
+        avg_speed: split.avg_speed ?? a.avg_speed,
         baa: split.baa,
         slg: split.slg,
         total_batted_balls: split.bbs,
@@ -923,17 +998,116 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
 
   const arsenalMaxUsage = Math.max(...arsenalData.map((a) => a.usage_pct), 1);
 
+  const [pitcherMenuOpen, setPitcherMenuOpen] = useState(false);
+  const pitcherMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!pitcherMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pitcherMenuRef.current && !pitcherMenuRef.current.contains(e.target as Node)) setPitcherMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [pitcherMenuOpen]);
+
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header with pitcher selector */}
       <div className="flex items-center gap-3">
-        <img
-          src={getMlbHeadshotUrl(pitcher.player_id, "small")}
-          alt={pitcher.name}
-          className="w-16 h-16 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
-        />
-        <div>
-          <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{pitcher.name}</h3>
+        <button
+          type="button"
+          onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+          className="relative shrink-0 rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label={`Open quick view for ${pitcher.name}`}
+        >
+          <img
+            src={getMlbHeadshotUrl(pitcher.player_id, "small")}
+            alt={pitcher.name}
+            className="w-16 h-16 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800"
+          />
+          {isOverride && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand text-white text-[9px] font-black flex items-center justify-center shadow-sm" title="Custom pitcher">
+              ↻
+            </span>
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+              className="truncate text-left text-lg font-bold text-neutral-900 hover:text-brand hover:underline transition-colors dark:text-white"
+            >
+              {pitcher.name}
+            </button>
+            {onChangePitcher && teamPitchers && teamPitchers.length > 1 && (
+              <div className="relative" ref={pitcherMenuRef}>
+                <button
+                  onClick={() => setPitcherMenuOpen(!pitcherMenuOpen)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+                    pitcherMenuOpen
+                      ? "bg-brand/10 text-brand border-brand/30 shadow-sm shadow-brand/10"
+                      : isOverride
+                        ? "bg-brand/5 dark:bg-brand/10 text-brand border-brand/20 hover:bg-brand/10"
+                        : "bg-white dark:bg-neutral-800/80 text-neutral-500 border-neutral-200/80 dark:border-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600"
+                  )}
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+                  </svg>
+                  {isOverride ? "Swap" : "Swap"}
+                  <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", pitcherMenuOpen && "rotate-180")} />
+                </button>
+                {pitcherMenuOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/50 shadow-2xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Pitching Staff</span>
+                    </div>
+                    {isOverride && (
+                      <button
+                        onClick={() => { onChangePitcher(null); setPitcherMenuOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-brand hover:bg-brand/5 dark:hover:bg-brand/10 border-b border-neutral-100 dark:border-neutral-800/50 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                        </svg>
+                        Reset to probable starter
+                      </button>
+                    )}
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {teamPitchers.map((tp) => {
+                        const isActive = tp.player_id === pitcher.player_id;
+                        return (
+                          <button
+                            key={tp.player_id}
+                            onClick={() => { onChangePitcher(tp.player_id); setPitcherMenuOpen(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-neutral-100/50 dark:border-neutral-800/30 transition-colors",
+                              isActive
+                                ? "bg-brand/5 dark:bg-brand/10"
+                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            )}
+                          >
+                            <img
+                              src={getMlbHeadshotUrl(tp.player_id, "tiny")}
+                              alt={tp.name}
+                              className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate block">{tp.name}</span>
+                              <span className="text-[10px] text-neutral-500">{tp.throw_hand === "L" ? "LHP" : "RHP"}</span>
+                            </div>
+                            {isActive && <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">
             {pitcher.hand === "R" ? "RHP" : pitcher.hand === "L" ? "LHP" : "P"}
             {pitcher.team_name ? ` · ${pitcher.team_name}` : ""}
@@ -1182,6 +1356,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
           </div>
         </div>
       )}
+      {quickViewElement}
     </div>
   );
 }
@@ -1476,7 +1651,6 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
   const barWidth = Math.max((pitch.usage_pct / Math.max(maxUsage, 1)) * 100, 2);
   const isHighUsage = pitch.usage_pct >= 25;
   const trend = pitch.usage_trend;
-  const hasL30 = pitch.l30_usage_pct != null;
 
   return (
     <div className="flex items-center gap-3">
@@ -1503,9 +1677,6 @@ function ArsenalRow({ pitch, maxUsage }: { pitch: PitchArsenalRow; maxUsage: num
             />
             <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
               {pitch.usage_pct}%
-              {hasL30 && pitch.l30_usage_pct !== pitch.usage_pct && (
-                <span className="text-neutral-400 ml-0.5">({pitch.l30_usage_pct}% L30)</span>
-              )}
             </span>
           </div>
         </div>
@@ -1577,6 +1748,7 @@ function BatterRow({
   propScores,
   scoreMarket,
   zebra = false,
+  activeStatcast,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1593,7 +1765,13 @@ function BatterRow({
   propScores?: Record<string, PropScorePlayer>;
   scoreMarket?: string;
   zebra?: boolean;
+  activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
+  const handleOpenBatter = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    openQuickView({ mlb_player_id: batter.player_id, player_name: batter.player_name, initial_market: "player_hits" });
+  };
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
     avg: batter.avg, slg: batter.slg, woba: batter.woba, iso: batter.iso,
@@ -1625,9 +1803,17 @@ function BatterRow({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-neutral-400 w-4 tabular-nums">{batter.lineup_position ?? "-"}</span>
-                <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{batter.player_name}</span>
-                <span className={cn("text-[10px] font-medium", hasPlatoon ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
-                  {batter.batting_hand}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleOpenBatter}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleOpenBatter(e as unknown as React.MouseEvent); }}
+                  className="cursor-pointer truncate text-xs font-semibold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+                >
+                  {batter.player_name}
+                </span>
+                <span className={cn("text-[10px] font-medium", batter.batting_hand === "S" ? "text-purple-500 dark:text-purple-400" : hasPlatoon ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-neutral-500")}>
+                  {batter.batting_hand === "S" ? "SW" : batter.batting_hand}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-[10px] tabular-nums">
@@ -1668,7 +1854,8 @@ function BatterRow({
           </div>
         </button>
 
-        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />}
+        {expanded && <BatterExpansion batter={batter} pitcher={pitcher} isMobile pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} activeStatcast={activeStatcast} />}
+        {quickViewElement}
       </div>
     );
   }
@@ -1689,28 +1876,42 @@ function BatterRow({
               )
         )}
       >
-        <td className="pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center">
+        <td className={cn(
+          "pl-3 pr-1 py-2 text-xs text-neutral-400 tabular-nums w-8 text-center sticky left-0 z-[5]",
+          expanded ? "bg-sky-50 dark:bg-neutral-900" : zebra ? "bg-[#f9fafb] dark:bg-neutral-900" : "bg-white dark:bg-neutral-900"
+        )}>
           {batter.lineup_position ?? "-"}
         </td>
-        <td className="px-2 py-2">
+        <td className={cn(
+          "pl-2 pr-3 py-2 sticky left-8 z-[5] min-w-[160px] after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-neutral-200/60 dark:after:bg-neutral-700/30",
+          expanded ? "bg-sky-50 dark:bg-neutral-900" : zebra ? "bg-[#f9fafb] dark:bg-neutral-900" : "bg-white dark:bg-neutral-900"
+        )}>
           <div className="flex items-center gap-2">
             <img
               src={getMlbHeadshotUrl(batter.player_id, "tiny")}
               alt={batter.player_name}
               className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
             />
-            <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{batter.player_name}</span>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleOpenBatter}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleOpenBatter(e as unknown as React.MouseEvent); }}
+              className="cursor-pointer truncate text-xs font-semibold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+            >
+              {batter.player_name}
+            </span>
             <span
               className={cn(
                 "text-[10px] font-semibold px-1 py-0.5 rounded shrink-0",
-                hasPlatoon ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
+                batter.batting_hand === "S" ? "bg-purple-500/10 text-purple-500 dark:text-purple-400" : hasPlatoon ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
               )}
             >
-              {batter.batting_hand}
+              {batter.batting_hand === "S" ? "SW" : batter.batting_hand}
             </span>
           </div>
         </td>
-        <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", baaColor(ds.avg))}>
+        <td className={cn("pl-3 pr-1.5 py-2 text-xs text-center tabular-nums font-medium", baaColor(ds.avg))}>
           {fmtAvg(ds.avg)}
         </td>
         <td className="px-1.5 py-2 text-xs text-center tabular-nums font-semibold text-neutral-900 dark:text-white">
@@ -1743,6 +1944,37 @@ function BatterRow({
         <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", bbPctColor(ds.bb_pct ?? null))}>
           {ds.bb_pct != null ? `${ds.bb_pct.toFixed(1)}%` : "-"}
         </td>
+        {/* Statcast columns — react to pitch/hand filters via activeStatcast */}
+        {(() => {
+          const scRaw = activeStatcast ?? {
+            contact_pct: batter.statcast_contact_pct,
+            avg_ev: batter.statcast_avg_ev,
+            hard_hit_pct: batter.statcast_hard_hit_pct,
+            barrel_pct: batter.statcast_barrel_pct,
+            sweet_spot_pct: batter.statcast_sweet_spot_pct,
+            max_ev: batter.statcast_max_ev,
+          };
+          const sc = scRaw;
+          return (
+            <>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium border-l-2 border-neutral-300/80 dark:border-neutral-600/60", evColor(sc.avg_ev))}>
+                {sc.avg_ev != null ? sc.avg_ev.toFixed(1) : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", hardHitColor(sc.hard_hit_pct))}>
+                {sc.hard_hit_pct != null ? `${sc.hard_hit_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", barrelColor(sc.barrel_pct))}>
+                {sc.barrel_pct != null ? `${sc.barrel_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", statText(sc.sweet_spot_pct, { elite: 38, good: 33, poor: 26, bad: 20 }) || "text-neutral-600 dark:text-neutral-400")}>
+                {sc.sweet_spot_pct != null ? `${sc.sweet_spot_pct.toFixed(1)}%` : "-"}
+              </td>
+              <td className={cn("px-1.5 py-2 text-xs text-center tabular-nums font-medium", statText(sc.max_ev, { elite: 112, good: 108, poor: 102, bad: 96 }) || "text-neutral-600 dark:text-neutral-400")}>
+                {sc.max_ev != null ? sc.max_ev.toFixed(1) : "-"}
+              </td>
+            </>
+          );
+        })()}
         {/* Odds cell with dropdown */}
         <td className="px-1.5 py-2 text-right relative">
           <OddsCell entry={oddsEntry ?? null} hasSharpAccess={hasSharpAccess ?? false} isLoading={!!oddsLoading && !oddsEntry} />
@@ -1756,7 +1988,8 @@ function BatterRow({
         "border-b border-neutral-200/30 dark:border-neutral-800/15",
         expanded ? "bg-sky-50/50 dark:bg-sky-500/[0.05]" : "bg-white dark:bg-neutral-900/40"
       )}>
-        <td colSpan={13} className="px-3 pb-2.5 pt-0">
+        <td colSpan={11} className="p-0">
+          <div className="sticky left-0 w-fit px-3 pb-2.5">
           <div className="ml-9 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-neutral-400 dark:text-neutral-500">
             {top2Pitches.map((p) => {
               const split = batter.pitch_splits.find((s) => s.pitch_type === p.pitch_type);
@@ -1797,16 +2030,22 @@ function BatterRow({
               {badge.label}
             </span>
           </div>
+          </div>
         </td>
+        <td colSpan={5} className="p-0 border-l-2 border-neutral-300/80 dark:border-neutral-600/60" />
+        <td colSpan={2} className="p-0" />
       </tr>
       {/* Expansion */}
       {expanded && (
         <tr>
-          <td colSpan={13} className="px-3 pb-4 bg-neutral-50/80 dark:bg-neutral-800/15 border-b border-neutral-200/40 dark:border-neutral-700/20">
-            <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} />
+          <td colSpan={20} className="p-0 border-b border-neutral-200/40 dark:border-neutral-700/20">
+            <div className="sticky left-0 bg-neutral-50/80 dark:bg-neutral-800/15 px-3 pb-4 w-[100cqi]">
+              <BatterExpansion batter={batter} pitcher={pitcher} isMobile={false} pitchFilter={pitchFilter} oddsEntry={oddsEntry} hasSharpAccess={hasSharpAccess} gameId={gameId} propScores={propScores} activeStatcast={activeStatcast} />
+            </div>
           </td>
         </tr>
       )}
+      {quickViewElement}
     </React.Fragment>
   );
 }
@@ -1873,6 +2112,7 @@ function BatterExpansion({
   hasSharpAccess,
   gameId,
   propScores,
+  activeStatcast,
 }: {
   batter: BatterMatchup;
   pitcher: PitcherProfile;
@@ -1882,6 +2122,7 @@ function BatterExpansion({
   hasSharpAccess?: boolean;
   gameId?: number | null;
   propScores?: Record<string, PropScorePlayer>;
+  activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
   const h2hMeetings = batter.h2h?.last_meetings ?? [];
   const hrFactors = batter.hr_factors ?? [];
@@ -1935,7 +2176,7 @@ function BatterExpansion({
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">
               {pitcher ? `vs ${pitcher.name.split(" ").pop()} — Pitch Splits` : "Pitch Splits"}
             </h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">How this batter performs against each of the pitcher&apos;s pitch types. Green rows = hittable (.450+ SLG).</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           <div className="space-y-1">
             {pitcher.arsenal.map((a) => {
@@ -1996,7 +2237,7 @@ function BatterExpansion({
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-1.5">
                     <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">{marketName} Score</h5>
-                    <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite {marketName.toLowerCase()} score (0-100) from the Prop Center scoring engine. Changes when you switch markets above.</TooltipContent></Tooltip></TooltipProvider>
+                    <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Composite {marketName.toLowerCase()} score (0-100) from the Prop Center scoring engine. Changes when you switch markets above.</TooltipContent></RadixTooltip></TooltipProvider>
                   </div>
                   {grade && (
                     <span className={cn(
@@ -2176,13 +2417,64 @@ function BatterExpansion({
         </div>
       </div>
 
+      {/* Advanced — Last 15 ABs (reacts to hand/pitch filters) */}
+      {(() => {
+        const sc = activeStatcast ?? {
+          avg_ev: batter.statcast_avg_ev, hard_hit_pct: batter.statcast_hard_hit_pct,
+          barrel_pct: batter.statcast_barrel_pct, sweet_spot_pct: batter.statcast_sweet_spot_pct,
+          max_ev: batter.statcast_max_ev,
+        };
+        return (sc.avg_ev != null || sc.barrel_pct != null) && (
+        <div className="mt-3 rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Advanced <span className="text-neutral-400/70 font-normal">L15 ABs</span></h5>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[260px] text-xs">Last 15 batted balls. Hard Hit ≥95 mph. Barrel = optimal EV + launch angle. Sweet Spot = 8–32° launch angle.</TooltipContent></RadixTooltip></TooltipProvider>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            {[
+              {
+                label: "Avg EV",
+                value: sc.avg_ev != null ? sc.avg_ev.toFixed(1) : "-",
+                color: evTextColor(sc.avg_ev ?? null),
+              },
+              {
+                label: "Hard%",
+                value: sc.hard_hit_pct != null ? `${sc.hard_hit_pct.toFixed(1)}%` : "-",
+                color: statText(sc.hard_hit_pct ?? null, { elite: 45, good: 38, poor: 30, bad: 25 }),
+              },
+              {
+                label: "Brl%",
+                value: sc.barrel_pct != null ? `${sc.barrel_pct.toFixed(1)}%` : "-",
+                color: barrelTextColor(sc.barrel_pct ?? null),
+              },
+              {
+                label: "SwSp%",
+                value: sc.sweet_spot_pct != null ? `${sc.sweet_spot_pct.toFixed(1)}%` : "-",
+                color: statText(sc.sweet_spot_pct ?? null, { elite: 38, good: 33, poor: 26, bad: 20 }),
+              },
+              {
+                label: "Max EV",
+                value: sc.max_ev != null ? sc.max_ev.toFixed(1) : "-",
+                color: statText(sc.max_ev ?? null, { elite: 112, good: 108, poor: 102, bad: 96 }),
+              },
+            ].map((s) => (
+              <div key={s.label}>
+                <p className="text-[9px] text-neutral-400">{s.label}</p>
+                <p className={cn("text-sm font-bold tabular-nums", s.color || "text-neutral-900 dark:text-white")}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+      })()}
+
       {/* Bottom section: H2H + Recent Form */}
       <div className={cn("grid gap-3 mt-3", isMobile ? "grid-cols-1" : "grid-cols-2")}>
         {/* H2H */}
         <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
           <div className="flex items-center gap-1.5 mb-2.5">
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Head-to-Head</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Career stats for this batter vs this specific pitcher across all seasons.</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Career stats for this batter vs this specific pitcher across all seasons.</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           {batter.h2h && batter.h2h.pa > 0 ? (
             <div className="space-y-2">
@@ -2225,7 +2517,7 @@ function BatterExpansion({
         <div className="rounded-lg border border-neutral-200/40 dark:border-neutral-800/20 bg-white dark:bg-neutral-900/40 p-3">
           <div className="flex items-center gap-1.5 mb-2.5">
             <h5 className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-500 dark:text-neutral-400">Recent Form (60d)</h5>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Contact quality and power metrics from the last 60 days. EV Trend shows avg exit velocity per game day.</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><RadixTooltip><TooltipTrigger asChild><Info className="w-3 h-3 text-neutral-300 dark:text-neutral-600 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-[220px] text-xs">Contact quality and power metrics from the last 60 days. EV Trend shows avg exit velocity per game day.</TooltipContent></RadixTooltip></TooltipProvider>
           </div>
           <div className="flex items-center gap-6">
             {[
@@ -2449,6 +2741,7 @@ function ComparisonView({
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
   scoreMarket?: string;
 }) {
+  const { openQuickView, quickViewElement } = usePlayerQuickView();
   const primary = pitcher.arsenal[0] ?? null;
   const secondary = (pitcher.arsenal[1]?.usage_pct ?? 0) >= 15 ? pitcher.arsenal[1] : null;
   const activePropMarket = scoreMarket ?? "hr";
@@ -2552,7 +2845,15 @@ function ComparisonView({
                   className="w-7 h-7 rounded-full object-cover bg-neutral-100 dark:bg-neutral-800 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold text-neutral-900 dark:text-white truncate block">{b.player_name}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); } }}
+                    className="cursor-pointer text-xs font-bold text-neutral-900 dark:text-white truncate block transition-colors hover:text-brand hover:underline"
+                  >
+                    {b.player_name}
+                  </span>
                   <span className={cn("text-[10px]", hasPlatoon ? "font-bold text-emerald-500" : "text-neutral-400")}>
                     {b.batting_hand}{hasPlatoon ? " PLT" : ""}
                   </span>
@@ -2625,15 +2926,21 @@ function ComparisonView({
           );
         })}
       </div>
+      {quickViewElement}
     </div>
   );
 }
 
 // ── Standard View Sort ───────────────────────────────────────────────────────
 
-type StdSortKey = "lineup" | "slg" | "iso" | "hr" | "ev" | "brl" | "woba" | "ba" | "k_pct" | "bb_pct";
+type StdSortKey = "lineup" | "slg" | "iso" | "hr" | "ev" | "brl" | "woba" | "ba" | "k_pct" | "bb_pct" | "sc_ev" | "sc_hh" | "sc_brl" | "sc_ss" | "sc_max";
 
-function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatchup) => DisplayStats): number {
+function stdSortVal(
+  b: BatterMatchup,
+  key: StdSortKey,
+  getStats: (b: BatterMatchup) => DisplayStats,
+  getStatcast?: (b: BatterMatchup) => any
+): number {
   const ds = getStats(b);
   switch (key) {
     case "lineup": return b.lineup_position ?? 99;
@@ -2646,11 +2953,23 @@ function stdSortVal(b: BatterMatchup, key: StdSortKey, getStats: (b: BatterMatch
     case "ba": return ds.avg ?? -1;
     case "k_pct": return b.k_pct ?? 999;
     case "bb_pct": return b.bb_pct ?? -1;
+    case "sc_ev": { const sc = getStatcast?.(b); return sc?.avg_ev ?? b.statcast_avg_ev ?? -1; }
+    case "sc_hh": { const sc = getStatcast?.(b); return sc?.hard_hit_pct ?? b.statcast_hard_hit_pct ?? -1; }
+    case "sc_brl": { const sc = getStatcast?.(b); return sc?.barrel_pct ?? b.statcast_barrel_pct ?? -1; }
+    case "sc_ss": { const sc = getStatcast?.(b); return sc?.sweet_spot_pct ?? b.statcast_sweet_spot_pct ?? -1; }
+    case "sc_max": { const sc = getStatcast?.(b); return sc?.max_ev ?? b.statcast_max_ev ?? -1; }
     default: return 0;
   }
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
+
+export interface PitcherOverrides {
+  awayPitcherId: number | null;
+  homePitcherId: number | null;
+  setAwayPitcherId: (id: number | null) => void;
+  setHomePitcherId: (id: number | null) => void;
+}
 
 export interface MlbBatterVsPitcherProps {
   externalGameId?: number | null;
@@ -2658,6 +2977,7 @@ export interface MlbBatterVsPitcherProps {
   externalSample?: "season" | "30" | "15" | "7";
   externalBattingSide?: "home" | "away";
   embedded?: boolean;
+  externalPitcherOverrides?: PitcherOverrides;
 }
 
 export function MlbBatterVsPitcher({
@@ -2666,6 +2986,7 @@ export function MlbBatterVsPitcher({
   externalSample,
   externalBattingSide,
   embedded = false,
+  externalPitcherOverrides,
 }: MlbBatterVsPitcherProps = {}) {
   const [internalGameId, setInternalGameId] = useState<number | null>(null);
   const [internalBattingSide, setInternalBattingSide] = useState<"home" | "away">("away");
@@ -2692,7 +3013,25 @@ export function MlbBatterVsPitcher({
   const setStatSeason = (s: number) => { if (!embedded) setInternalSeason(s); };
   const [stdSortKey, setStdSortKey] = useState<StdSortKey>("lineup");
   const [stdSortAsc, setStdSortAsc] = useState(true);
-  const [showBench, setShowBench] = useState(false);
+  const [showBench, setShowBench] = useState(true);
+
+  // Pitcher override: use external (shared game center state) or internal
+  const [internalOverridePitcherId, setInternalOverridePitcherId] = useState<number | null>(null);
+  // When battingSide is "home", opposing pitcher is the away pitcher, and vice versa
+  const overridePitcherId = externalPitcherOverrides
+    ? (battingSide === "home" ? externalPitcherOverrides.awayPitcherId : externalPitcherOverrides.homePitcherId)
+    : internalOverridePitcherId;
+  const setOverridePitcherId = React.useCallback((id: number | null) => {
+    if (externalPitcherOverrides) {
+      if (battingSide === "home") {
+        externalPitcherOverrides.setAwayPitcherId(id);
+      } else {
+        externalPitcherOverrides.setHomePitcherId(id);
+      }
+    } else {
+      setInternalOverridePitcherId(id);
+    }
+  }, [externalPitcherOverrides, battingSide]);
 
   // Odds column state
   const [oddsMarket, setOddsMarket] = useState("player_home_runs");
@@ -2745,7 +3084,19 @@ export function MlbBatterVsPitcher({
     battingSide,
     sample,
     statSeason,
+    pitcherId: overridePitcherId,
   });
+
+  // Pitching team ID for the pitcher dropdown
+  const pitchingTeamId = game
+    ? (battingSide === "home" ? game.away_team.id : game.home_team.id)
+    : null;
+  const { data: teamPitchers } = useTeamPitchers(pitchingTeamId);
+
+  // Reset internal pitcher override when game or side changes (external is handled by parent)
+  React.useEffect(() => {
+    if (!externalPitcherOverrides) setInternalOverridePitcherId(null);
+  }, [selectedGameId, battingSide, externalPitcherOverrides]);
   const selectedGame = useMemo(
     () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
     [games, selectedGameId]
@@ -2845,6 +3196,26 @@ export function MlbBatterVsPitcher({
     return base;
   }, [pitchFilters, handFilter]);
 
+  // Helper: get active Statcast bucket based on hand/pitch filters
+  // statcast_splits now respects the active sample filter (L15/L30/L7/season)
+  const getActiveStatcast = useCallback((b: BatterMatchup) => {
+    const splits = b.statcast_splits;
+    if (!splits) return null;
+
+    // Pitch filter takes priority — look up by_pitch bucket
+    if (pitchFilters.length === 1 && splits.by_pitch) {
+      const bucket = splits.by_pitch[pitchFilters[0]];
+      if (bucket) return bucket;
+    }
+
+    // Hand filter
+    if (handFilter === "rhp" && splits.vs_rhp) return splits.vs_rhp;
+    if (handFilter === "lhp" && splits.vs_lhp) return splits.vs_lhp;
+
+    // Default: overall (null = BatterRow falls back to batter.statcast_*)
+    return null;
+  }, [pitchFilters, handFilter]);
+
   const handleStdSort = useCallback((key: StdSortKey) => {
     if (stdSortKey === key) {
       setStdSortAsc(!stdSortAsc);
@@ -2857,12 +3228,12 @@ export function MlbBatterVsPitcher({
   const sortedBatters = useMemo(() => {
     const arr = [...batters];
     arr.sort((a, b) => {
-      const va = stdSortVal(a, stdSortKey, getBatterStats);
-      const vb = stdSortVal(b, stdSortKey, getBatterStats);
+      const va = stdSortVal(a, stdSortKey, getBatterStats, getActiveStatcast);
+      const vb = stdSortVal(b, stdSortKey, getBatterStats, getActiveStatcast);
       return stdSortAsc ? va - vb : vb - va;
     });
     return arr;
-  }, [batters, stdSortKey, stdSortAsc, getBatterStats]);
+  }, [batters, stdSortKey, stdSortAsc, getBatterStats, getActiveStatcast]);
 
   // Split into starters (lineup 1-9) and bench
   const starters = useMemo(() =>
@@ -2889,6 +3260,12 @@ export function MlbBatterVsPitcher({
       if (withData.length === 0) return null;
       const avg = (arr: { avg: number | null }[]) => { const v = arr.filter((s) => s.avg != null); return v.length > 0 ? v.reduce((sum, s) => sum + s.avg!, 0) / v.length : null; };
       const mean = (arr: (number | null)[]) => { const v = arr.filter((x): x is number => x != null); return v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+      // Statcast L15 averages
+      const scBuckets = group.map((b) => getActiveStatcast(b) ?? {
+        avg_ev: b.statcast_avg_ev, hard_hit_pct: b.statcast_hard_hit_pct,
+        barrel_pct: b.statcast_barrel_pct, sweet_spot_pct: b.statcast_sweet_spot_pct,
+        max_ev: b.statcast_max_ev, contact_pct: null,
+      });
       return {
         avg: avg(withData),
         slg: mean(withData.map((s) => s.slg)),
@@ -2900,6 +3277,12 @@ export function MlbBatterVsPitcher({
         k_pct: mean(group.map((b) => b.k_pct)),
         bb_pct: mean(group.map((b) => b.bb_pct)),
         count: group.length,
+        // L15 Statcast averages
+        sc_ev: mean(scBuckets.map((s) => s.avg_ev ?? null)),
+        sc_hh: mean(scBuckets.map((s) => s.hard_hit_pct ?? null)),
+        sc_brl: mean(scBuckets.map((s) => s.barrel_pct ?? null)),
+        sc_ss: mean(scBuckets.map((s) => s.sweet_spot_pct ?? null)),
+        sc_max: mean(scBuckets.map((s) => s.max_ev ?? null)),
       };
     }
 
@@ -3200,7 +3583,7 @@ export function MlbBatterVsPitcher({
                       )}
                       {gameOdds && <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-700/30 shrink-0" />}
                       {selectedGame && (
-                        <span className="text-[11px] text-neutral-400 tabular-nums">{selectedGame.game_status}</span>
+                        <span className="text-[11px] text-neutral-400 tabular-nums">{formatMlbGameStatusForUser(selectedGame)}</span>
                       )}
                       {isFetching && !matchupLoading && (
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
@@ -3307,25 +3690,16 @@ export function MlbBatterVsPitcher({
                         vulnerabilityTags={(summary?.pitcher_tags ?? []).filter((t) => t.type === "vulnerability" && /hittable|SLG/i.test(t.label))}
                         gameId={selectedGameId}
                         hasSharpAccess={hasSharpAccess}
+                        teamPitchers={teamPitchers ?? undefined}
+                        onChangePitcher={setOverridePitcherId}
+                        isOverride={overridePitcherId != null}
                       />
                     </div>
                   ) : (
-                    <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-                          <span className="text-xl text-neutral-400 dark:text-neutral-600">?</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">Pitcher TBD</p>
-                          <p className="text-xs text-neutral-400">Starting pitcher has not been announced</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-3 w-3/4 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                        <div className="h-3 w-1/2 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                        <div className="h-3 w-2/3 rounded bg-neutral-200/60 dark:bg-neutral-800/40" />
-                      </div>
-                    </div>
+                    <TbdPitcherCard
+                      teamPitchers={teamPitchers ?? undefined}
+                      onChangePitcher={setOverridePitcherId}
+                    />
                   )}
                 </div>
 
@@ -3447,20 +3821,23 @@ export function MlbBatterVsPitcher({
                             propScores={propScoreMap.get(b.player_id)}
                             scoreMarket={activePropMarket}
                             zebra={idx % 2 === 1}
+                            activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                           />
                         ))}
                         {hasLineup && benchPlayers.length > 0 && (
                           <>
                             <button
                               onClick={() => setShowBench(!showBench)}
-                              className="w-full flex items-center justify-center gap-2 py-3 mt-1 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
+                              className="w-full flex items-center gap-3 px-4 py-2.5 bg-neutral-200/60 dark:bg-neutral-700/40 border-y-2 border-neutral-300/80 dark:border-neutral-600/60"
                             >
-                              <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
-                                {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                              <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-neutral-500 dark:text-neutral-400 shrink-0">
+                                Bench ({benchPlayers.length})
                               </span>
-                              <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                              <svg className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                 <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
+                              <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
                             </button>
                             {showBench && benchPlayers.map((b, idx) => (
                               <BatterRow
@@ -3477,55 +3854,66 @@ export function MlbBatterVsPitcher({
                                 zebra={idx % 2 === 1}
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
+                                activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                               />
                             ))}
                           </>
                         )}
                       </div>
                     ) : (
-                      <div className="rounded-xl bg-neutral-50/50 dark:bg-neutral-900/80 border border-neutral-200/60 dark:border-neutral-800/50 overflow-x-auto shadow-sm">
+                      <div className="rounded-xl bg-neutral-50/50 dark:bg-neutral-900/80 border border-neutral-200/60 dark:border-neutral-800/50 shadow-sm">
+                        {/* Lineup status — fixed, not scrollable */}
+                        {!matchupLoading && batters.length > 0 && (
+                          <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-neutral-900 border-b border-neutral-200/40 dark:border-neutral-800/40 rounded-t-xl">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 text-[10px] font-semibold",
+                              isLineupConfirmed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                            )}>
+                              {isLineupConfirmed ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Confirmed
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Projected
+                                </>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => refetch()}
+                              disabled={isFetching}
+                              className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center gap-1"
+                            >
+                              <svg className={cn("w-2.5 h-2.5", isFetching && "animate-spin")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+                              {isFetching ? "..." : "Refresh"}
+                            </button>
+                          </div>
+                        )}
+                        {/* Scrollable table */}
+                        <div className="overflow-x-auto @container/tbl">
                         <table className="w-full border-separate border-spacing-0">
-                          <thead>
-                            {/* Lineup status row */}
-                            {!matchupLoading && batters.length > 0 && (
-                              <tr>
-                                <th colSpan={13} className="px-4 py-2 bg-white dark:bg-neutral-900 border-b border-neutral-200/40 dark:border-neutral-800/40">
-                                  <div className="flex items-center justify-between">
-                                    <span className={cn(
-                                      "inline-flex items-center gap-1.5 text-[10px] font-semibold",
-                                      isLineupConfirmed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                                    )}>
-                                      {isLineupConfirmed ? (
-                                        <>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                          Confirmed
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                          Projected
-                                        </>
-                                      )}
-                                    </span>
-                                    <button
-                                      onClick={() => refetch()}
-                                      disabled={isFetching}
-                                      className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center gap-1"
-                                    >
-                                      <svg className={cn("w-2.5 h-2.5", isFetching && "animate-spin")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
-                                      {isFetching ? "..." : "Refresh"}
-                                    </button>
-                                  </div>
-                                </th>
-                              </tr>
-                            )}
+                          <thead className="sticky top-0 z-20">
                             {(() => {
                               const sThCls = "px-1.5 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-neutral-400 dark:text-neutral-500 text-center cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors select-none whitespace-nowrap";
                               return (
+                                <>
+                                {/* Group header row — inside table so divider aligns perfectly */}
+                                <tr className="bg-white dark:bg-neutral-900/95">
+                                  <th colSpan={2} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95 sticky left-0 z-10">
+                                    Season
+                                  </th>
+                                  <th colSpan={9} className="border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95" />
+                                  <th colSpan={5} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-500 text-left border-b border-neutral-200/40 dark:border-neutral-700/20 border-l-2 border-neutral-300/80 dark:border-neutral-600/60 bg-white dark:bg-neutral-900/95">
+                                    Last 15 ABs
+                                  </th>
+                                  <th colSpan={2} className="border-b border-neutral-200/40 dark:border-neutral-700/20 bg-white dark:bg-neutral-900/95" />
+                                </tr>
                                 <tr className="bg-white dark:bg-neutral-900/60 border-b border-neutral-200/60 dark:border-neutral-700/20">
-                                  <th className={cn(sThCls, "text-center pl-3 pr-1 w-8")} onClick={() => handleStdSort("lineup")}>#</th>
-                                  <th className={cn(sThCls, "text-left px-2")}>Batter</th>
-                                  <th className={sThCls} onClick={() => handleStdSort("ba")}>BA{stdSortIcon("ba")}</th>
+                                  <th className={cn(sThCls, "text-center pl-3 pr-1 w-8 sticky left-0 z-10 bg-white dark:bg-neutral-900/95")} onClick={() => handleStdSort("lineup")}>#</th>
+                                  <th className={cn(sThCls, "text-left px-2 sticky left-8 z-10 bg-white dark:bg-neutral-900/95")}>Batter</th>
+                                  <th className={cn(sThCls, "pl-3")} onClick={() => handleStdSort("ba")}>BA{stdSortIcon("ba")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("hr")}>HR{stdSortIcon("hr")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("slg")}>SLG{stdSortIcon("slg")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("iso")}>ISO{stdSortIcon("iso")}</th>
@@ -3534,6 +3922,22 @@ export function MlbBatterVsPitcher({
                                   <th className={sThCls} onClick={() => handleStdSort("woba")}>wOBA{stdSortIcon("woba")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("k_pct")}>K%{stdSortIcon("k_pct")}</th>
                                   <th className={sThCls} onClick={() => handleStdSort("bb_pct")}>BB%{stdSortIcon("bb_pct")}</th>
+                                  {/* Statcast columns — L15 batted balls, sortable */}
+                                  <th className={cn(sThCls, "border-l-2 border-neutral-300/80 dark:border-neutral-600/60")} onClick={() => handleStdSort("sc_ev")}>
+                                    <Tooltip content="Avg Exit Velocity. Last 15 batted balls." side="top"><span className="cursor-help">EV{stdSortIcon("sc_ev")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_hh")}>
+                                    <Tooltip content="Hard Hit Rate — batted balls ≥95 mph. Last 15 batted balls." side="top"><span className="cursor-help">HH%{stdSortIcon("sc_hh")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_brl")}>
+                                    <Tooltip content="Barrel Rate — optimal EV + launch angle. Last 15 batted balls." side="top"><span className="cursor-help">BRL%{stdSortIcon("sc_brl")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_ss")}>
+                                    <Tooltip content="Sweet Spot Rate — launch angle 8–32°. Last 15 batted balls." side="top"><span className="cursor-help">SS%{stdSortIcon("sc_ss")}</span></Tooltip>
+                                  </th>
+                                  <th className={sThCls} onClick={() => handleStdSort("sc_max")}>
+                                    <Tooltip content="Max Exit Velocity. Last 15 batted balls." side="top"><span className="cursor-help">Max{stdSortIcon("sc_max")}</span></Tooltip>
+                                  </th>
                                   {/* Odds column header — clickable dropdown */}
                                   <th ref={oddsMenuRef} className="px-1.5 py-2 text-right relative">
                                     <button
@@ -3591,6 +3995,7 @@ export function MlbBatterVsPitcher({
                                   </th>
                                   <th className="w-8" />
                                 </tr>
+                                </>
                               );
                             })()}
                           </thead>
@@ -3613,6 +4018,7 @@ export function MlbBatterVsPitcher({
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
                                 zebra={idx % 2 === 1}
+                                activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                               />
                             ))}
                             {/* Lineup summary — starters only */}
@@ -3657,24 +4063,42 @@ export function MlbBatterVsPitcher({
                                 <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", bbPctColor(row.data.bb_pct ?? null))}>
                                   {row.data.bb_pct != null ? `${row.data.bb_pct.toFixed(1)}%` : "-"}
                                 </td>
+                                {/* L15 Statcast summary */}
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums border-l-2 border-neutral-300/80 dark:border-neutral-600/60", row.isFirst ? "font-bold" : "font-medium", evColor(row.data.sc_ev ?? null))}>
+                                  {row.data.sc_ev != null ? row.data.sc_ev.toFixed(1) : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", hardHitColor(row.data.sc_hh ?? null))}>
+                                  {row.data.sc_hh != null ? `${row.data.sc_hh.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", barrelColor(row.data.sc_brl ?? null))}>
+                                  {row.data.sc_brl != null ? `${row.data.sc_brl.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", statText(row.data.sc_ss ?? null, { elite: 38, good: 33, poor: 26, bad: 20 }) || "text-neutral-600 dark:text-neutral-400")}>
+                                  {row.data.sc_ss != null ? `${row.data.sc_ss.toFixed(1)}%` : "-"}
+                                </td>
+                                <td className={cn("px-1.5 py-1.5 text-xs text-center tabular-nums", row.isFirst ? "font-bold" : "font-medium", statText(row.data.sc_max ?? null, { elite: 112, good: 108, poor: 102, bad: 96 }) || "text-neutral-600 dark:text-neutral-400")}>
+                                  {row.data.sc_max != null ? row.data.sc_max.toFixed(1) : "-"}
+                                </td>
                                 <td />
                               </tr>
                             ))}
-                            {/* Bench expand row */}
+                            {/* Bench section */}
                             {hasLineup && benchPlayers.length > 0 && (
                               <>
                                 <tr>
-                                  <td colSpan={13} className="px-0 py-0">
+                                  <td colSpan={20} className="px-0 py-0">
                                     <button
                                       onClick={() => setShowBench(!showBench)}
-                                      className="w-full flex items-center justify-center gap-2 py-2.5 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors border-t border-dashed border-neutral-200 dark:border-neutral-700/60"
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 bg-neutral-200/60 dark:bg-neutral-700/40 border-y-2 border-neutral-300/80 dark:border-neutral-600/60 cursor-pointer hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50 transition-colors"
                                     >
-                                      <span className="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/40">
-                                        {showBench ? "Hide Bench" : `Bench (${benchPlayers.length})`}
+                                      <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
+                                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-neutral-500 dark:text-neutral-400 shrink-0">
+                                        Bench ({benchPlayers.length})
                                       </span>
-                                      <svg className={cn("w-3 h-3 transition-transform", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
+                                      <svg className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", showBench && "rotate-180")} viewBox="0 0 12 12" fill="none">
                                         <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                       </svg>
+                                      <div className="flex-1 h-px bg-neutral-300 dark:bg-neutral-600" />
                                     </button>
                                   </td>
                                 </tr>
@@ -3696,12 +4120,14 @@ export function MlbBatterVsPitcher({
                                     propScores={propScoreMap.get(b.player_id)}
                                     scoreMarket={activePropMarket}
                                     zebra={idx % 2 === 1}
+                                    activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                                   />
                                 ))}
                               </>
                             )}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )
                   ) : !matchupLoading ? (

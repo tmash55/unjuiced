@@ -4,6 +4,7 @@ import { useMemo, type CSSProperties } from "react";
 import { AlertTriangle, CloudRain, Thermometer, Wind } from "lucide-react";
 import { MlbWeatherReportRow } from "@/hooks/use-mlb-weather-report";
 import { cn } from "@/lib/utils";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 
 type Point = [number, number];
 
@@ -69,18 +70,6 @@ function normalizeToViewbox(groups: Point[][]): Point[][] {
       VIEWBOX_HEIGHT - offsetY - (y - minY) * scale,
     ])
   );
-}
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "-";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
 }
 
 function formatImpactLabel(value: string | null): string {
@@ -444,7 +433,7 @@ export function LivingStadiumCard({ row, windOverride }: {
   const homeColor = row.homeTeamPrimaryColor ?? "#1e3a5f";
   const gameSubLabel =
     row.venueCity && row.venueState ? `${row.venueName || "Unknown Venue"} • ${row.venueCity}, ${row.venueState}` : row.venueName || "Unknown Venue";
-  const gameTime = getETTime(row.gameDatetime);
+  const gameTime = formatGameTimeForUser(row.gameDatetime, { fallback: "-", includeTimeZoneName: true });
   const insightDrivers = keyDrivers(row);
 
   return (
@@ -503,12 +492,36 @@ export function LivingStadiumCard({ row, windOverride }: {
             <p className="text-[10px] uppercase tracking-[0.1em] font-semibold opacity-70">Edge Signal</p>
             <p className="text-sm font-bold leading-tight">{formatImpactLabel(row.totalImpact)}</p>
           </div>
-          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrImpactScore))}>
-            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR Delta</p>
-            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrImpactScore))}>
-              {formatSigned(row.hrImpactScore, 1)}
+          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrPctDelta ?? row.hrImpactScore))}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR</p>
+            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrPctDelta ?? row.hrImpactScore))}>
+              {row.hrPctDelta != null ? `${row.hrPctDelta > 0 ? "+" : ""}${row.hrPctDelta.toFixed(1)}%` : formatSigned(row.hrImpactScore, 1)}
             </p>
           </div>
+          {row.runsPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.runsPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">Runs</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.runsPctDelta))}>
+                {row.runsPctDelta > 0 ? "+" : ""}{row.runsPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.xbhPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.xbhPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">XBH</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.xbhPctDelta))}>
+                {row.xbhPctDelta > 0 ? "+" : ""}{row.xbhPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
+          {row.singlesPctDelta != null && (
+            <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[70px]", scorePanelClass(row.singlesPctDelta))}>
+              <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">1B</p>
+              <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.singlesPctDelta))}>
+                {row.singlesPctDelta > 0 ? "+" : ""}{row.singlesPctDelta.toFixed(1)}%
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900/60 dark:to-neutral-900">
@@ -563,7 +576,7 @@ export function LivingStadiumCard({ row, windOverride }: {
                   refY="2.5"
                   orient="auto"
                 >
-                  <path d="M0,0.5 L5,2.5 L0,4.5 z" fill="rgba(224, 242, 254, 0.9)" />
+                  <path d="M0,0.5 L5,2.5 L0,4.5 z" className="fill-slate-500/70 dark:fill-sky-200/80" />
                 </marker>
                 <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
@@ -580,13 +593,16 @@ export function LivingStadiumCard({ row, windOverride }: {
               <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-heat)`} />
 
               <g transform={`rotate(${windFlowRotationDeg} ${VIEWBOX_WIDTH / 2} ${VIEWBOX_HEIGHT / 2})`}>
-                {[...Array(14)].map((_, index) => {
+                {[...Array(22)].map((_, index) => {
                   const row_i = index;
-                  // Stagger starting positions across the field width
-                  const startX = 20 + (row_i % 3) * 60;
-                  const startY = 16 + row_i * 13;
-                  // Vary particle length by row for natural look
-                  const particleLen = 14 + (row_i % 3) * 6;
+                  // Organic stagger — 4-column grid with offsets for natural feel
+                  const col = row_i % 4;
+                  const rowGroup = Math.floor(row_i / 4);
+                  const startX = 10 + col * 45 + (rowGroup % 2) * 20;
+                  const startY = 8 + row_i * 8.5;
+                  // Vary particle length: some short dashes, some long streaks
+                  const particleLen = row_i % 5 === 0 ? 6 : row_i % 3 === 0 ? 18 : 12 + (row_i % 4) * 3;
+                  const particleOpacity = row_i % 4 === 0 ? windOpacity * 0.5 : windOpacity;
                   return (
                     <g key={`wind-particle-row-${row_i}`} transform={`translate(${startX} ${startY})`}>
                       <g
@@ -594,13 +610,13 @@ export function LivingStadiumCard({ row, windOverride }: {
                         style={
                           {
                             animationDuration: windFlowDuration,
-                            animationDelay: `${row_i * 0.14}s`,
-                            opacity: windOpacity,
+                            animationDelay: `${row_i * 0.09}s`,
+                            opacity: particleOpacity,
                             "--wind-shift": `${windShiftPx}px`,
                           } as CSSProperties
                         }
                       >
-                        <line x1={-particleLen} y1={0} x2={particleLen} y2={0} className="living-wind-particle-line" markerEnd={`url(#${cardId}-particle-tip)`} />
+                        <line x1={-particleLen} y1={0} x2={particleLen} y2={0} className="living-wind-particle-line" markerEnd={particleLen > 8 ? `url(#${cardId}-particle-tip)` : undefined} />
                       </g>
                     </g>
                   );
@@ -922,7 +938,7 @@ export function LivingStadiumCard({ row, windOverride }: {
         }
 
         .living-wind-particle-line {
-          stroke: rgba(186, 230, 253, 0.65);
+          stroke: rgba(51, 65, 85, 0.5);
           stroke-width: 1.5;
           stroke-linecap: round;
         }

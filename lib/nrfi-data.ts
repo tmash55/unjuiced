@@ -207,6 +207,7 @@ export interface Sportsbook {
 export interface GameCard {
   gameId: number;
   gameDate: string;
+  gameDatetime: string | null;
   gameTime: string;
   lean: Lean;
   grade: string;           // "A+", "A", "B", "C", etc.

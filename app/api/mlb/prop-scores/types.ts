@@ -1,8 +1,10 @@
 export interface PropScorePlayer {
   player_id: number;
+  odds_player_id?: string | null;
   player_name: string;
   player_type: "batter" | "pitcher";
   team_abbr: string;
+  player_position?: string | null;
   game_id: number;
   game_date: string;
   market: string;
@@ -15,6 +17,8 @@ export interface PropScorePlayer {
   batting_order: number | null;
   lineup_status: "confirmed" | "projected" | "roster" | null;
   line: number | null;
+  opening_line?: number | null;
+  graded_line?: number | null;
   best_odds: number | null;
   best_odds_book: string | null;
   best_odds_decimal: number | null;
@@ -27,6 +31,8 @@ export interface PropScorePlayer {
     under: number | null;
     link?: string | null;
     mobile_link: string | null;
+    sgp?: string | null;
+    odd_id?: string | null;
   }> | null;
   // Results (populated after game resolves)
   actual_stat?: number | null;

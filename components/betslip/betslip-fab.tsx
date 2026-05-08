@@ -37,8 +37,8 @@ export function BetslipFab() {
           "rounded-full shadow-lg transition-all duration-300 group",
           "ring-1 ring-brand/20 hover:ring-brand/40",
           hasItems
-            ? "bg-brand hover:bg-brand/90 text-white h-12 px-4 hover:px-5"
-            : "bg-neutral-800 dark:bg-neutral-800 hover:bg-brand text-neutral-400 hover:text-white h-10 px-3 hover:px-4",
+            ? "bg-brand hover:bg-brand/90 text-on-primary h-12 px-4 hover:px-5"
+            : "bg-neutral-800 dark:bg-neutral-800 hover:bg-brand text-neutral-400 hover:text-on-primary h-10 px-3 hover:px-4",
         )}
         aria-label={`Open betslip (${count} plays)`}
       >
@@ -111,7 +111,7 @@ export function BetslipHeaderButton() {
           <span
             className={cn(
               "absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center",
-              "rounded-full bg-brand px-1 text-[9px] font-black text-white",
+              "rounded-full bg-brand px-1 text-[9px] font-black text-on-primary",
               pulse && "animate-bounce"
             )}
           >

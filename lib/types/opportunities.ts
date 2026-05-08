@@ -95,6 +95,7 @@ export interface Opportunity {
   id: string;              // Unique key for React
   sport: Sport;
   eventId: string;
+  gameId?: number | string | null;
   player: string;
   playerId: string | null; // Player's unique ID (UUID from odds system)
   team: string | null;     // Player's team abbreviation
@@ -263,6 +264,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
     id: `${raw.sport}:${raw.event_id}:${raw.player}:${raw.market}:${raw.line}:${raw.side}`,
     sport: raw.sport as Sport,
     eventId: raw.event_id as string,
+    gameId: (eventData?.game_id as number | string | null | undefined) ?? (raw.game_id as number | string | null | undefined) ?? null,
     player: (raw.player as string) || "",
     playerId: (raw.player_id as string) || null,
     team: (raw.team as string) || null,

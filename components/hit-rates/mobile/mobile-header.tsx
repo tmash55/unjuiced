@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { 
+import {
   ChevronDown, 
   ChevronUp,
   SlidersHorizontal, 
@@ -22,33 +22,15 @@ import {
   Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTeamLogoUrl as getMappedTeamLogoUrl } from "@/lib/data/team-mappings";
 import { normalizeGameId } from "@/components/hit-rates/games-filter-dropdown";
-
-const MARKET_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "player_points", label: "PTS" },
-  { value: "player_rebounds", label: "REB" },
-  { value: "player_assists", label: "AST" },
-  { value: "1st_quarter_player_points", label: "1Q PTS" },
-  { value: "1st_quarter_player_rebounds", label: "1Q REB" },
-  { value: "1st_quarter_player_assists", label: "1Q AST" },
-  { value: "player_threes_made", label: "3PM" },
-  { value: "player_points_rebounds_assists", label: "PRA" },
-  { value: "player_points_rebounds", label: "P+R" },
-  { value: "player_points_assists", label: "P+A" },
-  { value: "player_rebounds_assists", label: "R+A" },
-  { value: "player_steals", label: "STL" },
-  { value: "player_blocks", label: "BLK" },
-  { value: "player_blocks_steals", label: "B+S" },
-  { value: "player_turnovers", label: "TO" },
-];
 
 const SPORT_OPTIONS = [
   { value: "nba", label: "NBA", enabled: true },
   { value: "nfl", label: "NFL", enabled: false },
   { value: "nhl", label: "NHL", enabled: false },
   { value: "wnba", label: "WNBA", enabled: false },
-  { value: "mlb", label: "MLB", enabled: false },
+  { value: "mlb", label: "MLB", enabled: true },
 ];
 
 interface GameOption {
@@ -98,9 +80,9 @@ interface MobileHeaderProps {
 }
 
 // Helper to get team logo URL
-const getTeamLogoUrl = (tricode: string): string => {
+const getTeamLogoUrl = (tricode: string, sport: string): string => {
   if (!tricode) return '';
-  return `/team-logos/nba/${tricode.toUpperCase()}.svg`;
+  return getMappedTeamLogoUrl(tricode, sport);
 };
 
 // Helper to get today and tomorrow dates in ET
@@ -315,10 +297,12 @@ function DateHeader({ label }: { label: string }) {
 
 // Game option item with logos - Premium
 function GameOptionItem({
+  sport,
   game,
   selected,
   onClick,
 }: {
+  sport: string;
   game: GameOption;
   selected: boolean;
   onClick: () => void;
@@ -348,7 +332,7 @@ function GameOptionItem({
         <div className="flex items-center gap-2">
           {game.awayTeam && (
             <img
-              src={getTeamLogoUrl(game.awayTeam)}
+              src={getTeamLogoUrl(game.awayTeam, sport)}
               alt={game.awayTeam}
               className="h-8 w-8 object-contain drop-shadow-sm"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -367,7 +351,7 @@ function GameOptionItem({
         <div className="flex items-center gap-2">
           {game.homeTeam && (
             <img
-              src={getTeamLogoUrl(game.homeTeam)}
+              src={getTeamLogoUrl(game.homeTeam, sport)}
               alt={game.homeTeam}
               className="h-8 w-8 object-contain drop-shadow-sm"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -671,7 +655,7 @@ export function MobileHeader({
   const selectAllMarkets = () => onMarketsChange(marketOptions.map(m => m.value));
   const deselectAllMarkets = () => {
     // Default back to points when deselecting all
-    onMarketsChange(["player_points"]);
+    onMarketsChange([marketOptions[0]?.value || "player_points"]);
   };
   
   const gamesLabel = selectedGameIds.length === 0 
@@ -691,6 +675,10 @@ export function MobileHeader({
   const sortDir = currentSort?.dir;
 
   const allMarketsSelected = selectedMarkets.length === marketOptions.length;
+  const marketChips = [{ value: "all", label: "All" }, ...marketOptions];
+  const hasCategorizedMarkets = marketOptions.some((m) =>
+    Object.values(MARKET_CATEGORIES).some((category) => category.markets.includes(m.value))
+  );
 
   return (
     <>
@@ -750,10 +738,10 @@ export function MobileHeader({
 
               {/* Row 2: Market Selection - Single select (tap to select only that market) */}
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-                {MARKET_OPTIONS.map((market) => {
+                {marketChips.map((market) => {
                   // Handle "All" selection
                   const isAll = market.value === "all";
-                  const allMarketsCount = MARKET_OPTIONS.length - 1; // Exclude "all" itself
+                  const allMarketsCount = marketOptions.length;
                   const isAllSelected = selectedMarkets.length === allMarketsCount;
                   const isOnlyThisSelected = selectedMarkets.length === 1 && selectedMarkets[0] === market.value;
                   
@@ -769,9 +757,9 @@ export function MobileHeader({
                         if (isAll) {
                           // Toggle all markets
                           if (isAllSelected) {
-                            onMarketsChange(["player_points"]);
+                            onMarketsChange([marketOptions[0]?.value || "player_points"]);
                           } else {
-                            const allMarketValues = MARKET_OPTIONS.filter(m => m.value !== "all").map(m => m.value);
+                            const allMarketValues = marketOptions.map((m) => m.value);
                             onMarketsChange(allMarketValues);
                           }
                         } else {
@@ -989,6 +977,7 @@ export function MobileHeader({
                   {gamesByDate.todayGames.map((game) => (
                     <GameOptionItem
                       key={game.id}
+                      sport={sport}
                       game={game}
                       selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
@@ -1005,6 +994,7 @@ export function MobileHeader({
                   {gamesByDate.tomorrowGames.map((game) => (
                     <GameOptionItem
                       key={game.id}
+                      sport={sport}
                       game={game}
                       selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
@@ -1021,6 +1011,7 @@ export function MobileHeader({
                   {gamesByDate.otherGames.map((game) => (
                     <GameOptionItem
                       key={game.id}
+                      sport={sport}
                       game={game}
                       selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
@@ -1081,7 +1072,7 @@ export function MobileHeader({
         </div>
         
         {/* Markets grouped by category */}
-        {Object.entries(MARKET_CATEGORIES).map(([key, category]) => {
+        {hasCategorizedMarkets ? Object.entries(MARKET_CATEGORIES).map(([key, category]) => {
           const categoryMarkets = marketOptions.filter(m => 
             category.markets.includes(m.value)
           );
@@ -1155,7 +1146,18 @@ export function MobileHeader({
               </div>
             </div>
           );
-        })}
+        }) : (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {marketOptions.map((market) => (
+              <MarketChip
+                key={market.value}
+                label={market.label}
+                selected={selectedMarkets.includes(market.value)}
+                onClick={() => toggleMarket(market.value)}
+              />
+            ))}
+          </div>
+        )}
       </DropdownPanel>
 
       {/* Sort Dropdown Panel - Premium Design */}

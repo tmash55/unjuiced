@@ -38,7 +38,7 @@ export type FavoriteChangesMap = Map<string, FavoriteChange>;
 // Full refreshed data for a favorite
 export interface RefreshedFavoriteData {
   best: { price: number; book: string; link: string | null; sgp: string | null } | null;
-  allBooks: Record<string, { price: number; link: string | null; sgp: string | null }>;
+  allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }>;
   isAvailable: boolean;
 }
 
@@ -178,12 +178,13 @@ export function useFavoritesStream({
     for (const item of response.refreshed || []) {
       // Build refreshed data
       if (item.is_available && item.all_books?.length > 0) {
-        const allBooks: Record<string, { price: number; link: string | null; sgp: string | null }> = {};
+        const allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }> = {};
         for (const bookOdds of item.all_books) {
           allBooks[bookOdds.book] = {
             price: bookOdds.price,
             link: bookOdds.link,
             sgp: bookOdds.sgp,
+            oddId: bookOdds.odd_id,
           };
         }
         

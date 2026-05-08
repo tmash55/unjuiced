@@ -27,6 +27,7 @@ import { useStateLink } from "@/hooks/use-state-link";
 const SPORT_OPTIONS = [
   { value: "all", label: "All" },
   { value: "nba", label: "NBA" },
+  { value: "wnba", label: "WNBA" },
   { value: "nfl", label: "NFL" },
   { value: "ncaaf", label: "NCAAF" },
   { value: "ncaab", label: "NCAAB" },
@@ -399,22 +400,27 @@ export function MobileEdgeFinder({
           
           <div className="flex items-center gap-1">
             {/* Auto-Refresh Toggle */}
-            {canUseAutoRefresh && onAutoRefreshChange && (
+            {onAutoRefreshChange && (
               <button
                 onClick={() => {
+                  if (!canUseAutoRefresh) return;
                   if (autoRefresh && streamFailed && onStreamReconnect) {
                     onStreamReconnect();
                   } else {
                     onAutoRefreshChange(!autoRefresh);
                   }
                 }}
+                disabled={!canUseAutoRefresh}
+                aria-pressed={autoRefresh}
+                title={canUseAutoRefresh ? (autoRefresh ? "Pause auto-refresh" : "Enable auto-refresh") : "Elite required for auto-refresh"}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase transition-all",
                   autoRefresh
                     ? streamFailed
                       ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
                       : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500",
+                  !canUseAutoRefresh && "opacity-50"
                 )}
               >
                 <span className={cn(

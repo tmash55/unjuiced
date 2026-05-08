@@ -40,9 +40,9 @@ const nbaTools = [
 const mlbTools = [
   {
     icon: IconFileText,
-    title: "Slate Insights",
-    description: "Batter vs pitcher matchup breakdowns",
-    href: "/features/slate-insights",
+    title: "Game Center",
+    description: "Unified MLB matchup research hub",
+    href: "/features/game-center",
     badge: "NEW",
   },
   {

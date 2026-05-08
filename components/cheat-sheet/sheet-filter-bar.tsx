@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect } from "react";
 import { Search, X, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
@@ -47,6 +47,26 @@ export function SegmentedControl<T extends string>({
 /** Vertical divider between filter groups */
 export function FilterDivider() {
   return <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700/40 shrink-0" />;
+}
+
+/** Labeled filter group — small uppercase title sits above the control(s) */
+export function FilterGroup({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5 min-w-0", className)}>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-500 leading-none select-none">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5">{children}</div>
+    </div>
+  );
 }
 
 /** Search input with icon and clear button */
@@ -96,7 +116,7 @@ export function FilterCount({ count, label }: { count: number; label: string }) 
 // ── Date Nav ────────────────────────────────────────────────────────────────
 
 function formatShortDate(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00");
+  const d = new Date(`${getValidDateOrToday(dateStr)}T12:00:00`);
   return d.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -106,6 +126,21 @@ function formatShortDate(dateStr: string): string {
 
 function getTodayET(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function isValidDateValue(dateStr: string | null | undefined): dateStr is string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function getValidDateOrToday(dateStr: string | null | undefined): string {
+  return isValidDateValue(dateStr) ? dateStr : getTodayET();
 }
 
 /** Date navigator with prev/next and calendar picker — always on the left */
@@ -118,13 +153,19 @@ export function DateNav({
   onDateChange: (date: string) => void;
   availableDates?: string[];
 }) {
-  const dateInputRef = useRef<HTMLInputElement>(null);
   const gameDates = useMlbGameDates();
   const availableDates = externalDates ?? gameDates;
+  const safeSelectedDate = getValidDateOrToday(selectedDate);
 
-  let currentIdx = availableDates.indexOf(selectedDate);
+  useEffect(() => {
+    if (selectedDate !== safeSelectedDate) {
+      onDateChange(safeSelectedDate);
+    }
+  }, [onDateChange, safeSelectedDate, selectedDate]);
+
+  let currentIdx = availableDates.indexOf(safeSelectedDate);
   if (currentIdx === -1) {
-    currentIdx = availableDates.findIndex((d) => d > selectedDate);
+    currentIdx = availableDates.findIndex((d) => d > safeSelectedDate);
     if (currentIdx === -1) currentIdx = availableDates.length;
   }
 
@@ -134,30 +175,33 @@ export function DateNav({
   return (
     <div className="flex items-center gap-0.5">
       <button
+        type="button"
         onClick={() => hasPrev && onDateChange(availableDates[currentIdx - 1])}
         disabled={!hasPrev}
         className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronLeft className="w-3.5 h-3.5 text-neutral-500" />
       </button>
+      <div className="group relative">
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors group-hover:bg-neutral-100 group-focus-within:ring-2 group-focus-within:ring-brand/30 dark:group-hover:bg-neutral-800"
+        >
+          <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+          {formatShortDate(safeSelectedDate)}
+        </div>
+        <input
+          type="date"
+          value={safeSelectedDate}
+          aria-label="Choose date"
+          onChange={(e) => {
+            if (e.target.value) onDateChange(getValidDateOrToday(e.target.value));
+          }}
+          className="absolute inset-0 h-full w-full cursor-pointer rounded-md opacity-0"
+        />
+      </div>
       <button
-        onClick={() => dateInputRef.current?.showPicker()}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-      >
-        <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-        {formatShortDate(selectedDate)}
-      </button>
-      <input
-        ref={dateInputRef}
-        type="date"
-        value={selectedDate}
-        onChange={(e) => {
-          if (e.target.value) onDateChange(e.target.value);
-        }}
-        className="sr-only"
-        tabIndex={-1}
-      />
-      <button
+        type="button"
         onClick={() => {
           if (currentIdx < availableDates.length - 1) {
             onDateChange(availableDates[currentIdx + 1]);

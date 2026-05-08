@@ -83,8 +83,9 @@ interface OppositeSide {
 interface Opportunity {
   sport: string;
   event_id: string;
+  game_id: number | string | null;
   timestamp: number;
-  event: { home_team: string; away_team: string; start_time: string } | null;
+  event: { game_id?: number | string | null; home_team: string; away_team: string; start_time: string } | null;
   player: string;
   player_id: string | null;
   team: string | null;
@@ -1012,8 +1013,10 @@ function evRowToOpportunity(
   return {
     sport: row.sport ?? "",
     event_id: row.eid ?? "",
+    game_id: row.ev_data?.game_id ?? row.game_id ?? null,
     timestamp: typeof row.ts === "number" ? row.ts : Date.now(),
     event: row.ev_data ? {
+      game_id: row.ev_data.game_id ?? row.game_id ?? null,
       home_team: row.ev_data.home_team ?? "",
       away_team: row.ev_data.away_team ?? "",
       start_time: row.ev_data.start_time ?? "",

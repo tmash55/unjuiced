@@ -14,6 +14,13 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
+import {
+  buildQuickViewGameContext,
+  getQuickViewSport,
+  normalizeQuickViewMarket,
+  type QuickViewGameContext,
+  type QuickViewSport,
+} from "@/lib/hit-rates/quick-view";
 
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -240,7 +247,7 @@ interface OpportunitiesTableProps {
   /**
    * Callback when a player name is clicked (for opening hit rate modal)
    */
-  onPlayerClick?: (params: { odds_player_id: string; player_name: string; market: string; event_id: string; line: number; odds?: { over?: { price: number; line: number; book?: string; mobileLink?: string | null }; under?: { price: number; line: number; book?: string; mobileLink?: string | null } } }) => void;
+  onPlayerClick?: (params: { sport: QuickViewSport; odds_player_id: string; player_name: string; market: string; event_id: string; line: number; gameContext?: QuickViewGameContext; odds?: { over?: { price: number; line: number; book?: string; mobileLink?: string | null }; under?: { price: number; line: number; book?: string; mobileLink?: string | null } }; liveBookOffers?: Array<{ side: "over" | "under"; book: string; price: number; line?: number | null; url?: string | null; mobileUrl?: string | null; mobileLink?: string | null; decimal?: number | null }> }) => void;
   /**
    * Comparison mode for dynamic column headers
    * - "book" with comparisonLabel = show book name (e.g., "FanDuel")
@@ -319,13 +326,18 @@ const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallbac
 const getTeamLogoUrl = (teamName: string, sport: string): string => {
   if (!teamName) return '';
   const abbr = getStandardAbbreviation(teamName, sport);
-  const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+  const sportKey = sport.toLowerCase();
+  const logoSport = sportKey === 'ncaab'
+    ? 'ncaaf'
+    : sportKey === 'basketball_wnba'
+      ? 'wnba'
+      : sport;
   return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
 };
 
 // Check if sport has team logos
 const hasTeamLogos = (sportKey: string): boolean => {
-  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab', 'mlb'];
+  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'wnba', 'basketball_wnba', 'ncaaf', 'ncaab', 'mlb'];
   return sportsWithLogos.includes(sportKey.toLowerCase());
 };
 
@@ -950,7 +962,8 @@ export function OpportunitiesTable({
       
       case 'selection':
         const isGameProp = opp.player === "game_total" || opp.player === "Game" || !opp.player;
-        const canShowProfile = !isGameProp && opp.sport === "nba" && opp.playerId && onPlayerClick;
+        const quickViewSport = getQuickViewSport(opp.sport);
+        const canShowProfile = !isGameProp && !!quickViewSport && !!opp.playerId && !!opp.player && !!onPlayerClick;
         
         return (
           <td 
@@ -970,16 +983,25 @@ export function OpportunitiesTable({
                 {canShowProfile ? (
                   <Tooltip content="View Profile">
                     <button
-                      onMouseEnter={() => opp.playerId && prefetchPlayer(opp.playerId)}
+                      onMouseEnter={() => quickViewSport === "nba" && opp.playerId && prefetchPlayer(opp.playerId)}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (!quickViewSport) return;
                         onPlayerClick?.({
+                          sport: quickViewSport,
                           odds_player_id: opp.playerId!,
                           player_name: opp.player,
-                          market: opp.market,
+                          market: normalizeQuickViewMarket(quickViewSport, opp.market),
                           event_id: opp.eventId,
                           line: opp.line, // Pass the specific line from edge finder
+                          gameContext: buildQuickViewGameContext({
+                            gameId: opp.gameId,
+                            startTime: opp.gameStart,
+                            homeTeam: opp.homeTeam,
+                            awayTeam: opp.awayTeam,
+                            playerTeam: opp.team,
+                          }),
                           odds: {
                             [opp.side]: {
                               price: parseInt(opp.bestPrice?.replace('+', '') || '0', 10), // American odds as integer
@@ -988,6 +1010,28 @@ export function OpportunitiesTable({
                               mobileLink: opp.bestLink,
                             }
                           } as any,
+                          liveBookOffers: [
+                            ...(opp.side === "over" || opp.side === "under"
+                              ? (opp.allBooks || []).map((book) => ({
+                                  side: opp.side as "over" | "under",
+                                  book: book.book,
+                                  price: book.price,
+                                  line: opp.line,
+                                  mobileLink: book.link,
+                                  decimal: book.decimal,
+                                }))
+                              : []),
+                            ...(opp.oppositeSide?.allBooks && (opp.side === "over" || opp.side === "under")
+                              ? opp.oppositeSide.allBooks.map((book) => ({
+                                  side: opp.side === "over" ? "under" as const : "over" as const,
+                                  book: book.book,
+                                  price: book.price,
+                                  line: opp.line,
+                                  mobileLink: book.link,
+                                  decimal: book.decimal,
+                                }))
+                              : []),
+                          ],
                         });
                       }}
                       className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors truncate"

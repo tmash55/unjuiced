@@ -23,7 +23,6 @@ import {
   IconSelector,
   IconChevronDown,
   IconZzz,
-  IconHammer,
   IconHistory,
   IconBuildingBank,
   IconTags,
@@ -61,8 +60,8 @@ interface NavChildItem {
   label: string
   href: string
   disabled?: boolean
-  comingSoon?: boolean  // 🔨 Under construction - being built
-  offSeason?: boolean   // 💤 Sport is in off-season
+  comingSoon?: boolean
+  offSeason?: boolean
   badge?: string
   sectionLabel?: string // Non-clickable divider label (e.g. "sheets")
 }
@@ -80,8 +79,8 @@ const oddsScreenSports: NavChildItem[] = [
   // Active
   { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
+  { label: "WNBA", href: "/odds/wnba" },
   { label: "NHL", href: "/odds/nhl" },
-  { label: "NCAAB", href: "/odds/ncaab" },
   { label: "NCAA Baseball", href: "/odds/ncaabaseball" },
   { label: "UFC", href: "/odds/ufc" },
   // Soccer
@@ -99,8 +98,8 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Men", href: "/odds/tennis_utr_men" },
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
+  { label: "NCAAB", href: "/odds/ncaab", disabled: true, offSeason: true },
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
 ]
 
@@ -363,7 +362,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                   const tooltipText = child.offSeason
                     ? "Off season"
                     : child.comingSoon
-                      ? "Under construction"
+                      ? "Coming soon"
                       : ""
 
                   return (
@@ -374,8 +373,8 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         >
                           <span>{child.label}</span>
                           {child.comingSoon && (
-                            <span className="flex items-center text-amber-500/70 dark:text-amber-400/70 ml-2">
-                              <IconHammer className="w-3.5 h-3.5" />
+                            <span className="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wide text-amber-600 dark:text-amber-300">
+                              SOON
                             </span>
                           )}
                           {child.offSeason && (
@@ -456,7 +455,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                       const tooltipText = child.offSeason
                         ? "Off season"
                         : child.comingSoon
-                          ? "Under construction"
+                          ? "Coming soon"
                           : ""
 
                       return (
@@ -467,8 +466,8 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                             >
                               <span>{child.label}</span>
                               {child.comingSoon && (
-                                <span className="flex items-center text-amber-500/70 dark:text-amber-400/70">
-                                  <IconHammer className="w-3.5 h-3.5" />
+                                <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wide text-amber-600 dark:text-amber-300">
+                                  SOON
                                 </span>
                               )}
                               {child.offSeason && (

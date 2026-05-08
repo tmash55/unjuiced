@@ -310,8 +310,22 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
     case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_rbis": return game.mlbRbi ?? 0;
     case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "player_stolen_bases": return game.mlbStolenBases ?? 0;
+    case "player_hits__runs__rbis": return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
+    case "player_strikeouts":
     case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed": return game.mlbHitsAllowed ?? 0;
+    case "player_earned_runs":
+    case "pitcher_earned_runs": return game.mlbEarnedRuns ?? 0;
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded": return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed": return game.mlbWalks ?? 0;
     default: return game.pts;
   }
 };
@@ -330,6 +344,8 @@ const isComboMarket = (market: string): boolean => {
     "pts_ast",
     "reb_ast",
     "blk_stl",
+    // MLB combo
+    "player_hits__runs__rbis",
   ].includes(market);
 };
 
@@ -394,6 +410,13 @@ const getComboSegments = (game: BoxScoreGame, market: string): ComboStatSegment[
         { value: game.blk, label: "BLK" },
         { value: game.stl, label: "STL" },
       ];
+    // MLB combo
+    case "player_hits__runs__rbis":
+      return [
+        { value: game.mlbHits ?? 0, label: "H" },
+        { value: game.mlbRunsScored ?? 0, label: "R" },
+        { value: game.mlbRbi ?? 0, label: "RBI" },
+      ];
     default:
       return [];
   }
@@ -433,8 +456,22 @@ const getMarketLabel = (market: string): string => {
     player_home_runs: "hr",
     player_runs_scored: "runs",
     player_rbi: "rbi",
+    player_rbis: "rbi",
     player_total_bases: "tb",
+    player_stolen_bases: "sb",
+    player_hits__runs__rbis: "h+r+rbi",
+    player_strikeouts: "k",
     pitcher_strikeouts: "k",
+    player_hits_allowed: "hits allowed",
+    pitcher_hits_allowed: "hits allowed",
+    player_earned_runs: "earned runs",
+    pitcher_earned_runs: "earned runs",
+    player_outs: "outs",
+    pitcher_outs: "outs",
+    pitcher_outs_recorded: "outs",
+    player_walks_allowed: "walks",
+    pitcher_walks: "walks",
+    pitcher_walks_allowed: "walks",
   };
   return labels[market] || "stat";
 };
@@ -483,6 +520,22 @@ const WNBA_TO_NBA_MARKET: Record<string, string> = {
   blk_stl: "player_blocks_steals",
 };
 
+// MLB-specific formatters (from main).
+const formatMlbRate = (value?: number | null): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  return value.toFixed(3).replace(/^0/, "");
+};
+
+const formatMlbIp = (innings?: number | null): string => {
+  if (innings === null || innings === undefined || !Number.isFinite(innings)) return "-";
+  const outs = Math.round(innings * 3);
+  return `${Math.floor(outs / 3)}.${outs % 3}`;
+};
+
+const getPitcherOuts = (game: BoxScoreGame): number => {
+  return game.mlbPitcherOuts ?? Math.round((game.mlbInningsPitched ?? 0) * 3);
+};
+
 // Get market-specific stats for tooltip
 const getMarketStats = (game: BoxScoreGame, marketRaw: string): React.ReactNode => {
   const market = WNBA_TO_NBA_MARKET[marketRaw] ?? marketRaw;
@@ -491,26 +544,53 @@ const getMarketStats = (game: BoxScoreGame, marketRaw: string): React.ReactNode 
     case "player_home_runs":
     case "player_runs_scored":
     case "player_rbi":
+    case "player_rbis":
     case "player_total_bases":
+    case "player_stolen_bases":
+    case "player_hits__runs__rbis":
       return (
         <>
+          <StatRow label="H/AB" value={`${game.mlbHits ?? 0}/${game.mlbAtBats ?? 0}`} />
           <StatRow label="AB" value={game.mlbAtBats ?? 0} />
           <StatRow label="Hits" value={game.mlbHits ?? 0} />
+          <StatRow label="HR" value={game.mlbHomeRuns ?? 0} />
+          <StatRow label="TB" value={game.mlbTotalBases ?? 0} />
+          <StatRow
+            label="SB / CS"
+            value={`${game.mlbStolenBases ?? 0} / ${game.mlbCaughtStealing ?? 0}`}
+          />
+          {game.mlbStolenBaseAttempts !== null && game.mlbStolenBaseAttempts !== undefined && (
+            <StatRow label="Attempts" value={game.mlbStolenBaseAttempts} />
+          )}
           <StatRow label="Runs" value={game.mlbRunsScored ?? 0} />
           <StatRow label="RBI" value={game.mlbRbi ?? 0} />
-          <StatRow label="Total Bases" value={game.mlbTotalBases ?? 0} />
-          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+          <div className="my-2 border-t border-[#ffffff0d]" />
+          <StatRow label="BB / K" value={`${game.mlbWalks ?? 0} / ${game.mlbStrikeOuts ?? 0}`} />
+          <StatRow label="AVG / OBP / SLG" value={`${formatMlbRate(game.mlbBattingAvg)} / ${formatMlbRate(game.mlbObp)} / ${formatMlbRate(game.mlbSlg)}`} />
         </>
       );
+    case "player_strikeouts":
     case "pitcher_strikeouts":
+    case "player_hits_allowed":
+    case "pitcher_hits_allowed":
+    case "player_earned_runs":
+    case "pitcher_earned_runs":
+    case "player_outs":
+    case "pitcher_outs":
+    case "pitcher_outs_recorded":
+    case "player_walks_allowed":
+    case "pitcher_walks":
+    case "pitcher_walks_allowed":
       return (
         <>
-          <StatRow label="IP" value={game.mlbInningsPitched ?? 0} />
+          <StatRow label="IP / Outs" value={`${formatMlbIp(game.mlbInningsPitched)} / ${getPitcherOuts(game)}`} />
           <StatRow label="Strikeouts" value={game.mlbPitcherStrikeouts ?? 0} />
+          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+          <StatRow label="K-BB" value={(game.mlbPitcherStrikeouts ?? 0) - (game.mlbWalks ?? 0)} />
+          <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Hits Allowed" value={game.mlbHitsAllowed ?? 0} />
           <StatRow label="Earned Runs" value={game.mlbEarnedRuns ?? 0} />
-          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
-          <StatRow label="WHIP" value={game.mlbWhipGame?.toFixed(2) ?? "-"} />
+          <StatRow label="ERA / WHIP" value={`${game.mlbEraGame?.toFixed(2) ?? "-"} / ${game.mlbWhipGame?.toFixed(2) ?? "-"}`} />
         </>
       );
   }
@@ -795,6 +875,8 @@ export function GameLogChart({
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
     } else if (sport === "nba" && market === "player_assists") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialAssists || 0)));
+    } else if (sport === "mlb" && market === "player_stolen_bases") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.mlbStolenBaseAttempts ?? 0)));
     } else if (market === "player_threes_made") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.fg3a || 0)));
     } else {
@@ -815,14 +897,17 @@ export function GameLogChart({
   }, [games, line, market]);
 
   const chartHeight = 200;
-  // Adjust bar width based on number of games
+  // Adjust bar width based on number of items (games + optional upcoming slot).
+  // Use itemCount so the upcoming-game placeholder also shrinks bars when added.
   const itemCount = chartItems.length;
   const barWidth = itemCount <= 5 ? 48 : itemCount <= 10 ? 40 : itemCount <= 20 ? 30 : 24;
+  // MLB uses a wider track per slot for the pitcher-line layout (from main).
+  const trackWidth = sport === "mlb" ? Math.max(barWidth, 44) : barWidth;
 
   // Shared track sizing for bars/logos/dates so all x-axis elements stay aligned.
   const gapPx = 12; // gap-3
   const contentWidth = itemCount > 0
-    ? itemCount * barWidth + (itemCount - 1) * gapPx
+    ? itemCount * trackWidth + (itemCount - 1) * gapPx
     : 0;
 
   const seasonBoundary = useMemo(() => {
@@ -854,7 +939,7 @@ export function GameLogChart({
         el.scrollLeft = 0;
       }
     });
-  }, [itemCount, barWidth, gapPx]);
+  }, [itemCount, trackWidth, gapPx]);
 
   // Calculate line position as percentage (use displayLine for dragging)
   const linePosition = displayLine !== null ? (displayLine / maxStat) * 100 : null;
@@ -1165,7 +1250,7 @@ export function GameLogChart({
               if (dvpRank === null || dvpRank === undefined) return null;
               
               // X = center of each bar within the content area
-              const x = idx * (barWidth + gapSize) + (barWidth / 2);
+              const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
               
               // Y = rank 1 at bottom (tough), rank 30 at top (weak)
               const yPercent = ((dvpRank - 1) / 29) * 100;
@@ -1227,8 +1312,8 @@ export function GameLogChart({
                 const rank = ranksMap.get(game.opponentAbbr);
                 if (rank === null || rank === undefined) return null;
                 
-                // X = center of each bar within the content area
-                const x = idx * (barWidth + gapSize) + (barWidth / 2);
+                // X = center of each game track within the content area
+                const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
                 
                 // Y = rank 1 at bottom (tough), rank 30 at top (weak/favorable)
                 const yPercent = ((rank - 1) / 29) * 100;
@@ -1548,8 +1633,8 @@ export function GameLogChart({
                 collisionPadding={16}
               >
                 <div
-                  className="relative shrink-0 flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
-                  style={{ width: barWidth, height: chartHeight }}
+                  className="relative shrink-0 flex flex-col items-center justify-end cursor-pointer group pointer-events-auto"
+                  style={{ width: trackWidth, height: chartHeight }}
                 >
                   {/* Bar - Stacked for combo markets, solid for single stat */}
                   {isComboMarket(market) ? (
@@ -1689,6 +1774,24 @@ export function GameLogChart({
                             </span>
                           </>
                         )}
+                        {/* Stolen base attempts - opportunity overlay (MLB stolen bases market only) */}
+                        {sport === "mlb" && market === "player_stolen_bases" && (game.mlbStolenBaseAttempts ?? 0) > 0 && (game.mlbStolenBaseAttempts ?? 0) > (game.mlbStolenBases ?? 0) && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-amber-400/25 to-amber-300/15 dark:from-amber-500/25 dark:to-amber-400/15"
+                              style={{
+                                width: barWidth,
+                                height: Math.max((((game.mlbStolenBaseAttempts ?? 0) / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            <span
+                              className="absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold text-amber-400/80 dark:text-amber-300/75"
+                              style={{ bottom: `${(((game.mlbStolenBaseAttempts ?? 0) / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.mlbStolenBaseAttempts}
+                            </span>
+                          </>
+                        )}
                         
                         {/* 3PA - Faded overlay (only for 3PM market) */}
                         {market === "player_threes_made" && game.fg3a > 0 && game.fg3a > game.fg3m && (
@@ -1740,20 +1843,6 @@ export function GameLogChart({
                     </span>
                   )}
 
-                  {/* Opponent logo indicator */}
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5">
-                    {opponentLogo ? (
-                      <img
-                        src={opponentLogo}
-                        alt={game.opponentAbbr}
-                        className="w-4 h-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity"
-                      />
-                    ) : (
-                      <span className="text-[10px] text-neutral-400">
-                        {game.homeAway === "H" ? "H" : "A"}
-                      </span>
-                    )}
-                  </div>
                 </div>
               </Tooltip>
             );
@@ -1790,27 +1879,53 @@ export function GameLogChart({
         )}
       </div>
 
-      {/* X-Axis - Dates */}
-      <div className="mt-8 flex justify-start gap-3">
+      {/* X-Axis - Matchup labels (logo + date + vs/@ ABBR for games,
+          "Next" badge for upcoming slot). Iterates chartItems so the
+          upcoming-game placeholder also gets an x-axis label. */}
+      <div className="mt-3 flex justify-start gap-3">
         {chartItems.map((item, idx) => {
-          const date = item.type === "game" ? item.game.date : item.slot.date;
+          if (item.type === "upcoming") {
+            const date = item.slot.date;
+            return (
+              <div
+                key={`upcoming-date-${date}`}
+                className="flex shrink-0 flex-col items-center gap-1 text-center text-[9px] font-medium text-neutral-600 dark:text-neutral-300"
+                style={{ width: trackWidth }}
+              >
+                <span className="h-5" />
+                <span className="font-mono text-[10px] font-semibold leading-none text-neutral-500 tabular-nums dark:text-slate-400">
+                  {formatShortDate(date)}
+                </span>
+                <span className="text-[8px] font-bold uppercase tracking-wide text-primary dark:text-primary-weak">
+                  Next
+                </span>
+              </div>
+            );
+          }
+          const game = item.game;
+          const opponentLogo = getTeamLogoUrl(game.opponentAbbr, sport);
+          const locationLabel = game.homeAway === "H" ? "vs" : "@";
           return (
             <div
-              key={item.type === "game" ? (item.game.gameId || idx) : `upcoming-date-${date}`}
-              className={cn(
-                "shrink-0 text-center text-[9px] font-medium",
-                item.type === "upcoming"
-                  ? "text-neutral-600 dark:text-neutral-300"
-                  : "text-neutral-400"
-              )}
-              style={{ width: barWidth }}
+              key={game.gameId || idx}
+              className="flex shrink-0 flex-col items-center gap-1 text-center"
+              style={{ width: trackWidth }}
             >
-              <div>{formatShortDate(date)}</div>
-              {item.type === "upcoming" && (
-                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-primary dark:text-primary-weak">
-                  Next
-                </div>
+              {opponentLogo ? (
+                <img
+                  src={opponentLogo}
+                  alt={game.opponentAbbr}
+                  className="h-5 w-5 object-contain opacity-80"
+                />
+              ) : (
+                <span className="h-5 text-[9px] font-bold text-neutral-400">{game.opponentAbbr}</span>
               )}
+              <span className="font-mono text-[10px] font-semibold leading-none text-neutral-500 tabular-nums dark:text-slate-400">
+                {formatShortDate(game.date)}
+              </span>
+              <span className="max-w-full truncate font-mono text-[9px] font-bold uppercase leading-none tracking-[0.02em] text-neutral-400 dark:text-slate-500">
+                <span className={game.homeAway === "H" ? "text-sky-500 dark:text-sky-300" : ""}>{locationLabel}</span> {game.opponentAbbr}
+              </span>
             </div>
           );
         })}
@@ -1890,6 +2005,14 @@ export function GameLogChart({
           <div className="flex items-center gap-1">
             <div className="w-4 border-t border-dashed border-neutral-400/50" />
             <span>{line}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] font-black text-sky-500 dark:text-sky-300">vs</span>
+            <span>Home</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] font-black text-neutral-400 dark:text-slate-500">@</span>
+            <span>Away</span>
           </div>
           {/* DvP Line Toggle - subtle */}
           {opponentDvpRanks && opponentDvpRanks.size > 0 && (

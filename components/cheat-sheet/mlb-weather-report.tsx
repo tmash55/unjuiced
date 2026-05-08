@@ -6,6 +6,7 @@ import { ArrowUpDown, Check, ChevronDown } from "lucide-react";
 import { SheetFilterBar, FilterCount, SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useMlbGameDates } from "@/hooks/use-mlb-game-dates";
 import { cn } from "@/lib/utils";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import { useMlbWeatherReport } from "@/hooks/use-mlb-weather-report";
 import type { MlbWeatherReportRow } from "@/hooks/use-mlb-weather-report";
 import { HREnvironmentDetail } from "@/components/cheat-sheet/mlb/hr-environment-detail";
@@ -32,17 +33,6 @@ function getETDate(offsetDays = 0): string {
     month: "2-digit",
     day: "2-digit",
   }).format(now);
-}
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "-";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function formatLongDate(dateValue: string): string {
@@ -118,7 +108,7 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
   const badgeColor = getScoreBadgeColor(score);
   const awayAbbr = row.awayTeamAbbr || "Away";
   const homeAbbr = row.homeTeamAbbr || "Home";
-  const time = getETTime(row.gameDatetime);
+  const time = formatGameTimeForUser(row.gameDatetime, { fallback: "-", includeTimeZoneName: true });
   const temp = row.temperatureF != null ? Math.round(row.temperatureF) : null;
   const precip = row.precipProbability != null ? Math.round(row.precipProbability) : null;
   const windSpeed = row.windSpeedMph != null ? Math.round(row.windSpeedMph) : null;
@@ -181,30 +171,49 @@ function GameRow({ row, selected, onClick }: GameRowProps) {
         {isRoof && <span className="ml-1 text-[9px] font-medium text-sky-500">ROOF</span>}
       </p>
 
-      {/* Row 3: Weather stats — temp / precip / wind inline */}
-      <div className="flex items-center gap-3 pl-[38px]">
+      {/* Row 3: Weather conditions */}
+      <div className="flex items-center gap-2.5 pl-[38px] mb-1.5">
         {temp != null && (
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums">{temp}°</span>
-            <span className="text-[9px] text-neutral-400 uppercase">F</span>
-          </div>
+          <span className={cn("text-[10px] font-semibold tabular-nums", temp >= 80 ? "text-amber-500" : temp <= 55 ? "text-sky-500" : "text-neutral-600 dark:text-neutral-400")}>
+            {temp}°F
+          </span>
         )}
-        {precip != null && (
-          <div className="flex items-center gap-1">
-            <span className={cn(
-              "text-[11px] font-bold tabular-nums",
-              precip >= 30 ? "text-sky-500" : "text-neutral-900 dark:text-white"
-            )}>{precip}%</span>
-            <span className="text-[9px] text-neutral-400 uppercase">precip</span>
-          </div>
+        {windSpeed != null && windSpeed > 0 && (
+          <span className="text-[10px] font-semibold tabular-nums text-neutral-600 dark:text-neutral-400">
+            {windSpeed}mph {row.windLabel ? (row.windLabel.toLowerCase().includes("out") ? "↗" : row.windLabel.toLowerCase().includes("in") ? "↙" : row.windLabel.toLowerCase().includes("cross") ? "→" : "") : ""}
+          </span>
         )}
-        {windSpeed != null && (
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-neutral-900 dark:text-white tabular-nums">{windSpeed}</span>
-            <span className="text-[9px] text-neutral-400 uppercase">mph</span>
-          </div>
+        {isRoof && <span className="text-[9px] font-bold text-sky-500 uppercase">Roof</span>}
+        {precip != null && precip >= 20 && (
+          <span className="text-[10px] font-semibold text-sky-500 tabular-nums">
+            {precip}% 💧
+          </span>
         )}
       </div>
+
+      {/* Row 4: Weather impact deltas — Ballpark Pal style */}
+      {(row.hrPctDelta != null || row.runsPctDelta != null) && (
+        <div className="flex items-center gap-1.5 pl-[38px]">
+          {[
+            { label: "HR", val: row.hrPctDelta },
+            { label: "XBH", val: row.xbhPctDelta },
+            { label: "1B", val: row.singlesPctDelta },
+            { label: "R", val: row.runsPctDelta },
+          ].filter((d) => d.val != null).map((d) => (
+            <span
+              key={d.label}
+              className={cn(
+                "text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded",
+                d.val! > 2 ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" :
+                d.val! < -2 ? "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400" :
+                "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+              )}
+            >
+              {d.label} {d.val! > 0 ? "+" : ""}{d.val}%
+            </span>
+          ))}
+        </div>
+      )}
     </button>
   );
 }

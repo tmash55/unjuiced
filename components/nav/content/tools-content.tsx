@@ -19,7 +19,7 @@ const NBA_TOOLS: NavTool[] = [
 ];
 
 const MLB_TOOLS: NavTool[] = [
-  { title: "Slate Insights", description: "Batter vs pitcher matchup breakdowns", href: "/cheatsheets/mlb/slate-insights", badge: "NEW" },
+  { title: "Game Center", description: "Unified MLB matchup research hub", href: "/cheatsheets/mlb/game-center", badge: "NEW" },
   { title: "HR Command Center", description: "5-layer HR scoring with live odds", href: "/cheatsheets/mlb/hr-command-center", badge: "NEW" },
   { title: "NRFI", description: "No Run First Inning grades & odds", href: "/cheatsheets/mlb/nrfi", badge: "NEW" },
   { title: "Exit Velocity", description: "Statcast hard-hit leaders", href: "/cheatsheets/mlb/exit-velocity", badge: "NEW" },

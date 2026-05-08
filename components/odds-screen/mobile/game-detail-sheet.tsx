@@ -13,6 +13,13 @@ import { OddsSheet } from "./odds-sheet";
 import { AlternatesSheet } from "./alternates-sheet";
 import { fetchOddsWithNewAPI } from "@/lib/api-adapters/props-to-odds";
 import { useFavorites, AddFavoriteParams, BookSnapshot } from "@/hooks/use-favorites";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import {
+  getQuickViewSport,
+  normalizeQuickViewMarket,
+  parseQuickViewPlayerId,
+  type QuickViewSport,
+} from "@/lib/hit-rates/quick-view";
 
 interface GameDetailSheetProps {
   game: OddsScreenEvent;
@@ -62,7 +69,7 @@ function formatDate(dateString: string): string {
 
 // Check if sport has team logos
 function hasTeamLogos(sport: string): boolean {
-  const sportsWithLogos = ["nfl", "nhl", "nba", "mlb"];
+  const sportsWithLogos = ["nfl", "nhl", "nba", "wnba", "mlb"];
   return sportsWithLogos.includes(sport.toLowerCase());
 }
 
@@ -81,7 +88,7 @@ function getBookLogo(bookId: string): string | null {
 
 // Check if sport has player props
 function hasPlayerProps(sport: string): boolean {
-  const sportsWithoutPlayerProps = ["mlb", "wnba", "ncaabaseball", "tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta", "ufc"];
+  const sportsWithoutPlayerProps = ["ncaabaseball", "tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta", "ufc"];
   return !sportsWithoutPlayerProps.includes(sport.toLowerCase());
 }
 
@@ -96,6 +103,18 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
   const [selectedMarket, setSelectedMarket] = useState<string>(() => getDefaultMarketForType(sport, "game"));
   const [selectedOdds, setSelectedOdds] = useState<{ item: OddsScreenItem; side: "over" | "under" } | null>(null);
   const [selectedAlternates, setSelectedAlternates] = useState<OddsScreenItem | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    sport: QuickViewSport;
+    odds_player_id: string;
+    player_name: string;
+    market: string;
+    event_id?: string;
+    line?: number;
+    odds?: {
+      over?: { price: number; line: number; book?: string; mobileLink?: string | null };
+      under?: { price: number; line: number; book?: string; mobileLink?: string | null };
+    };
+  } | null>(null);
 
   const showLogos = hasTeamLogos(sport);
   const sportHasPlayerProps = hasPlayerProps(sport);
@@ -283,6 +302,7 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
                   selectedMarket={selectedMarket}
                   onOddsTap={handleOddsTap}
                   onAltTap={setSelectedAlternates}
+                  onPlayerQuickView={setSelectedPlayer}
                 />
               )}
             </div>
@@ -310,6 +330,24 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
               event={game}
               isOpen={!!selectedAlternates}
               onClose={() => setSelectedAlternates(null)}
+            />
+          )}
+
+          {selectedPlayer && (
+            <PlayerQuickViewModal
+              sport={selectedPlayer.sport}
+              odds_player_id={selectedPlayer.odds_player_id}
+              nba_player_id={selectedPlayer.sport === "nba" ? parseQuickViewPlayerId(selectedPlayer.odds_player_id) : undefined}
+              player_name={selectedPlayer.player_name}
+              initial_market={selectedPlayer.market}
+              initial_line={selectedPlayer.line}
+              event_id={selectedPlayer.event_id}
+              odds={selectedPlayer.odds}
+              showFullProfileLink={selectedPlayer.sport !== "mlb"}
+              open={!!selectedPlayer}
+              onOpenChange={(open) => {
+                if (!open) setSelectedPlayer(null);
+              }}
             />
           )}
         </>
@@ -579,6 +617,18 @@ interface PlayerPropsContentProps {
   selectedMarket: string;
   onOddsTap: (item: OddsScreenItem, side: "over" | "under") => void;
   onAltTap: (item: OddsScreenItem) => void;
+  onPlayerQuickView: (player: {
+    sport: QuickViewSport;
+    odds_player_id: string;
+    player_name: string;
+    market: string;
+    event_id?: string;
+    line?: number;
+    odds?: {
+      over?: { price: number; line: number; book?: string; mobileLink?: string | null };
+      under?: { price: number; line: number; book?: string; mobileLink?: string | null };
+    };
+  }) => void;
 }
 
 // Helper to find the best price for a specific line from books data
@@ -611,9 +661,10 @@ function getBestOddsForLine(
   return { price: bestPrice, book: bestBook, line: targetLine };
 }
 
-function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onAltTap }: PlayerPropsContentProps) {
+function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onAltTap, onPlayerQuickView }: PlayerPropsContentProps) {
   const showLogos = hasTeamLogos(sport);
   const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
+  const quickViewSport = getQuickViewSport(sport);
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((
@@ -728,9 +779,40 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
                   </div>
                 )}
                 <div className="flex flex-col">
-                  <span className="text-base font-bold text-neutral-900 dark:text-white leading-tight">
-                    {item.entity.name}
-                  </span>
+                  {quickViewSport && item.entity.id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPlayerQuickView({
+                          sport: quickViewSport,
+                          odds_player_id: item.entity.id!,
+                          player_name: item.entity.name,
+                          market: normalizeQuickViewMarket(quickViewSport, selectedMarket),
+                          event_id: game.id,
+                          line: overOdds?.line ?? underOdds?.line,
+                          odds: {
+                            over: overOdds ? {
+                              price: overOdds.price,
+                              line: overOdds.line,
+                              book: overOdds.book,
+                            } : undefined,
+                            under: underOdds ? {
+                              price: underOdds.price,
+                              line: underOdds.line,
+                              book: underOdds.book,
+                            } : undefined,
+                          },
+                        });
+                      }}
+                      className="text-left text-base font-bold text-neutral-900 dark:text-white leading-tight hover:text-brand transition-colors"
+                    >
+                      {item.entity.name}
+                    </button>
+                  ) : (
+                    <span className="text-base font-bold text-neutral-900 dark:text-white leading-tight">
+                      {item.entity.name}
+                    </span>
+                  )}
                   {item.entity.details && (
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">
                       {item.entity.details}

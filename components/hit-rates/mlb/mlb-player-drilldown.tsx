@@ -34,6 +34,7 @@ const MLB_MARKET_ORDER = [
   "player_runs_scored",
   "player_rbi",
   "player_total_bases",
+  "player_hits__runs__rbis",
   "pitcher_strikeouts",
 ] as const;
 
@@ -127,6 +128,10 @@ function getMlbMarketValue(game: BoxScoreGame, market: string): number {
       return game.mlbRbi ?? 0;
     case "player_total_bases":
       return game.mlbTotalBases ?? 0;
+    case "player_stolen_bases":
+      return game.mlbStolenBases ?? 0;
+    case "player_hits__runs__rbis":
+      return (game.mlbHits ?? 0) + (game.mlbRunsScored ?? 0) + (game.mlbRbi ?? 0);
     case "pitcher_strikeouts":
       return game.mlbPitcherStrikeouts ?? 0;
     default:

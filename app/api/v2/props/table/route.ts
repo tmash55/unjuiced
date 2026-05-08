@@ -1034,10 +1034,20 @@ async function scanKeysOnce(pattern: string): Promise<string[]> {
     }
     seenCursors.add(cursor);
 
-    const [nextCursor, keys] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
-    });
+    let nextCursor: string | number;
+    let keys: string[];
+    try {
+      [nextCursor, keys] = await redis.scan(cursor, {
+        match: pattern,
+        count: SCAN_COUNT,
+      });
+    } catch (error) {
+      console.warn(
+        `[scanKeysOnce] Scan failed for ${pattern}; returning ${results.length} indexed keys`,
+        error instanceof Error ? error.message : error
+      );
+      break;
+    }
     cursor = Number(nextCursor);
     results.push(...keys);
     
@@ -1061,12 +1071,17 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
 
   const key = `active_events:${sport}`;
   const members = (await redis.smembers(key)).map(String).filter(Boolean);
+  const uniqueMembers = [...new Set(members)];
+
+  if (!ENABLE_ODDS_SCAN_FALLBACK) {
+    activeEventsCache.set(sport, { ids: uniqueMembers, ts: Date.now() });
+    return uniqueMembers;
+  }
 
   // Fast path: if set looks healthy, avoid additional scans.
-  if (members.length > 8) {
-    const unique = [...new Set(members)];
-    activeEventsCache.set(sport, { ids: unique, ts: Date.now() });
-    return unique;
+  if (uniqueMembers.length > 8) {
+    activeEventsCache.set(sport, { ids: uniqueMembers, ts: Date.now() });
+    return uniqueMembers;
   }
 
   // Fallback/merge for partially populated sets (common during feed migrations).
@@ -1076,12 +1091,12 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
     .map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : ""))
     .filter(Boolean);
 
-  const merged = [...new Set([...members, ...scannedIds])];
+  const merged = [...new Set([...uniqueMembers, ...scannedIds])];
   activeEventsCache.set(sport, { ids: merged, ts: Date.now() });
 
-  if (scannedIds.length > members.length) {
+  if (scannedIds.length > uniqueMembers.length) {
     console.warn(
-      `[v2/props/table] active_events:${sport} appears incomplete (${members.length}); merged with events scan (${scannedIds.length})`
+      `[v2/props/table] active_events:${sport} appears incomplete (${uniqueMembers.length}); merged with events scan (${scannedIds.length})`
     );
   }
 

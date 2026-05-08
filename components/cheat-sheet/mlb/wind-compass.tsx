@@ -8,8 +8,8 @@ interface WindCompassProps {
 
 export function WindCompass({ windRelativeDeg, windSpeedMph, windLabel }: WindCompassProps) {
   const label = (windLabel ?? "").toLowerCase();
-  const isOut = label.includes("out");
-  const isIn = label.includes("in");
+  const isOut = label.includes("blowing out") || label.includes("out to");
+  const isIn = label.includes("blowing in") || (label.includes("in from") && !label.includes("cross"));
 
   // Arrow color based on direction
   const arrowColor = isOut ? "#10B981" : isIn ? "#EF4444" : "#F59E0B";

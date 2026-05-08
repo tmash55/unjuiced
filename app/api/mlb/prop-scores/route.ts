@@ -24,6 +24,8 @@ const MARKET_TO_REDIS: Record<string, string> = {
   pitcher_k: "player_strikeouts",
   pitcher_h: "player_hits_allowed",
   pitcher_er: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
   h_r_rbi: "player_hits__runs__rbis",
   // fantasy: no odds — intentionally omitted
 };
@@ -32,6 +34,46 @@ const MARKET_TO_REDIS: Record<string, string> = {
 
 function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function isValidDateParam(dateStr: string | null | undefined): dateStr is string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function getSafeDateParam(dateStr: string | null | undefined): string {
+  return isValidDateParam(dateStr) ? dateStr : getETDate();
+}
+
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function getAvailableGameDates(sb: ReturnType<typeof createServerSupabaseClient>, targetDate: string): Promise<string[]> {
+  const from = addDays(targetDate, -14);
+  const to = addDays(targetDate, 14);
+  const { data, error } = await sb
+    .from("mlb_games")
+    .select("game_date")
+    .gte("game_date", from)
+    .lte("game_date", to)
+    .order("game_date", { ascending: true });
+
+  if (error) {
+    console.warn("[Prop Scores API] Failed to fetch available game dates:", error.message);
+    return [targetDate];
+  }
+
+  const dates = Array.from(new Set((data ?? []).map((r: any) => r.game_date as string))).sort();
+  return dates.length > 0 ? dates : [targetDate];
 }
 
 /** Normalize player name to Redis selection key format */
@@ -126,8 +168,10 @@ interface OddsValue {
       desktop?: string;
       mobile?: string;
     };
+    sgp?: string | null;
     player?: string;
     player_id?: string;
+    odd_id?: string;
   };
 }
 
@@ -139,7 +183,7 @@ interface LiveOdds {
   best_odds_mobile_link: string | null;
   best_odds_link: string | null;
   implied_prob: number; // avg implied across consensus-line books
-  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }>;
+  all_book_odds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; sgp: string | null; odd_id: string | null }>;
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -149,9 +193,10 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const dateParam = url.searchParams.get("date");
     const marketParam = url.searchParams.get("market"); // optional: filter to one market
-    const targetDate = dateParam || getETDate();
+    const targetDate = getSafeDateParam(dateParam);
 
     const sb = createServerSupabaseClient();
+    const availableDatesPromise = getAvailableGameDates(sb, targetDate);
 
     // ── 1. Fetch prop scores from Supabase ─────────────────────────────
     let query = sb
@@ -173,10 +218,11 @@ export async function GET(req: NextRequest) {
 
     const scores = (rawScores ?? []) as any[];
     if (scores.length === 0) {
+      const availableDates = await availableDatesPromise;
       return NextResponse.json({
         scores: [],
         lineups: {},
-        meta: { date: targetDate, totalScores: 0, markets: [], oddsMatched: 0 },
+        meta: { date: targetDate, totalScores: 0, markets: [], oddsMatched: 0, availableDates },
       });
     }
 
@@ -185,7 +231,7 @@ export async function GET(req: NextRequest) {
 
     const { data: gameRows } = await sb
       .from("mlb_games")
-      .select("game_id, odds_game_id, home_id, away_id, venue_name, game_time")
+      .select("game_id, odds_game_id, home_id, away_id, venue_name, game_datetime")
       .in("game_id", gameIds);
 
     const gameMap = new Map<number, any>();
@@ -193,6 +239,17 @@ export async function GET(req: NextRequest) {
     for (const g of gameRows ?? []) {
       gameMap.set(g.game_id, g);
       if (g.odds_game_id) gameToEvent.set(g.game_id, g.odds_game_id);
+    }
+
+    const playerIds = Array.from(new Set(scores.map((s: any) => s.player_id).filter(Boolean)));
+    const { data: playerRows } = await sb
+      .from("mlb_players_hr")
+      .select("mlb_player_id, odds_player_id, pos_abbr, position")
+      .in("mlb_player_id", playerIds);
+
+    const playerMetaMap = new Map<number, any>();
+    for (const row of playerRows ?? []) {
+      playerMetaMap.set(row.mlb_player_id, row);
     }
 
     // ── 3. Fetch lineups for all games ─────────────────────────────────
@@ -295,9 +352,12 @@ export async function GET(req: NextRequest) {
       if (liveOdds) oddsMatched++;
 
       const gameInfo = gameMap.get(score.game_id);
+      const playerMeta = playerMetaMap.get(score.player_id);
 
       return {
         ...score,
+        odds_player_id: playerMeta?.odds_player_id ?? null,
+        player_position: playerMeta?.pos_abbr ?? playerMeta?.position ?? null,
         // Live odds override pre-computed
         line: liveOdds?.line ?? score.line,
         best_odds: liveOdds?.best_odds ?? score.best_odds,
@@ -312,19 +372,13 @@ export async function GET(req: NextRequest) {
           ? Math.round(((score.model_prob - liveOdds.implied_prob) / liveOdds.implied_prob) * 10000) / 100
           : score.edge_pct,
         // Game context
-        game_time: gameInfo?.game_time ?? null,
+        game_time: gameInfo?.game_datetime ?? null,
         venue_name: gameInfo?.venue_name ?? null,
       };
     });
 
-    // ── 6. Available dates ─────────────────────────────────────────────
-    const { data: dateRows } = await sb
-      .from("mlb_prop_scores")
-      .select("game_date")
-      .order("game_date", { ascending: false })
-      .limit(200);
-
-    const availableDates = Array.from(new Set((dateRows ?? []).map((r: any) => r.game_date))).sort().reverse();
+    // ── 6. Available dates (ascending — DateNav expects oldest first) ──
+    const availableDates = await availableDatesPromise;
 
     // ── 7. Response ────────────────────────────────────────────────────
     return NextResponse.json({
@@ -367,6 +421,8 @@ function getLiveOdds(
     under_price: number | null;
     link: string | null;
     mobile_link: string | null;
+    sgp: string | null;
+    odd_id: string | null;
   }
 
   const entries: BookOdds[] = [];
@@ -409,6 +465,8 @@ function getLiveOdds(
         under_price: isNaN(underPrice as number) ? null : underPrice,
         link: selectionLinks.desktop,
         mobile_link: selectionLinks.mobile,
+        sgp: typeof (sel as any).sgp === "string" ? (sel as any).sgp : null,
+        odd_id: typeof (sel as any).odd_id === "string" ? (sel as any).odd_id : null,
       });
     }
   }
@@ -460,7 +518,7 @@ function getLiveOdds(
 
   // Build all-book snapshot — store every book+line combo so frontend can filter by any line
   // Key format: "book" for consensus line, "book__2.5" for alternate lines
-  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null }> =
+  const allBookOdds: Record<string, { line: number; over: number; under: number | null; link: string | null; mobile_link: string | null; sgp: string | null; odd_id: string | null }> =
     {};
   for (const e of entries) {
     if (e.line === consensusLine) {
@@ -471,6 +529,8 @@ function getLiveOdds(
         under: e.under_price,
         link: e.link,
         mobile_link: e.mobile_link,
+        sgp: e.sgp,
+        odd_id: e.odd_id,
       };
     }
     // Always store the line-specific key for alt-line lookups
@@ -481,6 +541,8 @@ function getLiveOdds(
       under: e.under_price,
       link: e.link,
       mobile_link: e.mobile_link,
+      sgp: e.sgp,
+      odd_id: e.odd_id,
     };
   }
 

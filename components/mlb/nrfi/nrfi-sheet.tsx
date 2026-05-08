@@ -90,7 +90,7 @@ export function MlbNrfiSheet() {
         return aAvg - bAvg;
       });
     } else {
-      arr.sort((a, b) => a.gameTime.localeCompare(b.gameTime));
+      arr.sort((a, b) => (a.gameDatetime ?? a.gameTime).localeCompare(b.gameDatetime ?? b.gameTime));
     }
     return arr;
   }, [filtered, sort]);

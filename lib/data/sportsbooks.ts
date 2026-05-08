@@ -584,6 +584,11 @@ export const sportsbooks: Sportsbook[] = Object.values(SPORTSBOOKS_META).map(sb 
   appLinkTemplate: sb.links.deeplinkScheme
 }));
 
+const SPORTSBOOKS_BY_DISPLAY_ID: Record<string, SportsbookMeta> = Object.values(SPORTSBOOKS_META).reduce((acc, sportsbook) => {
+  acc[sportsbook.id.toLowerCase()] = sportsbook;
+  return acc;
+}, {} as Record<string, SportsbookMeta>);
+
 // Helper function to normalize sportsbook IDs (handle variations)
 export function normalizeSportsbookId(id: string): string {
   // Common variations mapping
@@ -622,8 +627,30 @@ export const EXCLUDED_SPORTSBOOK_KEYS = new Set<string>([
 
 // Helper functions for the new structure
 export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {
+  const direct = SPORTSBOOKS_META[id];
+  if (direct) return direct;
+
   const normalizedId = normalizeSportsbookId(id);
-  return SPORTSBOOKS_META[normalizedId];
+  return SPORTSBOOKS_META[normalizedId] || SPORTSBOOKS_BY_DISPLAY_ID[normalizedId] || SPORTSBOOKS_BY_DISPLAY_ID[id.toLowerCase()];
+}
+
+export function getSportsbookDisplayId(id: SportsbookId): string {
+  const sportsbook = getSportsbookById(id);
+  return sportsbook?.id || normalizeSportsbookId(id);
+}
+
+export function normalizeSportsbookSelection(ids: string[] = []): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  ids.forEach((id) => {
+    const displayId = getSportsbookDisplayId(id);
+    if (!displayId || seen.has(displayId)) return;
+    seen.add(displayId);
+    normalized.push(displayId);
+  });
+
+  return normalized;
 }
 
 export function getOddsVendorId(id: SportsbookId): string | undefined {

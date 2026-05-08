@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { MlbWeatherReportRow, HourlyForecastEntry } from "@/hooks/use-mlb-weather-report";
 import { useMlbHRSheet } from "@/hooks/use-mlb-hr-sheet";
 import type { HRSheetPlayer } from "@/app/api/mlb/hr-power-sheet/route";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import { EnvGauge } from "./env-gauge";
 import { WindCompass } from "./wind-compass";
 import { LivingStadiumCard } from "./living-stadium-card";
@@ -19,18 +20,6 @@ import {
 } from "./env-score";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getETTime(dateTime: string | null): string {
-  if (!dateTime) return "-";
-  const date = new Date(dateTime);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
-}
 
 function formatImpactLabel(value: string | null): string {
   if (!value) return "Neutral";
@@ -114,7 +103,7 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
   const homeAbbr = row.homeTeamAbbr || "Home";
   const awayColor = row.awayTeamPrimaryColor ?? "#1e3a5f";
   const homeColor = row.homeTeamPrimaryColor ?? "#1e3a5f";
-  const gameTime = getETTime(row.gameDatetime);
+  const gameTime = formatGameTimeForUser(row.gameDatetime, { fallback: "-", includeTimeZoneName: true });
 
   // Batter scores
   const { players: allPlayers, isLoading: battersLoading } = useMlbHRSheet({
@@ -438,12 +427,14 @@ export function HREnvironmentDetail({ row, date }: HREnvironmentDetailProps) {
                 key={i}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-[11px] font-semibold",
-                  tag.positive
-                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                  tag.sentiment === "neutral"
+                    ? "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
+                    : tag.sentiment === "positive" || (!tag.sentiment && tag.positive)
+                      ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
+                      : "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400"
                 )}
               >
-                {tag.positive ? "+" : "-"} {tag.label}
+                {tag.sentiment === "neutral" ? "~" : tag.positive ? "+" : "-"} {tag.label}
               </span>
             ))}
           </div>

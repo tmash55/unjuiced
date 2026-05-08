@@ -172,8 +172,12 @@ export async function GET(req: NextRequest) {
 
     const homeAbbr = (game.home_team as any)?.abbreviation || "";
     const awayAbbr = (game.away_team as any)?.abbreviation || "";
-    const homePitcherId = game.home_probable_pitcher_id;
-    const awayPitcherId = game.away_probable_pitcher_id;
+
+    // Allow pitcher overrides (e.g. reliever selection)
+    const overrideHomePitcherId = sp.get("homePitcherId") ? parseInt(sp.get("homePitcherId")!, 10) : null;
+    const overrideAwayPitcherId = sp.get("awayPitcherId") ? parseInt(sp.get("awayPitcherId")!, 10) : null;
+    const homePitcherId = overrideHomePitcherId || game.home_probable_pitcher_id;
+    const awayPitcherId = overrideAwayPitcherId || game.away_probable_pitcher_id;
 
     const pitcherIds = [homePitcherId, awayPitcherId].filter(Boolean) as number[];
     const [
@@ -357,8 +361,27 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const awayPitcher = buildPitcherData(awayPitcherId, game.away_probable_pitcher, awayAbbr);
-    const homePitcher = buildPitcherData(homePitcherId, game.home_probable_pitcher, homeAbbr);
+    // Resolve pitcher names — use override names if pitcher was swapped
+    let awayPitcherName = game.away_probable_pitcher;
+    let homePitcherName = game.home_probable_pitcher;
+    if (overrideAwayPitcherId || overrideHomePitcherId) {
+      const overrideIds = [overrideAwayPitcherId, overrideHomePitcherId].filter(Boolean) as number[];
+      if (overrideIds.length > 0) {
+        const { data: overrideNames } = await supabase
+          .from("mlb_players_hr")
+          .select("mlb_player_id, name")
+          .in("mlb_player_id", overrideIds);
+        if (overrideNames) {
+          for (const p of overrideNames) {
+            if (p.mlb_player_id === overrideAwayPitcherId) awayPitcherName = p.name;
+            if (p.mlb_player_id === overrideHomePitcherId) homePitcherName = p.name;
+          }
+        }
+      }
+    }
+
+    const awayPitcher = buildPitcherData(awayPitcherId, awayPitcherName, awayAbbr);
+    const homePitcher = buildPitcherData(homePitcherId, homePitcherName, homeAbbr);
 
     // ── 4. Build lineups with edge scores ────────────────────────────────
     const batterSplitMap = new Map<string, any>();
@@ -488,6 +511,8 @@ export async function GET(req: NextRequest) {
       game_date: game.game_date,
       game_datetime: game.game_datetime,
       venue_name: game.venue_name || null,
+      home_team_id: game.home_id,
+      away_team_id: game.away_id,
       home_team_abbr: homeAbbr,
       away_team_abbr: awayAbbr,
       home_team_name: game.home_name || "",

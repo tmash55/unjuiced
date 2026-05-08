@@ -13,7 +13,7 @@ import { LoadingState } from "@/components/common/loading-state";
 // Available sports
 const SPORTS = [
   { key: "nba", label: "NBA" },
-  { key: "ncaab", label: "NCAAB" },
+  { key: "wnba", label: "WNBA" },
   { key: "nhl", label: "NHL" },
   { key: "ncaabaseball", label: "NCAA Base" },
   { key: "soccer_epl", label: "EPL" },
@@ -30,7 +30,7 @@ const SPORTS = [
   { key: "tennis_utr_women", label: "UTR Women" },
   { key: "ufc", label: "UFC" },
   { key: "mlb", label: "MLB", disabled: false },
-  { key: "wnba", label: "WNBA", disabled: true },
+  { key: "ncaab", label: "NCAAB", disabled: true },
   { key: "ncaaf", label: "NCAAF", disabled: true },
   { key: "nfl", label: "NFL", disabled: true },
 ];

@@ -8,6 +8,7 @@ import { getLeanLabel, getLeanClasses } from "@/lib/nrfi-data";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { useStateLink } from "@/hooks/use-state-link";
+import { formatGameTimeForUser } from "@/lib/mlb/game-time";
 import {
   ChevronDown,
   ExternalLink,
@@ -132,6 +133,10 @@ export function GameCardV2({
   // Best odds
   const primarySide = lm.isNrfi || lm.color === "yellow" ? "NRFI" : "YRFI";
   const primaryOdds = primarySide === "NRFI" ? game.bestNrfiOdds : game.bestYrfiOdds;
+  const gameTime = formatGameTimeForUser(game.gameDatetime, {
+    fallback: game.gameTime,
+    includeTimeZoneName: true,
+  });
   const bestBook = game.sportsbooks.length > 0
     ? game.sportsbooks.reduce((best, b) => {
         const price = primarySide === "NRFI" ? b.nrfiOdds : b.yrfiOdds;
@@ -177,7 +182,7 @@ export function GameCardV2({
               <span className="text-[10px] text-neutral-400">@</span>
               <TeamLogo abbr={game.homeTricode} size={16} />
               <span className="text-sm font-bold text-neutral-900 dark:text-white">{game.homeTricode}</span>
-              <span className="text-[10px] text-neutral-400 ml-1">{game.gameTime}</span>
+              <span className="text-[10px] text-neutral-400 ml-1">{gameTime}</span>
             </div>
           </div>
 

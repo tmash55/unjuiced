@@ -69,6 +69,11 @@ export interface MlbWeatherReportRow {
     };
   } | null;
   hourlyForecast: HourlyForecastEntry[] | null;
+  // Calibrated weather impact deltas (positive = boosts, negative = suppresses)
+  hrPctDelta: number | null;
+  runsPctDelta: number | null;
+  xbhPctDelta: number | null;
+  singlesPctDelta: number | null;
 }
 
 export interface HourlyForecastEntry {

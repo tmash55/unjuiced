@@ -533,6 +533,7 @@ export async function GET(req: NextRequest) {
       return {
         gameId: r.game_id,
         gameDate: r.game_date,
+        gameDatetime: r.game_datetime,
         gameTime: getETTime(r.game_datetime),
         lean,
         grade,

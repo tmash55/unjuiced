@@ -7,6 +7,8 @@ export interface MlbDrilldownLogEntry {
   gameId: string;
   date: string;
   season: number;
+  gameDatetime?: string | null;
+  dayNight?: "D" | "N" | null;
   homeAway: "H" | "A";
   opponentAbbr: string;
   opponentName: string;
@@ -21,6 +23,9 @@ export interface MlbDrilldownLogEntry {
   runs?: number;
   rbi?: number;
   totalBases?: number;
+  stolenBases?: number;
+  caughtStealing?: number | null;
+  stolenBaseAttempts?: number | null;
   walks?: number;
   strikeOuts?: number;
   battingAvg?: number | null;
@@ -98,7 +103,7 @@ export function useMlbPlayerGameLogs(options: UseMlbPlayerGameLogsOptions) {
   } = options;
 
   const query = useQuery<MlbPlayerGameLogsResponse>({
-    queryKey: ["mlb-player-game-logs", playerId, market, season, limit, includePrior],
+    queryKey: ["mlb-player-game-logs", "box-score-v4", playerId, market, season, limit, includePrior],
     queryFn: () =>
       fetchMlbPlayerGameLogs({
         playerId: playerId!,
@@ -108,6 +113,7 @@ export function useMlbPlayerGameLogs(options: UseMlbPlayerGameLogsOptions) {
         includePrior,
       }),
     enabled: enabled && typeof playerId === "number" && !!market,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,

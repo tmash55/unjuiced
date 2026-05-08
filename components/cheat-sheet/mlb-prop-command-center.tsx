@@ -3,18 +3,25 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMlbPropScores } from "@/hooks/use-mlb-prop-scores";
 import { usePropLiveOdds } from "@/hooks/use-prop-live-odds";
 import { useMlbGames, type MlbGame } from "@/hooks/use-mlb-games";
 import type { PropScorePlayer } from "@/app/api/mlb/prop-scores/types";
-import { useHasHitRateAccess } from "@/hooks/use-entitlements";
+import { useEntitlements, useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { useStateLink } from "@/hooks/use-state-link";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import { BasesDiamond } from "@/components/game-center/bases-diamond";
 import { getMlbHeadshotUrl } from "@/lib/utils/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { formatMlbGameStatusForUser } from "@/lib/mlb/game-time";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite } from "@/hooks/use-favorites";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
+import { toast } from "sonner";
 import {
   SheetFilterBar,
   SegmentedControl,
@@ -29,20 +36,28 @@ import {
   ChevronRight,
   Lock,
   ExternalLink,
+  Heart,
+  LineChart,
 } from "lucide-react";
 import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FREE_MAX_ROWS = 5;
 const UPGRADE_URL = "/pricing";
+const PROP_CENTER_SCORE_FILTER_STORAGE_KEY = "unjuiced:mlb-prop-center:min-score";
 
 const MIN_SCORE_OPTIONS = [
   { value: 0, label: "All" },
-  { value: 50, label: "50+" },
-  { value: 65, label: "65+" },
+  { value: 70, label: "70+" },
+  { value: 75, label: "75+" },
   { value: 80, label: "80+" },
+  { value: 85, label: "85+" },
+  { value: 90, label: "90+" },
 ] as const;
+
+type MinScoreOption = (typeof MIN_SCORE_OPTIONS)[number]["value"];
 
 // ── Market Config ────────────────────────────────────────────────────────────
 
@@ -178,11 +193,6 @@ const MARKETS: MarketConfig[] = [
       { key: "weather", label: "Weather", tooltip: "Temperature + wind impact" },
       { key: "avg_exit_velo", label: "Exit Velo", tooltip: "Average exit velocity" },
       { key: "surge", label: "Surge", tooltip: "Recent form z-score" },
-      // Fallbacks for old data
-      { key: "xslg", label: "xSLG" },
-      { key: "opp_hr9", label: "Opp HR/9" },
-      { key: "ballpark", label: "Ballpark" },
-      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -195,7 +205,7 @@ const MARKETS: MarketConfig[] = [
     columns: [
       { key: "rbi_rate", label: "RBI Rate", shortLabel: "Rate", format: "avg", tooltip: "RBI per plate appearance" },
       { key: "slg", label: "SLG", shortLabel: "SLG", format: "avg", tooltip: "Slugging percentage" },
-      { key: "base_traffic", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — OBP of hitters batting ahead" },
+      { key: "base_traffic_obp", label: "Traffic", shortLabel: "Traffic", format: "avg", tooltip: "Base traffic — OBP of hitters batting ahead" },
     ],
     factors: [
       // Run production
@@ -216,11 +226,6 @@ const MARKETS: MarketConfig[] = [
       { key: "opp_era", label: "Opp ERA", tooltip: "Opposing pitcher ERA" },
       { key: "pitcher_bb_rate", label: "P BB Rate", tooltip: "Pitcher walk rate — free baserunners" },
       { key: "game_total", label: "Game Total", tooltip: "Vegas game total — higher O/U = more RBI opportunity" },
-      // Fallbacks for old data
-      { key: "power", label: "Power" },
-      { key: "lineup_spot", label: "Lineup" },
-      { key: "opp_whip", label: "Opp WHIP" },
-      { key: "recent", label: "Recent" },
     ],
   },
   {
@@ -334,37 +339,219 @@ const MARKETS: MarketConfig[] = [
 
 const MARKET_MAP = new Map(MARKETS.map((m) => [m.key, m]));
 
+const PROP_MARKET_TO_ODDS_MARKET: Record<string, string> = {
+  hr: "player_home_runs",
+  hits: "player_hits",
+  tb: "player_total_bases",
+  rbi: "player_rbis",
+  sb: "player_stolen_bases",
+  pitcher_k: "player_strikeouts",
+  pitcher_h: "player_hits_allowed",
+  pitcher_er: "player_earned_runs",
+  pitcher_outs: "player_outs",
+  pitcher_outs_recorded: "player_outs",
+  h_r_rbi: "player_hits__runs__rbis",
+};
 
-// ── Grade System ─────────────────────────────────────────────────────────────
+const PROP_MARKET_TO_QUICK_VIEW_MARKET: Record<string, string> = {
+  hr: "player_home_runs",
+  hits: "player_hits",
+  tb: "player_total_bases",
+  rbi: "player_rbi",
+  sb: "player_stolen_bases",
+  h_r_rbi: "player_hits__runs__rbis",
+  pitcher_k: "pitcher_strikeouts",
+  pitcher_h: "pitcher_hits_allowed",
+  pitcher_er: "pitcher_earned_runs",
+  pitcher_outs: "pitcher_outs",
+  pitcher_outs_recorded: "pitcher_outs",
+};
 
-const GRADES = [
-  { grade: "S", min: 90, label: "Elite", color: "text-purple-400", bg: "bg-purple-500/15", border: "border-purple-500/30" },
-  { grade: "A", min: 75, label: "Strong", color: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/30" },
-  { grade: "B", min: 60, label: "Solid", color: "text-blue-400", bg: "bg-blue-500/15", border: "border-blue-500/30" },
-  { grade: "C", min: 40, label: "Average", color: "text-amber-400", bg: "bg-amber-500/15", border: "border-amber-500/30" },
-  { grade: "D", min: 0, label: "Weak", color: "text-neutral-400", bg: "bg-neutral-500/10", border: "border-neutral-500/20" },
-] as const;
+type PropCenterQuickViewPlayer = {
+  mlb_player_id: number;
+  odds_player_id?: string | null;
+  player_name: string;
+  market: string;
+  event_id?: string;
+  line?: number;
+  gameContext?: {
+    gameId?: string | number | null;
+    gameDate: string | null;
+    gameDatetime: string | null;
+    gameStatus: string | null;
+    homeAway: "H" | "A" | null;
+    opponentTeamAbbr: string | null;
+    opposingPitcherName: string | null;
+    opposingPitcherId?: number | string | null;
+  };
+  odds?: {
+    over?: {
+      price: number;
+      line: number;
+      book?: string;
+      mobileLink?: string | null;
+    };
+  };
+  liveBookOffers?: Array<{
+    side: "over" | "under";
+    book: string;
+    price: number;
+    line?: number | null;
+    url?: string | null;
+    mobileUrl?: string | null;
+    mobileLink?: string | null;
+    decimal?: number | null;
+    sgp?: string | null;
+    oddId?: string | null;
+  }>;
+};
 
-function getGradeConfig(grade: string) {
-  return GRADES.find((g) => g.grade === grade) ?? GRADES[GRADES.length - 1];
+// ── Score Tier System ────────────────────────────────────────────────────────
+
+export type PropScoreTier =
+  | "elite"
+  | "prime"
+  | "strong"
+  | "solid"
+  | "watch"
+  | "neutral"
+  | "low";
+
+export function getPropScoreTier(score: number): {
+  key: PropScoreTier;
+  label: string;
+  range: string;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+} {
+  if (score >= 90) {
+    return {
+      key: "elite",
+      label: "Elite",
+      range: "90+",
+      colorClass: "text-fuchsia-700 dark:text-fuchsia-300",
+      bgClass: "bg-fuchsia-50 dark:bg-fuchsia-500/15",
+      borderClass: "border-fuchsia-300 dark:border-fuchsia-400/35",
+    };
+  }
+
+  if (score >= 85) {
+    return {
+      key: "prime",
+      label: "Prime",
+      range: "85-89",
+      colorClass: "text-violet-700 dark:text-violet-300",
+      bgClass: "bg-violet-50 dark:bg-violet-500/15",
+      borderClass: "border-violet-300 dark:border-violet-400/35",
+    };
+  }
+
+  if (score >= 80) {
+    return {
+      key: "strong",
+      label: "Strong",
+      range: "80-84",
+      colorClass: "text-emerald-700 dark:text-emerald-300",
+      bgClass: "bg-emerald-50 dark:bg-emerald-500/15",
+      borderClass: "border-emerald-300 dark:border-emerald-400/35",
+    };
+  }
+
+  if (score >= 75) {
+    return {
+      key: "solid",
+      label: "Solid",
+      range: "75-79",
+      colorClass: "text-sky-700 dark:text-sky-300",
+      bgClass: "bg-sky-50 dark:bg-sky-500/15",
+      borderClass: "border-sky-300 dark:border-sky-400/35",
+    };
+  }
+
+  if (score >= 70) {
+    return {
+      key: "watch",
+      label: "Watch",
+      range: "70-74",
+      colorClass: "text-amber-700 dark:text-amber-300",
+      bgClass: "bg-amber-50 dark:bg-amber-500/15",
+      borderClass: "border-amber-300 dark:border-amber-400/35",
+    };
+  }
+
+  if (score >= 60) {
+    return {
+      key: "neutral",
+      label: "Neutral",
+      range: "60-69",
+      colorClass: "text-neutral-700 dark:text-neutral-300",
+      bgClass: "bg-neutral-100 dark:bg-neutral-500/15",
+      borderClass: "border-neutral-300 dark:border-neutral-400/25",
+    };
+  }
+
+  return {
+    key: "low",
+    label: "Low",
+    range: "<60",
+    colorClass: "text-neutral-500 dark:text-neutral-500",
+    bgClass: "bg-neutral-100 dark:bg-neutral-500/10",
+    borderClass: "border-neutral-200 dark:border-neutral-500/20",
+  };
 }
 
-function getScoreConfig(score: number) {
-  return GRADES.find((g) => score >= g.min) ?? GRADES[GRADES.length - 1];
-}
+const PROP_SCORE_TIER_LEGEND = [92, 87, 82, 77, 72, 65, 50].map(getPropScoreTier);
 
-function getScoreBg(score: number): string {
-  if (score >= 90) return "bg-purple-500";
-  if (score >= 75) return "bg-emerald-500";
-  if (score >= 60) return "bg-blue-500";
-  if (score >= 40) return "bg-amber-500";
-  return "bg-neutral-500";
+function getPropScoreFillClass(score: number): string {
+  switch (getPropScoreTier(score).key) {
+    case "elite":
+      return "bg-fuchsia-400";
+    case "prime":
+      return "bg-violet-400";
+    case "strong":
+      return "bg-emerald-400";
+    case "solid":
+      return "bg-sky-400";
+    case "watch":
+      return "bg-amber-400";
+    case "neutral":
+      return "bg-neutral-400";
+    case "low":
+      return "bg-neutral-500";
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getETDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function isMinScoreOption(value: number): value is MinScoreOption {
+  return MIN_SCORE_OPTIONS.some((option) => option.value === value);
+}
+
+function getStoredMinScore(): MinScoreOption {
+  if (typeof window === "undefined") return 0;
+
+  const stored = Number(window.localStorage.getItem(PROP_CENTER_SCORE_FILTER_STORAGE_KEY));
+  return Number.isFinite(stored) && isMinScoreOption(stored) ? stored : 0;
+}
+
+function isValidDateParam(dateStr: string | null | undefined): dateStr is string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function getSafeDateParam(dateStr: string | null | undefined): string {
+  return isValidDateParam(dateStr) ? dateStr : getETDate();
 }
 
 function formatOdds(odds: number | string | null): string {
@@ -374,6 +561,13 @@ function formatOdds(odds: number | string | null): string {
   const num = Number(odds);
   if (Number.isNaN(num)) return str;
   return num > 0 ? `+${num}` : String(num);
+}
+
+function getDisplayLine(player: PropScorePlayer): number | null {
+  if (player.hit_over != null || player.resolved_at) {
+    return player.graded_line ?? player.opening_line ?? player.line ?? null;
+  }
+  return player.line ?? null;
 }
 
 function formatStatValue(val: any, format: MarketColumnDef["format"]): string {
@@ -423,6 +617,7 @@ const STAT_CELL_THRESHOLDS: Record<string, { elite: number; good: number; poor: 
   // RBI market
   rbi_rate:           { elite: 0.25, good: 0.18, poor: 0.10, bad: 0.05, higher: true },
   base_traffic:       { elite: 0.370, good: 0.330, poor: 0.290, bad: 0.260, higher: true },
+  base_traffic_obp:   { elite: 0.370, good: 0.330, poor: 0.290, bad: 0.260, higher: true },
   // HR market
   max_exit_velo:      { elite: 112, good: 108, poor: 104, bad: 100, higher: true },
   iso:                { elite: 0.250, good: 0.200, poor: 0.130, bad: 0.080, higher: true },
@@ -481,7 +676,7 @@ function avgImpliedDeduped(
 const ZERO_IS_NULL_STATS = new Set([
   "opp_lineup_k_rate", "k_rate", "whiff_pct", "csw_pct", "chase_rate", "sb_attempt_rate", "success_rate",
   "hard_hit_pct", "barrel_pct", "opp_lineup_ba", "opp_woba",
-  "xba", "recent_ba", "vs_hand_ba", "slg", "xslg", "rbi_rate", "base_traffic", "obp",
+  "xba", "recent_ba", "vs_hand_ba", "slg", "xslg", "rbi_rate", "base_traffic", "base_traffic_obp", "obp",
   "sprint_speed", "contact_rate", "babip", "iso", "recent_xslg", "vs_hand_iso",
   "ld_pct", "pitcher_k_pct", "pitcher_h9", "effective_ba", "season_ba",
   "walk_rate_pct", "recent_sb_avg", "catcher_pop_time", "catcher_arm_strength",
@@ -524,11 +719,15 @@ function LineupBadge({ status }: { status: string | null }) {
   }
 }
 
-function getGameState(status: string | null): "upcoming" | "live" | "final" {
-  if (!status) return "upcoming";
+function getGameState(status: string | null, live?: any): "upcoming" | "live" | "final" {
+  if (!status) return live ? "live" : "upcoming";
   const s = status.toLowerCase();
   if (s.includes("final")) return "final";
-  if (s.includes("progress") || s.includes("top") || s.includes("bot") || s.includes("mid") || s.includes("end")) return "live";
+  if (s.includes("progress") || s.includes("challenge") || s.includes("review") ||
+      s.includes("warmup") || s.includes("delayed") ||
+      s.includes("top") || s.includes("bot") || s.includes("mid") || s.includes("end")) return "live";
+  // Fallback: if live state data exists, game is live
+  if (live?.current_inning != null) return "live";
   return "upcoming";
 }
 
@@ -579,20 +778,215 @@ function resolveBookLink(
   return applyState?.(resolved) || resolved;
 }
 
+type PropOddsSnapshot = NonNullable<PropScorePlayer["odds_snapshot"]>;
+type PropOddsSnapshotEntry = PropOddsSnapshot[string];
+type PropBookEntry = [string, PropOddsSnapshotEntry];
+
+type LineHistoryAccessState = {
+  canView: boolean;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+};
+
+function getBookEntriesForLine(player: PropScorePlayer): PropBookEntry[] {
+  const snapshot = player.odds_snapshot ?? {};
+  const targetLine = player.line;
+
+  return Object.entries(snapshot)
+    .filter(([, data]) => data?.over != null && (targetLine == null || data.line === targetLine))
+    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
+    .reduce<PropBookEntry[]>((acc, entry) => {
+      const realBook = parseBookKey(entry[0]);
+      if (!acc.some(([key]) => parseBookKey(key) === realBook)) acc.push(entry);
+      return acc;
+    }, []);
+}
+
+function getQuickViewMarket(player: PropScorePlayer, marketConfig: MarketConfig): { market: string; line?: number } {
+  const mappedMarket = PROP_MARKET_TO_QUICK_VIEW_MARKET[marketConfig.key];
+  if (mappedMarket) {
+    return {
+      market: mappedMarket,
+      line: player.line ?? undefined,
+    };
+  }
+
+  return {
+    market: player.player_type === "pitcher" ? "pitcher_strikeouts" : "player_hits",
+  };
+}
+
+function buildPropCenterQuickViewPlayer(
+  player: PropScorePlayer,
+  marketConfig: MarketConfig,
+  game?: MlbGame
+): PropCenterQuickViewPlayer {
+  const quickViewMarket = getQuickViewMarket(player, marketConfig);
+  const playerTeam = player.team_abbr?.toUpperCase();
+  const isHomeTeam = !!game && playerTeam === game.home_team_tricode.toUpperCase();
+  const isAwayTeam = !!game && playerTeam === game.away_team_tricode.toUpperCase();
+  const opposingPitcherName = game
+    ? isHomeTeam
+      ? game.away_probable_pitcher
+      : game.home_probable_pitcher
+    : null;
+  const opposingPitcherId = game
+    ? isHomeTeam
+      ? game.away_probable_pitcher_id
+      : game.home_probable_pitcher_id
+    : null;
+  const matchingBookEntry = player.best_odds_book
+    ? getBookEntriesForLine(player).find(([bookKey]) => parseBookKey(bookKey) === parseBookKey(player.best_odds_book!))
+    : null;
+  const oddsEntry = matchingBookEntry?.[1];
+
+  return {
+    mlb_player_id: player.player_id,
+    odds_player_id: player.odds_player_id ?? null,
+    player_name: player.player_name,
+    market: quickViewMarket.market,
+    event_id: game?.odds_game_id || undefined,
+    line: quickViewMarket.line,
+    gameContext:
+      game && (isHomeTeam || isAwayTeam)
+        ? {
+            gameId: game.game_id,
+            gameDate: game.game_date,
+            gameDatetime: game.game_datetime,
+            gameStatus: game.game_status,
+            homeAway: isHomeTeam ? "H" : "A",
+            opponentTeamAbbr: isHomeTeam ? game.away_team_tricode : game.home_team_tricode,
+            opposingPitcherName,
+            opposingPitcherId,
+          }
+        : undefined,
+    odds:
+      quickViewMarket.line != null && player.best_odds != null
+        ? {
+            over: {
+              price: player.best_odds,
+              line: quickViewMarket.line,
+              book: player.best_odds_book ? parseBookKey(player.best_odds_book) : undefined,
+              mobileLink: oddsEntry?.mobile_link || oddsEntry?.link || player.best_odds_mobile_link || player.best_odds_link || null,
+            },
+          }
+        : undefined,
+    liveBookOffers:
+      quickViewMarket.line != null
+        ? getBookEntriesForLine(player).flatMap(([bookKey, data]) => {
+            const book = parseBookKey(bookKey);
+            const line = data?.line ?? quickViewMarket.line ?? null;
+            const offers: NonNullable<PropCenterQuickViewPlayer["liveBookOffers"]> = [];
+            if (data?.over != null) {
+              offers.push({
+                side: "over",
+                book,
+                price: data.over,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+                sgp: data.sgp ?? null,
+                oddId: data.odd_id ?? null,
+              });
+            }
+            if (data?.under != null) {
+              offers.push({
+                side: "under",
+                book,
+                price: data.under,
+                line,
+                url: data.link ?? null,
+                mobileUrl: data.mobile_link ?? null,
+                mobileLink: data.mobile_link ?? data.link ?? null,
+                sgp: data.sgp ?? null,
+                oddId: data.odd_id ?? null,
+              });
+            }
+            return offers;
+          })
+        : undefined,
+  };
+}
+
+function buildPropCenterLineHistoryContext(
+  player: PropScorePlayer,
+  marketConfig: MarketConfig,
+  game?: MlbGame
+): LineHistoryContext | null {
+  const market = PROP_MARKET_TO_ODDS_MARKET[marketConfig.key];
+  const eventId = game?.odds_game_id || "";
+  if (!market || !eventId || player.line == null) return null;
+
+  const allBookIds: string[] = [];
+  const currentPricesByBook: Record<string, number> = {};
+  const oddIdsByBook: Record<string, string> = {};
+  const seen = new Set<string>();
+
+  for (const [bookKey, data] of getBookEntriesForLine(player)) {
+    const bookId = parseBookKey(bookKey);
+    if (!seen.has(bookId)) {
+      seen.add(bookId);
+      allBookIds.push(bookId);
+    }
+    if (typeof data?.over === "number" && Number.isFinite(data.over)) {
+      currentPricesByBook[bookId] = data.over;
+    }
+    if (data?.odd_id) {
+      oddIdsByBook[bookId] = data.odd_id;
+    }
+  }
+
+  const bestBookId = player.best_odds_book ? parseBookKey(player.best_odds_book) : allBookIds[0] || null;
+  const compareBookIds = allBookIds.filter((bookId) => bookId !== bestBookId).slice(0, 4);
+
+  return {
+    source: "prop_center",
+    sport: "mlb",
+    eventId,
+    market,
+    marketDisplay: marketConfig.label,
+    side: "over",
+    line: player.line,
+    selectionName: player.player_name,
+    playerName: player.player_name,
+    team: player.team_abbr || null,
+    homeTeam: game?.home_team_name || null,
+    awayTeam: game?.away_team_name || null,
+    bestBookId,
+    compareBookIds,
+    allBookIds,
+    currentPricesByBook,
+    oddIdsByBook,
+  };
+}
+
+function getLineHistoryGateLabel(access: LineHistoryAccessState): string {
+  if (access.isLoading) return "Checking access...";
+  if (access.canView) return "Line movement";
+  return access.isAuthenticated ? "Sharp plan required" : "Sign in required";
+}
+
 type SortField = "score" | "player" | "edge_pct" | "line" | "best_odds" | "col0" | "col1" | "col2";
 type SortDirection = "asc" | "desc";
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function ScorePill({ score, grade }: { score: number; grade: string }) {
-  const config = getGradeConfig(grade);
+function ScoreBadge({
+  score,
+  size = "md",
+}: {
+  score: number;
+  size?: "sm" | "md" | "lg";
+}) {
+  const tier = getPropScoreTier(score);
+  const sizeClass = size === "lg" ? "w-11 h-11" : size === "sm" ? "w-9 h-9" : "w-10 h-10";
+  const textClass = size === "lg" ? "text-sm" : "text-xs";
+
   return (
-    <Tooltip content={`${config.label} (${grade}): Score ${Math.round(score)}/100`} side="top">
-      <div className="flex flex-col items-center gap-0.5 cursor-help">
-        <div className={cn("relative w-12 h-12 rounded-full flex items-center justify-center border-2", config.border, config.bg)}>
-          <span className={cn("text-base font-black tabular-nums", config.color)}>{Math.round(score)}</span>
-        </div>
-        <span className={cn("text-[9px] font-bold uppercase tracking-wider", config.color)}>{config.label}</span>
+    <Tooltip content={`${tier.label} (${tier.range}): Score ${Math.round(score)}/100`} side="top">
+      <div className={cn("inline-flex shrink-0 cursor-help items-center justify-center rounded-full border-2", sizeClass, tier.borderClass, tier.bgClass)}>
+        <span className={cn("font-black tabular-nums", textClass, tier.colorClass)}>{Math.round(score)}</span>
       </div>
     </Tooltip>
   );
@@ -603,9 +997,9 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
     <div className="flex items-center gap-2">
       <span className={cn("text-[10px] text-neutral-500 w-20 shrink-0 text-right", tooltip && "cursor-help border-b border-dotted border-neutral-400/40")}>{label}</span>
       <div className="flex-1 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-        <div className={cn("h-full rounded-full", getScoreBg(value))} style={{ width: `${value}%` }} />
+        <div className={cn("h-full rounded-full", getPropScoreFillClass(value))} style={{ width: `${value}%` }} />
       </div>
-      <span className={cn("text-[10px] font-bold tabular-nums w-6 shrink-0", getScoreConfig(value).color)}>{Math.round(value)}</span>
+      <span className={cn("text-[10px] font-bold tabular-nums w-6 shrink-0", getPropScoreTier(value).colorClass)}>{Math.round(value)}</span>
     </div>
   );
   if (tooltip) {
@@ -614,10 +1008,102 @@ function SubScoreBar({ label, value, tooltip }: { label: string; value: number; 
   return bar;
 }
 
-function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScorePlayer; marketConfig: MarketConfig; isMobile?: boolean }) {
+function MobileFilterDropdown({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    function handleClick(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen]);
+
+  return (
+    <div ref={ref} className={cn("relative min-w-0", className)}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className={cn(
+          "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 text-left transition-all active:scale-[0.98]",
+          "bg-neutral-100 text-neutral-700 hover:bg-neutral-200/80 dark:bg-neutral-800/70 dark:text-neutral-200 dark:hover:bg-neutral-700/70",
+          isOpen && "ring-1 ring-brand/30"
+        )}
+      >
+        <span className="min-w-0">
+          <span className="block text-[8px] font-black uppercase leading-none tracking-wider text-neutral-400 dark:text-neutral-500">
+            {label}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] font-bold leading-none">
+            {selected?.label}
+          </span>
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-full overflow-hidden rounded-lg border border-neutral-200/70 bg-white shadow-xl dark:border-neutral-700/70 dark:bg-neutral-900">
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold transition-colors",
+                  isSelected
+                    ? "bg-brand/10 text-brand"
+                    : "text-neutral-600 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/70"
+                )}
+              >
+                {option.label}
+                {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OddsCell({
+  player,
+  marketConfig,
+  isMobile = false,
+  lineHistoryAccess,
+  onLineHistoryClick,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  isMobile?: boolean;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+}) {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const applyState = useStateLink();
+  const displayLine = getDisplayLine(player);
 
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -631,17 +1117,8 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
   if (!hasOdds) return <span className="text-xs text-neutral-500">—</span>;
 
   const logo = player.best_odds_book ? getBookLogo(player.best_odds_book) : null;
-  const snapshot = player.odds_snapshot ?? {};
-  const targetLine = player.line;
-  // Only show books offering the same line — deduplicate by real book ID (prefer best price)
-  const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
-    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
-      const realBook = parseBookKey(entry[0]);
-      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
-      return acc;
-    }, []);
+  const bookEntries = getBookEntriesForLine(player);
+  const showLineHistoryAction = !!lineHistoryAccess && !!onLineHistoryClick;
 
   return (
     <div ref={ref} className="relative inline-flex">
@@ -668,7 +1145,7 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 bg-neutral-50/80 dark:bg-neutral-800/50 border-b border-neutral-100 dark:border-neutral-800/80">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                {marketConfig.lineLabel} {player.line}+ Over
+                {marketConfig.lineLabel} {displayLine != null ? `${displayLine}+` : "-"} Over
               </span>
               <div className="flex items-center gap-2">
                 {spread >= 30 && (
@@ -736,10 +1213,233 @@ function OddsCell({ player, marketConfig, isMobile = false }: { player: PropScor
                 );
               })}
             </div>
+            {showLineHistoryAction && (
+              <div className="border-t border-neutral-100 dark:border-neutral-800/70 p-2">
+                <Tooltip content={lineHistoryAccess.canView ? "View historical line movement" : getLineHistoryGateLabel(lineHistoryAccess)} side="left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLineHistoryClick?.();
+                      if (lineHistoryAccess.canView) setIsOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors active:scale-[0.98]",
+                      lineHistoryAccess.canView
+                        ? "text-neutral-700 hover:bg-brand/5 dark:text-neutral-200 dark:hover:bg-brand/10"
+                        : "text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <LineChart className="h-3.5 w-3.5 text-brand shrink-0" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider truncate">
+                        Line movement
+                      </span>
+                    </span>
+                    {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && (
+                      <Lock className="h-3 w-3 shrink-0 text-neutral-500" />
+                    )}
+                  </button>
+                </Tooltip>
+              </div>
+            )}
           </div>
         );
       })()}
     </div>
+  );
+}
+
+function buildPropCenterFavoriteParams({
+  player,
+  marketConfig,
+  game,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  game?: MlbGame;
+}): AddFavoriteParams | null {
+  const market = PROP_MARKET_TO_ODDS_MARKET[marketConfig.key];
+  const eventId = game?.odds_game_id || String(player.game_id || "");
+  const line = player.line ?? null;
+
+  if (!market || !eventId || line == null || player.best_odds == null) {
+    return null;
+  }
+
+  const favoritePlayerId = player.odds_player_id || String(player.player_id);
+
+  const booksSnapshot: Record<string, BookSnapshot> = {};
+  for (const [bookKey, data] of Object.entries(player.odds_snapshot ?? {})) {
+    if (!data || data.over == null || data.line !== line) continue;
+    const bookId = parseBookKey(bookKey);
+    booksSnapshot[bookId] = {
+      price: data.over,
+      u: data.link || null,
+      m: data.mobile_link || null,
+      sgp: (data as any).sgp || null,
+      odd_id: data.odd_id || null,
+    };
+  }
+
+  return {
+    type: "player",
+    sport: "mlb",
+    event_id: eventId,
+    game_date: game?.game_date || player.game_date || null,
+    home_team: game?.home_team_tricode || null,
+    away_team: game?.away_team_tricode || null,
+    start_time: game?.game_datetime || player.game_time || null,
+    player_id: favoritePlayerId,
+    player_name: player.player_name,
+    player_team: player.team_abbr || null,
+    player_position: player.player_position || (player.player_type === "pitcher" ? "P" : null),
+    market,
+    line,
+    side: "over",
+    odds_key: `odds:mlb:${eventId}:${market}`,
+    odds_selection_id: `${eventId}:${favoritePlayerId}:${market}:${line}:over`,
+    books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+    best_price_at_save: player.best_odds,
+    best_book_at_save: player.best_odds_book ? parseBookKey(player.best_odds_book) : null,
+    source: "prop_center",
+  };
+}
+
+function PropCenterFavoriteButton({
+  player,
+  marketConfig,
+  game,
+  className,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  game?: MlbGame;
+  className?: string;
+}) {
+  const { toggleFavorite, isFavorited, isLoggedIn, isToggling } = useFavorites();
+  const queryClient = useQueryClient();
+  const [optimisticState, setOptimisticState] = useState<boolean | null>(null);
+
+  const favoriteParams = useMemo(
+    () => buildPropCenterFavoriteParams({ player, marketConfig, game }),
+    [player, marketConfig, game]
+  );
+
+  const isFavoritedServer = favoriteParams
+    ? isFavorited({
+        event_id: favoriteParams.event_id,
+        type: "player",
+        player_id: favoriteParams.player_id,
+        market: favoriteParams.market,
+        line: favoriteParams.line,
+        side: "over",
+      })
+    : false;
+
+  React.useEffect(() => {
+    if (optimisticState !== null && optimisticState === isFavoritedServer) {
+      setOptimisticState(null);
+    }
+  }, [isFavoritedServer, optimisticState]);
+
+  const isFilled = optimisticState ?? isFavoritedServer;
+  const isDisabled = !favoriteParams || isToggling;
+
+  const handleClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!favoriteParams || !isLoggedIn) return;
+
+    setOptimisticState(!isFilled);
+    const snapshot = favoriteParams.books_snapshot ?? {};
+    const playerName = favoriteParams.player_name || "Play";
+
+    toggleFavorite(favoriteParams)
+      .then((result) => {
+        if (result?.action === "added") {
+          toast.success("Saved to My Plays", {
+            description: `${playerName} over ${favoriteParams.line} ${marketConfig.lineLabel}`,
+            duration: 3000,
+          });
+
+          fetch("/api/v2/favorites/enrich-sgp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sport: "mlb",
+              event_id: favoriteParams.event_id,
+              odds_key: favoriteParams.odds_key,
+              player_id: favoriteParams.player_id,
+              market: favoriteParams.market,
+              player_name: playerName,
+              line: favoriteParams.line,
+              side: "over",
+            }),
+          })
+            .then((response) => {
+              if (!response.ok) throw new Error("enrich failed");
+              return response.json();
+            })
+            .then((data) => {
+              if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
+              const favorite = result.favorite;
+              if (!favorite?.id) return;
+
+              const enriched = { ...snapshot };
+              for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+                if (enriched[bookId]) {
+                  enriched[bookId] = { ...enriched[bookId], sgp: token as string };
+                }
+              }
+
+              const enrichedFavorite = { ...favorite, books_snapshot: enriched };
+              queryClient.setQueryData<Favorite[]>(
+                ["favorites", favorite.user_id],
+                (old) => old
+                  ? old.map((fav) => (fav?.id === favorite.id ? enrichedFavorite : fav))
+                  : old
+              );
+
+              import("@/libs/supabase/client").then(({ createClient }) => {
+                createClient()
+                  .from("user_favorites")
+                  .update({ books_snapshot: enriched })
+                  .eq("id", favorite.id)
+                  .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["favorites", favorite.user_id] });
+                  });
+              });
+            })
+            .catch(() => {});
+        } else if (result?.action === "removed") {
+          toast("Removed from My Plays", { duration: 2000 });
+        }
+      })
+      .catch(() => {
+        setOptimisticState(null);
+        toast.error("Could not update My Plays");
+      });
+  };
+
+  return (
+    <Tooltip content={!isLoggedIn ? "Sign in to save plays" : isFilled ? "Remove from My Plays" : "Add to My Plays"} side="top">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isDisabled}
+        className={cn(
+          "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors active:scale-[0.97]",
+          isFilled
+            ? "bg-red-50 text-red-500 dark:bg-red-950/30"
+            : "text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:text-neutral-500 dark:hover:bg-neutral-800",
+          isDisabled && "cursor-not-allowed opacity-50",
+          className
+        )}
+        aria-label={isFilled ? "Remove from My Plays" : "Add to My Plays"}
+      >
+        <Heart className={cn("h-4 w-4", isFilled && "fill-current")} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -931,22 +1631,25 @@ function formatDisplayStat(val: any, format: StatDisplayItem["format"]): string 
 
 // ── Expanded Row ────────────────────────────────────────────────────────────
 
-function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; marketConfig: MarketConfig }) {
+function ExpandedRow({
+  player,
+  marketConfig,
+  opposingPitcher,
+  lineHistoryAccess,
+  onLineHistoryClick,
+}: {
+  player: PropScorePlayer;
+  marketConfig: MarketConfig;
+  opposingPitcher?: string | null;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+}) {
   const applyState = useStateLink();
   const factors = player.factor_scores ?? {};
   const keyStats = player.key_stats ?? {};
   const expandedStats = player.expanded_stats ?? {};
   const allData = { ...keyStats, ...expandedStats };
-  const snapshot = player.odds_snapshot ?? {};
-  const targetLine = player.line;
-  const bookEntries = Object.entries(snapshot)
-    .filter(([, d]) => d?.over != null && (targetLine == null || d.line === targetLine))
-    .sort((a, b) => (b[1]?.over ?? -9999) - (a[1]?.over ?? -9999))
-    .reduce<[string, typeof snapshot[string]][]>((acc, entry) => {
-      const realBook = parseBookKey(entry[0]);
-      if (!acc.some(([k]) => parseBookKey(k) === realBook)) acc.push(entry);
-      return acc;
-    }, []);
+  const bookEntries = getBookEntriesForLine(player);
   const bestBook = player.best_odds_book;
 
   // Market-specific stat display
@@ -1023,7 +1726,12 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                 if (visibleItems.length === 0) return null;
                 return (
                 <div key={group}>
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">{group}</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">
+                    {group}
+                    {opposingPitcher && (group === "Pitcher" || group === "Matchup") && (
+                      <span className="normal-case tracking-normal text-neutral-400 ml-1">({opposingPitcher})</span>
+                    )}
+                  </h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     {visibleItems.map((item) => {
                       const val = allData[item.key];
@@ -1312,20 +2020,43 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">All Book Odds</h4>
-                    {/* Odds variance callout */}
-                    {(() => {
-                      const prices = bookEntries.map(([, d]) => d?.over).filter((p): p is number => p != null);
-                      if (prices.length < 3) return null;
-                      const spread = Math.max(...prices) - Math.min(...prices);
-                      if (spread < 200) return null;
-                      return (
-                        <Tooltip content={`${spread}+ point spread across books — market hasn't settled, potential value opportunity`} side="left">
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
-                            Wide Spread
-                          </span>
+                    <div className="flex items-center gap-2">
+                      {/* Odds variance callout */}
+                      {(() => {
+                        const prices = bookEntries.map(([, d]) => d?.over).filter((p): p is number => p != null);
+                        if (prices.length < 3) return null;
+                        const spread = Math.max(...prices) - Math.min(...prices);
+                        if (spread < 200) return null;
+                        return (
+                          <Tooltip content={`${spread}+ point spread across books — market hasn't settled, potential value opportunity`} side="left">
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
+                              Wide Spread
+                            </span>
+                          </Tooltip>
+                        );
+                      })()}
+                      {lineHistoryAccess && onLineHistoryClick && (
+                        <Tooltip content={lineHistoryAccess.canView ? "View historical line movement" : getLineHistoryGateLabel(lineHistoryAccess)} side="left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onLineHistoryClick();
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors active:scale-[0.98]",
+                              lineHistoryAccess.canView
+                                ? "bg-brand/10 text-brand hover:bg-brand/15"
+                                : "bg-neutral-500/10 text-neutral-400 hover:bg-neutral-500/15"
+                            )}
+                          >
+                            <LineChart className="h-3 w-3" />
+                            Movement
+                            {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && <Lock className="h-2.5 w-2.5" />}
+                          </button>
                         </Tooltip>
-                      );
-                    })()}
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-0.5">
                     {bookEntries.map(([book, info], idx) => {
@@ -1380,14 +2111,46 @@ function ExpandedRow({ player, marketConfig }: { player: PropScorePlayer; market
   );
 }
 
-function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; rank: number; marketConfig: MarketConfig }) {
+function MobileCard({
+  player,
+  rank,
+  marketConfig,
+  opposingPitcher,
+  isHome,
+  game,
+  lineHistoryAccess,
+  onLineHistoryClick,
+  onPlayerQuickView,
+}: {
+  player: PropScorePlayer;
+  rank: number;
+  marketConfig: MarketConfig;
+  opposingPitcher?: string | null;
+  isHome?: boolean;
+  game?: MlbGame;
+  lineHistoryAccess?: LineHistoryAccessState;
+  onLineHistoryClick?: () => void;
+  onPlayerQuickView?: (player: PropScorePlayer, marketConfig: MarketConfig, game?: MlbGame) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const config = getGradeConfig(player.grade);
+  const displayLine = getDisplayLine(player);
   const factors = player.factor_scores ?? {};
+  const applyState = useStateLink();
 
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 overflow-hidden">
-      <button onClick={() => setExpanded(!expanded)} className="w-full text-left p-4 flex items-center gap-3">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setExpanded((value) => !value);
+          }
+        }}
+        className="w-full text-left p-4 flex items-center gap-3"
+      >
         <span className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0",
           rank <= 3 ? "bg-amber-500/20 text-amber-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400"
         )}>
@@ -1406,13 +2169,22 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <Image src={`/team-logos/mlb/${player.team_abbr.toUpperCase()}.svg`} alt="" width={14} height={14} className="shrink-0" />
-            <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">{player.player_name}</span>
-            <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded", config.bg, config.color)}>{player.grade}</span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onPlayerQuickView?.(player, marketConfig, game);
+              }}
+              className="min-w-0 truncate text-left text-sm font-bold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+            >
+              {player.player_name}
+            </button>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
-            <span>vs {player.opponent_name || "TBD"}</span>
-            {player.line != null && (
-              <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{player.line} {marketConfig.lineLabel}</span>
+            <span>{isHome ? "vs " : "@ "}{player.opponent_name || "TBD"}{opposingPitcher && <span className="text-neutral-400"> ({opposingPitcher})</span>}</span>
+            {displayLine != null && (
+              <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{displayLine} {marketConfig.lineLabel}</span>
             )}
             {player.hit_over != null && (
               <span className={cn(
@@ -1428,7 +2200,10 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {!marketConfig.hideOdds && (
+            <PropCenterFavoriteButton player={player} marketConfig={marketConfig} game={game} />
+          )}
           {!marketConfig.hideOdds && (
             <div className="text-right">
               <span className="text-[10px] text-neutral-500 block">Edge</span>
@@ -1439,39 +2214,133 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
               </span>
             </div>
           )}
-          <div className={cn("w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0", config.border, config.bg)}>
-            <span className={cn("text-sm font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
-          </div>
+          <ScoreBadge score={player.composite_score} size="lg" />
         </div>
-      </button>
+      </div>
 
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t border-neutral-100 dark:border-neutral-800">
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div className="flex flex-col gap-1.5">
-              {marketConfig.factors.map((f) => (
-                <SubScoreBar key={f.key} label={f.label} value={factors[f.key] ?? 0} />
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-              {marketConfig.columns.map((col) => (
-                <React.Fragment key={col.key}>
-                  <span className="text-neutral-500">{col.label}</span>
-                  <span className="font-bold text-neutral-200 tabular-nums">
-                    {formatStatValue(player.key_stats?.[col.key], col.format)}
-                  </span>
-                </React.Fragment>
-              ))}
-              {!marketConfig.hideOdds && (
-                <>
-                  <span className="text-neutral-500">Best Odds</span>
-                  <span className="font-bold text-emerald-400 tabular-nums">{formatOdds(player.best_odds)}</span>
-                </>
-              )}
+      {expanded && (() => {
+        const bookEntries = getBookEntriesForLine(player);
+
+        return (
+          <div className="border-t border-neutral-100 dark:border-neutral-800">
+            {/* Odds strip */}
+            {!marketConfig.hideOdds && bookEntries.length > 0 && (
+              <div className="px-4 py-3 border-b border-neutral-100/80 dark:border-neutral-800/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Best Odds</span>
+                  <div className="flex items-center gap-2">
+                    {player.model_prob != null && player.implied_prob != null && (
+                      <span className="text-[9px] text-neutral-400">
+                        Model <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.model_prob * 100).toFixed(0)}%</span>
+                        <span className="mx-1 text-neutral-300 dark:text-neutral-600">vs</span>
+                        Market <span className="font-bold text-neutral-700 dark:text-neutral-300">{(player.implied_prob * 100).toFixed(0)}%</span>
+                      </span>
+                    )}
+                    {lineHistoryAccess && onLineHistoryClick && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onLineHistoryClick();
+                        }}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors active:scale-[0.98]",
+                          lineHistoryAccess.canView
+                            ? "bg-brand/10 text-brand"
+                            : "bg-neutral-500/10 text-neutral-400"
+                        )}
+                      >
+                        <LineChart className="h-3 w-3" />
+                        Movement
+                        {!lineHistoryAccess.canView && !lineHistoryAccess.isLoading && <Lock className="h-2.5 w-2.5" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+                  {bookEntries.map(([bookKey, data]) => {
+                    const realBook = parseBookKey(bookKey);
+                    const sb = getSportsbookById(realBook);
+                    const logo = sb?.image?.square ?? sb?.image?.light ?? null;
+                    const isBest = data?.over === player.best_odds;
+                    const bookLink = resolveBookLink(bookKey, data, true, applyState);
+                    const Tag = bookLink ? "a" : "div";
+                    return (
+                      <Tag
+                        key={bookKey}
+                        {...(bookLink ? { href: bookLink, target: "_blank", rel: "noopener noreferrer" } : {})}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1.5 rounded-lg shrink-0 border transition-colors",
+                          isBest
+                            ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
+                            : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30",
+                          bookLink && "active:scale-95"
+                        )}
+                      >
+                        {logo && <img src={logo} alt="" className="w-4 h-4 rounded object-contain" />}
+                        <span className={cn(
+                          "text-xs font-bold tabular-nums",
+                          isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+                        )}>
+                          {formatOdds(data?.over ?? null)}
+                        </span>
+                      </Tag>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Stats + Score Breakdown */}
+            <div className="px-4 py-3">
+              {/* Key stats row */}
+              <div className="flex items-center gap-4 mb-3 pb-3 border-b border-neutral-100/80 dark:border-neutral-800/40">
+                {marketConfig.columns.map((col) => {
+                  const rawVal = player.key_stats?.[col.key];
+                  const isNullish = rawVal == null || (Number(rawVal) === 0 && ZERO_IS_NULL_STATS.has(col.key));
+                  // Text-only color for mobile (no bg)
+                  const t = !isNullish ? STAT_CELL_THRESHOLDS[col.key] : null;
+                  const num = Number(rawVal);
+                  let textColor = "text-neutral-800 dark:text-neutral-200";
+                  if (t && !isNaN(num)) {
+                    const higher = t.higher !== false;
+                    if (higher ? num >= t.elite : num <= t.elite) textColor = "text-emerald-600 dark:text-emerald-400";
+                    else if (higher ? num >= t.good : num <= t.good) textColor = "text-emerald-600/80 dark:text-emerald-400/80";
+                    else if (higher ? num <= t.bad : num >= t.bad) textColor = "text-red-600 dark:text-red-400";
+                    else if (higher ? num <= t.poor : num >= t.poor) textColor = "text-red-500/80 dark:text-red-400/70";
+                  }
+                  return (
+                    <div key={col.key} className="flex-1 min-w-0">
+                      <span className="text-[9px] text-neutral-400 dark:text-neutral-500 block">{col.shortLabel || col.label}</span>
+                      <span className={cn("text-sm font-bold tabular-nums", textColor)}>
+                        {isNullish ? "-" : formatStatValue(rawVal, col.format)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {!marketConfig.hideOdds && player.edge_pct != null && (
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 block">Edge</span>
+                    <span className={cn("text-sm font-bold tabular-nums",
+                      player.edge_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : player.edge_pct < 0 ? "text-red-500 dark:text-red-400" : "text-neutral-500"
+                    )}>
+                      {player.edge_pct > 0 ? "+" : ""}{player.edge_pct.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Score breakdown */}
+              <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-2 block">Score Breakdown</span>
+              <div className="flex flex-col gap-1.5">
+                {marketConfig.factors.map((f) => (
+                  <SubScoreBar key={f.key} label={f.label} value={factors[f.key] ?? 0} />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -1481,12 +2350,16 @@ function MobileCard({ player, rank, marketConfig }: { player: PropScorePlayer; r
 
 // ── Table Helpers ────────────────────────────────────────────────────────────
 
-function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
+function Th({
+  children,
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement> & { children?: React.ReactNode }) {
   return (
     <th className={cn(
       "h-10 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 bg-neutral-50/95 dark:bg-neutral-800/95",
       className
-    )}>
+    )} {...props}>
       {children}
     </th>
   );
@@ -1516,13 +2389,21 @@ export function MlbPropCommandCenter() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [selectedDate, setSelectedDateState] = useState(() => searchParams.get("date") || getETDate());
+  const [selectedDate, setSelectedDateState] = useState(() => getSafeDateParam(searchParams.get("date")));
   const setSelectedDate = useCallback((date: string) => {
-    setSelectedDateState(date);
+    const safeDate = getSafeDateParam(date);
+    setSelectedDateState(safeDate);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("date", date);
+    params.set("date", safeDate);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
+
+  React.useEffect(() => {
+    const urlDate = searchParams.get("date");
+    if (urlDate && !isValidDateParam(urlDate)) {
+      setSelectedDate(getETDate());
+    }
+  }, [searchParams, setSelectedDate]);
 
   const [selectedMarket, setSelectedMarketState] = useState<string>(() => searchParams.get("market") || "hr");
   const setSelectedMarket = useCallback((market: string) => {
@@ -1532,17 +2413,28 @@ export function MlbPropCommandCenter() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
 
-  const [minScore, setMinScore] = useState(0);
+  const [minScore, setMinScore] = useState<MinScoreOption>(() => getStoredMinScore());
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>("all");
   const [selectedLine, setSelectedLine] = useState<number | null>(null); // null = use consensus
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
+  const [quickViewPlayer, setQuickViewPlayer] = useState<PropCenterQuickViewPlayer | null>(null);
 
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
   const isGated = !isLoadingAccess && !hasAccess;
+  const lineHistoryAccess = useMemo<LineHistoryAccessState>(() => {
+    const plan = entitlements?.plan;
+    return {
+      canView: !isLoadingEntitlements && !!entitlements?.authenticated && (plan === "sharp" || plan === "elite" || plan === "unlimited"),
+      isLoading: isLoadingEntitlements,
+      isAuthenticated: !!entitlements?.authenticated,
+    };
+  }, [entitlements?.authenticated, entitlements?.plan, isLoadingEntitlements]);
 
   const marketConfig = MARKET_MAP.get(selectedMarket) ?? MARKETS[0];
 
@@ -1584,7 +2476,7 @@ export function MlbPropCommandCenter() {
 
       // Merge live odds into snapshot (same architecture as slate insights)
       const playerNorm = p.player_name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-      const liveEntry = liveOdds[playerNorm];
+      const liveEntry = liveOdds[`${p.game_id}:${playerNorm}`];
       let mergedSnapshot = { ...(p.odds_snapshot ?? {}) };
       if (liveEntry?.all_books) {
         // Live odds have all lines per book — build snapshot entries keyed by book__line
@@ -1592,12 +2484,15 @@ export function MlbPropCommandCenter() {
           const line = ab.line ?? liveEntry.line;
           if (line == null) continue;
           const key = `${ab.book}__${line}`;
+          const existing = mergedSnapshot[key] ?? mergedSnapshot[ab.book];
           mergedSnapshot[key] = {
             line,
             over: ab.price,
             under: null,
             link: ab.link,
             mobile_link: ab.mobile_link,
+            sgp: ab.sgp ?? existing?.sgp ?? null,
+            odd_id: ab.odd_id || null,
           };
         }
       }
@@ -1653,12 +2548,19 @@ export function MlbPropCommandCenter() {
   const isLoading = propResult.isLoading;
   const availableDates = propResult.availableDates;
 
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(PROP_CENTER_SCORE_FILTER_STORAGE_KEY, String(minScore));
+    } catch {
+      // Ignore storage failures in private browsing or locked-down browsers.
+    }
+  }, [minScore]);
+
   // Reset state when market changes
   React.useEffect(() => {
     setExpandedPlayerId(null);
     setSortField("score");
     setSortDirection("desc");
-    setSelectedGame("all");
     setSelectedLine(null);
   }, [selectedMarket]);
 
@@ -1758,6 +2660,22 @@ export function MlbPropCommandCenter() {
     return map;
   }, [filteredPlayers]);
 
+  const handleOpenLineHistory = useCallback((player: PropScorePlayer, config: MarketConfig, game?: MlbGame) => {
+    if (lineHistoryAccess.isLoading) return;
+
+    const context = buildPropCenterLineHistoryContext(player, config, game);
+    if (!context) {
+      toast.error("Line movement is unavailable for this play");
+      return;
+    }
+
+    setLineHistoryContext(context);
+  }, [lineHistoryAccess.isLoading]);
+
+  const handleOpenQuickView = useCallback((player: PropScorePlayer, config: MarketConfig, game?: MlbGame) => {
+    setQuickViewPlayer(buildPropCenterQuickViewPlayer(player, config, game));
+  }, []);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
@@ -1766,6 +2684,32 @@ export function MlbPropCommandCenter() {
       setSortDirection("desc");
     }
   };
+
+  const handleMinScoreChange = useCallback((value: string) => {
+    const score = Number(value);
+    setMinScore(isMinScoreOption(score) ? score : 0);
+  }, []);
+
+  const scoreFilterOptions = useMemo(() => (
+    MIN_SCORE_OPTIONS.map((option) => ({
+      label: option.label,
+      value: String(option.value),
+    }))
+  ), []);
+
+  const lineFilterOptions = useMemo(() => [
+    { label: "Default", value: "default" },
+    ...(marketConfig.lineOptions ?? []).map((line) => ({
+      label: `${line}+`,
+      value: String(line),
+    })),
+  ], [marketConfig.lineOptions]);
+
+  const selectedLineValue = selectedLine == null ? "default" : String(selectedLine);
+
+  const handleLineFilterChange = useCallback((value: string) => {
+    setSelectedLine(value === "default" ? null : Number(value));
+  }, []);
 
   return (
     <div className="space-y-0">
@@ -1783,7 +2727,7 @@ export function MlbPropCommandCenter() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all",
                   selectedMarket === m.key
-                    ? "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-on-primary shadow-sm"
                     : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/80 dark:hover:bg-neutral-800/60"
                 )}
               >
@@ -1803,7 +2747,7 @@ export function MlbPropCommandCenter() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all",
                   selectedMarket === m.key
-                    ? "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-on-primary shadow-sm"
                     : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/80 dark:hover:bg-neutral-800/60"
                 )}
               >
@@ -1866,6 +2810,17 @@ export function MlbPropCommandCenter() {
                 />
               </>
             )}
+            <FilterDivider />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Score
+              </span>
+              <SegmentedControl
+                value={String(minScore)}
+                onChange={handleMinScoreChange}
+                options={scoreFilterOptions}
+              />
+            </div>
             <div className="flex-1 min-w-0" />
             <div className="flex items-center gap-3 shrink-0">
               <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
@@ -1882,53 +2837,42 @@ export function MlbPropCommandCenter() {
               <FilterCount count={filteredPlayers.length} label="players" />
             </div>
             <FilterSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search player..." />
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex w-full items-center gap-2">
+              <MobileFilterDropdown
+                label="Score"
+                value={String(minScore)}
+                onChange={handleMinScoreChange}
+                options={scoreFilterOptions}
+                className="w-[88px] shrink-0"
+              />
               {marketConfig.lineOptions && marketConfig.lineOptions.length > 1 && (
-                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/60 dark:bg-neutral-800/60">
-                  <button
-                    onClick={() => setSelectedLine(null)}
-                    className={cn(
-                      "px-2 py-1 rounded-md text-[11px] font-semibold transition-all",
-                      selectedLine === null
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    )}
-                  >
-                    Def
-                  </button>
-                  {marketConfig.lineOptions.map((ln) => (
-                    <button
-                      key={ln}
-                      onClick={() => setSelectedLine(ln)}
-                      className={cn(
-                        "px-2 py-1 rounded-md text-[11px] font-semibold transition-all tabular-nums",
-                        selectedLine === ln
-                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                      )}
-                    >
-                      {ln}+
-                    </button>
-                  ))}
-                </div>
+                <MobileFilterDropdown
+                  label="Line"
+                  value={selectedLineValue}
+                  onChange={handleLineFilterChange}
+                  options={lineFilterOptions}
+                  className="w-[88px] shrink-0"
+                />
               )}
               {allGames.length > 1 && (
-                <GameFilterDropdown
-                  games={allGames}
-                  selectedGame={selectedGame}
-                  onSelect={setSelectedGame}
-                />
+                <div className="ml-auto min-w-0 shrink-0">
+                  <GameFilterDropdown
+                    games={allGames}
+                    selectedGame={selectedGame}
+                    onSelect={setSelectedGame}
+                  />
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Grade legend */}
+        {/* Score tier legend */}
         <div className="hidden md:flex px-4 py-1.5 items-center gap-4 border-t border-neutral-200/40 dark:border-neutral-800/30 text-[10px] text-neutral-400">
-          <span className="font-medium text-neutral-500">Grades:</span>
-          {GRADES.map((g) => (
-            <span key={g.grade} className="flex items-center gap-1">
-              <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold", g.bg, g.color)}>{g.grade} {g.label}</span>
+          <span className="font-medium text-neutral-500">Score tiers:</span>
+          {PROP_SCORE_TIER_LEGEND.map((tier) => (
+            <span key={tier.key} className="flex items-center gap-1">
+              <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold", tier.bgClass, tier.colorClass)}>{tier.label} {tier.range}</span>
             </span>
           ))}
         </div>
@@ -1938,9 +2882,26 @@ export function MlbPropCommandCenter() {
       <div className="relative mt-3">
         {isMobile && !isLoading && sortedPlayers.length > 0 ? (
           <div className="space-y-3">
-            {displayPlayers.map((player, idx) => (
-              <MobileCard key={`${player.player_id}-${player.market}-${player.game_id}`} player={player} rank={rankMap.get(player.player_id) ?? idx + 1} marketConfig={marketConfig} />
-            ))}
+            {displayPlayers.map((player, idx) => {
+              const g = gameMap.get(player.game_id);
+              const playerIsHome = g ? player.team_abbr.toUpperCase() === g.home_team_tricode.toUpperCase() : false;
+              const oppP = g ? (playerIsHome ? g.away_probable_pitcher : g.home_probable_pitcher) : null;
+              const oppPShort = oppP ? oppP.split(" ").pop() ?? oppP : null;
+              return (
+                <MobileCard
+                  key={`${player.player_id}-${player.market}-${player.game_id}`}
+                  player={player}
+                  rank={rankMap.get(player.player_id) ?? idx + 1}
+                  marketConfig={marketConfig}
+                  opposingPitcher={oppPShort}
+                  isHome={playerIsHome}
+                  game={g}
+                  lineHistoryAccess={lineHistoryAccess}
+                  onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, g)}
+                  onPlayerQuickView={handleOpenQuickView}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden bg-white dark:bg-neutral-900">
@@ -1955,7 +2916,7 @@ export function MlbPropCommandCenter() {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center max-w-sm">
                   <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">No data</h3>
-                  <p className="text-sm text-neutral-500">{searchQuery ? "No players match your search." : "No prop scores available for this date and market."}</p>
+                  <p className="text-sm text-neutral-500">Adjust filters or try another market/date.</p>
                 </div>
               </div>
             ) : (
@@ -1964,13 +2925,13 @@ export function MlbPropCommandCenter() {
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
                       <Th className="w-8 text-center">#</Th>
+                      <Th className="w-16">
+                        <SortBtn field="score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn>
+                      </Th>
                       <Th className="min-w-[160px] text-left">
                         <SortBtn field="player" current={sortField} dir={sortDirection} onClick={handleSort}>Player</SortBtn>
                       </Th>
                       <Th className="text-left">Opponent</Th>
-                      <Th className="w-16">
-                        <SortBtn field="score" current={sortField} dir={sortDirection} onClick={handleSort}>Score</SortBtn>
-                      </Th>
                       {/* Market-specific columns */}
                       {marketConfig.columns.map((col, i) => (
                         <Th key={col.key}>
@@ -2004,17 +2965,25 @@ export function MlbPropCommandCenter() {
                           </Tooltip>
                         </Th>
                       )}
-                      <Th className="w-8" />
+                      <Th
+                        className="text-center"
+                        colSpan={marketConfig.hideOdds ? 1 : 2}
+                      >
+                        Actions
+                      </Th>
                     </tr>
                   </thead>
                   <tbody>
                     {displayPlayers.map((player, idx) => {
                       const isExpanded = expandedPlayerId === player.player_id;
-                      const config = getGradeConfig(player.grade);
                       const rank = rankMap.get(player.player_id) ?? idx + 1;
                       const game = gameMap.get(player.game_id);
-                      const gameState = getGameState(game?.game_status ?? null);
+                      const gameState = getGameState(game?.game_status ?? null, game?.live);
                       const isStarted = gameState !== "upcoming";
+                      const isOnHomeTeam = game ? player.team_abbr.toUpperCase() === game.home_team_tricode.toUpperCase() : false;
+                      const opposingPitcher = game ? (isOnHomeTeam ? game.away_probable_pitcher : game.home_probable_pitcher) : null;
+                      const opposingPitcherShort = opposingPitcher ? opposingPitcher.split(" ").pop() ?? opposingPitcher : null;
+                      const displayLine = getDisplayLine(player);
                       return (
                         <React.Fragment key={`${player.player_id}-${player.market}-${player.game_id}`}>
                           <tr
@@ -2037,6 +3006,11 @@ export function MlbPropCommandCenter() {
                               </span>
                             </td>
 
+                            {/* Score */}
+                            <td className="px-2 py-2 text-center">
+                              <ScoreBadge score={player.composite_score} size="sm" />
+                            </td>
+
                             {/* Player — compact with line badge */}
                             <td className="px-2 py-2">
                               <div className="flex items-center gap-2">
@@ -2051,7 +3025,17 @@ export function MlbPropCommandCenter() {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <Image src={`/team-logos/mlb/${player.team_abbr.toUpperCase()}.svg`} alt="" width={12} height={12} className="shrink-0" />
-                                    <span className="font-bold text-neutral-900 dark:text-white truncate text-xs">{player.player_name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        handleOpenQuickView(player, marketConfig, game);
+                                      }}
+                                      className="min-w-0 truncate text-left text-xs font-bold text-neutral-900 transition-colors hover:text-brand hover:underline dark:text-white"
+                                    >
+                                      {player.player_name}
+                                    </button>
                                     {player.batting_order && (
                                       <Tooltip content={`Batting ${player.batting_order}${player.batting_order <= 3 ? " — top of order, more ABs" : player.batting_order <= 5 ? " — middle order, RBI spot" : player.batting_order <= 7 ? " — lower order" : " — bottom of order, fewer ABs"}`} side="top">
                                         <span className={cn(
@@ -2067,9 +3051,9 @@ export function MlbPropCommandCenter() {
                                     <LineupBadge status={player.lineup_status} />
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    {player.line != null && (
+                                    {displayLine != null && (
                                       <span className="text-[10px] font-mono font-semibold text-neutral-500 tabular-nums">
-                                        {player.line}+ {marketConfig.lineLabel}
+                                        {displayLine}+ {marketConfig.lineLabel}
                                       </span>
                                     )}
                                     {player.hit_over != null && (
@@ -2090,36 +3074,116 @@ export function MlbPropCommandCenter() {
                               </div>
                             </td>
 
-                            {/* Opponent + Game Time */}
+                            {/* Opponent + Game State */}
                             <td className="px-2 py-2">
-                              <div className="min-w-0 max-w-[140px]">
+                              <div className="min-w-0 max-w-[170px]">
                                 <div className="text-[11px] text-neutral-500 truncate">
-                                  {player.opponent_name || "TBD"}
+                                  {isOnHomeTeam ? "vs " : "@ "}{player.opponent_name || "TBD"}
+                                  {opposingPitcherShort && (
+                                    <span className="text-neutral-400"> ({opposingPitcherShort})</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  {game && (
-                                    <span className="text-[9px] text-neutral-400 tabular-nums">
-                                      {game.game_status}
-                                    </span>
-                                  )}
-                                  {gameState === "live" && game && (
+                                  {gameState === "live" && game?.live?.current_inning != null ? (
+                                    <Tooltip
+                                      content={
+                                        <div className="flex flex-col gap-3 px-1 py-1.5 min-w-[160px]">
+                                          {/* Header: score + inning */}
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-neutral-300">
+                                              {game.away_team_tricode} {game.away_team_score ?? 0} - {game.home_team_score ?? 0} {game.home_team_tricode}
+                                            </span>
+                                            <span className="flex items-center gap-0.5">
+                                              <span className="text-[9px] text-emerald-400 font-bold">{game.live.current_inning_half === "top" ? "▲" : "▼"}</span>
+                                              <span className="text-[10px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                                            </span>
+                                          </div>
+                                          {/* Divider */}
+                                          <div className="h-px bg-neutral-700/60" />
+                                          {/* State: bases + count/outs */}
+                                          <div className="flex items-center justify-center gap-4">
+                                            <BasesDiamond
+                                              runners={game.live.runners_on_base ?? { first: false, second: false, third: false }}
+                                              size="md"
+                                            />
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className="text-sm font-extrabold text-white tabular-nums tracking-wide">
+                                                {game.live.current_balls ?? 0}-{game.live.current_strikes ?? 0}
+                                              </span>
+                                              <div className="flex items-center gap-1.5">
+                                                {[0, 1, 2].map((i) => (
+                                                  <div
+                                                    key={i}
+                                                    className={cn(
+                                                      "w-2.5 h-2.5 rounded-full border",
+                                                      i < (game.live?.current_outs ?? 0)
+                                                        ? "bg-amber-400 border-amber-500"
+                                                        : "border-neutral-500"
+                                                    )}
+                                                  />
+                                                ))}
+                                                <span className="text-[10px] text-neutral-500 ml-0.5">out</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {/* Divider */}
+                                          <div className="h-px bg-neutral-700/60" />
+                                          {/* Footer: matchup + lineup */}
+                                          <div className="flex flex-col gap-1">
+                                            {game.live.current_batter_name && (
+                                              <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                <span className="text-neutral-500">AB{game.live.current_batting_order ? ` #${game.live.current_batting_order}` : ""}</span>
+                                                <span className="font-semibold text-white">{game.live.current_batter_name}</span>
+                                              </div>
+                                            )}
+                                            {game.live.current_pitcher_name && (
+                                              <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                <span className="text-neutral-500">P</span>
+                                                <span className="font-semibold text-neutral-200">{game.live.current_pitcher_name}</span>
+                                              </div>
+                                            )}
+                                            {(game.live.on_deck_name || game.live.in_hole_name) && (
+                                              <>
+                                                <div className="h-px bg-neutral-700/40 mt-0.5" />
+                                                <div className="flex items-center justify-between gap-4 text-[10px]">
+                                                  <span className="text-neutral-600">Due up</span>
+                                                  <span className="text-neutral-400">
+                                                    {[game.live.on_deck_name, game.live.in_hole_name].filter(Boolean).map(n => n!.split(" ").pop()).join(", ")}
+                                                  </span>
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      }
+                                      side="bottom"
+                                    >
+                                      <div className="inline-flex items-center gap-1.5 cursor-help">
+                                        <span className="flex items-center gap-0.5">
+                                          <span className="text-[8px] text-emerald-400 font-bold leading-none">
+                                            {game.live.current_inning_half === "top" ? "▲" : "▼"}
+                                          </span>
+                                          <span className="text-[9px] font-extrabold text-emerald-400 tabular-nums">{game.live.current_inning}</span>
+                                        </span>
+                                        <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 leading-none tabular-nums">
+                                          {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                        </span>
+                                      </div>
+                                    </Tooltip>
+                                  ) : gameState === "live" && game ? (
                                     <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 leading-none tabular-nums">
-                                      {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
+                                      Live {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
                                     </span>
-                                  )}
-                                  {gameState === "final" && game && (
+                                  ) : gameState === "final" && game ? (
                                     <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-neutral-500/15 text-neutral-400 leading-none tabular-nums">
                                       F {game.away_team_score ?? 0}-{game.home_team_score ?? 0}
                                     </span>
-                                  )}
+                                  ) : game ? (
+                                    <span className="text-[9px] text-neutral-400 tabular-nums">
+                                      {formatMlbGameStatusForUser(game)}
+                                    </span>
+                                  ) : null}
                                 </div>
-                              </div>
-                            </td>
-
-                            {/* Score */}
-                            <td className="px-2 py-2 text-center">
-                              <div className={cn("inline-flex w-9 h-9 rounded-full items-center justify-center border-2", config.border, config.bg)}>
-                                <span className={cn("text-xs font-black tabular-nums", config.color)}>{Math.round(player.composite_score)}</span>
                               </div>
                             </td>
 
@@ -2140,7 +3204,13 @@ export function MlbPropCommandCenter() {
                             {/* Odds */}
                             {!marketConfig.hideOdds && (
                               <td className="px-2 py-2 text-center">
-                                <OddsCell player={player} marketConfig={marketConfig} isMobile={isMobile} />
+                                <OddsCell
+                                  player={player}
+                                  marketConfig={marketConfig}
+                                  isMobile={isMobile}
+                                  lineHistoryAccess={lineHistoryAccess}
+                                  onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, game)}
+                                />
                               </td>
                             )}
 
@@ -2184,6 +3254,13 @@ export function MlbPropCommandCenter() {
                               </td>
                             )}
 
+                            {/* Favorite */}
+                            {!marketConfig.hideOdds && (
+                              <td className="px-1.5 py-2 text-center">
+                                <PropCenterFavoriteButton player={player} marketConfig={marketConfig} game={game} />
+                              </td>
+                            )}
+
                             {/* Expand */}
                             <td className="px-2 py-2.5 text-center">
                               {isExpanded
@@ -2191,7 +3268,15 @@ export function MlbPropCommandCenter() {
                                 : <ChevronRight className="w-4 h-4 text-neutral-400" />}
                             </td>
                           </tr>
-                          {isExpanded && <ExpandedRow player={player} marketConfig={marketConfig} />}
+                          {isExpanded && (
+                            <ExpandedRow
+                              player={player}
+                              marketConfig={marketConfig}
+                              opposingPitcher={opposingPitcherShort}
+                              lineHistoryAccess={lineHistoryAccess}
+                              onLineHistoryClick={() => handleOpenLineHistory(player, marketConfig, game)}
+                            />
+                          )}
                         </React.Fragment>
                       );
                     })}
@@ -2217,6 +3302,32 @@ export function MlbPropCommandCenter() {
           </div>
         )}
       </div>
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
+      {quickViewPlayer && (
+        <PlayerQuickViewModal
+          sport="mlb"
+          mlb_player_id={quickViewPlayer.mlb_player_id}
+          odds_player_id={quickViewPlayer.odds_player_id ?? undefined}
+          player_name={quickViewPlayer.player_name}
+          initial_market={quickViewPlayer.market}
+          initial_line={quickViewPlayer.line}
+          event_id={quickViewPlayer.event_id}
+          odds={quickViewPlayer.odds}
+          liveBookOffers={quickViewPlayer.liveBookOffers}
+          gameContext={quickViewPlayer.gameContext}
+          showFullProfileLink={false}
+          open={!!quickViewPlayer}
+          onOpenChange={(open) => {
+            if (!open) setQuickViewPlayer(null);
+          }}
+        />
+      )}
     </div>
   );
 }

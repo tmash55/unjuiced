@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
-import { sportsbooks, getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
+import { getAllActiveSportsbooks, normalizeSportsbookSelection, sportsbooks } from "@/lib/data/sportsbooks";
 import { preferencesRPC, UserPreferences, UserPreferencesUpdate } from "@/lib/preferences-rpc";
 
 // Development-only logging flag
@@ -596,9 +596,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (!user) {
       setGuestOdds(prev => ({
         ...prev,
-        ...(filters.selectedBooks !== undefined ? { selectedBooks: filters.selectedBooks } : {}),
+        ...(filters.selectedBooks !== undefined ? { selectedBooks: normalizeSportsbookSelection(filters.selectedBooks) } : {}),
         ...(filters.columnOrder !== undefined ? { columnOrder: filters.columnOrder } : {}),
-        ...(filters.sportsbookOrder !== undefined ? { sportsbookOrder: filters.sportsbookOrder } : {}),
+        ...(filters.sportsbookOrder !== undefined ? { sportsbookOrder: normalizeSportsbookSelection(filters.sportsbookOrder) } : {}),
         ...(filters.includeAlternates !== undefined ? { includeAlternates: filters.includeAlternates } : {}),
         ...(filters.columnHighlighting !== undefined ? { columnHighlighting: filters.columnHighlighting } : {}),
         ...(filters.showBestLine !== undefined ? { showBestLine: filters.showBestLine } : {}),
@@ -610,13 +610,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     const updates: UserPreferencesUpdate = {};
 
     if (filters.selectedBooks !== undefined) {
-      updates.odds_selected_books = filters.selectedBooks;
+      updates.odds_selected_books = normalizeSportsbookSelection(filters.selectedBooks);
     }
     if (filters.columnOrder !== undefined) {
       updates.odds_column_order = filters.columnOrder;
     }
     if (filters.sportsbookOrder !== undefined) {
-      updates.odds_sportsbook_order = filters.sportsbookOrder;
+      updates.odds_sportsbook_order = normalizeSportsbookSelection(filters.sportsbookOrder);
     }
     if (filters.includeAlternates !== undefined) {
       updates.include_alternates = filters.includeAlternates;
@@ -635,11 +635,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
 
     await updatePreferences(updates);
-  }, [updatePreferences]);
+  }, [user, updatePreferences]);
 
   // Getter helpers - memoize to ensure stable reference
   const activeSportsbooks = useMemo(() => {
-    return sportsbooks.filter(sb => sb.isActive).map(sb => sb.id);
+    return normalizeSportsbookSelection(sportsbooks.filter(sb => sb.isActive).map(sb => sb.id));
   }, []);
 
   const getActiveSportsbooks = useCallback(() => {
@@ -739,9 +739,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const getOddsPreferences = useCallback(() => {
     if (!preferences) {
       return {
-        selectedBooks: guestOdds.selectedBooks ?? activeSportsbooks,
+        selectedBooks: normalizeSportsbookSelection(guestOdds.selectedBooks ?? activeSportsbooks),
         columnOrder: guestOdds.columnOrder ?? ['entity', 'time', 'best-line', 'favorites', 'average-line'],
-        sportsbookOrder: guestOdds.sportsbookOrder ?? ([] as string[]),
+        sportsbookOrder: normalizeSportsbookSelection(guestOdds.sportsbookOrder ?? ([] as string[])),
         includeAlternates: guestOdds.includeAlternates ?? true,
         columnHighlighting: guestOdds.columnHighlighting ?? true,
         showBestLine: guestOdds.showBestLine ?? true,
@@ -751,9 +751,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
 
     return {
-      selectedBooks: (preferences.odds_selected_books?.length ? preferences.odds_selected_books : activeSportsbooks),
+      selectedBooks: (preferences.odds_selected_books?.length ? normalizeSportsbookSelection(preferences.odds_selected_books) : activeSportsbooks),
       columnOrder: (preferences.odds_column_order?.length ? preferences.odds_column_order : ['entity', 'time', 'best-line', 'favorites', 'average-line']),
-      sportsbookOrder: (preferences.odds_sportsbook_order || []),
+      sportsbookOrder: normalizeSportsbookSelection(preferences.odds_sportsbook_order || []),
       includeAlternates: (preferences.include_alternates ?? true),
       columnHighlighting: (preferences.odds_column_highlighting ?? true),
       showBestLine: (preferences.odds_show_best_line ?? true),
