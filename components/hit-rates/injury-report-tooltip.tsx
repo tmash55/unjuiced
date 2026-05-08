@@ -65,10 +65,14 @@ export function getInjuryStatusTone(
   if (normalized === "out") {
     return {
       icon: HeartPulse,
-      labelClass: "text-rose-300",
-      badgeClass: "border-rose-400/25 bg-rose-400/12 text-rose-200",
-      railClass: "bg-rose-400",
-      dotClass: "bg-rose-400",
+      // Red palette to match the rest of the app's "bad / unavailable"
+      // semantic — bars, hit-rate cells, defense ranks all use red here.
+      // Rose was an inherited accent that didn't match anywhere else.
+      labelClass: "text-red-400 dark:text-red-300",
+      badgeClass:
+        "border-red-500/25 bg-red-500/12 text-red-300 dark:text-red-200",
+      railClass: "bg-red-500 dark:bg-red-400",
+      dotClass: "bg-red-500 dark:bg-red-400",
     };
   }
   if (

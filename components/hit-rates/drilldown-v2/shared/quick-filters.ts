@@ -284,6 +284,20 @@ export const DVP_RANK_CONFIG: MetricFilterConfig = {
   getValue: () => null,
 };
 
+// Virtual metric config for game margin. Signed: positive = team won by N,
+// negative = team lost by N. Lives outside METRIC_FILTERS because the
+// generic Stat Ranges tab is for purely-positive stats. Used only by the
+// dedicated margin slider in the Game Flow tab.
+export const MARGIN_CONFIG: MetricFilterConfig = {
+  key: "margin",
+  label: "Game Margin",
+  shortLabel: "MARGIN",
+  category: "opportunity",
+  description: "Final margin (negative = loss, positive = win)",
+  step: 1,
+  getValue: (g) => g.margin,
+};
+
 function formatMetricIdValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -368,6 +382,26 @@ export function resolveQuickFilter(
           if (rank == null) return false;
           if (max === null) return rank <= min;
           return rank >= min && rank <= max;
+        },
+      };
+    }
+    // Special-case game margin — signed value (negative = loss, positive
+    // = win). Generic metric filter would treat it like a positive stat
+    // and miss losses entirely.
+    if (metric.key === "margin") {
+      const minVal = metric.min;
+      const maxVal = metric.max;
+      const fmt = (n: number) =>
+        n > 0 ? `Won by ${Math.abs(n)}` : n < 0 ? `Lost by ${Math.abs(n)}` : "Even";
+      const label =
+        maxVal === null ? `${fmt(minVal)}+` : `${fmt(minVal)} → ${fmt(maxVal)}`;
+      return {
+        id,
+        label,
+        predicate: (g) => {
+          const m = g.margin ?? 0;
+          if (maxVal === null) return m >= minVal;
+          return m >= minVal && m <= maxVal;
         },
       };
     }

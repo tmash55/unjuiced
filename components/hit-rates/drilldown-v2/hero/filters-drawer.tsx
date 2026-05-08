@@ -18,6 +18,7 @@ import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import {
   METRIC_FILTERS,
   DVP_RANK_CONFIG,
+  MARGIN_CONFIG,
   getQuickFilters,
   metricFilterId,
   parseMetricFilterId,
@@ -891,27 +892,75 @@ export function FiltersDrawer({
         </section>
         )}
 
-        {/* GAME FLOW — Close, Won by 15+, Lost by 15+ */}
+        {/* GAME FLOW — Close / Won by 15+ / Lost by 15+ chips + a margin
+            slider for arbitrary win/loss ranges (e.g. "lose by 5-15"). */}
         {!normalizedQuery && activeCategory === "gameflow" && (
-          <section>
-            <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-              Game Flow
-            </h3>
-            {filtersByCategory.gameflow.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {filtersByCategory.gameflow.map((f) => (
-                  <FilterChip
-                    key={f.id}
-                    label={f.label}
-                    isActive={active.has(f.id)}
-                    onClick={() => onToggle(f.id)}
+          <div className="space-y-4">
+            <section>
+              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                Quick Picks
+              </h3>
+              {filtersByCategory.gameflow.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {filtersByCategory.gameflow.map((f) => (
+                    <FilterChip
+                      key={f.id}
+                      label={f.label}
+                      isActive={active.has(f.id)}
+                      onClick={() => onToggle(f.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyHint>No game flow chips available.</EmptyHint>
+              )}
+            </section>
+            <section>
+              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                Margin Range
+              </h3>
+              <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
+                Negative = loss by N, positive = win by N. Pick a band like
+                "−5 to +5" for tight games or "−40 to −15" for blowout
+                losses.
+              </p>
+              {(() => {
+                const margins = recentGames
+                  .map((g) => g.margin)
+                  .filter((m): m is number => typeof m === "number" && Number.isFinite(m));
+                if (margins.length === 0) {
+                  return (
+                    <EmptyHint>No game margins available yet.</EmptyHint>
+                  );
+                }
+                const lo = Math.floor(Math.min(...margins) / 5) * 5;
+                const hi = Math.ceil(Math.max(...margins) / 5) * 5;
+                const avg =
+                  margins.reduce((a, b) => a + b, 0) / margins.length;
+                return (
+                  <MetricSliderRow
+                    config={MARGIN_CONFIG}
+                    min={lo}
+                    max={hi}
+                    avg={avg}
+                    games={margins.length}
+                    activeRange={activeMetricRange("margin")}
+                    onChange={(range) => {
+                      const next = new Set(active);
+                      for (const id of [...next]) {
+                        if (parseMetricFilterId(id)?.key === "margin")
+                          next.delete(id);
+                      }
+                      if (range) {
+                        next.add(metricFilterId("margin", range.min, range.max));
+                      }
+                      onApplyPreset(next);
+                    }}
                   />
-                ))}
-              </div>
-            ) : (
-              <EmptyHint>No game flow filters available.</EmptyHint>
-            )}
-          </section>
+                );
+              })()}
+            </section>
+          </div>
         )}
 
         {/* SCHEDULE — Venue + Rest + Day of Week, grouped subsections */}
