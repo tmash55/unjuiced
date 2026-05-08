@@ -186,14 +186,16 @@ function RangeBody({
   };
 
   return (
-    <div className="flex w-[280px] flex-col gap-2.5 px-3 py-3">
-      {/* Header — metric name + current range pill + clear */}
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex w-[300px] flex-col gap-4 px-4 py-3.5">
+      {/* Header — metric name + clear. Slight bottom padding rule below it
+          via the parent gap; keeps the title group visually separate from
+          the pill row without needing an explicit divider. */}
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[12px] font-black text-neutral-900 dark:text-white">
             {config.label}
           </div>
-          <div className="text-[10px] font-medium text-neutral-500 dark:text-neutral-500">
+          <div className="mt-0.5 text-[10px] font-medium leading-snug text-neutral-500 dark:text-neutral-500">
             {config.description} · avg {display(avg)}
           </div>
         </div>
@@ -201,7 +203,7 @@ function RangeBody({
           <button
             type="button"
             onClick={onClear}
-            className="text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase transition-colors hover:text-brand dark:text-neutral-400"
+            className="shrink-0 text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase transition-colors hover:text-brand dark:text-neutral-400"
           >
             Clear
           </button>
@@ -209,8 +211,10 @@ function RangeBody({
       </div>
 
       {/* Quick pills — common thresholds. Sets min to the pill, leaves max
-          at the natural ceiling so it behaves like the old "30+" toggle. */}
-      <div className="flex flex-wrap gap-1">
+          at the natural ceiling so it behaves like the old "30+" toggle.
+          Wider pills + larger gap so the row reads as deliberate buttons,
+          not crowded toggles. */}
+      <div className="flex flex-wrap gap-1.5">
         {quickThresholds.map((threshold) => {
           const isPicked =
             isActive && draftMin === threshold && draftMax === max;
@@ -220,9 +224,9 @@ function RangeBody({
               type="button"
               onClick={() => commit(threshold, max)}
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-black tabular-nums transition-colors",
+                "rounded-full px-2.5 py-1 text-[10px] font-black tabular-nums transition-colors",
                 isPicked
-                  ? "bg-brand text-neutral-950"
+                  ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
                   : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
               )}
             >
@@ -232,73 +236,76 @@ function RangeBody({
         })}
       </div>
 
-      {/* Slider with two thumbs */}
-      <div className="grid grid-cols-[44px_1fr_44px] items-center gap-2">
-        <input
-          type="number"
-          min={min}
-          max={draftMax}
-          step={config.step}
-          value={Math.round(draftMin)}
-          onChange={(event) =>
-            commit(normalizeInput(event.target.value, draftMin), draftMax)
-          }
-          className="h-7 rounded-md border border-neutral-200 bg-white px-1 text-center text-[11px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-          aria-label={`${config.label} minimum`}
-        />
-        <div className="relative h-7">
-          <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
-          <div
-            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-brand"
-            style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
-          />
+      {/* Slider with two thumbs — more padding around the track + wider
+          input cells so the values sit clearly on either side. */}
+      <div className="flex flex-col gap-1.5 pt-1">
+        <div className="grid grid-cols-[52px_1fr_52px] items-center gap-3">
           <input
-            type="range"
+            type="number"
             min={min}
+            max={draftMax}
+            step={config.step}
+            value={Math.round(draftMin)}
+            onChange={(event) =>
+              commit(normalizeInput(event.target.value, draftMin), draftMax)
+            }
+            className="h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+            aria-label={`${config.label} minimum`}
+          />
+          <div className="relative h-8">
+            <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+            <div
+              className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-brand"
+              style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
+            />
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={config.step}
+              value={draftMin}
+              onChange={(event) =>
+                commit(
+                  Math.min(Number(event.target.value), draftMax - config.step),
+                  draftMax,
+                )
+              }
+              className="range-thumb pointer-events-none absolute inset-0 h-8 w-full cursor-pointer appearance-none bg-transparent"
+              aria-label={`${config.label} minimum slider`}
+            />
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={config.step}
+              value={draftMax}
+              onChange={(event) =>
+                commit(
+                  draftMin,
+                  Math.max(Number(event.target.value), draftMin + config.step),
+                )
+              }
+              className="range-thumb pointer-events-none absolute inset-0 h-8 w-full cursor-pointer appearance-none bg-transparent"
+              aria-label={`${config.label} maximum slider`}
+            />
+          </div>
+          <input
+            type="number"
+            min={draftMin}
             max={max}
             step={config.step}
-            value={draftMin}
+            value={Math.round(draftMax)}
             onChange={(event) =>
-              commit(
-                Math.min(Number(event.target.value), draftMax - config.step),
-                draftMax,
-              )
+              commit(draftMin, normalizeInput(event.target.value, draftMax))
             }
-            className="range-thumb pointer-events-none absolute inset-0 h-7 w-full cursor-pointer appearance-none bg-transparent"
-            aria-label={`${config.label} minimum slider`}
-          />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={config.step}
-            value={draftMax}
-            onChange={(event) =>
-              commit(
-                draftMin,
-                Math.max(Number(event.target.value), draftMin + config.step),
-              )
-            }
-            className="range-thumb pointer-events-none absolute inset-0 h-7 w-full cursor-pointer appearance-none bg-transparent"
-            aria-label={`${config.label} maximum slider`}
+            className="h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+            aria-label={`${config.label} maximum`}
           />
         </div>
-        <input
-          type="number"
-          min={draftMin}
-          max={max}
-          step={config.step}
-          value={Math.round(draftMax)}
-          onChange={(event) =>
-            commit(draftMin, normalizeInput(event.target.value, draftMax))
-          }
-          className="h-7 rounded-md border border-neutral-200 bg-white px-1 text-center text-[11px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-          aria-label={`${config.label} maximum`}
-        />
-      </div>
-      <div className="flex justify-between text-[9px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
-        <span>{display(min)}</span>
-        <span>{display(max)}</span>
+        <div className="flex justify-between px-1 text-[9px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
+          <span>{display(min)}</span>
+          <span>{display(max)}</span>
+        </div>
       </div>
 
       {/* Range-input thumb styling — the wrapper input is pointer-events:none
