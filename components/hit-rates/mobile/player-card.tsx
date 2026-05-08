@@ -37,12 +37,15 @@ const formatOdds = (price: number | undefined): string => {
   return price > 0 ? `+${price}` : `${price}`;
 };
 
-// Get color for hit rate percentage (softer tones)
+// Get color for hit rate percentage. Thresholds and shades intentionally
+// match the desktop hit-rate-table (70 / 50 / below) plus the mobile
+// drilldown's L5/L10 chip colors so a player reads the same tier across
+// every surface they appear on.
 function getHitRateColor(pct: number | null) {
-  if (pct === null) return "text-neutral-400 dark:text-neutral-500";
-  if (pct >= 80) return "text-emerald-500 dark:text-emerald-400/90";
-  if (pct >= 60) return "text-amber-500 dark:text-amber-400/90";
-  return "text-red-400 dark:text-red-400/90";
+  if (pct === null) return "text-neutral-500 dark:text-neutral-400";
+  if (pct >= 70) return "text-emerald-500 dark:text-emerald-400";
+  if (pct >= 50) return "text-amber-500 dark:text-amber-400";
+  return "text-red-500 dark:text-red-400";
 }
 
 // Get injury status color
