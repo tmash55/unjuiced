@@ -850,7 +850,6 @@ export function HitRateChart({
                 {seasonRanges.map((r, i) => {
                   const startX = r.startIndex * (barWidth + gapPx);
                   const endX = (r.endIndex + 1) * (barWidth + gapPx) - gapPx;
-                  const centerX = (startX + endX) / 2;
                   const isFirst = i === 0;
                   return (
                     <React.Fragment key={`${r.seasonId}-${r.startIndex}`}>
@@ -864,14 +863,17 @@ export function HitRateChart({
                           <div className="absolute inset-y-0 -left-6 w-12 bg-gradient-to-r from-transparent via-neutral-300/[0.15] to-transparent dark:via-white/[0.06]" />
                         </div>
                       )}
-                      {/* Range chip — centered above its bars, only shown when the
-                          range is wide enough to host the label without crowding. */}
-                      {endX - startX >= 36 && (
+                      {/* Season label — anchored at the START of each range
+                          (right next to its leading divider, or to the left
+                          edge for the first range) so the chart reads like a
+                          timeline. Suppressed when the range is too narrow
+                          to host the label cleanly. */}
+                      {endX - startX >= 60 && (
                         <div
-                          className="pointer-events-none absolute -top-5 z-[5] -translate-x-1/2 whitespace-nowrap rounded border border-neutral-200/80 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-neutral-500 shadow-sm dark:border-neutral-700/80 dark:bg-neutral-900/95 dark:text-neutral-400"
-                          style={{ left: centerX }}
+                          className="pointer-events-none absolute top-1 z-[5] whitespace-nowrap rounded-md border border-neutral-200 bg-white/90 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-neutral-600 shadow-sm backdrop-blur-sm dark:border-neutral-700/80 dark:bg-neutral-900/85 dark:text-neutral-300"
+                          style={{ left: isFirst ? 4 : startX + 6 }}
                         >
-                          {r.label}
+                          {r.label} Season
                         </div>
                       )}
                     </React.Fragment>
