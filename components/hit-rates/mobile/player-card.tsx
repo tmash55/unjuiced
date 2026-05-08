@@ -144,13 +144,26 @@ function getOrdinalSuffix(n: number): string {
 // DVP Rank badge - subtle pill with arrows for top/bottom matchups - Premium
 // LOW rank (1-10) = tough defense = HARD for player (red)
 // HIGH rank (21-30) = weak defense = GOOD for player (green)
-function DvpBadge({ rank }: { rank: number | null }) {
+function DvpBadge({
+  rank,
+  sport = "nba",
+}: {
+  rank: number | null;
+  sport?: "nba" | "wnba" | "mlb";
+}) {
   if (rank === null) return null;
-  
-  // Determine matchup quality (inverted - low rank = hard, high rank = good)
-  const isHardMatchup = rank <= 10;    // 1-10: Tough defense (bad for player)
-  const isGoodMatchup = rank >= 21;    // 21-30: Weak defense (good for player)
-  const isNeutral = !isHardMatchup && !isGoodMatchup;
+
+  // Sport-aware tier cutoffs — NBA uses 30 teams (tough = 1-10, soft = 21-30)
+  // but WNBA only has 13 (tough = 1-4, soft = 10-13). Hardcoding the NBA
+  // cutoffs painted every WNBA badge red because rank 10 of 13 hit the
+  // `<= 10` clause despite being a soft matchup. Mirror the same
+  // proportional cutoffs (toughCutoff = round(total/3), min 3) the desktop
+  // hit-rate table + drilldown use.
+  const totalTeams = sport === "wnba" ? 13 : 30;
+  const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
+  const softMin = totalTeams - toughCutoff + 1;
+  const isHardMatchup = rank <= toughCutoff;
+  const isGoodMatchup = rank >= softMin;
 
   // Get pill styling based on matchup quality - Premium
   const getPillStyle = () => {
@@ -443,7 +456,7 @@ export function PlayerCard({
                 </span>
               </a>
             )}
-            <DvpBadge rank={isBlurred ? null : matchupRank} />
+            <DvpBadge rank={isBlurred ? null : matchupRank} sport={sport} />
             {!isBlurred && favoriteParams && (
               <button
                 type="button"

@@ -33,6 +33,7 @@ import { PlayerHeadshot } from "@/components/player-headshot";
 import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
@@ -66,7 +67,6 @@ import { useFavorites, createFavoriteKey, type AddFavoriteParams, type BookSnaps
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
-import { BasketballShotLocationMap } from "../basketball-shot-location-map";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -583,9 +583,10 @@ interface GameBarProps {
   teammatesOut?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out
   activeOverlay?: { key: string; label: string } | null; // Active trending filter to show as overlay
   totalGames: number; // Total number of games to determine bar width
+  sport: "nba" | "wnba"; // Drives team-logo path so WNBA shows WNBA crests, not NBA placeholders.
 }
 
-function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay, totalGames }: GameBarProps) {
+function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay, totalGames, sport }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const isHome = homeAway === "H";
@@ -850,7 +851,7 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
         )}
         {opponent ? (
           <img
-            src={`/team-logos/nba/${opponent.toUpperCase()}.svg`}
+            src={getTeamLogoUrl(opponent, sport)}
             alt={opponent}
             className="h-3.5 w-3.5 object-contain opacity-70"
           />
@@ -858,7 +859,7 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
           <span className="text-[8px] text-neutral-400">—</span>
         )}
       </div>
-      
+
       {/* Tooltip on press */}
       {isPressed && (
         <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-2 py-1 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[10px] font-bold rounded shadow-lg whitespace-nowrap">
@@ -882,7 +883,7 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
             <div className="flex items-center gap-2">
               {opponent && (
                 <img
-                  src={`/team-logos/nba/${opponent.toUpperCase()}.svg`}
+                  src={getTeamLogoUrl(opponent, sport)}
                   alt={opponent}
                   className="h-5 w-5 object-contain"
                 />
@@ -1132,6 +1133,9 @@ interface HeroBarChartProps {
   activeMatchupFilters?: MatchupFilterLine[];
   playTypeRanksMap?: Map<string, Map<string, number>>;
   shotZoneRanksMap?: Map<string, Map<string, number>>;
+  // Drives the team-logo path on each game bar — was hardcoded to NBA so
+  // WNBA charts showed empty / NBA placeholder logos.
+  sport: "nba" | "wnba";
 }
 
 // Play type/shot zone filter types for chart overlay lines
@@ -1143,11 +1147,11 @@ interface MatchupFilterLine {
   color: string;
 }
 
-function HeroBarChart({ 
-  games, 
-  line, 
-  avg, 
-  gameCount, 
+function HeroBarChart({
+  games,
+  line,
+  avg,
+  gameCount,
   onGameCountChange,
   quickFilters,
   onQuickFilterToggle,
@@ -1162,6 +1166,7 @@ function HeroBarChart({
   activeMatchupFilters = [],
   playTypeRanksMap,
   shotZoneRanksMap,
+  sport,
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
     const count = gameCount === "season" || gameCount === "h2h" ? games.length : gameCount;
@@ -1359,6 +1364,7 @@ function HeroBarChart({
                       teammatesOut={game.teammates_out}
                       activeOverlay={activeOverlay}
                       totalGames={displayGames.length}
+                      sport={sport}
                     />
                   ))}
                   {activeMatchupFilters.length > 0 && contentWidth > 0 && displayGames.length > 1 && (
@@ -2945,7 +2951,7 @@ function PositionHistorySection({
                   {/* Team logo badge */}
                   {player.teamAbbr && (
                     <img
-                      src={`/team-logos/nba/${player.teamAbbr.toUpperCase()}.svg`}
+                      src={getTeamLogoUrl(player.teamAbbr, sport)}
                       alt={player.teamAbbr}
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
                     />
@@ -3342,13 +3348,18 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
     return { rank: data.rank, avgAllowed: data.avgAllowed };
   }, [defensePositions, playerPosition, selectedMarket]);
 
-  // Get rank color for DvP badge
-  // LOW rank (1-10) = tough defense = HARD for player (red)
-  // HIGH rank (21-30) = weak defense = GOOD for player (green)
+  // Get rank color for DvP badge — sport-aware.
+  // NBA: 30 teams (tough = 1-10, soft = 21-30)
+  // WNBA: 13 teams (tough = 1-4, soft = 10-13)
+  // Was hardcoded to NBA cutoffs which painted every WNBA badge red since
+  // most WNBA ranks fell into the rank<=10 bucket.
   const getRankColor = (rank: number | null | undefined) => {
     if (!rank) return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
-    if (rank <= 10) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
-    if (rank >= 21) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
+    const totalTeams = sport === "wnba" ? 13 : 30;
+    const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
+    const softMin = totalTeams - toughCutoff + 1;
+    if (rank <= toughCutoff) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+    if (rank >= softMin) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
     return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
   };
 
@@ -4974,7 +4985,7 @@ export function MobilePlayerDrilldown({
               {/* Team & Matchup */}
               <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
                 <img
-                  src={`/team-logos/nba/${profile.teamAbbr?.toUpperCase()}.svg`}
+                  src={getTeamLogoUrl(profile.teamAbbr ?? "", sport)}
                   alt={profile.teamAbbr ?? ""}
                   className="h-3 w-3 object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -5724,6 +5735,7 @@ export function MobilePlayerDrilldown({
               activeMatchupFilters={activeMatchupFilterLines}
               playTypeRanksMap={playTypeRanksMap}
               shotZoneRanksMap={shotZoneRanksMap}
+              sport={sport}
             />
             
             {/* ═══ TRENDING FILTERS - Quick stat sliders ═══ */}
@@ -6590,15 +6602,7 @@ export function MobilePlayerDrilldown({
               sport={sport}
             />
 
-            <BasketballShotLocationMap
-              sport={sport}
-              playerId={profile.playerId}
-              playerName={profile.playerName}
-              season={sport === "wnba" ? undefined : "2025-26"}
-              seasonType="Regular Season"
-              compact
-            />
-            
+
             {/* Game Log - ESPN Style */}
             <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
               {/* Header */}
@@ -6675,9 +6679,9 @@ export function MobilePlayerDrilldown({
                               <span className="text-[10px] text-neutral-400 w-3">
                                 {game.home_away === "H" ? "vs" : "@"}
                               </span>
-                              <img 
-                                src={`/team-logos/nba/${game.opponent_abbr?.toUpperCase()}.svg`} 
-                                alt={game.opponent_abbr ?? ""} 
+                              <img
+                                src={getTeamLogoUrl(game.opponent_abbr ?? "", sport)}
+                                alt={game.opponent_abbr ?? ""}
                                 className="h-5 w-5 object-contain"
                               />
                               <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
