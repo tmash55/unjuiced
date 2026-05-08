@@ -305,7 +305,7 @@ function SortIcon({ field, currentField, direction }: {
 }
 
 export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true, sport = "nba" }: CheatSheetTableProps) {
-  const [sortField, setSortField] = useState<SortField>("hitRate");
+  const [sortField, setSortField] = useState<SortField>("confidence");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   // const [expandedRow, setExpandedRow] = useState<number | null>(null); // Reserved for SGP feature
   

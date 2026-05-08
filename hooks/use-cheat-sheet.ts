@@ -49,6 +49,7 @@ export const TIME_WINDOW_OPTIONS = [
 
 // Hit rate filter options
 export const HIT_RATE_OPTIONS = [
+  { value: 0, label: "Any" },
   { value: 0.70, label: "70%+" },
   { value: 0.75, label: "75%+" },
   { value: 0.80, label: "80%+" },
@@ -184,4 +185,3 @@ export interface OddsData {
   live: boolean;
   timestamp: number | null;
 }
-

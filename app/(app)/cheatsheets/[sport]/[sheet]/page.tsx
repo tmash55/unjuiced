@@ -1179,6 +1179,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   // Use smart default: "tomorrow" if all today's games have started (after 8pm ET)
   const [filters, setFilters] = useState<CheatSheetFilterState>(() => ({
     ...DEFAULT_CHEAT_SHEET_FILTERS,
+    minHitRate: sport === "wnba" ? 0 : DEFAULT_CHEAT_SHEET_FILTERS.minHitRate,
     dateFilter: getSmartDefaultDateFilter(),
   }));
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
@@ -1383,6 +1384,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
         <CheatSheetFilterBar
           filters={filters}
           onFiltersChange={setFilters}
+          sport={sport}
           resultCount={displayRows.length}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
           hideNoOdds={filters.hideNoOdds}

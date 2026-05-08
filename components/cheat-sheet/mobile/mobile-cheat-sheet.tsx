@@ -188,7 +188,7 @@ export function MobileCheatSheet({
 }: MobileCheatSheetProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
-  const [sortBy, setSortBy] = useState<SortOption>("hitRate");
+  const [sortBy, setSortBy] = useState<SortOption>("confidence");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);

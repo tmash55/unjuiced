@@ -72,6 +72,7 @@ import { Lock } from "lucide-react";
 interface CheatSheetFilterBarProps {
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
+  sport?: "nba" | "wnba" | "mlb";
   resultCount?: number;
   onGlossaryOpen?: () => void;
   hideNoOdds?: boolean;
@@ -108,6 +109,7 @@ const TREND_OPTIONS = [
 export function CheatSheetFilterBar({ 
   filters, 
   onFiltersChange,
+  sport = "nba",
   resultCount,
   onGlossaryOpen,
   hideNoOdds,
@@ -121,6 +123,7 @@ export function CheatSheetFilterBar({
   
   // Upgrade tooltip content for gated users
   const upgradeTooltip = "Upgrade to Hit Rate or Sharp plan to unlock all filters";
+  const defaultMinHitRate = sport === "wnba" ? 0 : 0.80;
 
   // Close market dropdown on outside click
   useEffect(() => {
@@ -173,7 +176,7 @@ export function CheatSheetFilterBar({
   const resetFilters = () => {
     onFiltersChange({
       timeWindow: "last_10_pct",
-      minHitRate: 0.80,
+      minHitRate: defaultMinHitRate,
       oddsFloor: -250,
       oddsCeiling: 250,
       markets: ["player_points"], // Default to Points only
@@ -191,7 +194,7 @@ export function CheatSheetFilterBar({
   const activeFilterCount = [
     // Markets is active if not just Points (the default)
     !(filters.markets.length === 1 && filters.markets[0] === "player_points"),
-    filters.minHitRate !== 0.80,
+    filters.minHitRate !== defaultMinHitRate,
     filters.oddsFloor !== -250 || filters.oddsCeiling !== 250,
     filters.hideAlternates,
     filters.matchupFilter !== "all",
@@ -610,4 +613,3 @@ export function CheatSheetFilterBar({
     </div>
   );
 }
-
