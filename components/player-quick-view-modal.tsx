@@ -2855,6 +2855,13 @@ export function PlayerQuickViewModal({
     if (hitRateDate) {
       params.set("date", hitRateDate);
     }
+    // Pin to the v2 drilldown — the Edge Finder / EV quick-view modal
+    // was deep-linking to v1 because it didn't carry the `v=2` flag the
+    // page reads to pick the new bento layout. NBA + WNBA both have v2;
+    // MLB doesn't ship a v2 yet so skip the flag for it.
+    if (sport !== "mlb") {
+      params.set("v", "2");
+    }
     const playerId = profile?.playerId || resolvedPlayerId;
     return playerId
       ? `/hit-rates/${sport}/player/${playerId}?${params.toString()}`
