@@ -44,6 +44,7 @@ interface BookOdds {
   price: number;
   url: string | null;
   mobileUrl: string | null;
+  oddId?: string | null;
   isSharp?: boolean; // Pinnacle, Circa, etc.
 }
 
@@ -51,6 +52,7 @@ interface BookOddsWithUnder extends BookOdds {
   underPrice?: number | null;
   underUrl?: string | null;
   underMobileUrl?: string | null;
+  underOddId?: string | null;
 }
 
 // Sharp books used for fair odds/EV calculation
@@ -87,9 +89,14 @@ interface AlternateLinesResponse {
 
 // Structure of individual odd entry in Redis
 interface RedisOddEntry {
+  id?: string;
+  odd_id?: string;
+  odds_id?: string;
+  oddsblaze_id?: string;
+  history_id?: string;
   player_id: string;
   player?: string;
-  side: "over" | "under";
+  side: "over" | "under" | "yes" | "no";
   line: number;
   price: string | number;
   link?: string;
@@ -106,6 +113,17 @@ function parsePrice(val: string | number | undefined | null): number | null {
   if (typeof val === "number") return val;
   const parsed = parseInt(val, 10);
   return isNaN(parsed) ? null : parsed;
+}
+
+function getOddId(entry: RedisOddEntry | null | undefined): string | null {
+  return (
+    entry?.odd_id ??
+    entry?.odds_id ??
+    entry?.oddsblaze_id ??
+    entry?.history_id ??
+    entry?.id ??
+    null
+  );
 }
 
 /**
@@ -475,9 +493,9 @@ export async function POST(req: NextRequest) {
           if (!entry || typeof entry !== 'object' || !entry.player_id) continue;
           
           if (entry.player_id === playerUuid && entry.line === line) {
-            if (entry.side === 'over') {
+            if (entry.side === 'over' || entry.side === 'yes') {
               overOdd = entry;
-            } else if (entry.side === 'under') {
+            } else if (entry.side === 'under' || entry.side === 'no') {
               underOdd = entry;
             }
           }
@@ -493,9 +511,11 @@ export async function POST(req: NextRequest) {
             price: overPrice ?? 0,
             url: overOdd?.link || null,
             mobileUrl: overOdd?.mobile_link || null,
+            oddId: getOddId(overOdd),
             underPrice: underPrice,
             underUrl: underOdd?.link || null,
             underMobileUrl: underOdd?.mobile_link || null,
+            underOddId: getOddId(underOdd),
             isSharp,
           });
 

@@ -65,6 +65,7 @@ import { useFavorites, createFavoriteKey, type AddFavoriteParams, type BookSnaps
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
+import { BasketballShotLocationMap } from "../basketball-shot-location-map";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -6514,6 +6515,15 @@ export function MobilePlayerDrilldown({
               opponentTeamAbbr={profile.opponentTeamAbbr}
               playerName={profile.playerName}
               sport={sport}
+            />
+
+            <BasketballShotLocationMap
+              sport={sport}
+              playerId={profile.playerId}
+              playerName={profile.playerName}
+              season={sport === "wnba" ? undefined : "2025-26"}
+              seasonType="Regular Season"
+              compact
             />
             
             {/* Game Log - ESPN Style */}

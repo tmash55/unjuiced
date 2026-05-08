@@ -2,10 +2,26 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { HitRateProfile, HitRateResponse, RawHitRateProfile } from "@/lib/hit-rates-schema";
+import type {
+  HitRateProfile,
+  HitRateResponse,
+  RawHitRateProfile,
+} from "@/lib/hit-rates-schema";
 
 // Valid sort fields
-export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | "paceRank";
+export type HitRateSortField =
+  | "line"
+  | "l5Avg"
+  | "l10Avg"
+  | "seasonAvg"
+  | "streak"
+  | "l5Pct"
+  | "l10Pct"
+  | "l20Pct"
+  | "seasonPct"
+  | "h2hPct"
+  | "matchupRank"
+  | "paceRank";
 
 export interface UseHitRateTableOptions {
   sport?: "nba" | "mlb" | "wnba";
@@ -29,10 +45,13 @@ interface HitRateTableResult {
 }
 
 // Timeout wrapper for fetch - prevents hanging on slow/failed requests
-const fetchWithTimeout = async (url: string, timeoutMs: number = 12000): Promise<Response> => {
+const fetchWithTimeout = async (
+  url: string,
+  timeoutMs: number = 12000,
+): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const res = await fetch(url, { signal: controller.signal });
     return res;
@@ -41,23 +60,32 @@ const fetchWithTimeout = async (url: string, timeoutMs: number = 12000): Promise
   }
 };
 
-async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<HitRateTableResult> {
+async function fetchHitRateTable(
+  params: UseHitRateTableOptions = {},
+): Promise<HitRateTableResult> {
   const searchParams = new URLSearchParams();
   if (params.date) searchParams.set("date", params.date);
   if (params.market) searchParams.set("market", params.market);
-  if (typeof params.minHitRate === "number") searchParams.set("minHitRate", String(params.minHitRate));
-  if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
-  if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
+  if (typeof params.minHitRate === "number")
+    searchParams.set("minHitRate", String(params.minHitRate));
+  if (typeof params.limit === "number")
+    searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number")
+    searchParams.set("offset", String(params.offset));
   if (params.search?.trim()) searchParams.set("search", params.search.trim());
-  if (typeof params.playerId === "number") searchParams.set("playerId", String(params.playerId));
+  if (typeof params.playerId === "number")
+    searchParams.set("playerId", String(params.playerId));
   if (params.sort) searchParams.set("sort", params.sort);
   if (params.sortDir) searchParams.set("sortDir", params.sortDir);
 
   const sport = params.sport ?? "nba";
   // Use v2 API by default for better performance (Redis cached)
-  const apiPath = params.useV2 !== false ? `/api/${sport}/hit-rates/v2` : `/api/${sport}/hit-rates`;
+  const apiPath =
+    params.useV2 !== false
+      ? `/api/${sport}/hit-rates/v2`
+      : `/api/${sport}/hit-rates`;
   const url = `${apiPath}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-  
+
   // Reduced timeout - v2 API should be fast with caching
   // Falls back gracefully on timeout
   const res = await fetchWithTimeout(url, 12000);
@@ -87,13 +115,13 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
   const matchup = profile.matchup;
   // For WNBA the RPC returns nba_player_id as a flat field; for NBA it
   // lives on the joined player object. Fall back to playerId as last resort.
-  const nbaPlayerId =
-    raw.nba_player_id ?? player?.nba_player_id ?? null;
+  const nbaPlayerId = raw.nba_player_id ?? player?.nba_player_id ?? null;
   return {
     id: profile.id,
     playerId: player?.nba_player_id ?? profile.player_id,
     nbaPlayerId,
-    playerName: player?.name || raw.player_name || profile.team_name || "Unknown",
+    playerName:
+      player?.name || raw.player_name || profile.team_name || "Unknown",
     teamId: profile.team_id ?? null,
     teamAbbr: profile.team_abbr ?? null,
     teamName: profile.team_name ?? null,
@@ -125,14 +153,23 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     totalBook: profile.total_book ?? null,
     injuryStatus: profile.injury_status,
     injuryNotes: profile.injury_notes,
+    injuryUpdatedAt: profile.injury_updated_at ?? null,
+    injuryReturnDate: profile.injury_return_date ?? null,
+    injurySource: profile.injury_source ?? null,
+    injuryRawStatus: profile.injury_raw_status ?? null,
     battingHand: profile.batting_hand ?? null,
     seasonBattingAvg: profile.season_batting_avg ?? null,
     lineupPosition: profile.lineup_position ?? null,
     // Prefer depth_chart_pos (PG, SG, SF, PF, C) over generic position (G, F, C)
-    position: player?.depth_chart_pos ?? player?.position ?? raw.player_position ?? profile.position,
+    position:
+      player?.depth_chart_pos ??
+      player?.position ??
+      raw.player_position ??
+      profile.position,
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,
     gameDate: game?.game_date ?? profile.game_date,
-    startTime: game?.start_time ?? profile.start_time ?? profile.commence_time ?? null,
+    startTime:
+      game?.start_time ?? profile.start_time ?? profile.commence_time ?? null,
     gameStatus: game?.game_status ?? null,
     // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
     homeTeamName: game?.home_team_name ?? null,
@@ -160,7 +197,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
 // Get today's date in YYYY-MM-DD format for comparison
 function getTodayDateString(): string {
   const today = new Date();
-  return today.toISOString().split('T')[0];
+  return today.toISOString().split("T")[0];
 }
 
 // Check if a game date is today
@@ -172,10 +209,17 @@ function isToday(gameDate: string | null): boolean {
 
 // Client-side sort function for instant UI response
 // Always prioritizes today's games first, then sorts by the specified field
-function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir: "asc" | "desc"): HitRateProfile[] {
+function sortRows(
+  rows: HitRateProfile[],
+  sort: HitRateSortField | null,
+  sortDir: "asc" | "desc",
+): HitRateProfile[] {
   if (rows.length === 0) return rows;
-  
-  const fieldMap: Record<Exclude<HitRateSortField, "paceRank">, keyof HitRateProfile> = {
+
+  const fieldMap: Record<
+    Exclude<HitRateSortField, "paceRank">,
+    keyof HitRateProfile
+  > = {
     line: "line",
     l5Avg: "last5Avg",
     l10Avg: "last10Avg",
@@ -199,7 +243,9 @@ function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir
     if (effectiveSort === "paceRank") {
       return row.paceContext?.opponentRecent.l5Rank ?? null;
     }
-    return row[fieldMap[effectiveSort as Exclude<HitRateSortField, "paceRank">]] as number | null;
+    return row[
+      fieldMap[effectiveSort as Exclude<HitRateSortField, "paceRank">]
+    ] as number | null;
   };
 
   return [...rows].sort((a, b) => {
@@ -208,17 +254,17 @@ function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir
     const bIsToday = isToday(b.gameDate);
 
     if (aIsToday && !bIsToday) return -1; // a (today) comes first
-    if (!aIsToday && bIsToday) return 1;  // b (today) comes first
+    if (!aIsToday && bIsToday) return 1; // b (today) comes first
 
     // SECOND: Sort by the specified field within the same day group
     const aVal = getValue(a);
     const bVal = getValue(b);
-    
+
     // ALWAYS push nulls to the END of the list
     if (aVal === null && bVal === null) return 0;
-    if (aVal === null) return 1;  // a goes after b
+    if (aVal === null) return 1; // a goes after b
     if (bVal === null) return -1; // b goes after a
-    
+
     return (aVal - bVal) * multiplier;
   });
 }
@@ -241,9 +287,21 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
   // NOTE: Sort is NOT in the query key - sorting is done client-side for instant response
   // The API returns data pre-sorted by has_odds + L10, client re-sorts as needed
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { sport, date, market, minHitRate, limit, offset, search, playerId }],
+    queryKey: [
+      "hit-rate-table",
+      { sport, date, market, minHitRate, limit, offset, search, playerId },
+    ],
     queryFn: () =>
-      fetchHitRateTable({ sport, date, market, minHitRate, limit, offset, search, playerId }),
+      fetchHitRateTable({
+        sport,
+        date,
+        market,
+        minHitRate,
+        limit,
+        offset,
+        search,
+        playerId,
+      }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer
@@ -273,6 +331,15 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
       error: queryResult.error as Error | null,
       refetch: queryResult.refetch,
     }),
-    [rows, count, meta, availableDates, queryResult.isLoading, queryResult.isFetching, queryResult.error, queryResult.refetch]
+    [
+      rows,
+      count,
+      meta,
+      availableDates,
+      queryResult.isLoading,
+      queryResult.isFetching,
+      queryResult.error,
+      queryResult.refetch,
+    ],
   );
 }

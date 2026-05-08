@@ -14,6 +14,30 @@ export interface QuickFilter {
   predicate: (game: BoxScoreGame) => boolean;
 }
 
+export type MetricFilterCategory =
+  | "opportunity"
+  | "shooting"
+  | "rebounding"
+  | "scoring"
+  | "discipline";
+
+export interface MetricFilterConfig {
+  key: string;
+  label: string;
+  shortLabel: string;
+  category: MetricFilterCategory;
+  description: string;
+  step: number;
+  isPercentage?: boolean;
+  getValue: (game: BoxScoreGame) => number | null | undefined;
+}
+
+export interface PlayTypeDefenseQuickFilter {
+  playType: string;
+  label: string;
+  rankByOpponentAbbr: Map<string, number>;
+}
+
 export interface QuickFilterContext {
   market: string;
   /** "H"/"A" or "home"/"away" — drives whether the venue chip pins to Home
@@ -35,6 +59,13 @@ export interface QuickFilterContext {
   /** Tonight's spread for the player's team (positive = underdog, negative
    *  = favorite). Drives whether Close or Blowout is the contextual chip. */
   tonightSpread?: number | null;
+  /** Tonight's opponent team_id. When provided alongside dvpRankByOpponent,
+   *  the inline picker surfaces a SHARPER DvP tier (Top 5 / Bottom 5) when
+   *  the opponent is in the extreme. */
+  tonightOpponentTeamId?: number | null;
+  /** Optional NBA team play-type defense ranks. Drives v1-style tough/avg/soft
+   *  opponent filters by the opponent faced in each historical game. */
+  playTypeDefenseFilters?: PlayTypeDefenseQuickFilter[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -56,6 +87,28 @@ function computeDaysRestMap(games: BoxScoreGame[]): Map<string, number> {
   return map;
 }
 
+// Set of every gameId that is either night of a back-to-back pair (games
+// played on consecutive calendar days). Previously only the second night
+// was flagged since `daysRest === 0` only marks the rested-zero game; this
+// also adds the first night so the B2B chip surfaces both halves.
+function computeB2bGameIds(games: BoxScoreGame[]): Set<string> {
+  const sorted = [...games]
+    .filter((g) => !!g.date)
+    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  const ids = new Set<string>();
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(`${sorted[i - 1].date}T00:00:00Z`);
+    const curr = new Date(`${sorted[i].date}T00:00:00Z`);
+    if (Number.isNaN(prev.getTime()) || Number.isNaN(curr.getTime())) continue;
+    const diff = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+    if (diff === 1) {
+      ids.add(sorted[i - 1].gameId);
+      ids.add(sorted[i].gameId);
+    }
+  }
+  return ids;
+}
+
 // Day of week (0=Sun, 6=Sat) — null when the date is missing/unparsable.
 function parseDayOfWeek(date: string | null | undefined): number | null {
   if (!date) return null;
@@ -75,6 +128,234 @@ function avg(games: BoxScoreGame[], extract: (g: BoxScoreGame) => number): numbe
     }
   }
   return count > 0 ? sum / count : 0;
+}
+
+function normalizePercentValue(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return value <= 1 ? value * 100 : value;
+}
+
+export const METRIC_FILTERS: MetricFilterConfig[] = [
+  {
+    key: "minutes",
+    label: "Minutes",
+    shortLabel: "MIN",
+    category: "opportunity",
+    description: "Minutes played",
+    step: 1,
+    getValue: (g) => g.minutes,
+  },
+  {
+    key: "usage",
+    label: "Usage",
+    shortLabel: "USG%",
+    category: "opportunity",
+    description: "Share of team possessions used",
+    step: 1,
+    isPercentage: true,
+    getValue: (g) => normalizePercentValue(g.usagePct),
+  },
+  {
+    key: "potentialReb",
+    label: "Rebound Chances",
+    shortLabel: "REB CH",
+    category: "opportunity",
+    description: "Tracked rebound opportunities",
+    step: 1,
+    getValue: (g) => g.potentialReb,
+  },
+  {
+    key: "potentialAssists",
+    label: "Potential Assists",
+    shortLabel: "POT AST",
+    category: "opportunity",
+    description: "Passes that could become assists",
+    step: 1,
+    getValue: (g) => g.potentialAssists,
+  },
+  {
+    key: "fga",
+    label: "FGA",
+    shortLabel: "FGA",
+    category: "shooting",
+    description: "Field goal attempts",
+    step: 1,
+    getValue: (g) => g.fga,
+  },
+  {
+    key: "fgm",
+    label: "FGM",
+    shortLabel: "FGM",
+    category: "shooting",
+    description: "Field goals made",
+    step: 1,
+    getValue: (g) => g.fgm,
+  },
+  {
+    key: "fgPct",
+    label: "FG%",
+    shortLabel: "FG%",
+    category: "shooting",
+    description: "Field goal percentage",
+    step: 1,
+    isPercentage: true,
+    getValue: (g) => normalizePercentValue(g.fgPct),
+  },
+  {
+    key: "fg3a",
+    label: "3PA",
+    shortLabel: "3PA",
+    category: "shooting",
+    description: "Three-point attempts",
+    step: 1,
+    getValue: (g) => g.fg3a,
+  },
+  {
+    key: "fg3Pct",
+    label: "3P%",
+    shortLabel: "3P%",
+    category: "shooting",
+    description: "Three-point percentage",
+    step: 1,
+    isPercentage: true,
+    getValue: (g) => normalizePercentValue(g.fg3Pct),
+  },
+  {
+    key: "ftm",
+    label: "FTM",
+    shortLabel: "FTM",
+    category: "scoring",
+    description: "Free throws made",
+    step: 1,
+    getValue: (g) => g.ftm,
+  },
+  {
+    key: "points",
+    label: "Points",
+    shortLabel: "PTS",
+    category: "scoring",
+    description: "Total points",
+    step: 1,
+    getValue: (g) => g.pts,
+  },
+  {
+    key: "oreb",
+    label: "Offensive Rebounds",
+    shortLabel: "OREB",
+    category: "rebounding",
+    description: "Offensive rebounds",
+    step: 1,
+    getValue: (g) => g.oreb,
+  },
+  {
+    key: "dreb",
+    label: "Defensive Rebounds",
+    shortLabel: "DREB",
+    category: "rebounding",
+    description: "Defensive rebounds",
+    step: 1,
+    getValue: (g) => g.dreb,
+  },
+  {
+    key: "fouls",
+    label: "Fouls",
+    shortLabel: "PF",
+    category: "discipline",
+    description: "Personal fouls",
+    step: 1,
+    getValue: (g) => g.fouls,
+  },
+];
+
+function formatMetricIdValue(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+export function metricFilterId(key: string, min: number, max?: number): string {
+  const normalizedMin = formatMetricIdValue(min);
+  if (max !== undefined) {
+    return `metric:${key}:range:${normalizedMin}:${formatMetricIdValue(max)}`;
+  }
+  return `metric:${key}:gte:${normalizedMin}`;
+}
+
+export function parseMetricFilterId(
+  id: string
+): { key: string; min: number; max: number | null } | null {
+  const range = /^metric:([^:]+):range:(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(id);
+  if (range) {
+    const min = Number(range[2]);
+    const max = Number(range[3]);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return { key: range[1], min: Math.min(min, max), max: Math.max(min, max) };
+  }
+  const gte = /^metric:([^:]+):gte:(-?\d+(?:\.\d+)?)$/.exec(id);
+  if (!gte) return null;
+  const min = Number(gte[2]);
+  if (!Number.isFinite(min)) return null;
+  return { key: gte[1], min, max: null };
+}
+
+export function buildMetricQuickFilter(
+  config: MetricFilterConfig,
+  range: { min: number; max: number | null }
+): QuickFilter {
+  const format = (value: number) =>
+    config.isPercentage ? `${Math.round(value)}%` : formatMetricIdValue(value);
+  const valueLabel =
+    range.max === null
+      ? `${format(range.min)}+`
+      : `${format(range.min)}-${format(range.max)}`;
+  return {
+    id:
+      range.max === null
+        ? metricFilterId(config.key, range.min)
+        : metricFilterId(config.key, range.min, range.max),
+    label: `${config.shortLabel} ${valueLabel}`,
+    predicate: (game) => {
+      const value = config.getValue(game);
+      if (value === null || value === undefined || !Number.isFinite(value)) return false;
+      if (range.max === null) return value >= range.min;
+      return value >= range.min && value <= range.max;
+    },
+  };
+}
+
+export function resolveQuickFilter(
+  id: string,
+  filters: QuickFilter[],
+  ctx?: QuickFilterContext
+): QuickFilter | null {
+  const existing = filters.find((f) => f.id === id);
+  if (existing) return existing;
+
+  const metric = parseMetricFilterId(id);
+  if (metric) {
+    const config = METRIC_FILTERS.find((f) => f.key === metric.key);
+    return config ? buildMetricQuickFilter(config, metric) : null;
+  }
+
+  if (id.startsWith("playType:") && ctx?.playTypeDefenseFilters) {
+    const [, encodedPlayType, tier] = id.split(":");
+    const playType = decodeURIComponent(encodedPlayType ?? "");
+    const source = ctx.playTypeDefenseFilters.find((f) => f.playType === playType);
+    if (!source || !["tough", "neutral", "favorable"].includes(tier ?? "")) return null;
+    const label =
+      tier === "tough" ? "Top 10" : tier === "favorable" ? "Bottom 10" : "Mid";
+    return {
+      id,
+      label: `${source.label} ${label}`,
+      predicate: (game) => {
+        const rank = source.rankByOpponentAbbr.get(game.opponentAbbr);
+        if (rank == null) return false;
+        if (tier === "tough") return rank <= 10;
+        if (tier === "favorable") return rank >= 21;
+        return rank > 10 && rank < 21;
+      },
+    };
+  }
+
+  return null;
 }
 
 // Pick a "high-side" threshold for a stat from the player's average. The
@@ -248,13 +529,18 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
   // predicate is one Map lookup. First game in the window has no prior game
   // to diff against and is excluded from rest filters.
   const daysRestById = computeDaysRestMap(recentGames);
+  // Set of game ids that are EITHER half of a back-to-back pair (the night
+  // before AND the second-night game). Previously we only flagged the
+  // second game (where rest=0), so 1/11 wouldn't show even though 1/12 was
+  // its B2B pair. Marking both lets users compare both nights side-by-side.
+  const b2bGameIds = computeB2bGameIds(recentGames);
   if (daysRestById.size > 0) {
     filters.push(
       {
         id: "b2b",
         label: "Back-to-Back",
-        // Consecutive calendar days = zero rest days between games.
-        predicate: (g) => daysRestById.get(g.gameId) === 0,
+        // Either night of a back-to-back pair (consecutive calendar days).
+        predicate: (g) => b2bGameIds.has(g.gameId),
       },
       {
         id: "rest2plus",
@@ -289,11 +575,23 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
 
   // Defense-vs-position tiers — only render when DvP data is available for
   // this player's position on the active market. Lower rank = tougher D.
+  // Top 5 / Bottom 5 are sharper subsets that only render when the league
+  // has enough teams to make the tier meaningful (NBA 30 ✓, WNBA 13 ✗).
   if (ctx.dvpRankByOpponent && ctx.dvpRankByOpponent.size > 0) {
     const total = ctx.totalTeams ?? 30;
     const toughCutoff = Math.max(3, Math.round(total / 3)); // top third
     const weakCutoff = total - Math.max(3, Math.round(total / 3)) + 1; // bottom third
     const ranks = ctx.dvpRankByOpponent;
+    if (total >= 20) {
+      filters.push({
+        id: "dvpTopFive",
+        label: "Top 5 D",
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          return rank != null && rank >= 1 && rank <= 5;
+        },
+      });
+    }
     filters.push({
       id: "dvpTough",
       label: `Top ${toughCutoff} D`,
@@ -318,6 +616,48 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
         return rank != null && rank >= weakCutoff;
       },
     });
+    if (total >= 20) {
+      filters.push({
+        id: "dvpBottomFive",
+        label: "Bottom 5 D",
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          return rank != null && rank >= total - 4;
+        },
+      });
+    }
+  }
+
+  if (ctx.playTypeDefenseFilters && ctx.playTypeDefenseFilters.length > 0) {
+    for (const playType of ctx.playTypeDefenseFilters) {
+      const encoded = encodeURIComponent(playType.playType);
+      filters.push(
+        {
+          id: `playType:${encoded}:tough`,
+          label: `${playType.label} Top 10`,
+          predicate: (g) => {
+            const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
+            return rank != null && rank <= 10;
+          },
+        },
+        {
+          id: `playType:${encoded}:neutral`,
+          label: `${playType.label} Mid`,
+          predicate: (g) => {
+            const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
+            return rank != null && rank > 10 && rank < 21;
+          },
+        },
+        {
+          id: `playType:${encoded}:favorable`,
+          label: `${playType.label} Bottom 10`,
+          predicate: (g) => {
+            const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
+            return rank != null && rank >= 21;
+          },
+        }
+      );
+    }
   }
 
   const venue = venueChip(upcomingHomeAway);
@@ -344,7 +684,9 @@ export function getInlineQuickFilters(
     }
   };
 
-  // Always-on, market-aware base set: minutes / volume / venue / DvP tiers.
+  // Always-on, market-aware base set: minutes / volume / venue. DvP tiers
+  // are handled separately below so we can pick the SHARPEST tier for the
+  // tonight's opponent when applicable (Top 5 D vs the broader Top 10 D).
   const alwaysPrefixes = [
     "minutes",
     "fga",
@@ -353,10 +695,30 @@ export function getInlineQuickFilters(
     "rebChances",
     "ast",
     "venue",
-    "dvp",
   ];
   for (const f of filters) {
     if (alwaysPrefixes.some((p) => f.id.startsWith(p))) include(f);
+  }
+
+  // DvP tier — show the broad Top/Avg/Bottom trio always, but UPGRADE to
+  // Top 5 / Bottom 5 when tonight's opponent is in the extreme. Rendering
+  // both Top 10 and Top 5 would be redundant — the sharper one wins.
+  const total = ctx.totalTeams ?? 30;
+  const oppRank =
+    ctx.tonightOpponentTeamId != null
+      ? (ctx.dvpRankByOpponent?.get(ctx.tonightOpponentTeamId) ?? null)
+      : null;
+  const showTopFive = total >= 20 && oppRank !== null && oppRank <= 5;
+  const showBottomFive = total >= 20 && oppRank !== null && oppRank >= total - 4;
+  for (const f of filters) {
+    if (!f.id.startsWith("dvp")) continue;
+    // Suppress the broad tier when its sharper sibling is being shown.
+    if (f.id === "dvpTough" && showTopFive) continue;
+    if (f.id === "dvpWeak" && showBottomFive) continue;
+    // Only include sharper tiers when they actually fit the matchup.
+    if (f.id === "dvpTopFive" && !showTopFive) continue;
+    if (f.id === "dvpBottomFive" && !showBottomFive) continue;
+    include(f);
   }
 
   // Day of week — surface only tonight's day.

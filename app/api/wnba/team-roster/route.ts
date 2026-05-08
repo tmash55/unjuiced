@@ -4,7 +4,10 @@ import { z } from "zod";
 
 const QuerySchema = z.object({
   teamId: z.coerce.number().int().positive(),
-  season: z.string().nullish().transform((v) => v ?? "2025"),
+  season: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? "2025"),
 });
 
 interface RpcPlayer {
@@ -25,6 +28,10 @@ interface RpcPlayer {
   avg_usage: number;
   injury_status: string | null;
   injury_notes: string | null;
+  injury_updated_at?: string | null;
+  injury_return_date?: string | null;
+  injury_source?: string | null;
+  injury_raw_status?: string | null;
 }
 
 interface RpcResponse {
@@ -53,6 +60,10 @@ export interface TeamRosterPlayer {
   avgUsage: number;
   injuryStatus: string | null;
   injuryNotes: string | null;
+  injuryUpdatedAt?: string | null;
+  injuryReturnDate?: string | null;
+  injurySource?: string | null;
+  injuryRawStatus?: string | null;
 }
 
 export interface TeamRosterResponse {
@@ -76,7 +87,7 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request", details: parsed.error.flatten() },
-        { status: 400, headers: { "Cache-Control": "no-store" } }
+        { status: 400, headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -92,7 +103,7 @@ export async function GET(req: NextRequest) {
       console.error("[WNBA Team Roster] RPC error:", error.message);
       return NextResponse.json(
         { error: "Failed to fetch team roster", details: error.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        { status: 500, headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -108,7 +119,57 @@ export async function GET(req: NextRequest) {
     }
 
     const rpcResult = data as RpcResponse;
+    const playerIds = [
+      ...new Set(
+        (rpcResult.players || []).map((p) => p.player_id).filter(Boolean),
+      ),
+    ] as number[];
+    const injuryMeta = new Map<
+      number,
+      {
+        injuryUpdatedAt: string | null;
+        injuryReturnDate: string | null;
+        injurySource: string | null;
+        injuryRawStatus: string | null;
+      }
+    >();
+
+    if (playerIds.length > 0) {
+      const { data: playerRows, error: playerError } = await supabase
+        .from("wnba_players_hr")
+        .select(
+          "wnba_player_id, injury_updated_at, injury_return_date, injury_source, injury_raw_status",
+        )
+        .in("wnba_player_id", playerIds);
+
+      if (playerError) {
+        console.error(
+          "[WNBA Team Roster] Player injury metadata fetch error:",
+          playerError.message,
+        );
+      } else {
+        for (const player of playerRows || []) {
+          injuryMeta.set(Number(player.wnba_player_id), {
+            injuryUpdatedAt: player.injury_updated_at ?? null,
+            injuryReturnDate: player.injury_return_date ?? null,
+            injurySource: player.injury_source ?? null,
+            injuryRawStatus: player.injury_raw_status ?? null,
+          });
+        }
+      }
+    }
+
     const players: TeamRosterPlayer[] = (rpcResult.players || []).map((p) => ({
+      ...(() => {
+        const meta = injuryMeta.get(p.player_id);
+        return {
+          injuryUpdatedAt: p.injury_updated_at ?? meta?.injuryUpdatedAt ?? null,
+          injuryReturnDate:
+            p.injury_return_date ?? meta?.injuryReturnDate ?? null,
+          injurySource: p.injury_source ?? meta?.injurySource ?? null,
+          injuryRawStatus: p.injury_raw_status ?? meta?.injuryRawStatus ?? null,
+        };
+      })(),
       playerId: p.player_id,
       nbaPlayerId: p.nba_player_id ?? null,
       name: p.name,
@@ -141,14 +202,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control":
+          "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
       },
     });
   } catch (error: any) {
     console.error("[/api/wnba/team-roster] Error:", error);
     return NextResponse.json(
       { error: "internal_error", message: error?.message || "" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

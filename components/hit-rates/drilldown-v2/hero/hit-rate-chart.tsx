@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, EyeOff, HelpCircle, X } from "lucide-react";
+import { HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
@@ -12,9 +12,16 @@ import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import type { GameWithInjuries, PlayerOutInfo } from "@/hooks/use-injury-context";
 import { getMarketStatValue } from "../shared/hit-rate-utils";
 import { getGameStatRows } from "../shared/game-tooltip-stats";
-import { getQuickFilters, getInlineQuickFilters } from "../shared/quick-filters";
+import {
+  getQuickFilters,
+  getInlineQuickFilters,
+  resolveQuickFilter,
+  type PlayTypeDefenseQuickFilter,
+} from "../shared/quick-filters";
 import { Tile } from "../shared/tile";
 import { FiltersDrawer } from "./filters-drawer";
+import { ChartSettingsPopover } from "./chart-settings-popover";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 
 export type ChartSplit =
   | "all"
@@ -77,12 +84,22 @@ interface HitRateChartProps {
   dvpRankByOpponent?: Map<number, number>;
   /** League team count — scales the DvP tier cutoffs (NBA 30, WNBA 13). */
   dvpTotalTeams?: number;
+  /** Opp team_id → pace rank (lower = faster). Powers the per-game pace
+   *  overlay tier dots when the user enables that chart setting. */
+  paceRankByOpponent?: Map<number, number>;
+  /** NBA play-type defense ranks by opponent. Powers v1-style play-type
+   *  defense filters inside the v2 drawer. */
+  playTypeDefenseFilters?: PlayTypeDefenseQuickFilter[];
   /** Tonight's game date (YYYY-MM-DD) — drives the contextual day-of-week
    *  and days-rest chips surfaced inline. */
   tonightDate?: string | null;
   /** Tonight's spread for the player's team — drives whether Close or
    *  Blowout is the contextual inline chip. */
   tonightSpread?: number | null;
+  /** Tonight's opponent team_id. Drives whether the inline DvP chip
+   *  upgrades to the sharper Top 5 / Bottom 5 tier when the matchup is
+   *  in the extreme. */
+  tonightOpponentTeamId?: number | null;
   /** Unified list of every active filter (split, quick filters, custom line,
    *  teammate with/without). Rendered as a single removable-chip row under
    *  the chart header so the user can see and clear all filters in one spot. */
@@ -224,8 +241,11 @@ export function HitRateChart({
   onQuickFiltersSet,
   dvpRankByOpponent,
   dvpTotalTeams,
+  paceRankByOpponent,
+  playTypeDefenseFilters,
   tonightDate,
   tonightSpread,
+  tonightOpponentTeamId,
   activeFilterChips,
   onClearAllFilters,
   onLineChange,
@@ -239,10 +259,32 @@ export function HitRateChart({
   // Index of the bar currently being hovered — drives the crosshair + pinned
   // pills across the main panel and margin strip.
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  // Toggle for the ghost "potential" overlay. Only meaningful when the active
-  // market actually has a potential stat (rebounds → potential rebounds,
-  // assists → potential assists). Default ON; the chip lives in the header.
-  const [hidePotential, setHidePotential] = useState(false);
+  // Sticky-tooltip handoff: when the cursor leaves a bar we wait a beat
+  // before clearing the hovered index. If the cursor moves into the portaled
+  // tooltip during that grace period, its mouseEnter cancels the timer so
+  // the tooltip stays open and the user can scroll its content (needed for
+  // tall tooltips that get capped on small screens).
+  const hoverClearTimerRef = useRef<number | null>(null);
+  const cancelHoverClear = () => {
+    if (hoverClearTimerRef.current !== null) {
+      window.clearTimeout(hoverClearTimerRef.current);
+      hoverClearTimerRef.current = null;
+    }
+  };
+  const scheduleHoverClear = (idx: number) => {
+    cancelHoverClear();
+    hoverClearTimerRef.current = window.setTimeout(() => {
+      hoverClearTimerRef.current = null;
+      setHoveredIndex((prev) => (prev === idx ? null : prev));
+    }, 120);
+  };
+  useEffect(() => () => cancelHoverClear(), []);
+  // Per-user chart settings (Confidence Band / DvP / Pace overlays + Potential
+  // / Average display toggles). Read from user_preferences via the prefs
+  // context. Saved optimistically when toggled. `hidePotential` derives from
+  // !showPotential to preserve the existing variable name downstream.
+  const { settings: chartSettings } = useChartPreferences();
+  const hidePotential = !chartSettings.showPotential;
   // Container width drives responsive bar sizing. ResizeObserver keeps it in
   // sync as the layout / viewport changes (e.g. roster rail collapses on
   // smaller widths, tab switches).
@@ -254,7 +296,7 @@ export function HitRateChart({
   // bottom based on available room — same idea as Radix collision avoidance.
   const innerTrackRef = useRef<HTMLDivElement>(null);
   const [hoverAnchor, setHoverAnchor] = useState<
-    | { left: number; top: number; placement: "above" | "below" }
+    | { left: number; top: number; placement: "above" | "below"; maxHeight: number }
     | null
   >(null);
   // Filter by range + split + roster filters, then take the most recent N
@@ -269,8 +311,20 @@ export function HitRateChart({
       totalTeams: dvpTotalTeams,
       tonightDate,
       tonightSpread,
+      tonightOpponentTeamId,
+      playTypeDefenseFilters,
     }),
-    [market, upcomingHomeAway, games, dvpRankByOpponent, dvpTotalTeams, tonightDate, tonightSpread]
+    [
+      market,
+      upcomingHomeAway,
+      games,
+      dvpRankByOpponent,
+      dvpTotalTeams,
+      tonightDate,
+      tonightSpread,
+      tonightOpponentTeamId,
+      playTypeDefenseFilters,
+    ]
   );
   const availableQuickFilters = useMemo(
     () => getQuickFilters(quickFilterCtx),
@@ -283,8 +337,10 @@ export function HitRateChart({
   );
   const activeQuickFilters = useMemo(
     () =>
-      availableQuickFilters.filter((qf) => quickFilters?.has(qf.id) ?? false),
-    [availableQuickFilters, quickFilters]
+      [...(quickFilters ?? new Set<string>())]
+        .map((id) => resolveQuickFilter(id, availableQuickFilters, quickFilterCtx))
+        .filter((qf): qf is NonNullable<typeof qf> => qf !== null),
+    [availableQuickFilters, quickFilters, quickFilterCtx]
   );
 
   const chartGames = useMemo(() => {
@@ -393,6 +449,22 @@ export function HitRateChart({
   // don't render a useless 0-line under empty bars.
   const averageValue =
     values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : null;
+
+  // Confidence band stats — median ± 1σ across visible values, clamped to
+  // [0, maxValue]. Used by the band overlay to show "typical range" so the
+  // user can spot games that fall outside their normal band at a glance.
+  const confidenceBand = useMemo(() => {
+    if (values.length < 4) return null; // too small for a meaningful band
+    const sorted = [...values].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const mean = values.reduce((s, v) => s + v, 0) / values.length;
+    const variance =
+      values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+    const std = Math.sqrt(variance);
+    const lower = Math.max(0, median - std);
+    const upper = Math.min(maxValue, median + std);
+    return { lower, upper, median };
+  }, [values, maxValue]);
   const averagePercent =
     averageValue !== null
       ? Math.min(96, Math.max(2, (averageValue / maxValue) * 100))
@@ -438,19 +510,23 @@ export function HitRateChart({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      // Conservative card height/width estimates — tooltip swells with
-      // teammates_out lists, so we leave generous padding before flipping.
-      const CARD_HEIGHT_GUESS = 360;
+      const viewportHeight = window.innerHeight;
       const CARD_HALF_WIDTH = 140;
       const EDGE_PAD = 12;
+      const GUTTER = 8; // gap between bar edge and card
 
-      // Vertical: prefer above; flip below when there isn't room above.
-      const placement: "above" | "below" =
-        rect.top >= CARD_HEIGHT_GUESS + EDGE_PAD ? "above" : "below";
+      // Vertical: pick the side with more room (above vs below the chart).
+      // We then cap the card's max-height to the available space and let it
+      // scroll internally — keeps the tooltip readable on small screens
+      // where neither side fully fits the swelling teammates_out list.
+      const roomAbove = Math.max(0, rect.top - EDGE_PAD - GUTTER);
+      const roomBelow = Math.max(0, viewportHeight - rect.bottom - EDGE_PAD - GUTTER);
+      const placement: "above" | "below" = roomAbove >= roomBelow ? "above" : "below";
+      const maxHeight = Math.max(160, placement === "above" ? roomAbove : roomBelow);
       const top =
         placement === "above"
-          ? rect.top + window.scrollY - 8
-          : rect.bottom + window.scrollY + 8;
+          ? rect.top + window.scrollY - GUTTER
+          : rect.bottom + window.scrollY + GUTTER;
 
       // Horizontal: anchor at the bar's center, then clamp so the card stays
       // on screen even when hovering a bar near a viewport edge.
@@ -460,7 +536,7 @@ export function HitRateChart({
       const maxLeft = viewportWidth - CARD_HALF_WIDTH - EDGE_PAD + window.scrollX;
       const left = Math.max(minLeft, Math.min(maxLeft, rawLeft));
 
-      setHoverAnchor({ left, top, placement });
+      setHoverAnchor({ left, top, placement, maxHeight });
     };
     update();
     window.addEventListener("scroll", update, { passive: true, capture: true });
@@ -576,27 +652,7 @@ export function HitRateChart({
       }
       headerRight={
         <div className="flex flex-wrap items-center gap-1">
-          {supportsPotential && (
-            <button
-              type="button"
-              onClick={() => setHidePotential((v) => !v)}
-              className={cn(
-                "mr-1 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors",
-                hidePotential
-                  ? "border-neutral-200 bg-transparent text-neutral-500 hover:text-neutral-800 dark:border-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100"
-                  : "border-neutral-300/70 bg-neutral-100 text-neutral-700 dark:border-neutral-600/60 dark:bg-neutral-700/40 dark:text-neutral-200"
-              )}
-              aria-pressed={!hidePotential}
-              title={hidePotential ? "Show potential overlay" : "Hide potential overlay"}
-            >
-              {hidePotential ? (
-                <EyeOff className="h-3 w-3" />
-              ) : (
-                <Eye className="h-3 w-3" />
-              )}
-              <span>Potential</span>
-            </button>
-          )}
+          <ChartSettingsPopover />
           {hitRateSegments.map((seg) => {
             const active = seg.range === range;
             const tone = rangeButtonTone(seg.pct);
@@ -694,7 +750,7 @@ export function HitRateChart({
         {/* Average line — muted neutral dashed rule + right-edge "AVG X.X"
             pill. Sits in the same layer as the threshold but at z-[15] so the
             cyan threshold renders on top when the two are close. */}
-        {chartGames.length > 0 && averagePercent !== null && averageValue !== null && (
+        {chartSettings.showAverage && chartGames.length > 0 && averagePercent !== null && averageValue !== null && (
           <div
             className="pointer-events-none absolute left-8 right-2 top-7 z-[15] sm:left-9 sm:right-3"
             style={{ height: CHART_HEIGHT }}
@@ -817,6 +873,86 @@ export function HitRateChart({
                   );
                 })}
 
+                {/* OVERLAY: Confidence Band — horizontal brand-cyan band
+                    spanning the chart, vertical bounds are median ± 1σ of
+                    visible values. Sits behind the bars (z-[1]) so the bars
+                    still pop. Only renders when the user has the toggle on
+                    and we have enough samples. */}
+                {chartSettings.showConfidenceBand && confidenceBand && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-[1] bg-brand/15 ring-1 ring-brand/20"
+                    style={{
+                      bottom: `${(confidenceBand.lower / maxValue) * 100}%`,
+                      height: `${
+                        ((confidenceBand.upper - confidenceBand.lower) /
+                          maxValue) *
+                        100
+                      }%`,
+                    }}
+                    aria-hidden
+                  >
+                    <div className="absolute -top-px left-0 right-0 h-px bg-brand/40" />
+                    <div className="absolute -bottom-px left-0 right-0 h-px bg-brand/40" />
+                  </div>
+                )}
+
+                {/* OVERLAY LINES: DvP + Pace as line charts threaded through
+                    the bars. Each line sits at z-[14] (above bars at z-0,
+                    below threshold at z-[20]) so it reads as a true overlay
+                    without burying the bar values. Both share a single SVG
+                    layer for one paint. */}
+                {(chartSettings.showDvpOverlay || chartSettings.showPaceOverlay) &&
+                  chartGames.length > 0 && (
+                    // viewBox uses REAL pixel dimensions (matches the chart's
+                    // actual width × CHART_HEIGHT) so circles stay round and
+                    // dots land exactly on bar centers. The previous
+                    // preserveAspectRatio="none" + 0..100 viewBox stretched
+                    // the dots into vertical ovals.
+                    <svg
+                      className="pointer-events-none absolute inset-0 z-[14]"
+                      width="100%"
+                      height="100%"
+                      viewBox={`0 0 ${Math.max(1, trackWidth)} ${CHART_HEIGHT}`}
+                      // Default preserveAspectRatio = xMidYMid meet — preserves
+                      // the aspect ratio so circles stay round. The inner
+                      // track explicitly sizes to trackWidth × CHART_HEIGHT
+                      // so the viewBox matches the rendered area; no scaling.
+                    >
+                      {chartSettings.showDvpOverlay && dvpRankByOpponent && (
+                        <RankLineOverlay
+                          games={chartGames}
+                          rankMap={dvpRankByOpponent}
+                          totalTeams={dvpTotalTeams ?? 30}
+                          barWidth={barWidth}
+                          gapPx={gapPx}
+                          chartHeight={CHART_HEIGHT}
+                          stroke="rgb(245 158 11 / 0.95)"
+                          dotFill="rgb(245 158 11)"
+                          label="DvP"
+                          // Invert so soft D (high rank, e.g. #29) sits at
+                          // the TOP of the chart and tough D (low rank, #1)
+                          // at the bottom. Reads as "high = good matchup"
+                          // matching how bars work.
+                          inverted
+                        />
+                      )}
+                      {chartSettings.showPaceOverlay && paceRankByOpponent && (
+                        <RankLineOverlay
+                          games={chartGames}
+                          rankMap={paceRankByOpponent}
+                          totalTeams={dvpTotalTeams ?? 30}
+                          barWidth={barWidth}
+                          gapPx={gapPx}
+                          chartHeight={CHART_HEIGHT}
+                          stroke="rgb(59 130 246 / 0.95)"
+                          dotFill="rgb(59 130 246)"
+                          label="Pace"
+                          dashed
+                        />
+                      )}
+                    </svg>
+                  )}
+
                 {/* Bars track */}
                 <div
                   className="absolute inset-0 flex items-end justify-start"
@@ -833,10 +969,12 @@ export function HitRateChart({
                       barWidth={barWidth}
                       hasAnyPotential={hasAnyPotential}
                       animationDelay={idx * 12}
-                      onMouseEnter={() => setHoveredIndex(idx)}
-                      onMouseLeave={() =>
-                        setHoveredIndex((prev) => (prev === idx ? null : prev))
-                      }
+                      showValueLabel={range !== "szn"}
+                      onMouseEnter={() => {
+                        cancelHoverClear();
+                        setHoveredIndex(idx);
+                      }}
+                      onMouseLeave={() => scheduleHoverClear(idx)}
                     />
                   ))}
 
@@ -932,6 +1070,51 @@ export function HitRateChart({
                   </div>
                 )}
               </div>
+
+              {/* Overlay legend — only shown when at least one context
+                  overlay is enabled. Tells the user what the lines mean
+                  without forcing them to remember the popover swatches. */}
+              {(chartSettings.showConfidenceBand ||
+                chartSettings.showDvpOverlay ||
+                chartSettings.showPaceOverlay) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                  {chartSettings.showConfidenceBand && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-3.5 rounded-sm bg-brand/30 ring-1 ring-brand/50" />
+                      <span>Confidence band</span>
+                      <span className="text-neutral-400 dark:text-neutral-600">
+                        (median ± 1σ)
+                      </span>
+                    </span>
+                  )}
+                  {chartSettings.showDvpOverlay && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="relative h-0.5 w-5 rounded-full bg-amber-500/90" />
+                      <span>DvP rank</span>
+                      <span className="text-neutral-400 dark:text-neutral-600">
+                        (high = soft D)
+                      </span>
+                    </span>
+                  )}
+                  {chartSettings.showPaceOverlay && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="relative h-0.5 w-5 rounded-full bg-blue-500/90"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 6px)",
+                          color: "rgb(59 130 246 / 0.9)",
+                          background: "transparent",
+                        }}
+                      />
+                      <span>Pace rank</span>
+                      <span className="text-neutral-400 dark:text-neutral-600">
+                        (#1 fastest)
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             </div>
           </div>
@@ -1004,16 +1187,33 @@ export function HitRateChart({
             recentGames={games}
             dvpRankByOpponent={dvpRankByOpponent}
             totalTeams={dvpTotalTeams}
+            playTypeDefenseFilters={playTypeDefenseFilters}
             active={quickFilters ?? new Set()}
             onToggle={(id) => onQuickFilterToggle?.(id)}
             onClearAll={() => onQuickFiltersClear?.()}
             onApplyPreset={(ids) => onQuickFiltersSet?.(ids)}
             trigger={
+              // When filters are active, the trigger flips from a quiet
+              // "+ Filters" outline to a brand-cyan filled chip with the
+              // count baked in — gives users a constant readout of how
+              // many filters are applied without re-opening the panel.
               <button
                 type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-600 transition-colors hover:border-brand/40 hover:text-brand dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-brand"
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-colors",
+                  (quickFilters?.size ?? 0) > 0
+                    ? "border-brand/45 bg-brand/15 text-brand hover:bg-brand/25"
+                    : "border-neutral-200 text-neutral-600 hover:border-brand/40 hover:text-brand dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-brand",
+                )}
               >
-                + Filters
+                {(quickFilters?.size ?? 0) > 0 ? (
+                  <>
+                    <SlidersHorizontal className="h-3 w-3" />
+                    Filters · {quickFilters!.size}
+                  </>
+                ) : (
+                  <>+ Filters</>
+                )}
               </button>
             }
           />
@@ -1025,6 +1225,28 @@ export function HitRateChart({
           from {
             height: 0;
             opacity: 0;
+          }
+        }
+      `}</style>
+      {/* Global keyframes for the line overlay draw-in. styled-jsx scopes
+          everything by default, but SVG-rendered children can fall outside
+          that scope; using global ensures the keyframes resolve everywhere
+          they're referenced. */}
+      <style jsx global>{`
+        @keyframes rankline-draw {
+          from {
+            stroke-dashoffset: 1;
+          }
+          to {
+            stroke-dashoffset: 0;
+          }
+        }
+        @keyframes rankline-fade {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
           }
         }
       `}</style>
@@ -1040,30 +1262,56 @@ export function HitRateChart({
         hoveredIndex < chartGames.length &&
         typeof window !== "undefined" &&
         createPortal(
+          // pointer-events-auto + a sticky-handoff: when the cursor leaves a
+          // bar we don't immediately clear hoveredIndex (a 120ms timer does).
+          // If the cursor enters this tooltip during that window, we cancel
+          // the timer so the tooltip stays open and the user can scroll it
+          // (necessary on small screens where maxHeight clips long
+          // teammates_out lists). Leaving the tooltip clears immediately.
           <div
-            className="pointer-events-none absolute z-[100] transition-[left,top] duration-150 ease-out"
+            className="pointer-events-auto absolute z-[100] overflow-y-auto overscroll-contain transition-[left,top] duration-150 ease-out [scrollbar-width:thin]"
             style={{
               left: hoverAnchor.left,
               top: hoverAnchor.top,
+              maxHeight: hoverAnchor.maxHeight,
               transform:
                 hoverAnchor.placement === "above"
                   ? "translate(-50%, -100%)"
                   : "translate(-50%, 0)",
             }}
+            onMouseEnter={cancelHoverClear}
+            onMouseLeave={() => setHoveredIndex(null)}
           >
-            {renderBarTooltip({
-              game: chartGames[hoveredIndex],
-              value: values[hoveredIndex],
-              potential: potentials[hoveredIndex],
-              line,
-              market,
-              sport,
-              injuries:
-                gameInjuriesByGameId?.get(chartGames[hoveredIndex].gameId) ??
-                gameInjuriesByGameId?.get(normalizeInjuryGameId(chartGames[hoveredIndex].gameId)) ??
-                null,
-              playerAvgsById,
-            })}
+            {(() => {
+              const hg = chartGames[hoveredIndex];
+              // Per-game DvP / Pace ranks — only fed into the tooltip when
+              // the corresponding overlay setting is on, so the matchup
+              // context row stays hidden when those overlays aren't in use.
+              const dvpRank =
+                chartSettings.showDvpOverlay && hg.opponentTeamId != null
+                  ? (dvpRankByOpponent?.get(hg.opponentTeamId) ?? null)
+                  : null;
+              const paceRank =
+                chartSettings.showPaceOverlay && hg.opponentTeamId != null
+                  ? (paceRankByOpponent?.get(hg.opponentTeamId) ?? null)
+                  : null;
+              return renderBarTooltip({
+                game: hg,
+                value: values[hoveredIndex],
+                potential: potentials[hoveredIndex],
+                line,
+                market,
+                sport,
+                injuries:
+                  gameInjuriesByGameId?.get(hg.gameId) ??
+                  gameInjuriesByGameId?.get(normalizeInjuryGameId(hg.gameId)) ??
+                  null,
+                playerAvgsById,
+                dvpRank,
+                paceRank,
+                totalTeams: dvpTotalTeams ?? 30,
+              });
+            })()}
           </div>,
           document.body
         )}
@@ -1091,6 +1339,9 @@ interface BarColumnProps {
   animationDelay: number;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  // Hide the per-bar numeric label. Season view stuffs 30+ bars into the same
+  // strip and the labels become illegible noise; tooltip still shows the value.
+  showValueLabel?: boolean;
 }
 
 function BarColumn({
@@ -1104,6 +1355,7 @@ function BarColumn({
   animationDelay,
   onMouseEnter,
   onMouseLeave,
+  showValueLabel = true,
 }: BarColumnProps) {
   const isHit = value >= line;
   const heightPx = Math.max(4, (value / maxValue) * chartHeight);
@@ -1141,7 +1393,7 @@ function BarColumn({
             className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-medium tabular-nums leading-none text-neutral-400 dark:text-neutral-500"
             style={{ marginBottom: 2 + ghostLabelExtra }}
           >
-            {potential}
+            {showValueLabel ? potential : null}
           </span>
         </div>
       )}
@@ -1159,23 +1411,25 @@ function BarColumn({
         )}
         style={{ width: actualWidth, height: heightPx, animation }}
       >
-        <span
-          className={cn(
-            "pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black tabular-nums leading-none",
-            // Hide when potential overlay is on — the ghost label above
-            // already conveys the magnitude and stacking two labels gets noisy.
-            // Above the bar in tiny when the bar is too short to host the
-            // label inside; otherwise inside-the-bar in white for max contrast.
-            heightPx < 22
-              ? "bottom-full mb-0.5 text-[9px] " +
-                (isHit
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400")
-              : "top-1.5 text-[12px] text-neutral-900 [text-shadow:_0_1px_2px_rgba(255,255,255,0.45)] dark:text-white dark:[text-shadow:_0_1px_2px_rgba(0,0,0,0.35)]"
-          )}
-        >
-          {Number.isInteger(value) ? value : value.toFixed(1)}
-        </span>
+        {showValueLabel && (
+          <span
+            className={cn(
+              "pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black tabular-nums leading-none",
+              // Hide when potential overlay is on — the ghost label above
+              // already conveys the magnitude and stacking two labels gets noisy.
+              // Above the bar in tiny when the bar is too short to host the
+              // label inside; otherwise inside-the-bar in white for max contrast.
+              heightPx < 22
+                ? "bottom-full mb-0.5 text-[9px] " +
+                  (isHit
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400")
+                : "top-1.5 text-[12px] text-neutral-900 [text-shadow:_0_1px_2px_rgba(255,255,255,0.45)] dark:text-white dark:[text-shadow:_0_1px_2px_rgba(0,0,0,0.35)]"
+            )}
+          >
+            {Number.isInteger(value) ? value : value.toFixed(1)}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -1194,6 +1448,9 @@ function renderBarTooltip({
   sport,
   injuries,
   playerAvgsById,
+  dvpRank,
+  paceRank,
+  totalTeams,
 }: {
   game: BoxScoreGame;
   value: number;
@@ -1203,6 +1460,12 @@ function renderBarTooltip({
   sport: "nba" | "wnba";
   injuries: GameWithInjuries | null;
   playerAvgsById?: Map<number, PlayerOutInfo>;
+  // Per-game opponent context — only set when the corresponding overlay is
+  // enabled. Renders a small "Matchup Context" row at the bottom of the
+  // tooltip with rank + tier label.
+  dvpRank?: number | null;
+  paceRank?: number | null;
+  totalTeams?: number;
 }) {
   const isHit = value >= line;
   const margin = value - line;
@@ -1305,6 +1568,32 @@ function renderBarTooltip({
 
       {/* Per-market stats — minutes, usage, rebounds breakdown, etc. */}
       <div className="px-3.5 pb-3">{getGameStatRows(game, market)}</div>
+
+      {/* Matchup context strip — DvP / Pace ranks for this game. Sits
+          between the per-market stats and Teammates Out as supporting
+          context. Single inline row (label + #rank + tier) keeps the block
+          compact instead of large card-style cells. */}
+      {(typeof dvpRank === "number" || typeof paceRank === "number") &&
+        typeof totalTeams === "number" && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-200/40 px-3.5 py-2 text-[11px] dark:border-neutral-800/40">
+            {typeof dvpRank === "number" && (
+              <RankInline
+                label="Opp DvP"
+                rank={dvpRank}
+                totalTeams={totalTeams}
+                kind="dvp"
+              />
+            )}
+            {typeof paceRank === "number" && (
+              <RankInline
+                label="Opp Pace"
+                rank={paceRank}
+                totalTeams={totalTeams}
+                kind="pace"
+              />
+            )}
+          </div>
+        )}
 
       {/* Teammates Out — top 3 by season avg for this stat. Avg gets a tier
           color (gold/orange/neutral) so the eye spots the impact rotation
@@ -1567,4 +1856,189 @@ function formatBarDate(date: string | null | undefined): string {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return parsed.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+}
+
+// Per-game rank line drawn through the chart frame. ViewBox is real pixel
+// dimensions (chartWidth × chartHeight), so positions land precisely on bar
+// centers and the geometry doesn't stretch. We use foreignObject for the
+// dots so the circles render as real DOM circles (CSS-sized) rather than
+// SVG circles that would scale with the viewBox aspect.
+// Inline single-row matchup-context entry. Quieter than the old card-style
+// `RankInline` — a tiny tone dot + label + rank + tier all on one baseline.
+// Used at the bottom of the bar tooltip, between the per-market stats and
+// Teammates Out, so it reads as supporting context rather than a hero stat.
+// Color encodes whether the matchup is favorable for the OVER bet: green =
+// good (soft D / fast pace), red = bad (tough D / slow pace), neutral = mid.
+function RankInline({
+  label,
+  rank,
+  totalTeams,
+  kind,
+}: {
+  label: string;
+  rank: number;
+  totalTeams: number;
+  kind: "dvp" | "pace";
+}) {
+  const toughMax = Math.max(1, Math.ceil(totalTeams / 3));
+  const easyMin = totalTeams - toughMax + 1;
+  let tier: string;
+  let tone: "good" | "bad" | "mid";
+  if (kind === "dvp") {
+    // DvP: rank 1 = toughest D (bad for OVER), rank N = softest (good).
+    if (rank <= toughMax) {
+      tier = "Tough";
+      tone = "bad";
+    } else if (rank >= easyMin) {
+      tier = "Soft";
+      tone = "good";
+    } else {
+      tier = "Mid";
+      tone = "mid";
+    }
+  } else {
+    // Pace: rank 1 = fastest (more possessions = good for OVER).
+    if (rank <= toughMax) {
+      tier = "Fast";
+      tone = "good";
+    } else if (rank >= easyMin) {
+      tier = "Slow";
+      tone = "bad";
+    } else {
+      tier = "Mid";
+      tone = "mid";
+    }
+  }
+  const dotClass =
+    tone === "good"
+      ? "bg-emerald-500"
+      : tone === "bad"
+        ? "bg-red-500"
+        : "bg-neutral-400 dark:bg-neutral-500";
+  const valueClass =
+    tone === "good"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "bad"
+        ? "text-red-600 dark:text-red-400"
+        : "text-neutral-500 dark:text-neutral-400";
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span
+        className={cn("h-1.5 w-1.5 rounded-full self-center", dotClass)}
+        aria-hidden
+      />
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+        {label}
+      </span>
+      <span className={cn("font-black tabular-nums", valueClass)}>#{rank}</span>
+      <span className={cn("text-[10px] font-black uppercase tracking-[0.1em]", valueClass)}>
+        {tier}
+      </span>
+    </span>
+  );
+}
+
+function RankLineOverlay({
+  games,
+  rankMap,
+  totalTeams,
+  barWidth,
+  gapPx,
+  chartHeight,
+  stroke,
+  dotFill,
+  label,
+  dashed,
+  inverted,
+}: {
+  games: Array<{ gameId: string | number; opponentTeamId?: number | null }>;
+  rankMap: Map<number, number>;
+  totalTeams: number;
+  barWidth: number;
+  gapPx: number;
+  chartHeight: number;
+  stroke: string;
+  dotFill: string;
+  label: string;
+  dashed?: boolean;
+  // When true, rank #1 maps to the BOTTOM of the chart and rank totalTeams
+  // to the TOP. Useful for DvP — "favorable matchup" then sits high on the
+  // chart, matching the bars' "high = good" convention. Pace stays default
+  // (rank #1 = fastest at the top, since fast = favorable too).
+  inverted?: boolean;
+}) {
+  // Map rank → y in chart pixels. With margins so dots don't collide with
+  // the bar tops or baseline labels.
+  const yMargin = 10;
+  const yRange = Math.max(1, chartHeight - yMargin * 2);
+  const points: Array<{ x: number; y: number; rank: number }> = [];
+  games.forEach((game, idx) => {
+    if (game.opponentTeamId == null) return;
+    const rank = rankMap.get(game.opponentTeamId);
+    if (rank == null) return;
+    // Center of this game's bar column in pixels.
+    const x = idx * (barWidth + gapPx) + barWidth / 2;
+    const t = (rank - 1) / Math.max(1, totalTeams - 1); // 0..1
+    const y = inverted
+      ? yMargin + (1 - t) * yRange // rank 1 → bottom, rank N → top
+      : yMargin + t * yRange; // rank 1 → top, rank N → bottom
+    points.push({ x, y, rank });
+  });
+  if (points.length === 0) return null;
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+    .join(" ");
+  return (
+    <g aria-label={`${label} rank trend`}>
+      {/* Solid lines use stroke-dasharray draw-in. Dashed (Pace) lines
+          can't animate dasharray cleanly, so they fade in via group
+          opacity instead. Both reach full state at the same beat as the
+          bars-rise animation (~360ms) so the chart settles in sync. */}
+      <path
+        d={path}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={dashed ? "5 3" : "1"}
+        pathLength={dashed ? undefined : 1}
+        vectorEffect="non-scaling-stroke"
+        style={
+          dashed
+            ? {
+                opacity: 0,
+                animation:
+                  "rankline-fade 480ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 80ms forwards",
+              }
+            : {
+                strokeDashoffset: 1,
+                animation:
+                  "rankline-draw 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 80ms forwards",
+              }
+        }
+      />
+      {/* Dots fade in alongside the line — quiet ease, no scale or
+          overshoot. The earlier scale-pop felt too playful for a context
+          overlay and the per-dot stagger looked busy on the dashed pace
+          line in particular. */}
+      {points.map((p) => (
+        <circle
+          key={`${label}-${p.x}`}
+          cx={p.x}
+          cy={p.y}
+          r={3.5}
+          fill={dotFill}
+          stroke="rgb(15 17 21)"
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+          style={{
+            opacity: 0,
+            animation:
+              "rankline-fade 360ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 200ms forwards",
+          }}
+        />
+      ))}
+    </g>
+  );
 }

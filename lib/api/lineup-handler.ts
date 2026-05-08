@@ -138,9 +138,51 @@ export async function handleLineupRequest(req: NextRequest, sport: "nba" | "wnba
     }
   }
 
-  // Sort each team's players: starters first (by lineup_slot), then bench
-  // (by play probability desc, then name).
+  // Dedupe per player_id. The Rotowire feed sometimes lists a starter who's
+  // also questionable in BOTH the starting-five AND the may-not-play list
+  // (e.g., Embiid: starter at C + may_not_play with Q). Prefer the starter
+  // entry so the player lands in the Starters section downstream — the
+  // injury status carries through the merged record so the questionable
+  // badge still surfaces. Confirmed > expected > may_not_play tiebreaker.
+  const lineupStatusRank = (s: string | null): number => {
+    if (s === "confirmed") return 0;
+    if (s === "expected") return 1;
+    return 2; // may_not_play / null / anything else
+  };
   for (const team of byTeam.values()) {
+    const byPlayerId = new Map<number, LineupPlayer>();
+    for (const p of team.players) {
+      const existing = byPlayerId.get(p.playerId);
+      if (!existing) {
+        byPlayerId.set(p.playerId, p);
+        continue;
+      }
+      const incomingWins =
+        // Starter always wins over non-starter
+        (p.isStarter && !existing.isStarter) ||
+        // Among same starter-state, prefer better lineup status
+        (p.isStarter === existing.isStarter &&
+          lineupStatusRank(p.lineupStatus) < lineupStatusRank(existing.lineupStatus));
+      if (incomingWins) {
+        // Carry the may_not_play injury context onto the starter entry so
+        // downstream UI still knows this player is flagged questionable.
+        byPlayerId.set(p.playerId, {
+          ...p,
+          injuryStatus: p.injuryStatus ?? existing.injuryStatus,
+          injuryNote: p.injuryNote ?? existing.injuryNote,
+        });
+      } else {
+        byPlayerId.set(p.playerId, {
+          ...existing,
+          injuryStatus: existing.injuryStatus ?? p.injuryStatus,
+          injuryNote: existing.injuryNote ?? p.injuryNote,
+        });
+      }
+    }
+    team.players = Array.from(byPlayerId.values());
+
+    // Sort: starters first (by lineup_slot), then bench (by play probability
+    // desc, then name).
     team.players.sort((a, b) => {
       if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
       if (a.isStarter && b.isStarter) {

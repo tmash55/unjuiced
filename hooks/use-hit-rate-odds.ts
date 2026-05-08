@@ -15,6 +15,7 @@ export interface BookOddsData {
   url: string | null;
   mobileUrl: string | null;
   sgp?: string | null;  // SGP token for same-game parlay API
+  oddId?: string | null; // OddsBlaze odd ID for historical line lookup
 }
 
 export interface LineOdds {

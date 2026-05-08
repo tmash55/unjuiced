@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
+import { InjuryReportTooltipContent } from "@/components/hit-rates/injury-report-tooltip";
 import { Tile } from "../shared/tile";
 
 export type TeammateFilterMode = "with" | "without";
@@ -20,6 +21,10 @@ export interface RosterTeammate {
   /** Free-form injury detail ("knee soreness", "GTD ankle"). Surfaced on
    *  hover over the status badge so users can read the actual reason. */
   injuryNotes: string | null;
+  injuryUpdatedAt?: string | null;
+  injuryReturnDate?: string | null;
+  injurySource?: string | null;
+  injuryRawStatus?: string | null;
   /** Team this player belongs to. Used to group/label rows when the rail
    *  shows BOTH the player's team and the opponent. */
   teamAbbr: string;
@@ -40,13 +45,28 @@ interface RosterRailProps {
 
 const STATUS_TONE = (status: string | null) => {
   const s = (status ?? "").toLowerCase();
-  if (s === "out") return { label: "OUT", className: "bg-rose-500/15 text-rose-600 dark:text-rose-400" };
+  if (s === "out")
+    return {
+      label: "OUT",
+      className: "bg-red-500/15 text-red-600 dark:text-red-400",
+    };
   if (s === "questionable" || s === "gtd" || s === "game time decision") {
-    return { label: "GTD", className: "bg-amber-500/15 text-amber-600 dark:text-amber-400" };
+    return {
+      label: "GTD",
+      className: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    };
   }
-  if (s === "doubtful") return { label: "DBT", className: "bg-rose-500/10 text-rose-500" };
-  if (s === "probable") return { label: "PROB", className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" };
-  return { label: "ACTIVE", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
+  if (s === "doubtful")
+    return { label: "DBT", className: "bg-red-500/10 text-red-500" };
+  if (s === "probable")
+    return {
+      label: "PROB",
+      className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    };
+  return {
+    label: "ACTIVE",
+    className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  };
 };
 
 // Inline dot color for the row's status indicator. Returns null for active
@@ -99,11 +119,14 @@ export function RosterRail({
 
   const injuredCount = useMemo(
     () => teammates.filter((t) => isInjured(t.injuryStatus)).length,
-    [teammates]
+    [teammates],
   );
 
   const visible = useMemo(() => {
-    const list = mode === "injured" ? teammates.filter((t) => isInjured(t.injuryStatus)) : teammates;
+    const list =
+      mode === "injured"
+        ? teammates.filter((t) => isInjured(t.injuryStatus))
+        : teammates;
     // Sort: injured first within each team (OUT > GTD > DBT > PROB > ACTIVE),
     // then by name. When showing both teams, preserve their grouping by
     // putting player team rows above opponent team rows.
@@ -111,7 +134,8 @@ export function RosterRail({
       const s = (status ?? "").toLowerCase();
       if (s === "out") return 0;
       if (s === "doubtful") return 1;
-      if (s === "questionable" || s === "gtd" || s === "game time decision") return 2;
+      if (s === "questionable" || s === "gtd" || s === "game time decision")
+        return 2;
       if (s === "probable") return 3;
       return 4;
     };
@@ -133,13 +157,16 @@ export function RosterRail({
             <button
               type="button"
               onClick={onClearFilters}
-              className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400 transition-colors hover:text-brand dark:text-neutral-500"
+              className="hover:text-brand text-[10px] font-bold tracking-[0.12em] text-neutral-400 uppercase transition-colors dark:text-neutral-500"
             >
               Clear
             </button>
           )}
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
-            <ModeButton active={mode === "injured"} onClick={() => setMode("injured")}>
+            <ModeButton
+              active={mode === "injured"}
+              onClick={() => setMode("injured")}
+            >
               <span className="inline-flex items-center gap-1">
                 Injured
                 {injuredCount > 0 && (
@@ -148,7 +175,7 @@ export function RosterRail({
                       "rounded-full px-1 text-[8px] font-black tabular-nums",
                       mode === "injured"
                         ? "bg-neutral-950/15 text-neutral-950"
-                        : "bg-neutral-300/40 text-neutral-500 dark:bg-neutral-700/60 dark:text-neutral-300"
+                        : "bg-neutral-300/40 text-neutral-500 dark:bg-neutral-700/60 dark:text-neutral-300",
                     )}
                   >
                     {injuredCount}
@@ -165,7 +192,7 @@ export function RosterRail({
     >
       <div
         className={cn(
-          compact ? "flex h-full min-h-0 flex-col gap-3" : "space-y-3"
+          compact ? "flex h-full min-h-0 flex-col gap-3" : "space-y-3",
         )}
       >
         {/* Active With/Without filters now surface in the chart's "Active"
@@ -175,7 +202,10 @@ export function RosterRail({
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-8 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800/60" />
+              <div
+                key={i}
+                className="h-8 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800/60"
+              />
             ))}
           </div>
         ) : visible.length === 0 ? (
@@ -187,15 +217,21 @@ export function RosterRail({
             className={cn(
               "space-y-1.5",
               compact &&
-                "flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700"
+                "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 min-h-0 flex-1 overflow-y-auto pr-1",
             )}
           >
             {visible.map((t) => {
               const withActive = filters.some(
-                (f) => f.playerId === t.playerId && f.mode === "with" && Boolean(f.isOpponent) === t.isOpponent
+                (f) =>
+                  f.playerId === t.playerId &&
+                  f.mode === "with" &&
+                  Boolean(f.isOpponent) === t.isOpponent,
               );
               const withoutActive = filters.some(
-                (f) => f.playerId === t.playerId && f.mode === "without" && Boolean(f.isOpponent) === t.isOpponent
+                (f) =>
+                  f.playerId === t.playerId &&
+                  f.mode === "without" &&
+                  Boolean(f.isOpponent) === t.isOpponent,
               );
               const dotClass = STATUS_DOT(t.injuryStatus);
               return (
@@ -211,20 +247,22 @@ export function RosterRail({
                       <Tooltip
                         side="top"
                         content={
-                          <div className="max-w-[240px] px-3 py-2 text-xs">
-                            <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
-                              {fullStatusLabel(t.injuryStatus)}
-                            </div>
-                            <div className="text-neutral-700 dark:text-neutral-200">
-                              {t.injuryNotes ?? "No additional details available."}
-                            </div>
-                          </div>
+                          <InjuryReportTooltipContent
+                            playerName={t.name}
+                            status={t.injuryStatus}
+                            notes={t.injuryNotes}
+                            updatedAt={t.injuryUpdatedAt}
+                            returnDate={t.injuryReturnDate}
+                            source={t.injurySource}
+                            rawStatus={t.injuryRawStatus}
+                          />
                         }
+                        contentClassName="p-0"
                       >
                         <span
                           className={cn(
                             "h-2 w-2 shrink-0 cursor-help rounded-full",
-                            dotClass
+                            dotClass,
                           )}
                           aria-label={fullStatusLabel(t.injuryStatus)}
                         />
@@ -240,7 +278,7 @@ export function RosterRail({
                         "rounded-sm px-1 py-px text-[9px] font-black tracking-wide",
                         t.isOpponent
                           ? "bg-neutral-200/70 text-neutral-600 dark:bg-neutral-700/60 dark:text-neutral-300"
-                          : "bg-brand/10 text-brand dark:bg-brand/15"
+                          : "bg-brand/10 text-brand dark:bg-brand/15",
                       )}
                     >
                       {t.teamAbbr}
@@ -255,7 +293,11 @@ export function RosterRail({
                     <ToggleButton
                       active={withActive}
                       onClick={() =>
-                        onFilterToggle({ playerId: t.playerId, mode: "with", isOpponent: t.isOpponent })
+                        onFilterToggle({
+                          playerId: t.playerId,
+                          mode: "with",
+                          isOpponent: t.isOpponent,
+                        })
                       }
                     >
                       With
@@ -263,7 +305,11 @@ export function RosterRail({
                     <ToggleButton
                       active={withoutActive}
                       onClick={() =>
-                        onFilterToggle({ playerId: t.playerId, mode: "without", isOpponent: t.isOpponent })
+                        onFilterToggle({
+                          playerId: t.playerId,
+                          mode: "without",
+                          isOpponent: t.isOpponent,
+                        })
                       }
                     >
                       W/O
@@ -293,10 +339,10 @@ function ToggleButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all",
+        "rounded px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase transition-all",
         active
           ? "bg-brand text-neutral-950 shadow-sm"
-          : "text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
+          : "text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100",
       )}
     >
       {children}
@@ -318,14 +364,13 @@ function ModeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] transition-all",
+        "rounded px-1.5 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-all",
         active
           ? "bg-brand text-neutral-950 shadow-sm"
-          : "text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
+          : "text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100",
       )}
     >
       {children}
     </button>
   );
 }
-

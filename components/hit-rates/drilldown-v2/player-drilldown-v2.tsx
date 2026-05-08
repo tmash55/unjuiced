@@ -5,13 +5,27 @@ import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { useTeamRoster } from "@/hooks/use-team-roster";
-import { useLineup, type LineupPlayer, type TeamLineup } from "@/hooks/use-lineup";
+import {
+  useLineup,
+  type LineupPlayer,
+  type TeamLineup,
+} from "@/hooks/use-lineup";
 import {
   usePlayerGamesWithInjuries,
   usePlayersOutForFilter,
   type GameWithInjuries,
   type PlayerOutInfo,
 } from "@/hooks/use-injury-context";
+import { type LineOdds } from "@/hooks/use-hit-rate-odds";
+import {
+  getBestSideFromOddsLine,
+  useOddsLine,
+  type OddsLineResponse,
+} from "@/hooks/use-odds-line";
+import {
+  useAlternateLines,
+  type AlternateLine,
+} from "@/hooks/use-alternate-lines";
 import { DrilldownHeader } from "./header/drilldown-header";
 import { PlayerSwitcherStrip } from "./header/player-switcher-strip";
 import { MarketScroller } from "./hero/market-scroller";
@@ -22,8 +36,14 @@ import {
   type ChartRange,
   type ChartSplit,
 } from "./hero/hit-rate-chart";
-import { getQuickFilters, dvpRankFieldForMarket } from "./shared/quick-filters";
+import {
+  getQuickFilters,
+  dvpRankFieldForMarket,
+  resolveQuickFilter,
+} from "./shared/quick-filters";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
+import { useTeamPace } from "@/hooks/use-team-pace";
+import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
 import { getHitRateTableConfig } from "@/lib/hit-rates/table-config";
 import {
   RosterRail,
@@ -48,10 +68,17 @@ interface PlayerDrilldownV2Props {
   backHref: string;
 }
 
-const normalizeInjuryGameId = (id: string | number | null | undefined): string => {
+const normalizeInjuryGameId = (
+  id: string | number | null | undefined,
+): string => {
   if (id === null || id === undefined) return "";
   return String(id).replace(/^0+/, "") || "0";
 };
+
+const SINGLE_LINE_ODDS_MARKETS = new Set([
+  "player_double_double",
+  "player_triple_double",
+]);
 
 // v2 player drilldown — bento grid above the fold (chart hero + matchup +
 // stat overview + roster/injuries rail), tabs below for deep dives.
@@ -69,7 +96,10 @@ export function PlayerDrilldownV2({
   backHref,
 }: PlayerDrilldownV2Props) {
   // ── Filter state lives at the orchestrator so all tiles stay in sync ──────
-  const [customLine, setCustomLine] = useState<number | null>(null);
+  const [customLineState, setCustomLineState] = useState<{
+    market: string;
+    line: number;
+  } | null>(null);
   const [chartSplit, setChartSplit] = useState<ChartSplit>("all");
   const [chartRange, setChartRange] = useState<ChartRange>("l20");
   const [teammateFilters, setTeammateFilters] = useState<TeammateFilter[]>([]);
@@ -77,18 +107,119 @@ export function PlayerDrilldownV2({
   // market change since chip ids are scoped per market.
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
 
-  // Reset only the custom line on market change — a "PTS line 25.5" doesn't
-  // translate to "REB". chartRange / chartSplit / quickFilters / teammateFilters
-  // carry forward; the chart's filter pass naturally ignores any active quick-
-  // filter id that doesn't exist for the new market (volume chips are
-  // market-specific) so it's safe to keep them in state.
-  useEffect(() => {
-    setCustomLine(null);
-  }, [profile.market]);
-
   const defaultLine = profile.line ?? 0;
+  // Custom lines are scoped to the market they were selected on. This avoids a
+  // stale PTS line being used for the first REB/AST odds request during market
+  // switches, which can make the live Redis lookup come back empty.
+  const customLine =
+    customLineState?.market === profile.market ? customLineState.line : null;
+  const setActiveCustomLine = (line: number) => {
+    setCustomLineState({ market: profile.market, line });
+  };
+  const resetActiveCustomLine = () => setCustomLineState(null);
   const effectiveLine = customLine ?? defaultLine;
-  const isCustomLine = customLine !== null && Math.abs(customLine - defaultLine) > 1e-6;
+  const isCustomLine =
+    customLine !== null && Math.abs(customLine - defaultLine) > 1e-6;
+  const oddsContextProfile = useMemo(() => {
+    if (profile.eventId && (profile.selKey || profile.oddsSelectionId)) {
+      return profile;
+    }
+
+    const isSingleLineMarket = SINGLE_LINE_ODDS_MARKETS.has(profile.market);
+    if (!isSingleLineMarket) return profile;
+
+    const donor = allPlayerProfiles
+      .filter(
+        (candidate) =>
+          candidate.playerId === profile.playerId &&
+          !!candidate.eventId &&
+          !!(candidate.selKey || candidate.oddsSelectionId) &&
+          !SINGLE_LINE_ODDS_MARKETS.has(candidate.market),
+      )
+      .sort((a, b) => {
+        const aSameGame =
+          Number(a.gameId === profile.gameId && !!profile.gameId) +
+          Number(a.gameDate === profile.gameDate && !!profile.gameDate) +
+          Number(
+            a.opponentTeamId === profile.opponentTeamId &&
+              !!profile.opponentTeamId,
+          );
+        const bSameGame =
+          Number(b.gameId === profile.gameId && !!profile.gameId) +
+          Number(b.gameDate === profile.gameDate && !!profile.gameDate) +
+          Number(
+            b.opponentTeamId === profile.opponentTeamId &&
+              !!profile.opponentTeamId,
+          );
+        return bSameGame - aSameGame;
+      })[0];
+
+    if (!donor) return profile;
+
+    return {
+      ...profile,
+      eventId: profile.eventId ?? donor.eventId,
+      selKey: profile.selKey ?? donor.selKey,
+      oddsSelectionId: profile.oddsSelectionId ?? donor.oddsSelectionId,
+      gameId: profile.gameId ?? donor.gameId,
+      gameDate: profile.gameDate ?? donor.gameDate,
+      startTime: profile.startTime ?? donor.startTime,
+      gameStatus: profile.gameStatus ?? donor.gameStatus,
+      opponentTeamId: profile.opponentTeamId ?? donor.opponentTeamId,
+      opponentTeamAbbr: profile.opponentTeamAbbr ?? donor.opponentTeamAbbr,
+      opponentTeamName: profile.opponentTeamName ?? donor.opponentTeamName,
+      homeAway: profile.homeAway ?? donor.homeAway,
+      spread: profile.spread ?? donor.spread,
+      total: profile.total ?? donor.total,
+      gameOddsBook: profile.gameOddsBook ?? donor.gameOddsBook,
+      spreadBook: profile.spreadBook ?? donor.spreadBook,
+      totalBook: profile.totalBook ?? donor.totalBook,
+    };
+  }, [allPlayerProfiles, profile]);
+
+  const redisPlayerKey = useMemo(() => {
+    const rawKey = oddsContextProfile.selKey ?? oddsContextProfile.oddsSelectionId;
+    return rawKey ? rawKey.split(":")[0] : null;
+  }, [oddsContextProfile.selKey, oddsContextProfile.oddsSelectionId]);
+  const oddsLineQuery = useOddsLine({
+    sport,
+    eventId: oddsContextProfile.eventId,
+    market: profile.market,
+    playerId: redisPlayerKey,
+    line: effectiveLine,
+    includeSgp: true,
+    enabled: !!oddsContextProfile.eventId && !!profile.market && !!redisPlayerKey,
+  });
+  const alternateLinesQuery = useAlternateLines({
+    sport,
+    eventId: oddsContextProfile.eventId,
+    selKey: redisPlayerKey,
+    playerId: profile.playerId,
+    market: profile.market,
+    currentLine: effectiveLine,
+    enabled:
+      !!oddsContextProfile.eventId &&
+      !!redisPlayerKey &&
+      !!profile.playerId &&
+      !!profile.market,
+  });
+  const liveOdds = useMemo(
+    () =>
+      buildLiveLineOdds({
+        profile: oddsContextProfile,
+        effectiveLine,
+        oddsLine: oddsLineQuery.data,
+        alternateLines: alternateLinesQuery.lines,
+      }),
+    [
+      oddsContextProfile,
+      effectiveLine,
+      oddsLineQuery.data,
+      alternateLinesQuery.lines,
+    ],
+  );
+  const isOddsLoading =
+    oddsLineQuery.isLoading || alternateLinesQuery.isLoading;
 
   // 1Q markets pull their stat values from the per-period table, but full-game
   // rows remain the base dataset so filters keep the same game/injury context.
@@ -159,7 +290,9 @@ export function PlayerDrilldownV2({
       };
     });
   }, [fullBoxScoresQuery.games, isQ1Market, periodStatsByGameId]);
-  const isLoadingBoxScores = fullBoxScoresQuery.isLoading || (isQ1Market && periodBoxScoresQuery.isLoading);
+  const isLoadingBoxScores =
+    fullBoxScoresQuery.isLoading ||
+    (isQ1Market && periodBoxScoresQuery.isLoading);
 
   // Team roster powers the right-rail injury panel + WITH/WITHOUT toggles.
   // We fetch BOTH the player's team and the opponent's team so the rail can
@@ -261,7 +394,10 @@ export function PlayerDrilldownV2({
     for (const team of dvpQuery.teams) {
       const t = team as unknown as Record<string, unknown>;
       const rank = t[field];
-      const teamId = (team as { team_id?: number }).team_id;
+      // The DvP API returns camelCase fields (`teamId`, `ptsRank`, etc.).
+      // Reading `team_id` was always undefined → map stayed empty → DvP
+      // overlay + filters silently no-op'd. v1 also reads `team.teamId`.
+      const teamId = (team as { teamId?: number }).teamId;
       if (typeof teamId === "number" && typeof rank === "number") {
         map.set(teamId, rank);
       }
@@ -270,6 +406,53 @@ export function PlayerDrilldownV2({
   }, [dvpQuery.teams, profile.market]);
   const dvpTotalTeams = sport === "wnba" ? 13 : 30;
 
+  // Pace ranks for every opponent that appears in the visible games. Keyed
+  // by opponent_team_id so the chart can color-code per-game pace context
+  // when the user enables the Pace overlay setting. Both NBA and WNBA are
+  // backed by basketball_team_pace_rankings.
+  const opponentTeamIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const g of boxScoreGames) {
+      if (typeof g.opponentTeamId === "number") set.add(g.opponentTeamId);
+    }
+    return [...set];
+  }, [boxScoreGames]);
+  const teamPaceQuery = useTeamPace({
+    teamIds: opponentTeamIds,
+    sport,
+    enabled: opponentTeamIds.length > 0,
+  });
+  const paceRankByOpponent = useMemo(() => {
+    const map = new Map<number, number>();
+    const teams = teamPaceQuery.teams;
+    if (!teams) return map;
+    for (const [teamIdStr, pace] of Object.entries(teams)) {
+      const teamId = Number(teamIdStr);
+      if (!Number.isFinite(teamId)) continue;
+      // Prefer L10 (recent form) over season-long, fall back to season.
+      const rank = pace.l10?.rank ?? pace.season?.rank ?? null;
+      if (rank != null) map.set(teamId, rank);
+    }
+    return map;
+  }, [teamPaceQuery.teams]);
+
+  const teamPlayTypeRanks = useTeamPlayTypeRanks({
+    season: "2025-26",
+    enabled: sport === "nba",
+  });
+  const playTypeDefenseFilters = useMemo(() => {
+    if (sport !== "nba") return [];
+    return teamPlayTypeRanks.playTypes
+      .filter((playType) => playType.teams.length > 0)
+      .map((playType) => ({
+        playType: playType.playType,
+        label: playType.displayName || playType.playType,
+        rankByOpponentAbbr: new Map(
+          playType.teams.map((team) => [team.teamAbbr, team.pppRank])
+        ),
+      }));
+  }, [sport, teamPlayTypeRanks.playTypes]);
+
   // Fresh injury overlay — switcherPlayers is sourced from
   // nba_hit_rate_profiles_v2 which is updated as props refresh, while the
   // team-roster RPC reads nba_players_hr (lags by hours). Build a Map of
@@ -277,9 +460,26 @@ export function PlayerDrilldownV2({
   // and the rail surfaces the same Questionable/Out badges the switcher pills
   // already show.
   const freshInjuryByPlayerId = useMemo(() => {
-    const map = new Map<number, { injuryStatus: string | null; injuryNotes: string | null }>();
+    const map = new Map<
+      number,
+      {
+        injuryStatus: string | null;
+        injuryNotes: string | null;
+        injuryUpdatedAt: string | null;
+        injuryReturnDate: string | null;
+        injurySource: string | null;
+        injuryRawStatus: string | null;
+      }
+    >();
     for (const p of switcherPlayers) {
-      const entry = { injuryStatus: p.injuryStatus ?? null, injuryNotes: p.injuryNotes ?? null };
+      const entry = {
+        injuryStatus: p.injuryStatus ?? null,
+        injuryNotes: p.injuryNotes ?? null,
+        injuryUpdatedAt: p.injuryUpdatedAt ?? null,
+        injuryReturnDate: p.injuryReturnDate ?? null,
+        injurySource: p.injurySource ?? null,
+        injuryRawStatus: p.injuryRawStatus ?? null,
+      };
       // Index by both ids so an NBA-side roster id matches a WNBA-side
       // hit-rate playerId (and vice versa). Skip empty/zero ids.
       if (p.playerId) map.set(p.playerId, entry);
@@ -292,7 +492,26 @@ export function PlayerDrilldownV2({
   // metadata. The rail decides what to show (injured-only vs all) and renders
   // the team abbr per row so the user can tell which side a player is on.
   const topTeammates: RosterTeammate[] = useMemo(() => {
-    const merge = (rosterStatus: string | null, rosterNotes: string | null, fresh: { injuryStatus: string | null; injuryNotes: string | null } | undefined) => {
+    const merge = (
+      p: {
+        injuryStatus?: string | null;
+        injuryNotes?: string | null;
+        injuryUpdatedAt?: string | null;
+        injuryReturnDate?: string | null;
+        injurySource?: string | null;
+        injuryRawStatus?: string | null;
+      },
+      fresh:
+        | {
+            injuryStatus: string | null;
+            injuryNotes: string | null;
+            injuryUpdatedAt: string | null;
+            injuryReturnDate: string | null;
+            injurySource: string | null;
+            injuryRawStatus: string | null;
+          }
+        | undefined,
+    ) => {
       // Prefer the fresh value when it's a non-available status (Q/Out/etc).
       // Fall back to roster otherwise so non-matched players still surface
       // their stale-but-valid status.
@@ -301,35 +520,58 @@ export function PlayerDrilldownV2({
         fresh.injuryStatus.toLowerCase() !== "available" &&
         fresh.injuryStatus.toLowerCase() !== "active";
       if (freshIsMeaningful) {
-        return { injuryStatus: fresh!.injuryStatus, injuryNotes: fresh!.injuryNotes ?? rosterNotes };
+        return {
+          injuryStatus: fresh!.injuryStatus,
+          injuryNotes: fresh!.injuryNotes ?? p.injuryNotes ?? null,
+          injuryUpdatedAt: fresh!.injuryUpdatedAt ?? p.injuryUpdatedAt ?? null,
+          injuryReturnDate:
+            fresh!.injuryReturnDate ?? p.injuryReturnDate ?? null,
+          injurySource: fresh!.injurySource ?? p.injurySource ?? null,
+          injuryRawStatus: fresh!.injuryRawStatus ?? p.injuryRawStatus ?? null,
+        };
       }
-      return { injuryStatus: rosterStatus, injuryNotes: rosterNotes };
+      return {
+        injuryStatus: p.injuryStatus ?? null,
+        injuryNotes: p.injuryNotes ?? null,
+        injuryUpdatedAt: p.injuryUpdatedAt ?? null,
+        injuryReturnDate: p.injuryReturnDate ?? null,
+        injurySource: p.injurySource ?? null,
+        injuryRawStatus: p.injuryRawStatus ?? null,
+      };
     };
 
     const playerTeam = rosterQuery.players
       .filter((p) => p.playerId !== profile.playerId)
       .map((p) => {
         const fresh = freshInjuryByPlayerId.get(p.playerId);
-        const merged = merge(p.injuryStatus ?? null, p.injuryNotes ?? null, fresh);
+        const merged = merge(p, fresh);
         return {
           playerId: String(p.playerId),
           name: p.name,
           position: p.position ?? null,
           injuryStatus: merged.injuryStatus,
           injuryNotes: merged.injuryNotes,
+          injuryUpdatedAt: merged.injuryUpdatedAt,
+          injuryReturnDate: merged.injuryReturnDate,
+          injurySource: merged.injurySource,
+          injuryRawStatus: merged.injuryRawStatus,
           teamAbbr: profile.teamAbbr ?? "",
           isOpponent: false,
         };
       });
     const oppTeam = opponentRosterQuery.players.map((p) => {
       const fresh = freshInjuryByPlayerId.get(p.playerId);
-      const merged = merge(p.injuryStatus ?? null, p.injuryNotes ?? null, fresh);
+      const merged = merge(p, fresh);
       return {
         playerId: String(p.playerId),
         name: p.name,
         position: p.position ?? null,
         injuryStatus: merged.injuryStatus,
         injuryNotes: merged.injuryNotes,
+        injuryUpdatedAt: merged.injuryUpdatedAt,
+        injuryReturnDate: merged.injuryReturnDate,
+        injurySource: merged.injurySource,
+        injuryRawStatus: merged.injuryRawStatus,
         teamAbbr: profile.opponentTeamAbbr ?? "",
         isOpponent: true,
       };
@@ -360,6 +602,10 @@ export function PlayerDrilldownV2({
           ...p,
           injuryStatus: fresh!.injuryStatus,
           injuryNotes: fresh!.injuryNotes ?? p.injuryNotes,
+          injuryUpdatedAt: fresh!.injuryUpdatedAt ?? p.injuryUpdatedAt,
+          injuryReturnDate: fresh!.injuryReturnDate ?? p.injuryReturnDate,
+          injurySource: fresh!.injurySource ?? p.injurySource,
+          injuryRawStatus: fresh!.injuryRawStatus ?? p.injuryRawStatus,
         };
       })
       .sort((a, b) => (b.avgMinutes ?? 0) - (a.avgMinutes ?? 0));
@@ -372,7 +618,9 @@ export function PlayerDrilldownV2({
   const filteredBoxScores = useMemo(() => {
     if (teammateFilters.length === 0) return boxScoreGames;
     return boxScoreGames.filter((g) => {
-      const inj = gameInjuriesByGameId.get(g.gameId) ?? gameInjuriesByGameId.get(normalizeInjuryGameId(g.gameId));
+      const inj =
+        gameInjuriesByGameId.get(g.gameId) ??
+        gameInjuriesByGameId.get(normalizeInjuryGameId(g.gameId));
       // No injury context → can't verify the filter. Drop conservatively.
       if (!inj) return false;
       return teammateFilters.every((f) => {
@@ -384,20 +632,67 @@ export function PlayerDrilldownV2({
     });
   }, [boxScoreGames, teammateFilters, gameInjuriesByGameId]);
 
-  // Recompute hit rates from box scores when the user has adjusted the line OR
-  // pinned at least one teammate filter — either case invalidates the
-  // server-computed defaults. The chart header chips (L5/L10/L20/SZN/H2H) and
-  // BarColumn ghosts both consume this.
-  const shouldRecompute = isCustomLine || teammateFilters.length > 0;
+  // Apply quick-filter chip predicates (FG%, FGM range, DvP tier, venue, etc.)
+  // on top of the teammate-filtered set. Same predicate logic the chart uses
+  // — applied here so the L5/L10/L20 strip recomputes off the same dataset
+  // the chart bars are drawn from. Without this the strip would still show
+  // unfiltered hit rates while the bars change underneath.
+  const fullyFilteredBoxScores = useMemo(() => {
+    if (quickFilters.size === 0) return filteredBoxScores;
+    const ctx = {
+      market: profile.market,
+      upcomingHomeAway: profile.homeAway,
+      recentGames: boxScoreGames,
+      dvpRankByOpponent,
+      totalTeams: dvpTotalTeams,
+      playTypeDefenseFilters,
+      tonightDate: profile.gameDate,
+      tonightSpread: profile.spread,
+      tonightOpponentTeamId: profile.opponentTeamId ?? null,
+    };
+    const available = getQuickFilters(ctx);
+    const predicates = [...quickFilters]
+      .map((id) => resolveQuickFilter(id, available, ctx))
+      .filter((qf): qf is NonNullable<typeof qf> => qf !== null);
+    if (predicates.length === 0) return filteredBoxScores;
+    return filteredBoxScores.filter((g) =>
+      predicates.every((qf) => qf.predicate(g)),
+    );
+  }, [
+    filteredBoxScores,
+    quickFilters,
+    profile.market,
+    profile.homeAway,
+    profile.gameDate,
+    profile.spread,
+    boxScoreGames,
+    dvpRankByOpponent,
+    dvpTotalTeams,
+    playTypeDefenseFilters,
+  ]);
+
+  // Recompute hit rates from box scores whenever ANY filter is in play —
+  // custom line, teammate filters, OR quick-filter chips. Each case
+  // invalidates the server-computed defaults that ship in `profile.last*Pct`.
+  // The chart header chips (L5/L10/L20/SZN/H2H) and BarColumn ghosts both
+  // consume this.
+  const shouldRecompute =
+    isCustomLine || teammateFilters.length > 0 || quickFilters.size > 0;
   const computedRates = useMemo(() => {
-    if (!shouldRecompute || filteredBoxScores.length === 0) return null;
+    if (!shouldRecompute || fullyFilteredBoxScores.length === 0) return null;
     return computeHitRates(
-      filteredBoxScores,
+      fullyFilteredBoxScores,
       profile.market,
       effectiveLine,
-      profile.opponentTeamId
+      profile.opponentTeamId,
     );
-  }, [shouldRecompute, filteredBoxScores, profile.market, profile.opponentTeamId, effectiveLine]);
+  }, [
+    shouldRecompute,
+    fullyFilteredBoxScores,
+    profile.market,
+    profile.opponentTeamId,
+    effectiveLine,
+  ]);
 
   // Hit-rate segments rendered in the chart header — server-computed by default,
   // recomputed from box scores when the user is on a custom line.
@@ -405,27 +700,73 @@ export function PlayerDrilldownV2({
     const config = getHitRateTableConfig(sport);
     if (computedRates) {
       return [
-        { range: "l5", label: "L5", pct: computedRates.last5Pct, sample: computedRates.last5Sample },
-        { range: "l10", label: "L10", pct: computedRates.last10Pct, sample: computedRates.last10Sample },
-        { range: "l20", label: "L20", pct: computedRates.last20Pct, sample: computedRates.last20Sample },
-        { range: "szn", label: config.seasonPctLabel, pct: computedRates.seasonPct, sample: computedRates.seasonSample },
-        { range: "h2h", label: "H2H", pct: computedRates.h2hPct, sample: computedRates.h2hSample },
+        {
+          range: "l5",
+          label: "L5",
+          pct: computedRates.last5Pct,
+          sample: computedRates.last5Sample,
+        },
+        {
+          range: "l10",
+          label: "L10",
+          pct: computedRates.last10Pct,
+          sample: computedRates.last10Sample,
+        },
+        {
+          range: "l20",
+          label: "L20",
+          pct: computedRates.last20Pct,
+          sample: computedRates.last20Sample,
+        },
+        {
+          range: "szn",
+          label: config.seasonPctLabel,
+          pct: computedRates.seasonPct,
+          sample: computedRates.seasonSample,
+        },
+        {
+          range: "h2h",
+          label: "H2H",
+          pct: computedRates.h2hPct,
+          sample: computedRates.h2hSample,
+        },
       ];
     }
     return [
       { range: "l5", label: "L5", pct: profile.last5Pct, sample: 5 },
       { range: "l10", label: "L10", pct: profile.last10Pct, sample: 10 },
       { range: "l20", label: "L20", pct: profile.last20Pct, sample: 20 },
-      { range: "szn", label: config.seasonPctLabel, pct: profile.seasonPct, sample: profile.seasonGames ?? null },
-      { range: "h2h", label: "H2H", pct: profile.h2hPct, sample: profile.h2hGames ?? null },
+      {
+        range: "szn",
+        label: config.seasonPctLabel,
+        pct: profile.seasonPct,
+        sample: profile.seasonGames ?? null,
+      },
+      {
+        range: "h2h",
+        label: "H2H",
+        pct: profile.h2hPct,
+        sample: profile.h2hGames ?? null,
+      },
     ];
-  }, [computedRates, profile.last5Pct, profile.last10Pct, profile.last20Pct, profile.seasonPct, profile.seasonGames, profile.h2hPct, profile.h2hGames, sport]);
+  }, [
+    computedRates,
+    profile.last5Pct,
+    profile.last10Pct,
+    profile.last20Pct,
+    profile.seasonPct,
+    profile.seasonGames,
+    profile.h2hPct,
+    profile.h2hGames,
+    sport,
+  ]);
 
   // Build the unified active-filter chip list for the chart's "Active" row.
   // Each chip carries its own onRemove so the chart doesn't need to know
   // about every filter type — it just renders + removes.
   const activeFilterChips = useMemo(() => {
-    const chips: Array<{ id: string; label: string; onRemove: () => void }> = [];
+    const chips: Array<{ id: string; label: string; onRemove: () => void }> =
+      [];
 
     // Note: a custom line is treated as the chart's anchor metric, not a
     // filter — the cyan threshold + WHAT-IF chip in the chart header
@@ -451,9 +792,19 @@ export function PlayerDrilldownV2({
         recentGames: boxScoreGames,
         dvpRankByOpponent,
         totalTeams: dvpTotalTeams,
+        playTypeDefenseFilters,
+        tonightOpponentTeamId: profile.opponentTeamId ?? null,
       });
       for (const id of quickFilters) {
-        const qf = available.find((f) => f.id === id);
+        const qf = resolveQuickFilter(id, available, {
+          market: profile.market,
+          upcomingHomeAway: profile.homeAway,
+          recentGames: boxScoreGames,
+          dvpRankByOpponent,
+          totalTeams: dvpTotalTeams,
+          playTypeDefenseFilters,
+          tonightOpponentTeamId: profile.opponentTeamId ?? null,
+        });
         if (qf) {
           chips.push({
             id: `quick-${id}`,
@@ -471,7 +822,8 @@ export function PlayerDrilldownV2({
 
     // Teammate filters — resolve names from the combined roster (player + opp).
     const teammateById = new Map<string, RosterTeammate>();
-    for (const t of topTeammates) teammateById.set(`${t.playerId}-${t.isOpponent}`, t);
+    for (const t of topTeammates)
+      teammateById.set(`${t.playerId}-${t.isOpponent}`, t);
     for (const f of teammateFilters) {
       const key = `${f.playerId}-${Boolean(f.isOpponent)}`;
       const teammate = teammateById.get(key);
@@ -487,8 +839,8 @@ export function PlayerDrilldownV2({
                   x.playerId === f.playerId &&
                   x.mode === f.mode &&
                   Boolean(x.isOpponent) === Boolean(f.isOpponent)
-                )
-            )
+                ),
+            ),
           ),
       });
     }
@@ -499,6 +851,9 @@ export function PlayerDrilldownV2({
     profile.market,
     profile.homeAway,
     boxScoreGames,
+    dvpRankByOpponent,
+    dvpTotalTeams,
+    playTypeDefenseFilters,
     teammateFilters,
     topTeammates,
   ]);
@@ -515,16 +870,21 @@ export function PlayerDrilldownV2({
   // opposite chip swaps the mode for that teammate.
   const toggleTeammate = (next: TeammateFilter) => {
     setTeammateFilters((prev) => {
-      const sameSide = (f: TeammateFilter) => Boolean(f.isOpponent) === Boolean(next.isOpponent);
-      const existing = prev.find((f) => f.playerId === next.playerId && sameSide(f));
+      const sameSide = (f: TeammateFilter) =>
+        Boolean(f.isOpponent) === Boolean(next.isOpponent);
+      const existing = prev.find(
+        (f) => f.playerId === next.playerId && sameSide(f),
+      );
       if (!existing) return [...prev, next];
       if (existing.mode === next.mode) {
         // Same chip clicked — remove the filter
-        return prev.filter((f) => !(f.playerId === next.playerId && sameSide(f)));
+        return prev.filter(
+          (f) => !(f.playerId === next.playerId && sameSide(f)),
+        );
       }
       // Different mode — swap
       return prev.map((f) =>
-        f.playerId === next.playerId && sameSide(f) ? next : f
+        f.playerId === next.playerId && sameSide(f) ? next : f,
       );
     });
   };
@@ -534,13 +894,14 @@ export function PlayerDrilldownV2({
       {/* Top cap — switcher + markets stay sticky as one unit so market nav and
           player swap are always one click away. The command-bar header below
           scrolls naturally with the rest of the content. */}
-      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 border-b border-neutral-200/60 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8 dark:border-neutral-800/60 dark:bg-neutral-950/95">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-neutral-200/60 bg-white/95 px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:border-neutral-800/60 dark:bg-neutral-950/95">
         <PlayerSwitcherStrip
           backHref={backHref}
           sport={sport}
           players={switcherPlayers}
           games={switcherGames}
           activePlayerId={profile.playerId}
+          activeProfile={profile}
           selectedGameId={switcherGameId}
           onGameSelect={onSwitcherGameSelect}
           onPlayerSelect={onSwitcherPlayerSelect}
@@ -587,24 +948,28 @@ export function PlayerDrilldownV2({
             onQuickFiltersSet={(ids) => setQuickFilters(ids)}
             dvpRankByOpponent={dvpRankByOpponent}
             dvpTotalTeams={dvpTotalTeams}
-            tonightDate={profile.gameDate}
-            tonightSpread={profile.spread}
+            paceRankByOpponent={paceRankByOpponent}
+            playTypeDefenseFilters={playTypeDefenseFilters}
+            tonightDate={oddsContextProfile.gameDate}
+            tonightSpread={oddsContextProfile.spread}
+            tonightOpponentTeamId={oddsContextProfile.opponentTeamId ?? null}
             activeFilterChips={activeFilterChips}
             onClearAllFilters={onClearAllFilters}
-            onLineChange={(next) => setCustomLine(next)}
-            onLineReset={() => setCustomLine(null)}
+            onLineChange={setActiveCustomLine}
+            onLineReset={resetActiveCustomLine}
             topSlot={
               <DrilldownHeader
-                profile={profile}
+                profile={oddsContextProfile}
                 sport={sport}
                 effectiveLine={effectiveLine}
-                onLineChange={(next) => setCustomLine(next)}
-                onLineReset={() => setCustomLine(null)}
+                onLineChange={setActiveCustomLine}
+                onLineReset={resetActiveCustomLine}
+                odds={liveOdds}
               />
             }
-            upcomingGameDate={profile.gameDate}
-            upcomingOpponentAbbr={profile.opponentTeamAbbr}
-            upcomingHomeAway={profile.homeAway}
+            upcomingGameDate={oddsContextProfile.gameDate}
+            upcomingOpponentAbbr={oddsContextProfile.opponentTeamAbbr}
+            upcomingHomeAway={oddsContextProfile.homeAway}
           />
         </div>
 
@@ -618,14 +983,14 @@ export function PlayerDrilldownV2({
             onClearFilters={() => setTeammateFilters([])}
             isLoading={rosterQuery.isLoading}
             compact
-            className="flex-1 min-h-0"
+            className="min-h-0 flex-1"
           />
-          <MatchupContextPanel profile={profile} sport={sport} />
+          <MatchupContextPanel profile={oddsContextProfile} sport={sport} />
         </div>
       </div>
 
       <DrilldownTabs
-        profile={profile}
+        profile={oddsContextProfile}
         profiles={allPlayerProfiles}
         sport={sport}
         games={boxScoreGames}
@@ -638,11 +1003,174 @@ export function PlayerDrilldownV2({
         teamLineup={playerTeamLineup}
         isLoadingLineup={lineupQuery.isLoading}
         activeLine={effectiveLine}
-        onLineSelect={(line) => setCustomLine(line)}
+        onLineSelect={setActiveCustomLine}
+        odds={liveOdds}
+        isOddsLoading={isOddsLoading}
         chartRange={chartRange}
       />
     </div>
   );
+}
+
+type NormalizedLineOdds = LineOdds["allLines"][number];
+
+function buildLiveLineOdds({
+  profile,
+  effectiveLine,
+  oddsLine,
+  alternateLines,
+}: {
+  profile: HitRateProfile;
+  effectiveLine: number;
+  oddsLine: OddsLineResponse | null;
+  alternateLines: AlternateLine[];
+}): LineOdds | null {
+  const normalizedAlternateLines = alternateLines.map(mapAlternateLineToLineOdds);
+  const activeLineOdds = oddsLine ? mapOddsLineResponseToLineOdds(oddsLine) : null;
+
+  const allLinesByLine = new Map<number, NormalizedLineOdds>();
+  for (const line of normalizedAlternateLines) {
+    allLinesByLine.set(line.line, line);
+  }
+  if (activeLineOdds) {
+    allLinesByLine.set(activeLineOdds.line, activeLineOdds);
+  }
+
+  const sortedAllLines = Array.from(allLinesByLine.values()).sort(
+    (a, b) => a.line - b.line,
+  );
+  const exactActiveLine =
+    activeLineOdds ??
+    sortedAllLines.find((line) => Math.abs(line.line - effectiveLine) < 0.001) ??
+    null;
+  const isDefaultLine =
+    profile.line !== null && Math.abs(profile.line - effectiveLine) < 0.001;
+
+  const fallbackBestOver =
+    isDefaultLine && profile.bestOdds
+      ? {
+          book: profile.bestOdds.book,
+          price: profile.bestOdds.price,
+          url: null,
+          mobileUrl: null,
+        }
+      : null;
+
+  const bestOver = exactActiveLine?.bestOver ?? fallbackBestOver;
+  const bestUnder = exactActiveLine?.bestUnder ?? null;
+
+  if (!bestOver && !bestUnder && sortedAllLines.length === 0) {
+    return null;
+  }
+
+  return {
+    stableKey: profile.selKey ?? profile.oddsSelectionId ?? "",
+    eventId: profile.eventId,
+    market: profile.market,
+    primaryLine: profile.line,
+    currentLine: effectiveLine,
+    bestOver,
+    bestUnder,
+    allLines: sortedAllLines,
+    live: true,
+    timestamp: oddsLine?.updated_at ?? profile.bestOdds?.updated_at ?? null,
+  };
+}
+
+function mapOddsLineResponseToLineOdds(
+  oddsLine: OddsLineResponse,
+): NormalizedLineOdds {
+  const books: NormalizedLineOdds["books"] = {};
+
+  for (const book of oddsLine.books ?? []) {
+    if (!books[book.book]) books[book.book] = {};
+    if (book.over !== null) {
+      books[book.book].over = {
+        price: book.over,
+        url: book.link_over ?? null,
+        mobileUrl: book.link_over ?? null,
+        sgp: book.sgp_over ?? null,
+        oddId: book.odd_id_over ?? null,
+      };
+    }
+    if (book.under !== null) {
+      books[book.book].under = {
+        price: book.under,
+        url: book.link_under ?? null,
+        mobileUrl: book.link_under ?? null,
+        sgp: book.sgp_under ?? null,
+        oddId: book.odd_id_under ?? null,
+      };
+    }
+  }
+
+  return {
+    line: oddsLine.line,
+    bestOver: getBestSideFromOddsLine(oddsLine, "over"),
+    bestUnder: getBestSideFromOddsLine(oddsLine, "under"),
+    books,
+  };
+}
+
+function mapAlternateLineToLineOdds(line: AlternateLine): NormalizedLineOdds {
+  const books: NormalizedLineOdds["books"] = {};
+
+  for (const book of line.books ?? []) {
+    if (!books[book.book]) books[book.book] = {};
+    if (book.price !== null && book.price !== undefined) {
+      books[book.book].over = {
+        price: book.price,
+        url: book.url ?? null,
+        mobileUrl: book.mobileUrl ?? null,
+        oddId: book.oddId ?? null,
+      };
+    }
+    if (book.underPrice !== null && book.underPrice !== undefined) {
+      books[book.book].under = {
+        price: book.underPrice,
+        url: book.underUrl ?? null,
+        mobileUrl: book.underMobileUrl ?? null,
+        oddId: book.underOddId ?? null,
+      };
+    }
+  }
+
+  const overBooks = Object.entries(books)
+    .map(([book, odds]) =>
+      odds.over
+        ? {
+            book,
+            price: odds.over.price,
+            url: odds.over.url,
+            mobileUrl: odds.over.mobileUrl,
+            sgp: odds.over.sgp ?? null,
+          }
+        : null,
+    )
+    .filter(Boolean) as NonNullable<NormalizedLineOdds["bestOver"]>[];
+  const underBooks = Object.entries(books)
+    .map(([book, odds]) =>
+      odds.under
+        ? {
+            book,
+            price: odds.under.price,
+            url: odds.under.url,
+            mobileUrl: odds.under.mobileUrl,
+            sgp: odds.under.sgp ?? null,
+          }
+        : null,
+    )
+    .filter(Boolean) as NonNullable<NormalizedLineOdds["bestUnder"]>[];
+
+  overBooks.sort((a, b) => b.price - a.price);
+  underBooks.sort((a, b) => b.price - a.price);
+
+  return {
+    line: line.line,
+    bestOver: overBooks[0] ?? null,
+    bestUnder: underBooks[0] ?? null,
+    books,
+  };
 }
 
 function lastNameOf(fullName: string): string {

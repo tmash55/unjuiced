@@ -96,6 +96,17 @@ export interface UserPreferences {
   // Model templates preference
   hide_model_templates?: boolean;
 
+  // Player drilldown chart overlay toggles. Stored as JSONB so adding a new
+  // overlay later is code-only, no migration. Read via getChartSettings()
+  // which fills in defaults; written via updatePreference("chart_settings").
+  chart_settings?: {
+    showConfidenceBand?: boolean;
+    showDvpOverlay?: boolean;
+    showPaceOverlay?: boolean;
+    showPotential?: boolean;
+    showAverage?: boolean;
+  } | null;
+
   // Sharp Signals preferences
   signal_followed_wallets?: string[];
   signal_sport_filters?: string[] | null;
@@ -242,7 +253,11 @@ export class PreferencesRPC {
       positive_ev_max_ev: data?.positive_ev_max_ev,
       positive_ev_mode: data?.positive_ev_mode,
       positive_ev_min_books_per_side: data?.positive_ev_min_books_per_side ?? 2,
-      
+
+      // Player drilldown chart overlay toggles. Null fallback so the
+      // useChartPreferences hook can merge with its DEFAULT_CHART_SETTINGS.
+      chart_settings: data?.chart_settings ?? null,
+
       created_at: data?.created_at,
       updated_at: data?.updated_at,
     };

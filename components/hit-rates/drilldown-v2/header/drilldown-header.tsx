@@ -5,11 +5,15 @@ import { HeartPulse } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
+import {
+  InjuryReportTooltipContent,
+  hasReportableInjury,
+} from "@/components/hit-rates/injury-report-tooltip";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
-import { useHitRateOdds, type LineOdds } from "@/hooks/use-hit-rate-odds";
+import type { LineOdds } from "@/hooks/use-hit-rate-odds";
 import { LineStepper } from "./line-stepper";
 
 interface DrilldownHeaderProps {
@@ -19,6 +23,7 @@ interface DrilldownHeaderProps {
   effectiveLine: number;
   onLineChange: (value: number) => void;
   onLineReset: () => void;
+  odds: LineOdds | null;
 }
 
 // Drilldown header — flat command-bar strip (no inner card). Reads left → right
@@ -32,6 +37,7 @@ export function DrilldownHeader({
   effectiveLine,
   onLineChange,
   onLineReset,
+  odds,
 }: DrilldownHeaderProps) {
   const positionLabel = formatPosition(profile.position);
   const opponent =
@@ -49,25 +55,16 @@ export function DrilldownHeader({
     homeAwayNormalized === "1" ||
     homeAwayNormalized === "true";
   const gameTime = formatGameTime(profile.gameStatus, profile.gameDate);
-  const hasInjury =
-    profile.injuryStatus &&
-    profile.injuryStatus.toLowerCase() !== "active" &&
-    profile.injuryStatus.toLowerCase() !== "available";
+  const hasInjury = hasReportableInjury(profile.injuryStatus);
 
-  const { getOdds } = useHitRateOdds({
-    rows: [{ oddsSelectionId: profile.oddsSelectionId, line: profile.line }],
-    sport,
-    enabled: !!profile.oddsSelectionId,
-  });
-  const odds = getOdds(profile.oddsSelectionId);
   const activeLineOdds = getLineOddsForActiveLine(odds, effectiveLine);
   const isDefaultLine =
     profile.line !== null && Math.abs(profile.line - effectiveLine) < 0.001;
   const bestOver =
     activeLineOdds?.bestOver ??
-    odds?.bestOver ??
-    (isDefaultLine ? profile.bestOdds : null);
-  const bestUnder = activeLineOdds?.bestUnder ?? odds?.bestUnder ?? null;
+    (isDefaultLine ? (odds?.bestOver ?? profile.bestOdds) : null);
+  const bestUnder =
+    activeLineOdds?.bestUnder ?? (isDefaultLine ? odds?.bestUnder : null);
 
   const marketLabel = profile.market
     ? formatMarketLabelShort(profile.market)
@@ -96,8 +93,19 @@ export function DrilldownHeader({
             </h1>
             {hasInjury && (
               <Tooltip
-                content={`${profile.injuryStatus!.charAt(0).toUpperCase() + profile.injuryStatus!.slice(1)}${profile.injuryNotes ? ` — ${profile.injuryNotes}` : ""}`}
+                content={
+                  <InjuryReportTooltipContent
+                    playerName={profile.playerName}
+                    status={profile.injuryStatus}
+                    notes={profile.injuryNotes}
+                    updatedAt={profile.injuryUpdatedAt}
+                    returnDate={profile.injuryReturnDate}
+                    source={profile.injurySource}
+                    rawStatus={profile.injuryRawStatus}
+                  />
+                }
                 side="top"
+                contentClassName="p-0"
               >
                 <HeartPulse
                   className={cn(

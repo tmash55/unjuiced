@@ -20,6 +20,10 @@ export interface TeamRosterPlayer {
   avgUsage: number;
   injuryStatus: string | null;
   injuryNotes: string | null;
+  injuryUpdatedAt?: string | null;
+  injuryReturnDate?: string | null;
+  injurySource?: string | null;
+  injuryRawStatus?: string | null;
 }
 
 export interface TeamRosterResponse {
@@ -41,7 +45,7 @@ export interface UseTeamRosterOptions {
 async function fetchTeamRoster(
   teamId: number,
   sport: "nba" | "wnba",
-  season?: string
+  season?: string,
 ): Promise<TeamRosterResponse> {
   const params = new URLSearchParams();
   params.set("teamId", String(teamId));
@@ -92,7 +96,13 @@ export function useGameRosters(options: {
   season?: string;
   enabled?: boolean;
 }) {
-  const { playerTeamId, opponentTeamId, sport = "nba", season, enabled = true } = options;
+  const {
+    playerTeamId,
+    opponentTeamId,
+    sport = "nba",
+    season,
+    enabled = true,
+  } = options;
 
   const playerTeam = useTeamRoster({
     teamId: playerTeamId,

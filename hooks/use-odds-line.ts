@@ -10,6 +10,8 @@ export interface BookOddsDetail {
   book: string;
   over: number | null;
   under: number | null;
+  odd_id_over?: string | null;
+  odd_id_under?: string | null;
   link_over?: string | null;
   link_under?: string | null;
   sgp_over?: string | null;
@@ -160,6 +162,7 @@ export function useOddsLine({
     enabled: enabled && isValid,
     staleTime: 10_000, // 10 seconds
     gcTime: 60_000, // 1 minute
+    refetchInterval: 60_000,
     refetchOnWindowFocus: false,
   });
   

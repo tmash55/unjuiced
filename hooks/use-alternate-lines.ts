@@ -12,9 +12,11 @@ export interface BookOdds {
   price: number;
   url: string | null;
   mobileUrl: string | null;
+  oddId?: string | null;
   underPrice?: number | null;
   underUrl?: string | null;
   underMobileUrl?: string | null;
+  underOddId?: string | null;
   isSharp?: boolean; // Pinnacle, Circa, etc.
 }
 
@@ -98,6 +100,8 @@ export function useAlternateLines(options: UseAlternateLinesOptions) {
     enabled: enabled && isValid,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   return {

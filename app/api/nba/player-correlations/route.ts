@@ -12,6 +12,10 @@ const RequestSchema = z.object({
   season: z.string().nullish().transform(v => v ?? "2025-26"),
 });
 
+const CORRELATIONS_CACHE_TABLE = "nba_player_correlations_cache";
+const CORRELATIONS_CACHE_TTL_MS = 10 * 60 * 1000;
+const PUBLIC_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
+
 // Response types
 interface SplitData {
   games: number;
@@ -325,6 +329,111 @@ interface SelfCorrelationStat {
   };
 }
 
+type ServerSupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+
+interface CorrelationCacheArgs {
+  playerId: number;
+  market: string;
+  line: number;
+  gameId: number | null;
+  lastNGames: number | null;
+  season: string;
+}
+
+interface CorrelationCacheWriteArgs extends CorrelationCacheArgs {
+  payload: PlayerCorrelationsResponse;
+  effectiveLastNGames: number | null;
+  gameLogLimit: number;
+}
+
+function getLastNGamesCacheKey(lastNGames: number | null): number {
+  return lastNGames ?? -1;
+}
+
+function getGameIdCacheKey(gameId: number | null): number {
+  return gameId ?? 0;
+}
+
+function isMissingCacheTableError(error: any): boolean {
+  const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    message.includes(CORRELATIONS_CACHE_TABLE) ||
+    message.includes("could not find the table")
+  );
+}
+
+function isPlayerCorrelationsResponse(value: unknown): value is PlayerCorrelationsResponse {
+  if (!value || typeof value !== "object") return false;
+  const maybe = value as Partial<PlayerCorrelationsResponse>;
+  return Boolean(maybe.version && maybe.filters && maybe.anchorPlayer && Array.isArray(maybe.teammateCorrelations));
+}
+
+async function readCorrelationCache(
+  supabase: ServerSupabaseClient,
+  args: CorrelationCacheArgs
+): Promise<PlayerCorrelationsResponse | null> {
+  const { data, error } = await supabase
+    .from(CORRELATIONS_CACHE_TABLE)
+    .select("payload, computed_at")
+    .eq("player_id", args.playerId)
+    .eq("market", args.market)
+    .eq("line", args.line)
+    .eq("season", args.season)
+    .eq("game_id", getGameIdCacheKey(args.gameId))
+    .eq("last_n_games_key", getLastNGamesCacheKey(args.lastNGames))
+    .gt("expires_at", new Date().toISOString())
+    .order("computed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (!isMissingCacheTableError(error)) {
+      console.warn("[Player Correlations] Cache read failed:", error.message);
+    }
+    return null;
+  }
+
+  return isPlayerCorrelationsResponse(data?.payload) ? data.payload : null;
+}
+
+async function writeCorrelationCache(
+  supabase: ServerSupabaseClient,
+  args: CorrelationCacheWriteArgs
+): Promise<void> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + CORRELATIONS_CACHE_TTL_MS);
+
+  const { error } = await supabase
+    .from(CORRELATIONS_CACHE_TABLE)
+    .upsert(
+      {
+        player_id: args.playerId,
+        market: args.market,
+        line: args.line,
+        season: args.season,
+        game_id: getGameIdCacheKey(args.gameId),
+        requested_last_n_games: args.lastNGames,
+        last_n_games_key: getLastNGamesCacheKey(args.lastNGames),
+        effective_last_n_games: args.effectiveLastNGames,
+        game_log_limit: args.gameLogLimit,
+        source_team_id: args.payload.anchorPlayer?.teamId ?? null,
+        payload: args.payload,
+        computed_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        updated_at: now.toISOString(),
+      },
+      {
+        onConflict: "player_id,market,line,season,game_id,last_n_games_key,game_log_limit",
+      }
+    );
+
+  if (error && !isMissingCacheTableError(error)) {
+    console.warn("[Player Correlations] Cache write failed:", error.message);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -341,6 +450,24 @@ export async function POST(req: NextRequest) {
     const { playerId, market, line, gameId, lastNGames, season } = parsed.data;
 
     const supabase = createServerSupabaseClient();
+
+    const cachedResponse = await readCorrelationCache(supabase, {
+      playerId,
+      market,
+      line,
+      gameId,
+      lastNGames,
+      season,
+    });
+
+    if (cachedResponse) {
+      return NextResponse.json(cachedResponse, {
+        headers: {
+          "Cache-Control": PUBLIC_CACHE_CONTROL,
+          "X-Correlations-Cache": "HIT",
+        },
+      });
+    }
 
     const isTimeoutError = (err: any): boolean => {
       const msg = typeof err?.message === "string" ? err.message.toLowerCase() : "";
@@ -364,6 +491,7 @@ export async function POST(req: NextRequest) {
     let error: any = null;
     let fallbackApplied = false;
     let fallbackMeta: { lastNGames: number | null; gameLogLimit: number; label: string } | null = null;
+    let successfulAttempt: { lastNGames: number | null; gameLogLimit: number; label: string } | null = null;
 
     for (let i = 0; i < attempts.length; i++) {
       const attempt = attempts[i];
@@ -386,6 +514,7 @@ export async function POST(req: NextRequest) {
           attempt.gameLogLimit !== 15 ||
           i > 0;
         fallbackMeta = fallbackApplied ? attempt : null;
+        successfulAttempt = attempt;
         break;
       }
 
@@ -630,13 +759,26 @@ export async function POST(req: NextRequest) {
     };
 
     const headers: Record<string, string> = {
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+      "Cache-Control": PUBLIC_CACHE_CONTROL,
+      "X-Correlations-Cache": "MISS",
     };
     if (fallbackApplied && fallbackMeta) {
       headers["X-Correlations-Fallback"] = `${fallbackMeta.label}`;
       headers["X-Correlations-Last-N-Games"] = String(fallbackMeta.lastNGames ?? "season");
       headers["X-Correlations-Game-Log-Limit"] = String(fallbackMeta.gameLogLimit);
     }
+
+    await writeCorrelationCache(supabase, {
+      playerId,
+      market,
+      line,
+      gameId,
+      lastNGames,
+      season,
+      payload: response,
+      effectiveLastNGames: successfulAttempt?.lastNGames ?? lastNGames,
+      gameLogLimit: successfulAttempt?.gameLogLimit ?? 15,
+    });
 
     return NextResponse.json(response, { headers });
   } catch (error: any) {

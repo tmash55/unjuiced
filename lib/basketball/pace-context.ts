@@ -249,10 +249,10 @@ function getRankingSnapshot(
 
 function applyRankingSnapshot(recent: PaceRecentContext, snapshot: PaceRankingSnapshot | null): PaceRecentContext {
   if (!snapshot) return recent;
-  const l5 = roundPace(snapshot.l5?.pace) ?? recent.l5;
-  const l10 = roundPace(snapshot.l10?.pace) ?? recent.l10;
-  const l20 = roundPace(snapshot.l20?.pace) ?? recent.l20;
-  const season = roundPace(snapshot.season?.pace) ?? recent.season;
+  const l5 = recent.l5 ?? roundPace(snapshot.l5?.pace);
+  const l10 = recent.l10 ?? roundPace(snapshot.l10?.pace);
+  const l20 = recent.l20 ?? roundPace(snapshot.l20?.pace);
+  const season = recent.season ?? roundPace(snapshot.season?.pace);
   const games = Math.max(
     recent.games,
     snapshot.l5?.games_played ?? 0,
@@ -263,13 +263,13 @@ function applyRankingSnapshot(recent: PaceRecentContext, snapshot: PaceRankingSn
 
   return {
     l5,
-    l5Rank: snapshot.l5?.pace_rank ?? recent.l5Rank ?? null,
+    l5Rank: recent.l5Rank ?? snapshot.l5?.pace_rank ?? null,
     l10,
-    l10Rank: snapshot.l10?.pace_rank ?? recent.l10Rank ?? null,
+    l10Rank: recent.l10Rank ?? snapshot.l10?.pace_rank ?? null,
     l20,
-    l20Rank: snapshot.l20?.pace_rank ?? recent.l20Rank ?? null,
+    l20Rank: recent.l20Rank ?? snapshot.l20?.pace_rank ?? null,
     season,
-    seasonRank: snapshot.season?.pace_rank ?? recent.seasonRank ?? null,
+    seasonRank: recent.seasonRank ?? snapshot.season?.pace_rank ?? null,
     games,
     trendL5VsSeason: l5 !== null && season !== null ? roundPace(l5 - season) : recent.trendL5VsSeason,
   };

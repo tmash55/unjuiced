@@ -79,7 +79,7 @@ function StatRow({
     deltaTier === "up"
       ? "text-emerald-600 dark:text-emerald-400"
       : deltaTier === "down"
-      ? "text-rose-600 dark:text-rose-400"
+      ? "text-red-600 dark:text-red-400"
       : "text-neutral-400 dark:text-neutral-500";
 
   return (

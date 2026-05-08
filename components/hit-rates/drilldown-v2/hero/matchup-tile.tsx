@@ -37,9 +37,9 @@ const tierTextColor = (tier: Tier | null) => {
     case "strong":
       return "text-emerald-600 dark:text-emerald-400";
     case "bad":
-      return "text-rose-500 dark:text-rose-400";
+      return "text-red-500 dark:text-red-400";
     case "worst":
-      return "text-rose-600 dark:text-rose-300";
+      return "text-red-600 dark:text-red-300";
     case "neutral":
     default:
       return "text-neutral-700 dark:text-neutral-200";
@@ -158,7 +158,7 @@ function Row({
     badgeTier === "elite" || badgeTier === "strong"
       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
       : badgeTier === "bad" || badgeTier === "worst"
-      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+      ? "bg-red-500/15 text-red-600 dark:text-red-400"
       : "bg-neutral-500/15 text-neutral-500 dark:text-neutral-400";
 
   return (

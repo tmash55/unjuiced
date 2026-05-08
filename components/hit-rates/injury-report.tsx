@@ -7,6 +7,7 @@ import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { HeartPulse, UserCheck, UserX, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/tooltip";
+import { InjuryReportTooltipContent } from "./injury-report-tooltip";
 
 // Filter selection for a player: "with" means include games they played, "without" means exclude
 export type InjuryFilterMode = "with" | "without" | null;
@@ -33,7 +34,8 @@ const getInjuryColor = (status: string | null) => {
   if (!status) return null;
   const s = status.toLowerCase();
   if (s === "out") return "text-red-500";
-  if (s === "questionable" || s === "gtd" || s === "game time decision") return "text-amber-500";
+  if (s === "questionable" || s === "gtd" || s === "game time decision")
+    return "text-amber-500";
   if (s === "probable") return "text-emerald-500";
   return null;
 };
@@ -42,7 +44,8 @@ const getInjuryBgColor = (status: string | null) => {
   if (!status) return null;
   const s = status.toLowerCase();
   if (s === "out") return "bg-red-500/10";
-  if (s === "questionable" || s === "gtd" || s === "game time decision") return "bg-amber-500/10";
+  if (s === "questionable" || s === "gtd" || s === "game time decision")
+    return "bg-amber-500/10";
   if (s === "probable") return "bg-emerald-500/10";
   return null;
 };
@@ -52,7 +55,8 @@ const getInjuryPriority = (status: string | null): number => {
   const s = status.toLowerCase();
   if (s === "out") return 1;
   if (s === "doubtful") return 2;
-  if (s === "questionable" || s === "gtd" || s === "game time decision") return 3;
+  if (s === "questionable" || s === "gtd" || s === "game time decision")
+    return 3;
   if (s === "probable") return 4;
   return 99;
 };
@@ -86,29 +90,40 @@ function InjuredPlayerRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-        isCurrentPlayer && "opacity-50 pointer-events-none",
+        "flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
+        isCurrentPlayer && "pointer-events-none opacity-50",
         injuryBgColor,
-        !isCurrentPlayer && "hover:bg-neutral-50 dark:hover:bg-neutral-700/30"
+        !isCurrentPlayer && "hover:bg-neutral-50 dark:hover:bg-neutral-700/30",
       )}
     >
       {/* Player Info */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-neutral-400 w-6">
+          <span className="w-6 text-xs font-medium text-neutral-400">
             {player.position}
           </span>
-          <span className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+          <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
             {player.name}
           </span>
           <Tooltip
-            content={`${player.injuryStatus}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
+            content={
+              <InjuryReportTooltipContent
+                playerName={player.name}
+                status={player.injuryStatus}
+                notes={player.injuryNotes}
+                updatedAt={player.injuryUpdatedAt}
+                returnDate={player.injuryReturnDate}
+                source={player.injurySource}
+                rawStatus={player.injuryRawStatus}
+              />
+            }
             side="top"
+            contentClassName="p-0"
           >
             <HeartPulse className={cn("h-3.5 w-3.5 shrink-0", injuryColor)} />
           </Tooltip>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="mt-0.5 flex items-center gap-2">
           <span className="text-[10px] text-neutral-500">
             {player.avgMinutes?.toFixed(0) ?? "0"} MPG
           </span>
@@ -123,37 +138,45 @@ function InjuredPlayerRow({
       {!isCurrentPlayer && (
         <div className="flex items-center gap-4">
           {/* With Checkbox */}
-          <label className="flex items-center gap-1.5 cursor-pointer group">
+          <label className="group flex cursor-pointer items-center gap-1.5">
             <Checkbox
               checked={isWithChecked}
               onCheckedChange={handleWithChange}
               className={cn(
                 "h-4 w-4",
-                isWithChecked && "border-emerald-500 bg-emerald-500 text-white"
+                isWithChecked && "border-emerald-500 bg-emerald-500 text-white",
               )}
             />
-            <span className={cn(
-              "text-xs font-medium",
-              isWithChecked ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500"
-            )}>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                isWithChecked
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-neutral-500",
+              )}
+            >
               With
             </span>
           </label>
 
           {/* Without Checkbox */}
-          <label className="flex items-center gap-1.5 cursor-pointer group">
+          <label className="group flex cursor-pointer items-center gap-1.5">
             <Checkbox
               checked={isWithoutChecked}
               onCheckedChange={handleWithoutChange}
               className={cn(
                 "h-4 w-4",
-                isWithoutChecked && "border-red-500 bg-red-500 text-white"
+                isWithoutChecked && "border-red-500 bg-red-500 text-white",
               )}
             />
-            <span className={cn(
-              "text-xs font-medium",
-              isWithoutChecked ? "text-red-600 dark:text-red-400" : "text-neutral-500"
-            )}>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                isWithoutChecked
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-neutral-500",
+              )}
+            >
               W/O
             </span>
           </label>
@@ -191,13 +214,16 @@ function TeamInjurySection({
         const status = p.injuryStatus?.toLowerCase();
         return status && !["available", "active"].includes(status);
       })
-      .sort((a, b) => getInjuryPriority(a.injuryStatus) - getInjuryPriority(b.injuryStatus));
+      .sort(
+        (a, b) =>
+          getInjuryPriority(a.injuryStatus) - getInjuryPriority(b.injuryStatus),
+      );
   }, [players]);
 
   if (injuredPlayers.length === 0) {
     return (
       <div className="flex-1">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="mb-3 flex items-center gap-2">
           <img
             src={getTeamLogoUrl(teamAbbr, sport)}
             alt={teamAbbr}
@@ -207,7 +233,7 @@ function TeamInjurySection({
             {teamAbbr}
           </span>
           {isPlayerTeam && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand/10 text-brand font-medium">
+            <span className="bg-brand/10 text-brand rounded px-1.5 py-0.5 text-[10px] font-medium">
               Team
             </span>
           )}
@@ -223,7 +249,7 @@ function TeamInjurySection({
   return (
     <div className="flex-1">
       {/* Team Header */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="mb-3 flex items-center gap-2">
         <img
           src={getTeamLogoUrl(teamAbbr, sport)}
           alt={teamAbbr}
@@ -233,11 +259,11 @@ function TeamInjurySection({
           {teamAbbr}
         </span>
         {isPlayerTeam && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand/10 text-brand font-medium">
+          <span className="bg-brand/10 text-brand rounded px-1.5 py-0.5 text-[10px] font-medium">
             Team
           </span>
         )}
-        <span className="text-xs text-neutral-500 ml-auto">
+        <span className="ml-auto text-xs text-neutral-500">
           {injuredPlayers.length} injured
         </span>
       </div>
@@ -295,9 +321,7 @@ export function InjuryReport({
       const existing = filters.find((f) => f.playerId === playerId);
       if (existing) {
         onFiltersChange(
-          filters.map((f) =>
-            f.playerId === playerId ? { ...f, mode } : f
-          )
+          filters.map((f) => (f.playerId === playerId ? { ...f, mode } : f)),
         );
       } else {
         onFiltersChange([
@@ -318,11 +342,18 @@ export function InjuryReport({
 
   if (isLoading) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <div className="flex items-center justify-center h-24">
-          <div className="animate-pulse flex items-center gap-2">
-            <div className="h-5 w-5 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-            <span className="text-sm text-neutral-500">Loading injuries...</span>
+      <div
+        className={cn(
+          "rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800",
+          className,
+        )}
+      >
+        <div className="flex h-24 items-center justify-center">
+          <div className="flex animate-pulse items-center gap-2">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600" />
+            <span className="text-sm text-neutral-500">
+              Loading injuries...
+            </span>
           </div>
         </div>
       </div>
@@ -330,9 +361,14 @@ export function InjuryReport({
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800",
+        className,
+      )}
+    >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
+      <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-800/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -343,19 +379,21 @@ export function InjuryReport({
           {activeFilterCount > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-neutral-500">
-                {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active
+                {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""}{" "}
+                active
               </span>
               <button
                 onClick={() => onFiltersChange([])}
-                className="text-xs text-brand hover:text-brand/80 font-medium"
+                className="text-brand hover:text-brand/80 text-xs font-medium"
               >
                 Clear all
               </button>
             </div>
           )}
         </div>
-        <p className="text-xs text-neutral-500 mt-1">
-          Filter game logs by player availability. Select "With" to see games they played, "W/O" for games they missed.
+        <p className="mt-1 text-xs text-neutral-500">
+          Filter game logs by player availability. Select "With" to see games
+          they played, "W/O" for games they missed.
         </p>
       </div>
 

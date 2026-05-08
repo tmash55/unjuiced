@@ -81,8 +81,16 @@ function mapGame(game: any) {
     pa: Number(game.pa ?? 0),
     ra: Number(game.ra ?? 0),
     bs: Number(game.bs ?? 0),
+    q1Pts: undefined as number | undefined,
+    q1Reb: undefined as number | undefined,
+    q1Ast: undefined as number | undefined,
   };
 }
+
+const PERIOD_TABLE_BY_SPORT: Record<RecentTrendSport, string> = {
+  nba: "nba_player_period_box_scores",
+  wnba: "wnba_player_period_box_scores",
+};
 
 export async function handleRecentTrends(req: NextRequest, sport: RecentTrendSport) {
   try {
@@ -126,6 +134,59 @@ export async function handleRecentTrends(req: NextRequest, sport: RecentTrendSpo
         return [String(playerId), games] as const;
       })
     );
+
+    // Hydrate Q1 stats so the table's recent-trend bars for 1st_quarter_*
+    // markets render real first-quarter values instead of falling back to
+    // full-game totals. Both sports keep these in `{sport}_player_period_box_scores`.
+    {
+      const periodTable = PERIOD_TABLE_BY_SPORT[sport];
+      const flatGameIds = [
+        ...new Set(
+          entries.flatMap(([, games]) =>
+            games
+              .map((g: { gameId: string }) => Number(g.gameId))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          )
+        ),
+      ];
+      if (flatGameIds.length > 0 && playerIds.length > 0) {
+        const { data: q1Data, error: q1Error } = await supabase
+          .from(periodTable)
+          .select("player_id, game_id, pts, reb, ast")
+          .eq("period", 1)
+          .in("player_id", playerIds)
+          .in("game_id", flatGameIds);
+
+        if (q1Error) {
+          console.error(`[${sport} recent-trends] Q1 lookup error:`, q1Error.message);
+        } else if (q1Data) {
+          const q1Map = new Map<string, { pts: number; reb: number; ast: number }>();
+          for (const row of q1Data as Array<{
+            player_id: number;
+            game_id: number | string;
+            pts: number | null;
+            reb: number | null;
+            ast: number | null;
+          }>) {
+            q1Map.set(`${row.player_id}:${row.game_id}`, {
+              pts: Number(row.pts ?? 0),
+              reb: Number(row.reb ?? 0),
+              ast: Number(row.ast ?? 0),
+            });
+          }
+          for (const [pid, games] of entries) {
+            for (const g of games) {
+              const q1 = q1Map.get(`${pid}:${g.gameId}`);
+              if (q1) {
+                g.q1Pts = q1.pts;
+                g.q1Reb = q1.reb;
+                g.q1Ast = q1.ast;
+              }
+            }
+          }
+        }
+      }
+    }
 
     // NBA only: hydrate potential_assists from the box-score table (the RPC doesn't
     // return it). WNBA box scores don't track these advanced fields, so we skip the

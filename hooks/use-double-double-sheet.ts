@@ -91,10 +91,15 @@ async function fetchSheet(): Promise<DoubleDoubleSheetResponse> {
   }
 }
 
-export function useDoubleDoubleSheet() {
+export function useDoubleDoubleSheet({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   return useQuery({
     queryKey: ["double-double-sheet"],
     queryFn: fetchSheet,
+    enabled,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });

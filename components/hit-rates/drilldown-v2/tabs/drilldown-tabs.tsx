@@ -20,26 +20,41 @@ import type { LineupPlayer, TeamLineup } from "@/hooks/use-lineup";
 import type { TeammateFilter } from "../hero/roster-rail";
 import type { ChartRange } from "../hero/hit-rate-chart";
 import { PlayerHeadshot } from "@/components/player-headshot";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { Tooltip } from "@/components/tooltip";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
+import { InlineLineMovementCard } from "@/components/line-history/inline-line-movement-card";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 import {
   usePlayerCorrelations,
   type TeammateCorrelation,
 } from "@/hooks/use-player-correlations";
 import {
   useShotZoneMatchup,
+  mapZoneToId,
   type ShotZone,
 } from "@/hooks/use-shot-zone-matchup";
 import {
   usePlayTypeMatchup,
   type PlayTypeData,
 } from "@/hooks/use-play-type-matchup";
-import { useHitRateOdds, type LineOdds } from "@/hooks/use-hit-rate-odds";
+import type { LineOdds } from "@/hooks/use-hit-rate-odds";
 import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
 import {
   usePositionVsTeam,
   type PositionVsTeamPlayer,
 } from "@/hooks/use-position-vs-team";
+import {
+  useDoubleDoubleSheet,
+  type DoubleDoubleBestPrice,
+  type DoubleDoubleSheetRow,
+} from "@/hooks/use-double-double-sheet";
+import {
+  useTripleDoubleSheet,
+  type TripleDoubleBestPrice,
+  type TripleDoubleSheetRow,
+} from "@/hooks/use-triple-double-sheet";
 
 type DrilldownTabId =
   | "overview"
@@ -68,6 +83,8 @@ interface DrilldownTabsProps {
   isLoadingLineup?: boolean;
   activeLine?: number | null;
   onLineSelect?: (line: number) => void;
+  odds?: LineOdds | null;
+  isOddsLoading?: boolean;
   chartRange?: ChartRange;
 }
 
@@ -103,6 +120,8 @@ const MARKET_LABELS: Record<string, string> = {
   player_steals: "Steals",
   player_blocks: "Blocks",
   player_blocks_steals: "Blk+Stl",
+  player_double_double: "Double Double",
+  player_triple_double: "Triple Double",
 };
 
 export function DrilldownTabs({
@@ -120,6 +139,8 @@ export function DrilldownTabs({
   isLoadingLineup = false,
   activeLine,
   onLineSelect,
+  odds = null,
+  isOddsLoading = false,
   chartRange = "l20",
 }: DrilldownTabsProps) {
   const [activeTab, setActiveTab] = useState<DrilldownTabId>("matchup");
@@ -199,6 +220,8 @@ export function DrilldownTabs({
           isLoadingLineup={isLoadingLineup}
           activeLine={activeLine ?? profile.line}
           onLineSelect={onLineSelect}
+          odds={odds}
+          isOddsLoading={isOddsLoading}
           chartRange={chartRange}
         />
       </div>
@@ -223,6 +246,8 @@ function TabPreview({
   isLoadingLineup,
   activeLine,
   onLineSelect,
+  odds,
+  isOddsLoading,
   chartRange,
 }: {
   activeTab: DrilldownTabId;
@@ -241,6 +266,8 @@ function TabPreview({
   isLoadingLineup: boolean;
   activeLine: number | null;
   onLineSelect?: (line: number) => void;
+  odds: LineOdds | null;
+  isOddsLoading: boolean;
   chartRange: ChartRange;
 }) {
   if (activeTab === "overview") {
@@ -314,6 +341,8 @@ function TabPreview({
         sport={sport}
         activeLine={activeLine}
         onLineSelect={onLineSelect}
+        odds={odds}
+        isLoading={isOddsLoading}
       />
     );
   }
@@ -644,7 +673,7 @@ function CorrelationCard({
             key={index}
             className={cn(
               "h-2 w-2 rounded-full",
-              hit ? "bg-emerald-500" : "bg-rose-500",
+              hit ? "bg-emerald-500" : "bg-red-500",
             )}
           />
         ))}
@@ -652,6 +681,8 @@ function CorrelationCard({
     </div>
   );
 }
+
+type ShotMapView = "player" | "edge" | "defense";
 
 function ShootingPanel({
   profile,
@@ -661,6 +692,9 @@ function ShootingPanel({
   sport: "nba" | "wnba";
 }) {
   const [season, setSeason] = useState(sport === "wnba" ? "2025" : "2025-26");
+  const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ShotMapView>("player");
+  const [infoOpen, setInfoOpen] = useState(false);
   const { data, isLoading, error } = useShotZoneMatchup({
     playerId: profile.playerId,
     opponentTeamId: profile.opponentTeamId,
@@ -679,8 +713,119 @@ function ShootingPanel({
 
   return (
     <div>
-      <PreviewHeader title="Shooting Zones" kicker="Shot mix and defense" />
-      <SeasonToggle sport={sport} season={season} onSeasonChange={setSeason} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SeasonToggle sport={sport} season={season} onSeasonChange={setSeason} />
+        {/* View mode toggle (Player / Edge / Defense) — three angles on the
+            same court, props.cash style. State threaded into the SVG which
+            switches its labels + arrow direction per mode. */}
+        <div className="flex items-center gap-2">
+          <div className="flex w-fit rounded-lg bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
+            <MiniToggle
+              active={viewMode === "player"}
+              onClick={() => setViewMode("player")}
+            >
+              Player
+            </MiniToggle>
+            <MiniToggle
+              active={viewMode === "edge"}
+              onClick={() => setViewMode("edge")}
+            >
+              Edge
+            </MiniToggle>
+            <MiniToggle
+              active={viewMode === "defense"}
+              onClick={() => setViewMode("defense")}
+            >
+              Defense
+            </MiniToggle>
+          </div>
+          <Tooltip
+            side="bottom"
+            content={
+              <div className="max-w-[280px] space-y-3 px-3 py-3">
+                <div>
+                  <div className="text-[11px] font-black text-neutral-950 dark:text-white">
+                    Shot Map
+                  </div>
+                  <p className="mt-0.5 text-[10.5px] font-medium leading-snug text-neutral-500 dark:text-neutral-400">
+                    Where the player scores, how well they shoot from each
+                    spot, and how the opponent grades defending it.
+                  </p>
+                </div>
+                <div>
+                  <div className="mb-1 text-[9px] font-black tracking-[0.16em] uppercase text-brand">
+                    Trend
+                  </div>
+                  <div className="space-y-0.5 text-[10.5px]">
+                    <div className="flex items-center gap-1.5">
+                      <TrendArrow tier="soft" />
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Soft
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        — favorable
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <TrendArrow tier="neutral" />
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Mid
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        — neutral
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <TrendArrow tier="tough" />
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Tough
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        — hard matchup
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 text-[9px] font-black tracking-[0.16em] uppercase text-brand">
+                    Views
+                  </div>
+                  <div className="space-y-1 text-[10.5px] text-neutral-500 dark:text-neutral-400">
+                    <div>
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Player
+                      </span>{" "}
+                      — % of points scored from each zone, with FG%.
+                    </div>
+                    <div>
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Edge
+                      </span>{" "}
+                      — combines player FG% with how soft the defense
+                      grades. Higher = better matchup (0.0–1.0).
+                    </div>
+                    <div>
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        Defense
+                      </span>{" "}
+                      — opponent's league rank for points allowed in this
+                      zone.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          >
+            <button
+              type="button"
+              aria-label="What is the shot map?"
+              className="grid h-7 w-7 place-items-center rounded-md border border-neutral-200/80 text-neutral-500 transition-colors hover:border-brand/45 hover:text-brand dark:border-neutral-800/80 dark:text-neutral-400"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="mt-4">
@@ -691,50 +836,112 @@ function ShootingPanel({
       ) : zones.length === 0 ? (
         <EmptyPreview label="No shooting zone data available yet." />
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-3 dark:border-neutral-800/70 dark:bg-neutral-950/35">
-            <div className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
-              Favorable Usage
-            </div>
-            <div className="mt-2 text-3xl font-black text-emerald-600 tabular-nums dark:text-emerald-400">
-              {data?.summary?.favorable_pct_of_points?.toFixed(0) ?? "—"}%
-            </div>
-            <div className="mt-1 text-xs font-bold text-neutral-500 dark:text-neutral-500">
-              of points from zones where {profile.opponentTeamAbbr ?? "OPP"}{" "}
-              grades soft
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <MiniStat
-                label="Good"
-                value={data?.summary?.favorable_zones ?? null}
-              />
-              <MiniStat
-                label="Mid"
-                value={data?.summary?.neutral_zones ?? null}
-              />
-              <MiniStat
-                label="Hard"
-                value={data?.summary?.tough_zones ?? null}
-              />
-            </div>
+        // Court is hero (1fr) with a 360px right column holding a compressed
+        // Favorable Usage strip on top + the zone bars below. Below xl we
+        // hide the court (no room) and stack the strip + bars.
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]">
+          <div className="hidden xl:block">
+            <CourtZonesView
+              zones={zones}
+              totalTeams={totalTeams}
+              hoveredZoneId={hoveredZoneId}
+              onHoverZone={setHoveredZoneId}
+              opponentTeamAbbr={profile.opponentTeamAbbr ?? null}
+              viewMode={viewMode}
+            />
           </div>
-          <div className="overflow-hidden rounded-xl border border-neutral-200/70 dark:border-neutral-800/70">
-            <div className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
-              {zones.map((zone) => (
-                <ZoneRow key={zone.zone} zone={zone} totalTeams={totalTeams} />
-              ))}
+          <div className="flex flex-col gap-3">
+            {/* Compressed Favorable Usage — single horizontal strip vs the
+                old multi-row card. Carries the same 4 datapoints in a
+                quarter the height. */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-2.5 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {data?.summary?.favorable_pct_of_points?.toFixed(0) ?? "—"}%
+                </span>
+                <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-neutral-500 dark:text-neutral-500">
+                  Favorable
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold tabular-nums text-neutral-500 dark:text-neutral-500">
+                <span className="flex items-baseline gap-1">
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                    {data?.summary?.favorable_zones ?? "—"}
+                  </span>
+                  <span className="uppercase tracking-[0.12em]">Good</span>
+                </span>
+                <span className="text-neutral-300 dark:text-neutral-700">·</span>
+                <span className="flex items-baseline gap-1">
+                  <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                    {data?.summary?.neutral_zones ?? "—"}
+                  </span>
+                  <span className="uppercase tracking-[0.12em]">Mid</span>
+                </span>
+                <span className="text-neutral-300 dark:text-neutral-700">·</span>
+                <span className="flex items-baseline gap-1">
+                  <span className="text-sm font-black text-red-600 dark:text-red-400">
+                    {data?.summary?.tough_zones ?? "—"}
+                  </span>
+                  <span className="uppercase tracking-[0.12em]">Hard</span>
+                </span>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-neutral-200/70 dark:border-neutral-800/70">
+              <div className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
+                {zones.map((zone) => (
+                  <ZoneRow
+                    key={zone.zone}
+                    zone={zone}
+                    totalTeams={totalTeams}
+                    isHovered={hoveredZoneId === mapZoneToId(zone.zone)}
+                    onHover={() => setHoveredZoneId(mapZoneToId(zone.zone))}
+                    onLeave={() =>
+                      setHoveredZoneId((prev) =>
+                        prev === mapZoneToId(zone.zone) ? null : prev,
+                      )
+                    }
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {infoOpen && (
+        <ShotMapInfoModal onClose={() => setInfoOpen(false)} />
       )}
     </div>
   );
 }
 
-function ZoneRow({ zone, totalTeams }: { zone: ShotZone; totalTeams: number }) {
+function ZoneRow({
+  zone,
+  totalTeams,
+  isHovered,
+  onHover,
+  onLeave,
+}: {
+  zone: ShotZone;
+  totalTeams: number;
+  isHovered: boolean;
+  onHover: () => void;
+  onLeave: () => void;
+}) {
   const tone = getDefenseRankTone(zone.opponent_def_rank, totalTeams);
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_92px_78px] items-center gap-3 bg-white/40 px-3 py-3 text-xs dark:bg-neutral-900/20">
+    <div
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      className={cn(
+        "relative grid grid-cols-[minmax(0,1fr)_72px_72px] items-center gap-3 border-l-2 px-3 py-2.5 text-xs transition-colors",
+        // More noticeable hover — solid brand-cyan left border + tinted bg
+        // so the active row reads as the focused one even at a glance.
+        isHovered
+          ? "border-brand bg-brand/15 dark:bg-brand/20"
+          : "border-transparent bg-white/40 hover:bg-neutral-50/60 dark:bg-neutral-900/20 dark:hover:bg-neutral-900/40",
+      )}
+    >
       <div className="min-w-0">
         <div className="flex items-center justify-between gap-3">
           <span className="truncate font-black text-neutral-950 dark:text-white">
@@ -744,18 +951,17 @@ function ZoneRow({ zone, totalTeams }: { zone: ShotZone; totalTeams: number }) {
             {zone.player_pct_of_total.toFixed(0)}%
           </span>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
           <span
-            className={cn("block h-full rounded-full", tone.bar)}
+            className={cn("block h-full rounded-full transition-all", tone.bar)}
             style={{ width: `${Math.min(100, zone.player_pct_of_total)}%` }}
           />
         </div>
-        <div className="mt-1 text-[10px] font-bold text-neutral-500 dark:text-neutral-500">
-          {zone.player_fgm}/{zone.player_fga} FG •{" "}
-          {Math.round(zone.player_fg_pct * 100)}%
+        <div className="mt-1 text-[10px] font-bold text-neutral-500 tabular-nums dark:text-neutral-500">
+          {Math.round(zone.player_fg_pct * 100)}% FG
         </div>
       </div>
-      <div className="text-right">
+      <div className="text-center">
         <div className={cn("font-black tabular-nums", tone.text)}>
           {zone.opponent_def_rank ? `#${zone.opponent_def_rank}` : "—"}
         </div>
@@ -771,6 +977,538 @@ function ZoneRow({ zone, totalTeams }: { zone: ShotZone; totalTeams: number }) {
       >
         {tone.label}
       </span>
+    </div>
+  );
+}
+
+// Half-court visualization with colored shot zones. Each zone is filled
+// with the active def-rank tier color (red tough / amber neutral / emerald
+// soft) at low opacity, with court lines kept subtle so the color reads as
+// the dominant signal. Synced hover with the bar list — hovering a zone
+// raises its opacity and rings it with the brand accent.
+function CourtZonesView({
+  zones,
+  totalTeams,
+  hoveredZoneId,
+  onHoverZone,
+  opponentTeamAbbr,
+  viewMode,
+}: {
+  zones: ShotZone[];
+  totalTeams: number;
+  hoveredZoneId: string | null;
+  onHoverZone: (id: string | null) => void;
+  opponentTeamAbbr: string | null;
+  viewMode: ShotMapView;
+}) {
+  // Lookup: zoneId → { tone, metrics... } for fast O(1) access during render.
+  // We compute every metric up front so view-mode switching is just a
+  // re-read, no recompute.
+  const zoneById = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        tone: ReturnType<typeof getDefenseRankTone>;
+        pct: number;
+        fgPct: number;
+        defRank: number | null;
+        edge: number | null;
+      }
+    >();
+    for (const z of zones) {
+      const id = mapZoneToId(z.zone);
+      const tone = getDefenseRankTone(z.opponent_def_rank, totalTeams);
+      // Edge score (0–1): combines player FG% in this zone with how soft
+      // the opponent's defense is. Higher = better matchup. Mirrors the
+      // props.cash "Edge" idea — one decimal that captures the punchline.
+      const defSoftness =
+        z.opponent_def_rank != null && totalTeams > 0
+          ? (totalTeams - z.opponent_def_rank + 1) / totalTeams
+          : null;
+      const edge =
+        defSoftness !== null && Number.isFinite(z.player_fg_pct)
+          ? (z.player_fg_pct + defSoftness) / 2
+          : null;
+      map.set(id, {
+        tone,
+        pct: z.player_pct_of_total,
+        fgPct: Math.round(z.player_fg_pct * 100),
+        defRank: z.opponent_def_rank,
+        edge,
+      });
+    }
+    return map;
+  }, [zones, totalTeams]);
+
+  // Color-at-rest, fade-others-on-hover. The court reads as a colorful
+  // shot map by default (tier-tinted fills at high enough opacity to
+  // actually pop in dark mode). When the user hovers a zone, that zone
+  // brightens further AND the other zones desaturate to neutral gray.
+  const anyHovered = hoveredZoneId !== null;
+  const fillFor = (id: string, isHovered: boolean) => {
+    const label = zoneById.get(id)?.tone.label ?? "No Data";
+    if (isHovered) {
+      if (label === "Tough") return "rgb(239 68 68 / 0.75)";
+      if (label === "Soft") return "rgb(16 185 129 / 0.75)";
+      if (label === "Neutral") return "rgb(245 158 11 / 0.75)";
+      return "rgb(115 115 115 / 0.45)";
+    }
+    if (anyHovered) {
+      // Non-hovered zones strip their tier color and drop to a quiet gray
+      // so the focused zone is the only colorful thing on the court.
+      return "rgb(115 115 115 / 0.10)";
+    }
+    // Resting state — vibrant tier colors. 0.45 opacity reads as a clear
+    // tinted shape over both the light and dark court backgrounds; 0.20
+    // looked muddy/brown over dark mode's neutral-900 base.
+    if (label === "Tough") return "rgb(239 68 68 / 0.45)";
+    if (label === "Soft") return "rgb(16 185 129 / 0.45)";
+    if (label === "Neutral") return "rgb(245 158 11 / 0.45)";
+    return "rgb(115 115 115 / 0.10)";
+  };
+
+  // Per-view label format — props.cash style. Player = % of points,
+  // Edge = 0.42 decimal, Defense = #13 rank.
+  const labelFor = (id: string): string | null => {
+    const entry = zoneById.get(id);
+    if (!entry) return null;
+    if (viewMode === "player") {
+      if (entry.pct < 4) return null;
+      return `${entry.pct.toFixed(0)}%`;
+    }
+    if (viewMode === "edge") {
+      if (entry.edge === null) return null;
+      // Decimal with leading dot stripped (".42" not "0.42") — matches
+      // props.cash "stat sheet" feel.
+      const v = entry.edge.toFixed(2);
+      return v.startsWith("0") ? v.slice(1) : v;
+    }
+    // defense
+    if (entry.defRank === null) return null;
+    return `#${entry.defRank}`;
+  };
+
+  // Subline under the main number. Player = "47% FG", Edge = nothing
+  // (already a single decimal), Defense = "23.4 / g" (allowed per game).
+  const sublineFor = (id: string): string | null => {
+    const entry = zoneById.get(id);
+    if (!entry) return null;
+    if (viewMode === "player") {
+      return Number.isFinite(entry.fgPct) ? `${entry.fgPct}% FG` : null;
+    }
+    return null;
+  };
+
+  const ZONE_DEFS: Array<{
+    id: string;
+    path: string;
+    labelX: number;
+    labelY: number;
+  }> = [
+    {
+      id: "aboveBreak3",
+      path:
+        "M 0 139 L 0 340 L 500 340 L 500 139 L 470 139 A 238 238 0 0 1 30 139 Z",
+      labelX: 250,
+      labelY: 305,
+    },
+    {
+      id: "corner3Left",
+      path: "M 0 5 L 30 5 L 30 139 L 0 139 Z",
+      // Corner-3 strips are only 30px wide. A 3-char label like "14%" is
+      // ~30px at fontSize 18 and would clip past the left SVG edge if
+      // anchored at the middle of the strip. Use start-anchor pinned to
+      // x=4 so the label hugs the left baseline cleanly. The arrow is
+      // rendered AFTER the label in `arrowOffset`, sitting just past it.
+      labelX: 4,
+      labelY: 80,
+    },
+    {
+      id: "corner3Right",
+      path: "M 470 5 L 500 5 L 500 139 L 470 139 Z",
+      // Mirror the corner3Left treatment — end-anchor at x=496 so the text
+      // hugs the right edge without clipping. (See helper logic below for
+      // anchor + arrow placement based on labelX position.)
+      labelX: 496,
+      labelY: 80,
+    },
+    {
+      id: "midRange",
+      // Two side wedges + bottom of free-throw ring merged into one path.
+      path:
+        "M 30 5 L 30 139 A 238 238 0 0 0 170 272 L 170 5 Z " +
+        "M 470 5 L 470 139 A 238 238 0 0 1 330 272 L 330 5 Z " +
+        "M 170 195 L 170 272 A 238 238 0 0 0 330 272 L 330 195 Z",
+      // Anchor in the LEFT-side wedge so it doesn't collide with the
+      // above-break-3 label (which sits below the 3-pt arc apex around
+      // x=250). The right wedge stays unlabeled — same zone, one read.
+      labelX: 100,
+      labelY: 100,
+    },
+    {
+      id: "paint",
+      path:
+        "M 170 5 L 170 195 L 330 195 L 330 5 L 290 5 A 40 40 0 0 1 210 5 Z",
+      labelX: 250,
+      labelY: 110,
+    },
+    {
+      id: "rim",
+      path: "M 210 5 A 40 40 0 0 0 290 5 Z",
+      labelX: 250,
+      labelY: 32,
+    },
+  ];
+
+  // View-aware subtitle so the user always knows what the numbers mean.
+  const subtitle =
+    viewMode === "player"
+      ? "% of points · player FG%"
+      : viewMode === "edge"
+        ? "Combined edge score (0–1) · player vs defense"
+        : `${opponentTeamAbbr ?? "OPP"} defensive rank by zone`;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-4 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-black text-neutral-950 dark:text-white">
+            Shot Map vs {opponentTeamAbbr ?? "OPP"}
+          </div>
+          <div className="mt-0.5 text-[9.5px] font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
+            {subtitle}
+          </div>
+        </div>
+        {/* Trend arrow legend — one-glance decoder for ▲/●/▼ on each zone.
+            Same emerald/amber/red palette as everywhere else. */}
+        <div className="flex items-center gap-2 text-[9px] font-bold tracking-[0.12em] uppercase">
+          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <TrendArrow tier="soft" />
+            Soft
+          </span>
+          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <TrendArrow tier="neutral" />
+            Mid
+          </span>
+          <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+            <TrendArrow tier="tough" />
+            Tough
+          </span>
+        </div>
+      </div>
+      <svg
+        viewBox="0 0 500 340"
+        // Cap court size so it doesn't dominate the tab on wide screens —
+        // viewBox aspect (500:340) holds, so capping width also caps height.
+        className="mx-auto h-auto w-full max-w-[560px]"
+        preserveAspectRatio="xMidYMid meet"
+        onMouseLeave={() => onHoverZone(null)}
+      >
+        {/* Court background — subtle so the zone tints read as primary signal. */}
+        <rect
+          x="0"
+          y="0"
+          width="500"
+          height="340"
+          className="fill-neutral-100 dark:fill-neutral-900"
+        />
+
+        {/* Zone fills (clickable hit areas). Stroke is suppressed on the
+            mid-range zone because its multi-sub-path geometry traces two
+            internal walls between the paint corners and the 3-pt arc that
+            looked like stray lines on hover. The bright tier-color fill at
+            0.75 opacity is enough hover signal on its own there. */}
+        {ZONE_DEFS.map((z) => {
+          const hovered = hoveredZoneId === z.id;
+          const showStroke = hovered && z.id !== "midRange";
+          return (
+            <path
+              key={z.id}
+              d={z.path}
+              fill={fillFor(z.id, hovered)}
+              stroke={showStroke ? "rgb(34 211 238 / 0.75)" : "transparent"}
+              strokeWidth={showStroke ? 2.5 : 0}
+              className="cursor-pointer transition-all"
+              onMouseEnter={() => onHoverZone(z.id)}
+            />
+          );
+        })}
+
+        {/* Court lines — neutral white in dark mode, neutral-400 in light. */}
+        <g
+          className="stroke-neutral-400/70 dark:stroke-white/40"
+          fill="none"
+          strokeWidth={1.5}
+        >
+          {/* Baseline */}
+          <line x1="0" y1="5" x2="500" y2="5" />
+          {/* 3-point arc */}
+          <path d="M 30 5 L 30 139 A 238 238 0 0 0 470 139 L 470 5" />
+          {/* Paint outline */}
+          <rect x="170" y="5" width="160" height="190" />
+          {/* Free throw circle (bottom half) */}
+          <path d="M 170 195 A 60 60 0 0 0 330 195" />
+          {/* Free throw circle (top half — dashed) */}
+          <path
+            d="M 170 195 A 60 60 0 0 1 330 195"
+            strokeDasharray="6 4"
+            opacity={0.5}
+          />
+          {/* Restricted area arc */}
+          <path d="M 210 5 A 40 40 0 0 0 290 5" />
+        </g>
+
+        {/* Basket — backboard line on the baseline + a small rim ring
+            hanging just below it. Placed in front of the zone fills so the
+            basket reads cleanly even when the RA zone is brightly tinted. */}
+        <g className="stroke-brand fill-none">
+          <line
+            x1="226"
+            y1="5"
+            x2="274"
+            y2="5"
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+          <circle cx="250" cy="14" r="6" strokeWidth={2} />
+        </g>
+
+        {/* Zone labels — view-aware label (% / edge decimal / def rank) with
+            a trend arrow next to the value. Arrow color comes from the
+            def-rank tier so it tracks the matchup signal regardless of
+            which view is active. Subline (FG%) only shown in Player view.
+            Corner zones use start/end anchors to avoid clipping past the
+            SVG edge — see helper math below. */}
+        {ZONE_DEFS.map((z) => {
+          const entry = zoneById.get(z.id);
+          const label = labelFor(z.id);
+          if (!entry || !label) return null;
+          const isRim = z.id === "rim";
+          const subline = sublineFor(z.id);
+          const showSub = !isRim && subline !== null;
+          const tier =
+            entry.tone.label === "Tough"
+              ? ("tough" as const)
+              : entry.tone.label === "Soft"
+                ? ("soft" as const)
+                : ("neutral" as const);
+          // Approx label-text width for placing the arrow. The 0.62
+          // multiplier is intentionally conservative — the previous 0.55
+          // underestimated and the arrow rendered on top of the % sign.
+          const fontSize = isRim ? 11 : 18;
+          const labelWidth = label.length * fontSize * 0.62;
+          // Pick anchor + arrow position based on where the label sits.
+          // Far-left → start-anchor (text grows rightward), far-right →
+          // end-anchor (text grows leftward), everything else → center.
+          const anchor: "start" | "middle" | "end" =
+            z.labelX < 30 ? "start" : z.labelX > 470 ? "end" : "middle";
+          // Generous arrow gap — bumped from 6 → 10 (8 for rim) so the
+          // arrow has clear breathing room from the % symbol.
+          const arrowGap = isRim ? 6 : 10;
+          const arrowCx =
+            anchor === "start"
+              ? z.labelX + labelWidth + arrowGap
+              : anchor === "end"
+                ? z.labelX - labelWidth - arrowGap
+                : z.labelX + labelWidth / 2 + arrowGap + 3;
+          return (
+            <g
+              key={`${z.id}-label`}
+              className="pointer-events-none fill-neutral-900 dark:fill-white"
+            >
+              <text
+                x={z.labelX}
+                y={showSub ? z.labelY - 6 : z.labelY}
+                textAnchor={anchor}
+                dominantBaseline="middle"
+                fontSize={fontSize}
+                fontWeight={900}
+                style={{ letterSpacing: "-0.02em" }}
+              >
+                {label}
+              </text>
+              {/* Trend arrow next to the label — color-coded by tier */}
+              <SvgTrendArrow
+                cx={arrowCx}
+                cy={showSub ? z.labelY - 6 : z.labelY}
+                tier={tier}
+                size={isRim ? 5 : 8}
+              />
+              {showSub && subline && (
+                <text
+                  x={z.labelX}
+                  y={z.labelY + 11}
+                  textAnchor={anchor}
+                  dominantBaseline="middle"
+                  fontSize={10}
+                  fontWeight={700}
+                  className="fill-neutral-500 dark:fill-neutral-400"
+                  style={{ letterSpacing: "0.02em" }}
+                >
+                  {subline}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// HTML trend arrow for the legend strip at the top of the court card.
+function TrendArrow({ tier }: { tier: "soft" | "neutral" | "tough" }) {
+  if (tier === "soft") return <span className="text-emerald-500">▲</span>;
+  if (tier === "tough") return <span className="text-red-500">▼</span>;
+  return <span className="text-neutral-400 dark:text-neutral-500">●</span>;
+}
+
+// SVG trend arrow rendered next to each zone label on the court. Triangles
+// point UP for soft (good for player), DOWN for tough (bad), dot for
+// neutral. Color tracks the tier so the signal is the same as the legend.
+function SvgTrendArrow({
+  cx,
+  cy,
+  tier,
+  size,
+}: {
+  cx: number;
+  cy: number;
+  tier: "soft" | "neutral" | "tough";
+  size: number;
+}) {
+  if (tier === "neutral") {
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={size * 0.45}
+        className="fill-neutral-400 dark:fill-neutral-500"
+      />
+    );
+  }
+  // Up triangle for soft, down triangle for tough. Both centered on (cx, cy).
+  const half = size / 2;
+  const points =
+    tier === "soft"
+      ? `${cx},${cy - half} ${cx - half},${cy + half} ${cx + half},${cy + half}`
+      : `${cx - half},${cy - half} ${cx + half},${cy - half} ${cx},${cy + half}`;
+  return (
+    <polygon
+      points={points}
+      className={
+        tier === "soft"
+          ? "fill-emerald-500"
+          : "fill-red-500"
+      }
+    />
+  );
+}
+
+// Info modal explaining what the shot map shows + how to read each view.
+// Closes on backdrop click or Esc; matches the props.cash educational
+// pattern so newer users aren't lost staring at decimals.
+function ShotMapInfoModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-base font-black text-neutral-900 dark:text-white">
+          Shot Map
+        </div>
+        <p className="mt-1 text-xs leading-5 font-medium text-neutral-500 dark:text-neutral-400">
+          Where the player scores, how well they shoot from each spot, and
+          how the opponent grades defending it.
+        </p>
+
+        <div className="mt-4">
+          <div className="mb-2 text-[10px] font-black tracking-[0.16em] uppercase text-emerald-600 dark:text-emerald-400">
+            Trend Indicators
+          </div>
+          <div className="space-y-2 rounded-lg bg-neutral-50 p-3 text-xs dark:bg-neutral-950/50">
+            <div className="flex items-center gap-2">
+              <TrendArrow tier="soft" />
+              <span className="font-bold text-neutral-900 dark:text-white">
+                Soft
+              </span>
+              <span className="text-neutral-500 dark:text-neutral-400">
+                — favorable matchup
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendArrow tier="neutral" />
+              <span className="font-bold text-neutral-900 dark:text-white">
+                Mid
+              </span>
+              <span className="text-neutral-500 dark:text-neutral-400">
+                — neutral matchup
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendArrow tier="tough" />
+              <span className="font-bold text-neutral-900 dark:text-white">
+                Tough
+              </span>
+              <span className="text-neutral-500 dark:text-neutral-400">
+                — hard matchup
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="mb-2 text-[10px] font-black tracking-[0.16em] uppercase text-emerald-600 dark:text-emerald-400">
+            Views
+          </div>
+          <div className="space-y-2 rounded-lg bg-neutral-50 p-3 text-xs dark:bg-neutral-950/50">
+            <div>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                Player
+              </span>
+              <span className="ml-2 text-neutral-600 dark:text-neutral-300">
+                % of points scored from each zone, with player's FG%.
+              </span>
+            </div>
+            <div>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                Edge
+              </span>
+              <span className="ml-2 text-neutral-600 dark:text-neutral-300">
+                Combines player FG% with how soft the defense grades. Higher
+                = better matchup (0.0–1.0).
+              </span>
+            </div>
+            <div>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                Defense
+              </span>
+              <span className="ml-2 text-neutral-600 dark:text-neutral-300">
+                Opponent's league rank for points allowed in this zone.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 w-full rounded-lg bg-emerald-500 py-2.5 text-sm font-black text-neutral-950 transition-colors hover:bg-emerald-400"
+        >
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -1015,8 +1753,8 @@ function getPppTone(ppp: number | null | undefined) {
 
   return {
     label: "Low",
-    text: "text-rose-500 dark:text-rose-400",
-    badge: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    text: "text-red-500 dark:text-red-400",
+    badge: "bg-red-500/10 text-red-600 dark:text-red-400",
   };
 }
 
@@ -1025,93 +1763,289 @@ function OddsPanel({
   sport,
   activeLine,
   onLineSelect,
+  odds,
+  isLoading,
 }: {
   profile: HitRateProfile;
   sport: "nba" | "wnba";
   activeLine: number | null;
   onLineSelect?: (line: number) => void;
+  odds: LineOdds | null;
+  isLoading: boolean;
 }) {
-  const { getOdds, isLoading } = useHitRateOdds({
-    rows: [{ oddsSelectionId: profile.oddsSelectionId, line: profile.line }],
-    sport,
-    enabled: !!profile.oddsSelectionId,
+  const rawLines = odds?.allLines?.length ? odds.allLines : [];
+  const [selectedSide, setSelectedSide] = useState<"over" | "under">("over");
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [lineHistoryContext, setLineHistoryContext] =
+    useState<LineHistoryContext | null>(null);
+  // Collapse upstream book aliases that resolve to the same display book
+  // (e.g., "fanduel-yourway" + "fanduelyourway" → "fanduelyourway"). Without
+  // this, the table renders two columns with identical headers because
+  // bookColumns keys on the raw upstream id while the BookHeader name comes
+  // from the normalized id.
+  const lines = useMemo(() => {
+    return rawLines.map((line) => {
+      const merged: typeof line.books = {};
+      for (const [book, sides] of Object.entries(line.books ?? {})) {
+        const canonical = normalizeSportsbookId(book);
+        const existing = merged[canonical];
+        if (!existing) {
+          merged[canonical] = sides;
+          continue;
+        }
+        merged[canonical] = {
+          over: pickBetterOdds(existing.over, sides.over),
+          under: pickBetterOdds(existing.under, sides.under),
+        };
+      }
+      return {
+        ...line,
+        books: merged,
+        bestOver: line.bestOver
+          ? { ...line.bestOver, book: normalizeSportsbookId(line.bestOver.book) }
+          : line.bestOver,
+        bestUnder: line.bestUnder
+          ? { ...line.bestUnder, book: normalizeSportsbookId(line.bestUnder.book) }
+          : line.bestUnder,
+      };
+    });
+  }, [rawLines]);
+  const activeLineOdds =
+    activeLine !== null
+      ? (lines.find((line) => Math.abs(line.line - activeLine) < 0.001) ?? null)
+      : null;
+  const isDefaultLine =
+    profile.line !== null &&
+    activeLine !== null &&
+    Math.abs(profile.line - activeLine) < 0.001;
+  const activeBestOver =
+    activeLineOdds?.bestOver ??
+    (isDefaultLine ? (odds?.bestOver ?? profile.bestOdds) : null);
+  const activeBestUnder =
+    activeLineOdds?.bestUnder ?? (isDefaultLine ? odds?.bestUnder : null);
+  const activeBooks = activeLineOdds?.books ?? {};
+  // Stable column order — sort by how many lines each book has odds for, then
+  // by display name as a tiebreak. Intentionally NOT keyed on the currently
+  // selected line, otherwise picking a different line row in the table would
+  // reshuffle every column and the user loses their place.
+  const bookColumns = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const line of lines) {
+      for (const [book, sides] of Object.entries(line.books ?? {})) {
+        if (sides.over || sides.under) {
+          counts.set(book, (counts.get(book) ?? 0) + 1);
+        }
+      }
+    }
+    return Array.from(counts.entries())
+      .sort(([bookA, countA], [bookB, countB]) => {
+        if (countA !== countB) return countB - countA;
+        return getBookDisplayName(bookA).localeCompare(getBookDisplayName(bookB));
+      })
+      .map(([book]) => book)
+      .slice(0, 9);
+  }, [lines]);
+
+  useEffect(() => {
+    if (bookColumns.length === 0) {
+      setSelectedBookId(null);
+      return;
+    }
+    setSelectedBookId((current) => {
+      if (current && bookColumns.includes(current)) return current;
+      return activeBestOver?.book ?? activeBestUnder?.book ?? bookColumns[0];
+    });
+  }, [activeBestOver?.book, activeBestUnder?.book, bookColumns]);
+
+  const selectedLineBook =
+    selectedBookId && activeLineOdds
+      ? (activeLineOdds.books[selectedBookId] ?? null)
+      : null;
+  const selectedPrice =
+    selectedSide === "over"
+      ? (selectedLineBook?.over?.price ?? null)
+      : (selectedLineBook?.under?.price ?? null);
+  const selectedBest =
+    selectedSide === "over" ? activeBestOver : activeBestUnder;
+  const isDoubleDoubleMarket = profile.market === "player_double_double";
+  const isTripleDoubleMarket = profile.market === "player_triple_double";
+  const isSingleLineOddsMarket =
+    isDoubleDoubleMarket || isTripleDoubleMarket;
+  const doubleDoubleSheet = useDoubleDoubleSheet({
+    enabled: isDoubleDoubleMarket,
   });
-  const odds = getOdds(profile.oddsSelectionId);
-  const lines = odds?.allLines?.length ? odds.allLines : [];
+  const tripleDoubleSheet = useTripleDoubleSheet({
+    enabled: isTripleDoubleMarket,
+  });
+  const sgpComparison = useMemo(
+    () =>
+      resolveSgpBuildComparison({
+        profile,
+        isDoubleDoubleMarket,
+        isTripleDoubleMarket,
+        doubleDoubleRows: doubleDoubleSheet.data?.data?.rows ?? [],
+        tripleDoubleRows: tripleDoubleSheet.data?.data?.rows ?? [],
+      }),
+    [
+      profile,
+      isDoubleDoubleMarket,
+      isTripleDoubleMarket,
+      doubleDoubleSheet.data?.data?.rows,
+      tripleDoubleSheet.data?.data?.rows,
+    ],
+  );
+  const currentPricesByBook = useMemo(() => {
+    const prices: Record<string, number> = {};
+    if (!activeLineOdds) return prices;
+    for (const [book, sides] of Object.entries(activeLineOdds.books ?? {})) {
+      const price =
+        selectedSide === "over" ? sides.over?.price : sides.under?.price;
+      if (typeof price === "number") prices[book] = price;
+    }
+    return prices;
+  }, [activeLineOdds, selectedSide]);
+
+  const oddIdsByBook = useMemo(() => {
+    const ids: Record<string, string> = {};
+    if (!activeLineOdds) return ids;
+    for (const [book, sides] of Object.entries(activeLineOdds.books ?? {})) {
+      const oddId =
+        selectedSide === "over" ? sides.over?.oddId : sides.under?.oddId;
+      if (oddId) ids[book] = oddId;
+    }
+    return ids;
+  }, [activeLineOdds, selectedSide]);
 
   return (
     <div>
-      <PreviewHeader title="Odds Board" kicker="Books and alternates" />
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-3 dark:border-neutral-800/70 dark:bg-neutral-950/35">
-          <div className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
-            Best Current
-          </div>
-          <OddsBookLine
-            label="Over"
-            entry={odds?.bestOver ?? profile.bestOdds}
-          />
-          <OddsBookLine label="Under" entry={odds?.bestUnder ?? null} />
-          <div className="mt-4 border-t border-neutral-200/70 pt-3 text-[10px] font-bold text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-500">
-            Active line:{" "}
-            <span className="font-black text-neutral-900 dark:text-white">
-              {formatDecimal(activeLine)}
-            </span>
-          </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <PreviewHeader title="Odds Board" kicker="Books, lines, movement" />
+        <div className="flex w-fit rounded-lg bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
+          <MiniToggle active={selectedSide === "over"} onClick={() => setSelectedSide("over")}>
+            {isSingleLineOddsMarket ? "Yes" : "Over"}
+          </MiniToggle>
+          <MiniToggle active={selectedSide === "under"} onClick={() => setSelectedSide("under")}>
+            {isSingleLineOddsMarket ? "No" : "Under"}
+          </MiniToggle>
         </div>
+      </div>
 
-        <div className="overflow-hidden rounded-xl border border-neutral-200/70 dark:border-neutral-800/70">
+      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           {isLoading ? (
-            <SkeletonRows rows={5} />
+            <SkeletonRows rows={7} />
           ) : lines.length === 0 ? (
             <EmptyPreview label="No alternate lines available for this prop." />
           ) : (
-            <div className="max-h-[360px] overflow-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead className="sticky top-0 bg-neutral-100/95 text-[10px] font-black tracking-[0.14em] text-neutral-500 uppercase backdrop-blur dark:bg-neutral-950/95 dark:text-neutral-500">
+            <div className="overflow-auto">
+              <table className="w-full min-w-[920px] border-separate border-spacing-0 text-xs">
+                <thead className="sticky top-0 z-[2]">
                   <tr>
-                    <th className="px-3 py-2 text-left">Line</th>
-                    <th className="px-3 py-2 text-right">Over</th>
-                    <th className="px-3 py-2 text-right">Under</th>
-                    <th className="px-3 py-2 text-right">Books</th>
+                    <th
+                      className={cn(
+                        "sticky left-0 z-[3] w-[108px] px-3 py-2.5 text-left",
+                        "border-b border-r-2 border-b-neutral-200 border-r-neutral-200 dark:border-b-neutral-800 dark:border-r-neutral-700",
+                        "bg-gradient-to-r from-neutral-50 to-neutral-100/60 dark:from-neutral-900 dark:to-neutral-800/60",
+                        "text-[11px] font-semibold tracking-wider text-neutral-600 uppercase dark:text-neutral-400",
+                      )}
+                    >
+                      Line
+                    </th>
+                    {bookColumns.map((book) => (
+                      <th
+                        key={book}
+                        className={cn(
+                          "min-w-[96px] px-1.5 py-1.5 text-center align-middle",
+                          "border-b border-r border-neutral-200 last:border-r-0 dark:border-neutral-800",
+                          selectedBookId === book
+                            ? "bg-brand/10"
+                            : "bg-gradient-to-r from-neutral-50 to-neutral-100/60 dark:from-neutral-900 dark:to-neutral-800/60",
+                        )}
+                      >
+                        <BookHeader
+                          book={book}
+                          active={selectedBookId === book}
+                          onClick={() => setSelectedBookId(book)}
+                        />
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
-                  {lines.map((line) => {
+                <tbody>
+                  {lines.map((line, rowIdx) => {
                     const isActive =
                       activeLine !== null &&
                       Math.abs(line.line - activeLine) < 0.001;
+                    const rowBg = isActive
+                      ? "bg-brand/8 dark:bg-brand/10"
+                      : rowIdx % 2 === 0
+                        ? "bg-white dark:bg-neutral-900"
+                        : "bg-neutral-50/60 dark:bg-neutral-900/40";
                     return (
                       <tr
                         key={line.line}
-                        className={cn(
-                          "bg-white/40 dark:bg-neutral-900/20",
-                          isActive && "bg-brand/10",
-                        )}
+                        className={cn(rowBg, "transition-colors hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40")}
                       >
-                        <td className="px-3 py-2">
+                        <td
+                          className={cn(
+                            "sticky left-0 z-[1] px-3 py-1.5",
+                            "border-b border-r-2 border-b-neutral-200 border-r-neutral-200 dark:border-b-neutral-800 dark:border-r-neutral-700",
+                            "bg-inherit",
+                          )}
+                        >
                           <button
                             type="button"
                             onClick={() => onLineSelect?.(line.line)}
                             className={cn(
-                              "rounded-md border px-2 py-1 font-black tabular-nums transition-all active:scale-[0.98]",
+                              "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors",
                               isActive
-                                ? "border-brand/40 bg-brand/15 text-brand"
-                                : "border-neutral-200 bg-neutral-50 text-neutral-900 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white",
+                                ? "bg-brand/15 text-brand ring-1 ring-brand/30"
+                                : "text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800",
                             )}
                           >
-                            {formatDecimal(line.line)}+
+                            <span className="text-[13px] font-bold tabular-nums">
+                              {formatDecimal(line.line)}+
+                            </span>
+                            {isActive && (
+                              <span className="text-[9px] font-bold tracking-[0.12em] uppercase">
+                                Live
+                              </span>
+                            )}
                           </button>
                         </td>
-                        <td className="px-3 py-2 text-right font-black text-emerald-600 tabular-nums dark:text-emerald-400">
-                          {formatOdds(line.bestOver?.price ?? null)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-black text-neutral-800 tabular-nums dark:text-neutral-200">
-                          {formatOdds(line.bestUnder?.price ?? null)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-bold text-neutral-500 tabular-nums dark:text-neutral-500">
-                          {Object.keys(line.books ?? {}).length}
-                        </td>
+                        {bookColumns.map((book) => {
+                          const sides = line.books?.[book] ?? {};
+                          const over = sides.over ?? null;
+                          const under = sides.under ?? null;
+                          const isBookCol = selectedBookId === book;
+                          return (
+                            <td
+                              key={`${line.line}-${book}`}
+                              className={cn(
+                                "px-1 py-1 text-center align-middle",
+                                "border-b border-r border-neutral-100 last:border-r-0 dark:border-neutral-800/60",
+                                isBookCol && "bg-brand/[0.06]",
+                              )}
+                            >
+                              <OddsMatrixCell
+                                over={over}
+                                under={under}
+                                selectedSide={selectedSide}
+                                isBookSelected={isBookCol && isActive}
+                                isBestOver={
+                                  !!over &&
+                                  line.bestOver?.book === book &&
+                                  line.bestOver.price === over.price
+                                }
+                                isBestUnder={
+                                  !!under &&
+                                  line.bestUnder?.book === book &&
+                                  line.bestUnder.price === under.price
+                                }
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -1120,7 +2054,76 @@ function OddsPanel({
             </div>
           )}
         </div>
+
+        <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-3 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
+                Best Current
+              </div>
+              <div className="mt-1 text-sm font-black text-neutral-950 dark:text-white">
+                {formatDecimal(activeLine)} {MARKET_LABELS[profile.market] ?? "Line"}
+              </div>
+            </div>
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[9px] font-black tracking-[0.14em] text-emerald-600 uppercase dark:text-emerald-400">
+              Live
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <OddsBookLine
+              label={isSingleLineOddsMarket ? "Yes" : "Over"}
+              entry={activeBestOver}
+            />
+            <OddsBookLine
+              label={isSingleLineOddsMarket ? "No" : "Under"}
+              entry={activeBestUnder}
+            />
+          </div>
+
+          {isSingleLineOddsMarket && (
+            <SgpBuildComparison
+              comparison={sgpComparison}
+              isLoading={
+                isDoubleDoubleMarket
+                  ? doubleDoubleSheet.isLoading
+                  : tripleDoubleSheet.isLoading
+              }
+              market={profile.market}
+            />
+          )}
+
+          <InlineLineMovementCard
+            sport={sport}
+            eventId={profile.eventId}
+            market={profile.market}
+            marketDisplay={MARKET_LABELS[profile.market] ?? profile.market}
+            playerName={profile.playerName}
+            team={profile.teamAbbr}
+            activeLine={activeLine}
+            lines={lines.map((line) => line.line)}
+            selectedBookId={selectedBookId}
+            selectedSide={selectedSide}
+            selectedPrice={selectedPrice}
+            bestPrice={selectedBest?.price ?? null}
+            bookIds={bookColumns}
+            selectionMode={isSingleLineOddsMarket ? "yes-no" : "over-under"}
+            currentPricesByBook={currentPricesByBook}
+            oddIdsByBook={oddIdsByBook}
+            onBookChange={setSelectedBookId}
+            onLineChange={(line) => onLineSelect?.(line)}
+            onSideChange={setSelectedSide}
+            onOpenFull={setLineHistoryContext}
+          />
+        </div>
       </div>
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
     </div>
   );
 }
@@ -1200,7 +2203,7 @@ function GameLogPanel({
                             className={cn(
                               "w-9 font-black tabular-nums",
                               hit === false
-                                ? "text-rose-500"
+                                ? "text-red-500"
                                 : "text-emerald-600 dark:text-emerald-400",
                             )}
                           >
@@ -1211,7 +2214,7 @@ function GameLogPanel({
                               className={cn(
                                 "block h-full rounded-full",
                                 hit === false
-                                  ? "bg-rose-500"
+                                  ? "bg-red-500"
                                   : "bg-emerald-500",
                               )}
                               style={{
@@ -1226,7 +2229,7 @@ function GameLogPanel({
                           className={
                             game.result === "W"
                               ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-rose-500"
+                              : "text-red-500"
                           }
                         >
                           {game.result}
@@ -1314,7 +2317,7 @@ function OverviewPanel({
                         "text-[10px] font-black tabular-nums",
                         delta >= 0
                           ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-rose-500 dark:text-rose-400",
+                          : "text-red-500 dark:text-red-400",
                       )}
                     >
                       {delta >= 0 ? "+" : ""}
@@ -1394,9 +2397,7 @@ function RosterPanel({
       // Numeric stat columns default to descending (bigger first); text
       // columns default to ascending (A→Z reads naturally).
       setSortDir(
-        field === "player" || field === "role" || field === "status"
-          ? "asc"
-          : "desc",
+        field === "player" || field === "role" ? "asc" : "desc",
       );
     }
   };
@@ -1492,7 +2493,6 @@ function RosterPanel({
                     current={sortField}
                     dir={sortDir}
                     onSort={handleColumnSort}
-                    align="left"
                   >
                     Role
                   </SortHeader>
@@ -1551,23 +2551,6 @@ function RosterPanel({
                     PRA
                   </SortHeader>
                   <SortHeader
-                    field="gp"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleColumnSort}
-                  >
-                    GP
-                  </SortHeader>
-                  <SortHeader
-                    field="status"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleColumnSort}
-                    align="left"
-                  >
-                    Status
-                  </SortHeader>
-                  <SortHeader
                     field="usg"
                     current={sortField}
                     dir={sortDir}
@@ -1575,7 +2558,15 @@ function RosterPanel({
                   >
                     USG%
                   </SortHeader>
-                  <th className="px-3 py-2 text-right">Filter</th>
+                  <SortHeader
+                    field="gp"
+                    current={sortField}
+                    dir={sortDir}
+                    onSort={handleColumnSort}
+                  >
+                    GP
+                  </SortHeader>
+                  <th className="px-3 py-2 text-center">Filter</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
@@ -1591,10 +2582,11 @@ function RosterPanel({
                   for (const p of rosterPlayers) {
                     const lineup = lineupByPlayerId?.get(p.playerId);
                     const inj = (p.injuryStatus ?? "").toLowerCase();
-                    const isOut =
-                      lineup?.lineupStatus === "may_not_play" ||
-                      inj === "out" ||
-                      inj === "doubtful";
+                    // Only confirmed Out belongs in the OUT section. Q/D
+                    // (questionable / doubtful) players still play often
+                    // enough that they belong in their actual rotation slot —
+                    // the inline Q/D glyph next to the name flags the risk.
+                    const isOut = inj === "out";
                     if (isOut) out.push(p);
                     else if (lineup?.isStarter) starters.push(p);
                     else bench.push(p);
@@ -1716,7 +2708,6 @@ function RosterPanel({
                             (f) =>
                               f.playerId === playerId && f.mode === "without",
                           );
-                          const tone = statusTone(player.injuryStatus);
                           const lineupEntry = lineupByPlayerId?.get(
                             player.playerId,
                           );
@@ -1747,8 +2738,14 @@ function RosterPanel({
                                     />
                                   </span>
                                   <div className="min-w-0">
-                                    <div className="truncate font-black text-neutral-900 dark:text-white">
-                                      {player.name}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="truncate font-black text-neutral-900 dark:text-white">
+                                        {player.name}
+                                      </span>
+                                      <InjuryGlyph
+                                        status={player.injuryStatus}
+                                        notes={player.injuryNotes ?? null}
+                                      />
                                     </div>
                                     <div className="mt-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-500">
                                       {player.position || "—"}{" "}
@@ -1759,19 +2756,19 @@ function RosterPanel({
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2 text-center">
                                 <span
                                   className={cn(
-                                    "inline-flex w-fit rounded-sm px-1.5 py-0.5 text-[9px] font-black tracking-[0.12em] uppercase",
+                                    "inline-flex rounded-sm px-1.5 py-0.5 text-[9px] font-black tracking-[0.12em] uppercase",
                                     role.className,
                                   )}
                                 >
                                   {role.label}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-right">
-                                <div className="ml-auto flex max-w-[128px] items-center justify-end gap-2">
-                                  <span className="w-9 font-black text-neutral-950 tabular-nums dark:text-white">
+                              <td className="px-3 py-2 text-center">
+                                <div className="mx-auto flex max-w-[128px] items-center justify-center gap-2">
+                                  <span className="w-9 text-right font-black text-neutral-950 tabular-nums dark:text-white">
                                     {formatDecimal(player.avgMinutes)}
                                   </span>
                                   <span className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
@@ -1789,25 +2786,15 @@ function RosterPanel({
                               <RosterNumber value={player.avgAssists} />
                               <RosterNumber value={player.avgThrees} />
                               <RosterNumber value={player.avgPra} />
-                              <td className="px-3 py-2 text-right font-black text-neutral-700 tabular-nums dark:text-neutral-300">
-                                {player.gamesPlayed}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span
-                                  className={cn(
-                                    "rounded-sm px-1.5 py-0.5 text-[9px] font-black tracking-[0.12em] uppercase",
-                                    tone.className,
-                                  )}
-                                >
-                                  {tone.label}
-                                </span>
-                              </td>
                               <RosterNumber
                                 value={formatUsagePercent(player.avgUsage)}
                                 suffix="%"
                               />
+                              <td className="px-3 py-2 text-center font-black text-neutral-700 tabular-nums dark:text-neutral-300">
+                                {player.gamesPlayed}
+                              </td>
                               <td className="px-3 py-2">
-                                <div className="ml-auto flex w-fit items-center gap-0.5 rounded-md bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
+                                <div className="mx-auto flex w-fit items-center gap-0.5 rounded-md bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
                                   <MiniToggle
                                     active={withActive}
                                     onClick={() =>
@@ -1888,13 +2875,9 @@ function getRoleTagFromLineup(
     if (lineup.isStarter) {
       return { label: "Starter", className: "bg-brand/15 text-brand" };
     }
-    const status = (lineup.lineupStatus ?? "").toLowerCase();
-    if (status === "may_not_play") {
-      return {
-        label: "May Sit",
-        className: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-      };
-    }
+    // Non-starter → just "Bench". The inline Q/D injury glyph next to the
+    // player name carries the questionable/doubtful risk signal; a redundant
+    // "May Sit" pill on the same row was visual noise.
     return {
       label: "Bench",
       className:
@@ -1987,8 +2970,7 @@ type RosterSortField =
   | "ast"
   | "threes"
   | "pra"
-  | "gp"
-  | "status";
+  | "gp";
 
 function getRosterSortValue(
   p: TeamRosterPlayer,
@@ -2025,17 +3007,6 @@ function getRosterSortValue(
       return p.avgPra ?? -Infinity;
     case "gp":
       return p.gamesPlayed ?? -Infinity;
-    case "status": {
-      const s = (p.injuryStatus ?? "available").toLowerCase();
-      // 0 = healthy → ascending puts available players first.
-      if (s === "available" || s === "active") return 0;
-      if (s === "probable") return 1;
-      if (s === "questionable" || s === "gtd" || s === "game time decision")
-        return 2;
-      if (s === "doubtful") return 3;
-      if (s === "out") return 4;
-      return 5;
-    }
   }
 }
 
@@ -2047,7 +3018,7 @@ function SortHeader({
   current,
   dir,
   onSort,
-  align = "right",
+  align = "center",
   marketHighlight = false,
   children,
 }: {
@@ -2055,7 +3026,7 @@ function SortHeader({
   current: RosterSortField | null;
   dir: "asc" | "desc";
   onSort: (f: RosterSortField) => void;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
   marketHighlight?: boolean;
   children: React.ReactNode;
 }) {
@@ -2064,7 +3035,11 @@ function SortHeader({
     <th
       className={cn(
         "px-3 py-2 select-none",
-        align === "right" ? "text-right" : "text-left",
+        align === "right"
+          ? "text-right"
+          : align === "left"
+            ? "text-left"
+            : "text-center",
       )}
     >
       <button
@@ -2073,6 +3048,7 @@ function SortHeader({
         className={cn(
           "inline-flex items-center gap-1 transition-colors",
           align === "right" && "ml-auto",
+          align === "center" && "mx-auto",
           isActive
             ? "text-brand"
             : marketHighlight
@@ -2292,12 +3268,11 @@ function MatchupPanel({
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <PreviewHeader
-          title="Matchup Context"
-          kicker={`${profile.opponentTeamAbbr ?? "OPP"} vs ${normalizedPosition ?? profile.position ?? "position"}`}
-        />
-        {sport === "wnba" && (
+      {/* WNBA season toggle floats top-right when relevant. NBA matchup needs
+          no header chrome — the in-card panel headers + the page-wide tab
+          eyebrow already say what view we're on. */}
+      {sport === "wnba" && (
+        <div className="mb-3 flex justify-end">
           <div className="flex rounded-lg bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
             {(["2025", "2026"] as const).map((season) => (
               <MiniToggle
@@ -2309,10 +3284,10 @@ function MatchupPanel({
               </MiniToggle>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(430px,0.9fr)_minmax(620px,1.1fr)]">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(430px,0.9fr)_minmax(620px,1.1fr)]">
         <DefenseGridPanel
           positions={defenseQuery.positions}
           positionsToShow={positionsToShow}
@@ -2416,6 +3391,7 @@ function SimilarPositionPanel({
   hasExpansionEmptyState: boolean;
 }) {
   const statLabel = MARKET_LABELS[market] ?? market;
+  const nativeStatField = nativeStatFieldForMarket(market);
   const playersWithLines = useMemo(
     () =>
       players.filter(
@@ -2426,12 +3402,6 @@ function SimilarPositionPanel({
       ),
     [players],
   );
-  const maxStat = Math.max(
-    1,
-    ...playersWithLines.map((player) => player.stat),
-    line ?? 0,
-  );
-
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-200/70 dark:border-neutral-800/70">
       <div className="flex flex-col gap-3 border-b border-neutral-200/70 bg-neutral-50/70 px-3 py-3 xl:flex-row xl:items-center xl:justify-between dark:border-neutral-800/70 dark:bg-neutral-950/35">
@@ -2495,12 +3465,38 @@ function SimilarPositionPanel({
                 <th className="px-3 py-2 text-left">Date</th>
                 <th className="px-3 py-2 text-left">Score</th>
                 <th className="px-3 py-2 text-left">Player</th>
-                <th className="px-3 py-2 text-right">Min</th>
-                <th className="px-3 py-2 text-right">Line</th>
-                <th className="px-3 py-2 text-right">{statLabel}</th>
-                <th className="px-3 py-2 text-right">PTS</th>
-                <th className="px-3 py-2 text-right">REB</th>
-                <th className="px-3 py-2 text-right">AST</th>
+                <th className="px-3 py-2 text-center">Min</th>
+                <th className="px-3 py-2 text-center">Line</th>
+                {/* Only show the standalone stat column when the active market
+                    can't piggyback on PTS/REB/AST (e.g., 3PM, STL, BLK, PRA).
+                    Avoids the "Points + PTS" duplicate the user flagged. */}
+                {!nativeStatField && (
+                  <th className="px-3 py-2 text-center">{statLabel}</th>
+                )}
+                <th
+                  className={cn(
+                    "px-3 py-2 text-center",
+                    nativeStatField === "pts" && "text-brand",
+                  )}
+                >
+                  PTS
+                </th>
+                <th
+                  className={cn(
+                    "px-3 py-2 text-center",
+                    nativeStatField === "reb" && "text-brand",
+                  )}
+                >
+                  REB
+                </th>
+                <th
+                  className={cn(
+                    "px-3 py-2 text-center",
+                    nativeStatField === "ast" && "text-brand",
+                  )}
+                >
+                  AST
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
@@ -2509,8 +3505,8 @@ function SimilarPositionPanel({
                   key={`${player.gameDate}-${player.playerId}-${index}`}
                   player={player}
                   line={line}
-                  maxStat={maxStat}
                   sport={sport}
+                  nativeStatField={nativeStatField}
                 />
               ))}
             </tbody>
@@ -2524,16 +3520,48 @@ function SimilarPositionPanel({
 function SimilarPlayerRow({
   player,
   line,
-  maxStat,
   sport,
+  nativeStatField,
 }: {
   player: PositionVsTeamPlayer;
   line: number | null;
-  maxStat: number;
   sport: "nba" | "wnba";
+  nativeStatField: "pts" | "reb" | "ast" | null;
 }) {
   const hitCurrentLine = line !== null ? player.stat >= line : null;
-  const hitClosingLine = player.hitOver;
+  // The matching native column (PTS/REB/AST) becomes the rich cell with the
+  // hit-colored stat AND a same-color diff vs the active line so users can
+  // read "by how much" without a misleading bar. When no native column
+  // matches the active market (3PM, STL, BLK, PRA, etc.), this rich cell
+  // lives in the standalone {statLabel} column instead.
+  const diff = line !== null ? player.stat - line : null;
+  const colorClass =
+    hitCurrentLine === null
+      ? "text-neutral-950 dark:text-white"
+      : hitCurrentLine
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-red-500 dark:text-red-400";
+  const renderRichCell = () => (
+    <div className="mx-auto inline-flex items-baseline gap-1.5">
+      <span className={cn("font-black tabular-nums", colorClass)}>
+        {formatDecimal(player.stat)}
+      </span>
+      {diff !== null && (
+        <span
+          className={cn("text-[10px] font-bold tabular-nums opacity-70", colorClass)}
+        >
+          {diff > 0 ? "+" : ""}
+          {formatDecimal(diff)}
+        </span>
+      )}
+    </div>
+  );
+  const plainCell = (value: number) => (
+    <span className="font-black text-neutral-700 tabular-nums dark:text-neutral-300">
+      {value}
+    </span>
+  );
+
   return (
     <tr className="bg-white/40 dark:bg-neutral-900/20">
       <td className="px-3 py-2 font-bold text-neutral-500 tabular-nums dark:text-neutral-500">
@@ -2561,51 +3589,23 @@ function SimilarPlayerRow({
           </div>
         </div>
       </td>
-      <td className="px-3 py-2 text-right font-black text-neutral-700 tabular-nums dark:text-neutral-300">
+      <td className="px-3 py-2 text-center font-black text-neutral-700 tabular-nums dark:text-neutral-300">
         {Math.floor(player.minutes)}
       </td>
-      <td className="px-3 py-2 text-right font-black text-neutral-500 tabular-nums dark:text-neutral-500">
+      <td className="px-3 py-2 text-center font-black text-neutral-500 tabular-nums dark:text-neutral-500">
         {formatDecimal(player.closingLine)}
       </td>
-      <td className="px-3 py-2 text-right">
-        <div className="ml-auto flex max-w-[150px] items-center justify-end gap-2">
-          <span
-            className={cn(
-              "w-9 font-black tabular-nums",
-              hitCurrentLine === null
-                ? "text-neutral-950 dark:text-white"
-                : hitCurrentLine
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-rose-500 dark:text-rose-400",
-            )}
-          >
-            {formatDecimal(player.stat)}
-          </span>
-          <span className="h-2 w-20 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-            <span
-              className={cn(
-                "block h-full rounded-full",
-                hitClosingLine === false
-                  ? "bg-rose-500"
-                  : hitClosingLine === true
-                    ? "bg-emerald-500"
-                    : "bg-neutral-400",
-              )}
-              style={{
-                width: `${Math.min(100, (player.stat / maxStat) * 100)}%`,
-              }}
-            />
-          </span>
-        </div>
+      {!nativeStatField && (
+        <td className="px-3 py-2 text-center">{renderRichCell()}</td>
+      )}
+      <td className="px-3 py-2 text-center">
+        {nativeStatField === "pts" ? renderRichCell() : plainCell(player.pts)}
       </td>
-      <td className="px-3 py-2 text-right font-black text-neutral-700 tabular-nums dark:text-neutral-300">
-        {player.pts}
+      <td className="px-3 py-2 text-center">
+        {nativeStatField === "reb" ? renderRichCell() : plainCell(player.reb)}
       </td>
-      <td className="px-3 py-2 text-right font-black text-neutral-700 tabular-nums dark:text-neutral-300">
-        {player.reb}
-      </td>
-      <td className="px-3 py-2 text-right font-black text-neutral-700 tabular-nums dark:text-neutral-300">
-        {player.ast}
+      <td className="px-3 py-2 text-center">
+        {nativeStatField === "ast" ? renderRichCell() : plainCell(player.ast)}
       </td>
     </tr>
   );
@@ -2629,7 +3629,7 @@ function GameScoreCell({ player }: { player: PositionVsTeamPlayer }) {
           "rounded px-1.5 py-0.5 text-[9px] font-black tracking-[0.1em] uppercase",
           won
             ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-            : "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+            : "bg-red-500/15 text-red-600 dark:text-red-400",
         )}
       >
         {player.result ?? "—"}
@@ -2819,7 +3819,7 @@ function DefenseGridPanel({
           Lower rank is tougher; higher rank is softer.
         </span>
         <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-black tracking-[0.12em] uppercase">
-          <span className="rounded-md bg-rose-500/15 px-2 py-1 text-rose-600 dark:text-rose-400">
+          <span className="rounded-md bg-red-500/15 px-2 py-1 text-red-600 dark:text-red-400">
             Tough 1-{rankBuckets.toughMax}
           </span>
           <span className="rounded-md bg-amber-500/15 px-2 py-1 text-amber-600 dark:text-amber-400">
@@ -3070,6 +4070,159 @@ function SeasonToggle({
   );
 }
 
+// When two upstream book ids collapse to the same canonical id, we pick the
+// side with the higher American price (better for the bettor) and keep its
+// link metadata. Falls back to whichever side actually exists.
+function pickBetterOdds<T extends { price?: number | null } | null | undefined>(
+  a: T,
+  b: T,
+): T {
+  if (!a) return b;
+  if (!b) return a;
+  const ap = a.price ?? -Infinity;
+  const bp = b.price ?? -Infinity;
+  return bp > ap ? b : a;
+}
+
+function getBookDisplayName(book: string) {
+  return getSportsbookById(book)?.name ?? book;
+}
+
+function BookLogo({ book, size = 16 }: { book: string; size?: number }) {
+  const sportsbook = getSportsbookById(book);
+  const logo = sportsbook?.image?.light ?? null;
+  if (!logo) {
+    return (
+      <span
+        aria-hidden="true"
+        className="shrink-0 rounded-sm bg-neutral-200 dark:bg-neutral-700"
+        style={{ height: size, width: size }}
+      />
+    );
+  }
+  return (
+    <img
+      src={logo}
+      alt={sportsbook?.name ?? book}
+      className="shrink-0 object-contain"
+      style={{ height: size, width: size }}
+    />
+  );
+}
+
+function BookHeader({
+  book,
+  active,
+  onClick,
+}: {
+  book: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "mx-auto flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1 transition-colors",
+        active
+          ? "text-brand"
+          : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white",
+      )}
+      title={getBookDisplayName(book)}
+    >
+      <BookLogo book={book} size={14} />
+      <span className="truncate text-[10px] font-bold normal-case tracking-tight">
+        {getBookDisplayName(book)}
+      </span>
+    </button>
+  );
+}
+
+function OddsMatrixCell({
+  over,
+  under,
+  selectedSide,
+  isBookSelected,
+  isBestOver,
+  isBestUnder,
+}: {
+  over?: { price: number; url: string | null; mobileUrl: string | null } | null;
+  under?: { price: number; url: string | null; mobileUrl: string | null } | null;
+  selectedSide: "over" | "under";
+  isBookSelected: boolean;
+  isBestOver: boolean;
+  isBestUnder: boolean;
+}) {
+  // Stack O/U as two compact rows separated by a hairline. No outer border —
+  // the table grid carries the structure (matches odds-screen tool's
+  // borderless cell density).
+  return (
+    <div className="flex flex-col gap-0.5">
+      <OddsCellSide
+        label="O"
+        odds={over}
+        dim={selectedSide !== "over"}
+        best={isBestOver}
+        bookSelected={isBookSelected && selectedSide === "over"}
+      />
+      <OddsCellSide
+        label="U"
+        odds={under}
+        dim={selectedSide !== "under"}
+        best={isBestUnder}
+        bookSelected={isBookSelected && selectedSide === "under"}
+      />
+    </div>
+  );
+}
+
+function OddsCellSide({
+  label,
+  odds,
+  dim,
+  best,
+  bookSelected,
+}: {
+  label: string;
+  odds?: { price: number; url: string | null; mobileUrl: string | null } | null;
+  dim: boolean;
+  best: boolean;
+  bookSelected: boolean;
+}) {
+  const hasPrice = !!odds && typeof odds.price === "number";
+  const content = (
+    <span
+      className={cn(
+        "flex items-center justify-between gap-1 rounded px-1.5 py-1 text-[11px] tabular-nums transition-colors",
+        // Best price gets the strongest visual weight (subtle bg + brand text).
+        best
+          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
+          : bookSelected
+            ? "bg-brand/10 text-brand"
+            : hasPrice
+              ? "text-neutral-700 dark:text-neutral-200"
+              : "text-neutral-400 dark:text-neutral-600",
+        // Off-side dims a touch so the active side reads as primary without
+        // burying the alt-side info entirely.
+        dim && hasPrice && !best && "opacity-65",
+      )}
+    >
+      <span className="text-[9px] font-bold uppercase opacity-60">{label}</span>
+      <span className={cn("font-bold", best && "font-black")}>
+        {formatOdds(odds?.price ?? null)}
+      </span>
+    </span>
+  );
+
+  if (!odds?.url) return content;
+  return (
+    <a href={odds.url} target="_blank" rel="noopener noreferrer" className="block">
+      {content}
+    </a>
+  );
+}
+
 function OddsBookLine({
   label,
   entry,
@@ -3091,6 +4244,320 @@ function OddsBookLine({
       <div className="text-right text-lg font-black text-neutral-950 tabular-nums dark:text-white">
         {formatOdds(entry?.price ?? null)}
       </div>
+    </div>
+  );
+}
+
+type SgpBuildPrice = DoubleDoubleBestPrice | TripleDoubleBestPrice;
+
+interface SgpBuildLeg {
+  id: string;
+  label: string;
+  detail: string;
+  price: SgpBuildPrice | null;
+  source: "direct" | "sgp";
+}
+
+interface SgpBuildComparisonData {
+  rowLabel: string;
+  legs: SgpBuildLeg[];
+}
+
+function SgpBuildComparison({
+  comparison,
+  isLoading,
+  market,
+}: {
+  comparison: SgpBuildComparisonData | null;
+  isLoading: boolean;
+  market: string;
+}) {
+  const availableLegs = comparison?.legs.filter((leg) => leg.price) ?? [];
+  const bestPrice = availableLegs.length
+    ? Math.max(...availableLegs.map((leg) => leg.price!.price))
+    : null;
+  const directLeg = availableLegs.find((leg) => leg.source === "direct");
+  const bestBuildLeg = availableLegs
+    .filter((leg) => leg.source === "sgp")
+    .sort((a, b) => b.price!.price - a.price!.price)[0];
+  const buildBeatsDirect =
+    !!bestBuildLeg?.price &&
+    !!directLeg?.price &&
+    bestBuildLeg.price.price > directLeg.price.price;
+  const marketLabel =
+    market === "player_triple_double" ? "triple-double" : "double-double";
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200/70 bg-white/45 dark:border-neutral-800/70 dark:bg-neutral-900/25">
+      <div className="flex items-start justify-between gap-3 border-b border-neutral-200/60 px-3 py-2.5 dark:border-neutral-800/60">
+        <div>
+          <div className="text-[9px] font-black tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
+            Build Check
+          </div>
+          <div className="mt-0.5 text-xs font-black text-neutral-950 dark:text-white">
+            Direct vs SGP paths
+          </div>
+        </div>
+        {buildBeatsDirect && (
+          <span className="rounded-full border border-brand/25 bg-brand/10 px-2 py-1 text-[9px] font-black tracking-[0.14em] text-brand uppercase">
+            Build better
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2 p-3">
+          <div className="h-10 animate-pulse rounded-lg bg-neutral-200/60 dark:bg-neutral-800/60" />
+          <div className="h-10 animate-pulse rounded-lg bg-neutral-200/50 dark:bg-neutral-800/50" />
+          <div className="h-10 animate-pulse rounded-lg bg-neutral-200/40 dark:bg-neutral-800/40" />
+        </div>
+      ) : comparison && availableLegs.length > 0 ? (
+        <div className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
+          {comparison.legs.map((leg) => (
+            <SgpBuildLegRow
+              key={leg.id}
+              leg={leg}
+              isBest={!!leg.price && leg.price.price === bestPrice}
+              beatsDirect={
+                leg.source === "sgp" &&
+                !!leg.price &&
+                !!directLeg?.price &&
+                leg.price.price > directLeg.price.price
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="px-3 py-4 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+          No SGP build quotes yet for this {marketLabel}. The direct market can
+          still price above, and this comparison will fill once the sheet cache
+          has the player/event build paths.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SgpBuildLegRow({
+  leg,
+  isBest,
+  beatsDirect,
+}: {
+  leg: SgpBuildLeg;
+  isBest: boolean;
+  beatsDirect: boolean;
+}) {
+  const book = leg.price?.book ? getSportsbookById(leg.price.book) : null;
+  const logo = book?.image?.light ?? null;
+  const content = (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-neutral-100/55 dark:hover:bg-neutral-800/25">
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-xs font-black text-neutral-800 dark:text-neutral-100">
+            {leg.label}
+          </span>
+          {isBest && (
+            <span className="rounded-full bg-brand/10 px-1.5 py-0.5 text-[8px] font-black tracking-[0.12em] text-brand uppercase">
+              Best
+            </span>
+          )}
+          {beatsDirect && (
+            <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-black tracking-[0.12em] text-emerald-600 uppercase dark:text-emerald-400">
+              Value
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-500">
+          {logo && (
+            <img
+              src={logo}
+              alt={book?.name ?? leg.price?.book ?? ""}
+              className="h-3.5 w-3.5 shrink-0 object-contain"
+            />
+          )}
+          <span className="truncate">
+            {leg.price ? (book?.name ?? leg.price.book) : "No quote"}
+          </span>
+          <span className="text-neutral-300 dark:text-neutral-700">/</span>
+          <span className="truncate">{leg.detail}</span>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "text-right text-base font-black tabular-nums",
+          leg.price
+            ? "text-neutral-950 dark:text-white"
+            : "text-neutral-400 dark:text-neutral-600",
+          isBest && "text-brand",
+        )}
+      >
+        {formatOdds(leg.price?.price ?? null)}
+      </div>
+    </div>
+  );
+
+  if (!leg.price?.link && !leg.price?.mobileLink) return content;
+  return (
+    <a
+      href={leg.price.link ?? leg.price.mobileLink ?? undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block"
+    >
+      {content}
+    </a>
+  );
+}
+
+function resolveSgpBuildComparison({
+  profile,
+  isDoubleDoubleMarket,
+  isTripleDoubleMarket,
+  doubleDoubleRows,
+  tripleDoubleRows,
+}: {
+  profile: HitRateProfile;
+  isDoubleDoubleMarket: boolean;
+  isTripleDoubleMarket: boolean;
+  doubleDoubleRows: DoubleDoubleSheetRow[];
+  tripleDoubleRows: TripleDoubleSheetRow[];
+}): SgpBuildComparisonData | null {
+  if (isDoubleDoubleMarket) {
+    const row = findSgpSheetRow(doubleDoubleRows, profile);
+    if (!row) return null;
+    return {
+      rowLabel: row.player,
+      legs: [
+        {
+          id: "dd",
+          label: "Direct DD",
+          detail: "Book yes/no market",
+          price: row.dd,
+          source: "direct",
+        },
+        {
+          id: "sgp-pr",
+          label: "Build P+R",
+          detail: "10+ points + 10+ rebounds",
+          price: row.sgp_pr,
+          source: "sgp",
+        },
+        {
+          id: "sgp-pa",
+          label: "Build P+A",
+          detail: "10+ points + 10+ assists",
+          price: row.sgp_pa,
+          source: "sgp",
+        },
+      ],
+    };
+  }
+
+  if (isTripleDoubleMarket) {
+    const row = findSgpSheetRow(tripleDoubleRows, profile);
+    if (!row) return null;
+    return {
+      rowLabel: row.player,
+      legs: [
+        {
+          id: "td",
+          label: "Direct TD",
+          detail: "Book yes/no market",
+          price: row.td,
+          source: "direct",
+        },
+        {
+          id: "sgp-ra",
+          label: "Build R+A",
+          detail: "10+ rebounds + 10+ assists",
+          price: row.sgp_ra,
+          source: "sgp",
+        },
+        {
+          id: "sgp-pra",
+          label: "Build PRA",
+          detail: "10+ points + 10+ rebounds + 10+ assists",
+          price: row.sgp_pra,
+          source: "sgp",
+        },
+      ],
+    };
+  }
+
+  return null;
+}
+
+function findSgpSheetRow<T extends { eventId: string; playerId: string; player: string; team: string | null }>(
+  rows: T[],
+  profile: HitRateProfile,
+): T | null {
+  if (!rows.length) return null;
+  const redisPlayerId =
+    profile.selKey?.split(":")[0] ??
+    profile.oddsSelectionId?.split(":")[0] ??
+    null;
+  const normalizedProfileName = normalizeSgpPlayerName(profile.playerName);
+  const normalizedTeam = profile.teamAbbr?.toUpperCase() ?? null;
+
+  return (
+    rows.find(
+      (row) =>
+        row.eventId === profile.eventId &&
+        redisPlayerId &&
+        row.playerId === redisPlayerId,
+    ) ??
+    rows.find(
+      (row) =>
+        row.eventId === profile.eventId &&
+        normalizeSgpPlayerName(row.player) === normalizedProfileName,
+    ) ??
+    rows.find(
+      (row) =>
+        normalizeSgpPlayerName(row.player) === normalizedProfileName &&
+        (!normalizedTeam || row.team?.toUpperCase() === normalizedTeam),
+    ) ??
+    null
+  );
+}
+
+function normalizeSgpPlayerName(name: string | null | undefined) {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function BookOddsRow({
+  book,
+  over,
+  under,
+}: {
+  book: string;
+  over: number | null;
+  under: number | null;
+}) {
+  const sportsbook = getSportsbookById(book);
+  const logo = sportsbook?.image?.light ?? null;
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_56px_56px] items-center gap-2 px-3 py-2 text-[11px]">
+      <div className="flex min-w-0 items-center gap-2">
+        {logo && (
+          <img
+            src={logo}
+            alt={sportsbook?.name ?? book}
+            className="h-4 w-4 shrink-0 object-contain"
+          />
+        )}
+        <span className="truncate font-black text-neutral-700 dark:text-neutral-200">
+          {sportsbook?.name ?? book}
+        </span>
+      </div>
+      <span className="text-right font-black text-emerald-600 tabular-nums dark:text-emerald-400">
+        {formatOdds(over)}
+      </span>
+      <span className="text-right font-black text-neutral-800 tabular-nums dark:text-neutral-200">
+        {formatOdds(under)}
+      </span>
     </div>
   );
 }
@@ -3203,7 +4670,7 @@ function RosterNumber({
   suffix?: string;
 }) {
   return (
-    <td className="px-3 py-2 text-right font-black text-neutral-800 tabular-nums dark:text-neutral-200">
+    <td className="px-3 py-2 text-center font-black text-neutral-800 tabular-nums dark:text-neutral-200">
       {typeof value === "number" && Number.isFinite(value)
         ? `${formatDecimal(value)}${suffix}`
         : "—"}
@@ -3442,8 +4909,8 @@ function getHitRateTone(pct: number | null) {
   }
   return {
     label: "Cold",
-    text: "text-rose-500 dark:text-rose-400",
-    badge: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+    text: "text-red-500 dark:text-red-400",
+    badge: "bg-red-500/15 text-red-600 dark:text-red-400",
   };
 }
 
@@ -3469,9 +4936,9 @@ function getDefenseRankTone(rank: number | null, totalTeams: number) {
   if (rank <= toughMax) {
     return {
       label: "Tough",
-      text: "text-rose-500 dark:text-rose-400",
-      badge: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-      bar: "bg-rose-500",
+      text: "text-red-500 dark:text-red-400",
+      badge: "bg-red-500/15 text-red-600 dark:text-red-400",
+      bar: "bg-red-500",
     };
   }
   return {
@@ -3527,8 +4994,8 @@ function getToneClass(tier: MatchupTier | null) {
     case "bad":
     case "worst":
       return {
-        text: "text-rose-500 dark:text-rose-400",
-        badge: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+        text: "text-red-500 dark:text-red-400",
+        badge: "bg-red-500/15 text-red-600 dark:text-red-400",
       };
     default:
       return {
@@ -3543,7 +5010,7 @@ function statusTone(status: string | null) {
   if (normalized === "out")
     return {
       label: "OUT",
-      className: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+      className: "bg-red-500/15 text-red-600 dark:text-red-400",
     };
   if (
     normalized === "questionable" ||
@@ -3556,7 +5023,7 @@ function statusTone(status: string | null) {
     };
   }
   if (normalized === "doubtful")
-    return { label: "DBT", className: "bg-rose-500/10 text-rose-500" };
+    return { label: "DBT", className: "bg-red-500/10 text-red-500" };
   if (normalized === "probable")
     return {
       label: "PROB",
@@ -3605,6 +5072,86 @@ function formatDecimal(value: number | null | undefined): string {
 function formatUsagePercent(value: number | null | undefined): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return Math.round(value * 100);
+}
+
+// Inline single-letter injury indicator that sits next to the player name —
+// Sleeper / ESPN style. Renders nothing for healthy players so available
+// rows stay visually clean. Hovering surfaces the full status + injury notes
+// in a structured tooltip (matches the rail's hover treatment).
+function InjuryGlyph({
+  status,
+  notes,
+}: {
+  status: string | null;
+  notes: string | null;
+}) {
+  const s = (status ?? "").toLowerCase();
+  let letter: string | null = null;
+  let label = "";
+  let className = "";
+  if (s === "out") {
+    letter = "O";
+    label = "Out";
+    className = "bg-red-500/15 text-red-600 dark:text-red-400";
+  } else if (s === "doubtful") {
+    letter = "D";
+    label = "Doubtful";
+    className = "bg-red-500/10 text-red-500 dark:text-red-400";
+  } else if (s === "questionable" || s === "gtd" || s === "game time decision") {
+    letter = "Q";
+    label = "Questionable";
+    className = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+  } else if (s === "probable") {
+    letter = "P";
+    label = "Probable";
+    className = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+  }
+  if (!letter) return null;
+  return (
+    <Tooltip
+      side="top"
+      content={
+        <div className="max-w-[260px] px-3 py-2 text-xs">
+          <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
+            {label}
+          </div>
+          <div className="text-neutral-700 dark:text-neutral-200">
+            {notes && notes.trim().length > 0
+              ? notes
+              : "No additional details available."}
+          </div>
+        </div>
+      }
+    >
+      <span
+        className={cn(
+          "inline-flex h-4 min-w-[16px] cursor-help items-center justify-center rounded px-1 text-[9px] font-black tabular-nums",
+          className,
+        )}
+        aria-label={label}
+      >
+        {letter}
+      </span>
+    </Tooltip>
+  );
+}
+
+// When the active prop market lines up with one of the always-rendered
+// PTS/REB/AST columns, hide the standalone {statLabel} column and render the
+// rich hit/bar cell INSIDE the matching column instead. Returns null when
+// the market doesn't match (3PM/STL/BLK/PRA/etc. — those keep the standalone
+// column).
+function nativeStatFieldForMarket(market: string): "pts" | "reb" | "ast" | null {
+  switch (market) {
+    case "player_points":
+      return "pts";
+    case "player_rebounds":
+      return "reb";
+    case "player_assists":
+      return "ast";
+    default:
+      return null;
+  }
 }
 
 // homeAway can ship as "H"/"A", "home"/"away", or "1"/"0". Normalize before

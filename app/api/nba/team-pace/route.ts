@@ -5,7 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 // Returns L5 / L10 / Season pace + league rank for one or more teams. Used by
 // the drilldown's Matchup Context table to show the player's team and the
 // opponent's pace side by side. Sourced from `basketball_team_pace_rankings`,
-// the same precomputed table that powers the table-row pace context.
+// the same precomputed table that powers the table-row pace context. Path
+// lives under /api/nba for legacy reasons, but the route serves both leagues
+// via the `league` query param.
 
 const QuerySchema = z.object({
   teamIds: z.string().transform((v) =>
@@ -15,6 +17,10 @@ const QuerySchema = z.object({
       .filter((n) => Number.isFinite(n) && n > 0)
   ),
   season: z.string().nullish().transform((v) => v ?? "2025-26"),
+  league: z
+    .enum(["nba", "wnba"])
+    .nullish()
+    .transform((v) => v ?? "nba"),
 });
 
 type Window = "l5" | "l10" | "season";
@@ -30,7 +36,7 @@ interface TeamPace {
 }
 
 export interface TeamPaceResponse {
-  league: "nba";
+  league: "nba" | "wnba";
   season: string;
   totalTeams: number;
   teams: Record<string, TeamPace>;
@@ -44,6 +50,7 @@ export async function GET(req: NextRequest) {
     const parsed = QuerySchema.safeParse({
       teamIds: searchParams.get("teamIds"),
       season: searchParams.get("season"),
+      league: searchParams.get("league"),
     });
 
     if (!parsed.success || parsed.data.teamIds.length === 0) {
@@ -53,7 +60,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { teamIds, season } = parsed.data;
+    const { teamIds, season, league } = parsed.data;
     const supabase = createServerSupabaseClient();
 
     // Don't filter by season or season_type — the table stores raw provider
@@ -64,11 +71,11 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("basketball_team_pace_rankings")
       .select("team_id, pace_window, pace, pace_rank, games_played, season, season_type")
-      .eq("league", "nba")
+      .eq("league", league)
       .in("team_id", teamIds);
 
     if (error) {
-      console.error("[NBA Team Pace] query error:", error.message);
+      console.error(`[${league.toUpperCase()} Team Pace] query error:`, error.message);
       return NextResponse.json(
         { error: "Failed to fetch team pace", details: error.message },
         { status: 500, headers: { "Cache-Control": "no-store" } }
@@ -108,9 +115,9 @@ export async function GET(req: NextRequest) {
     }
 
     const response: TeamPaceResponse = {
-      league: "nba",
+      league,
       season,
-      totalTeams: 30,
+      totalTeams: league === "wnba" ? 13 : 30,
       teams,
     };
 

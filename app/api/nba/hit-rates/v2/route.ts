@@ -4,27 +4,35 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
-import { fetchPaceContextsForRows, getPaceContextKey, type PaceContext } from "@/lib/basketball/pace-context";
-import { fetchGameLineContextsForRows, getGameLineContextKey, type GameLineContext } from "@/lib/basketball/game-line-context";
+import {
+  fetchPaceContextsForRows,
+  getPaceContextKey,
+  type PaceContext,
+} from "@/lib/basketball/pace-context";
+import {
+  fetchGameLineContextsForRows,
+  getGameLineContextKey,
+  type GameLineContext,
+} from "@/lib/basketball/game-line-context";
 
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
- * 
+ *
  * Uses the new `get_nba_hit_rate_profiles_fast_v3` RPC which:
  * 1. Has NO JOINs (all data denormalized in the table)
  * 2. Pre-computed DvP ranks (no separate matchup call needed)
  * 3. Filters by has_live_odds for actionable profiles first
  * 4. No COUNT(*) query overhead
  * 5. Includes sel_key for Redis best odds lookup
- * 
+ *
  * Also merges live best odds from Redis for "card-ready" data.
- * 
+ *
  * Expected performance: <500ms vs 8-12s before
  */
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:nba:v5"; // Incremented for game spread/total enrichment
+const CACHE_KEY_PREFIX = "hitrates:nba:v6"; // Incremented for injury report metadata enrichment
 
 // =============================================================================
 // TYPES
@@ -46,6 +54,122 @@ interface EventRedisData {
   start_time?: string;
 }
 
+interface PlayerInjuryMetadata {
+  injuryUpdatedAt: string | null;
+  injuryReturnDate: string | null;
+  injurySource: string | null;
+  injuryRawStatus: string | null;
+}
+
+const SINGLE_LINE_ODDS_MARKETS = new Set([
+  "player_double_double",
+  "player_triple_double",
+]);
+
+function isSingleLineOddsMarket(market: string | null | undefined): boolean {
+  return !!market && SINGLE_LINE_ODDS_MARKETS.has(market);
+}
+
+function getOddsContextDonorScore(row: any, donor: any): number {
+  let score = 0;
+  if (row.game_id && donor.game_id === row.game_id) score += 8;
+  if (row.game_date && donor.game_date === row.game_date) score += 4;
+  if (row.opponent_team_id && donor.opponent_team_id === row.opponent_team_id)
+    score += 2;
+  if (donor.market === "player_points") score += 1;
+  return score;
+}
+
+async function hydrateSingleLineOddsContext(
+  rows: any[],
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  datesToFetch: string[],
+): Promise<any[]> {
+  const needsContext = rows.some(
+    (row) =>
+      isSingleLineOddsMarket(row.market) && (!row.event_id || !row.sel_key),
+  );
+  if (!needsContext) return rows;
+
+  let donorRows = rows.filter(
+    (row) =>
+      !isSingleLineOddsMarket(row.market) && row.event_id && row.sel_key,
+  );
+
+  // If the user filtered directly to DD/TD, the current RPC result has no
+  // standard player markets to borrow Redis context from. Fetch a lightweight
+  // donor pool for the same slate, but do not merge those rows into the
+  // response.
+  if (donorRows.length === 0) {
+    const { data, error } = await supabase.rpc(
+      "get_nba_hit_rate_profiles_fast_v3",
+      {
+        p_dates: datesToFetch,
+        p_market: null,
+        p_has_odds: true,
+        p_limit: 3000,
+        p_offset: 0,
+      },
+    );
+    if (error) {
+      console.warn(
+        "[Hit Rates v2] DD/TD odds context donor fetch error:",
+        error.message,
+      );
+    } else {
+      donorRows = (data ?? []).filter(
+        (row: any) =>
+          !isSingleLineOddsMarket(row.market) && row.event_id && row.sel_key,
+      );
+    }
+  }
+
+  if (donorRows.length === 0) return rows;
+
+  const donorsByPlayerId = new Map<number, any[]>();
+  for (const donor of donorRows) {
+    if (!donor.player_id) continue;
+    const existing = donorsByPlayerId.get(donor.player_id) ?? [];
+    existing.push(donor);
+    donorsByPlayerId.set(donor.player_id, existing);
+  }
+
+  return rows.map((row) => {
+    if (!isSingleLineOddsMarket(row.market) || (row.event_id && row.sel_key)) {
+      return row;
+    }
+
+    const donors = donorsByPlayerId.get(row.player_id) ?? [];
+    const donor = donors
+      .slice()
+      .sort(
+        (a, b) =>
+          getOddsContextDonorScore(row, b) - getOddsContextDonorScore(row, a),
+      )[0];
+    if (!donor) return row;
+
+    return {
+      ...row,
+      event_id: row.event_id ?? donor.event_id,
+      sel_key: row.sel_key ?? donor.sel_key,
+      odds_selection_id: row.odds_selection_id ?? donor.odds_selection_id,
+      game_id: row.game_id ?? donor.game_id,
+      game_date: row.game_date ?? donor.game_date,
+      start_time: row.start_time ?? donor.start_time,
+      commence_time: row.commence_time ?? donor.commence_time,
+      game_start: row.game_start ?? donor.game_start,
+      game_start_time: row.game_start_time ?? donor.game_start_time,
+      game_status: row.game_status ?? donor.game_status,
+      opponent_team_id: row.opponent_team_id ?? donor.opponent_team_id,
+      opponent_team_name: row.opponent_team_name ?? donor.opponent_team_name,
+      opponent_team_abbr: row.opponent_team_abbr ?? donor.opponent_team_abbr,
+      home_away: row.home_away ?? donor.home_away,
+      spread: row.spread ?? donor.spread,
+      total: row.total ?? donor.total,
+    };
+  });
+}
+
 // =============================================================================
 // REDIS BEST ODDS HELPERS
 // =============================================================================
@@ -54,32 +178,34 @@ interface EventRedisData {
  * Batch fetch best odds from Redis for all rows with valid keys
  */
 async function fetchBestOddsForRows(
-  rows: Array<{ event_id?: string; market?: string; sel_key?: string }>
+  rows: Array<{ event_id?: string; market?: string; sel_key?: string }>,
 ): Promise<Map<string, BestOddsData | null>> {
   const result = new Map<string, BestOddsData | null>();
-  
+
   // Filter rows that have all required fields for Redis lookup
-  const validRows = rows.filter(r => r.event_id && r.market && r.sel_key);
-  
+  const validRows = rows.filter((r) => r.event_id && r.market && r.sel_key);
+
   if (validRows.length === 0) {
     return result;
   }
-  
+
   // Build Redis keys
-  const keys = validRows.map(r => `bestodds:nba:${r.event_id}:${r.market}:${r.sel_key}`);
-  
+  const keys = validRows.map(
+    (r) => `bestodds:nba:${r.event_id}:${r.market}:${r.sel_key}`,
+  );
+
   try {
     // Batch fetch all keys in one round trip
     const values = await redis.mget<(BestOddsData | null)[]>(...keys);
-    
+
     // Map results back to composite keys for easy lookup
     validRows.forEach((row, i) => {
       const compositeKey = `${row.event_id}:${row.market}:${row.sel_key}`;
       const value = values[i];
-      
+
       // Handle both string and object responses from Redis
       if (value) {
-        if (typeof value === 'string') {
+        if (typeof value === "string") {
           try {
             result.set(compositeKey, JSON.parse(value));
           } catch {
@@ -96,7 +222,7 @@ async function fetchBestOddsForRows(
     console.error("[Hit Rates v2] Redis best odds fetch error:", e);
     // Return empty map on error - gracefully degrade
   }
-  
+
   return result;
 }
 
@@ -105,19 +231,23 @@ async function fetchBestOddsForRows(
  * Uses event feed keys populated by the push ingest pipeline.
  */
 async function fetchEventStartTimes(
-  rows: Array<{ event_id?: string }>
+  rows: Array<{ event_id?: string }>,
 ): Promise<Map<string, string | null>> {
   const result = new Map<string, string | null>();
-  const eventIds = [...new Set(rows.map(r => r.event_id).filter(Boolean))] as string[];
+  const eventIds = [
+    ...new Set(rows.map((r) => r.event_id).filter(Boolean)),
+  ] as string[];
 
   if (eventIds.length === 0) {
     return result;
   }
 
-  const eventKeys = eventIds.map(eventId => `events:nba:${eventId}`);
+  const eventKeys = eventIds.map((eventId) => `events:nba:${eventId}`);
 
   try {
-    const values = await redis.mget<(EventRedisData | string | null)[]>(...eventKeys);
+    const values = await redis.mget<(EventRedisData | string | null)[]>(
+      ...eventKeys,
+    );
     eventIds.forEach((eventId, index) => {
       const raw = values[index];
       if (!raw) {
@@ -147,10 +277,57 @@ async function fetchEventStartTimes(
   return result;
 }
 
+async function fetchPlayerInjuryMetadata(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  rows: Array<{ player_id?: number }>,
+): Promise<Map<number, PlayerInjuryMetadata>> {
+  const result = new Map<number, PlayerInjuryMetadata>();
+  const playerIds = [
+    ...new Set(rows.map((row) => row.player_id).filter(Boolean)),
+  ] as number[];
+
+  if (playerIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("nba_players_hr")
+    .select(
+      "nba_player_id, injury_updated_at, injury_return_date, injury_source, injury_raw_status",
+    )
+    .in("nba_player_id", playerIds);
+
+  if (error) {
+    console.error(
+      "[Hit Rates v2] Player injury metadata fetch error:",
+      error.message,
+    );
+    return result;
+  }
+
+  for (const player of data || []) {
+    result.set(Number(player.nba_player_id), {
+      injuryUpdatedAt: player.injury_updated_at ?? null,
+      injuryReturnDate: player.injury_return_date ?? null,
+      injurySource: player.injury_source ?? null,
+      injuryRawStatus: player.injury_raw_status ?? null,
+    });
+  }
+
+  return result;
+}
+
 // Valid sort fields for hit rates
 const VALID_SORT_FIELDS = [
-  "line", "l5Avg", "l10Avg", "seasonAvg", "streak", 
-  "l5Pct", "l10Pct", "l20Pct", "seasonPct", "h2hPct", "matchupRank"
+  "line",
+  "l5Avg",
+  "l10Avg",
+  "seasonAvg",
+  "streak",
+  "l5Pct",
+  "l10Pct",
+  "l20Pct",
+  "seasonPct",
+  "h2hPct",
+  "matchupRank",
 ] as const;
 
 const QuerySchema = z.object({
@@ -159,7 +336,7 @@ const QuerySchema = z.object({
     .optional()
     .refine(
       (value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value),
-      "date must be YYYY-MM-DD"
+      "date must be YYYY-MM-DD",
     ),
   market: z.string().optional(),
   minHitRate: z.coerce.number().min(0).max(100).optional(),
@@ -180,16 +357,20 @@ const DEFAULT_LIMIT = 500; // Fetch more for client-side sorting
 function getETDate(offsetDays = 0): string {
   const now = new Date();
   now.setDate(now.getDate() + offsetDays);
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(now);
 }
 
 // Generate cache key
-function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean): string {
+function getCacheKey(
+  dates: string[],
+  market?: string | null,
+  hasOdds?: boolean,
+): string {
   const dateKey = dates.sort().join("_");
   const marketKey = market || "all";
   const oddsKey = hasOdds ? "odds" : "all";
@@ -201,8 +382,9 @@ function transformProfile(
   row: any,
   bestOdds: BestOddsData | null,
   eventStartTime: string | null,
+  playerInjuryMetadata: PlayerInjuryMetadata | null,
   paceContext: PaceContext | null,
-  gameLineContext: GameLineContext | null
+  gameLineContext: GameLineContext | null,
 ) {
   const startTime =
     eventStartTime ||
@@ -215,8 +397,10 @@ function transformProfile(
   // Determine matchup quality from dvp_rank
   let matchupQuality: "favorable" | "neutral" | "unfavorable" | null = null;
   if (row.dvp_rank) {
-    if (row.dvp_rank <= 10) matchupQuality = "unfavorable"; // Tough defense
-    else if (row.dvp_rank >= 21) matchupQuality = "favorable"; // Weak defense
+    if (row.dvp_rank <= 10)
+      matchupQuality = "unfavorable"; // Tough defense
+    else if (row.dvp_rank >= 21)
+      matchupQuality = "favorable"; // Weak defense
     else matchupQuality = "neutral";
   }
 
@@ -243,13 +427,22 @@ function transformProfile(
     season_avg: row.season_avg,
     spread: row.spread ?? gameLineContext?.spread ?? null,
     total: row.total ?? gameLineContext?.total ?? null,
-    game_odds_book: gameLineContext?.spreadBook ?? gameLineContext?.totalBook ?? null,
+    game_odds_book:
+      gameLineContext?.spreadBook ?? gameLineContext?.totalBook ?? null,
     spread_book: gameLineContext?.spreadBook ?? null,
     total_book: gameLineContext?.totalBook ?? null,
     spread_clv: row.spread_clv,
     total_clv: row.total_clv,
     injury_status: row.injury_status,
     injury_notes: row.injury_notes,
+    injury_updated_at:
+      row.injury_updated_at ?? playerInjuryMetadata?.injuryUpdatedAt ?? null,
+    injury_return_date:
+      row.injury_return_date ?? playerInjuryMetadata?.injuryReturnDate ?? null,
+    injury_source:
+      row.injury_source ?? playerInjuryMetadata?.injurySource ?? null,
+    injury_raw_status:
+      row.injury_raw_status ?? playerInjuryMetadata?.injuryRawStatus ?? null,
     team_name: row.team_name,
     team_abbr: row.team_abbr,
     opponent_team_name: row.opponent_team_name,
@@ -268,20 +461,24 @@ function transformProfile(
     // New field from v3 RPC - needed for Redis lookup
     sel_key: row.sel_key,
     // Live best odds from Redis
-    best_odds: bestOdds ? {
-      book: bestOdds.best_book,
-      price: bestOdds.best_price,
-      updated_at: bestOdds.updated_at,
-    } : null,
+    best_odds: bestOdds
+      ? {
+          book: bestOdds.best_book,
+          price: bestOdds.best_price,
+          updated_at: bestOdds.updated_at,
+        }
+      : null,
     books: bestOdds?.book_count ?? 0,
     // Player info (now denormalized)
-    nba_players_hr: row.player_name ? {
-      nba_player_id: row.player_id,
-      name: row.player_name,
-      position: row.player_depth_chart_pos || row.player_position,
-      depth_chart_pos: row.player_depth_chart_pos,
-      jersey_number: row.jersey_number,
-    } : null,
+    nba_players_hr: row.player_name
+      ? {
+          nba_player_id: row.player_id,
+          name: row.player_name,
+          position: row.player_depth_chart_pos || row.player_position,
+          depth_chart_pos: row.player_depth_chart_pos,
+          jersey_number: row.jersey_number,
+        }
+      : null,
     // Game info (now denormalized)
     nba_games_hr: {
       game_date: row.game_date,
@@ -291,22 +488,26 @@ function transformProfile(
       start_time: startTime,
     },
     // Team colors (now denormalized - no accent_color in table yet)
-    nba_teams: row.primary_color ? {
-      primary_color: row.primary_color,
-      secondary_color: row.secondary_color,
-      accent_color: null, // Not in table yet
-    } : null,
+    nba_teams: row.primary_color
+      ? {
+          primary_color: row.primary_color,
+          secondary_color: row.secondary_color,
+          accent_color: null, // Not in table yet
+        }
+      : null,
     // Matchup/DvP data (now pre-computed in table - no dvp_avg_allowed yet)
-    matchup: row.dvp_rank ? {
-      player_id: row.player_id,
-      market: row.market,
-      opponent_team_id: row.opponent_team_id,
-      player_position: row.player_depth_chart_pos || row.player_position,
-      matchup_rank: row.dvp_rank,
-      rank_label: row.dvp_label,
-      avg_allowed: null, // Not in table yet
-      matchup_quality: matchupQuality,
-    } : null,
+    matchup: row.dvp_rank
+      ? {
+          player_id: row.player_id,
+          market: row.market,
+          opponent_team_id: row.opponent_team_id,
+          player_position: row.player_depth_chart_pos || row.player_position,
+          matchup_rank: row.dvp_rank,
+          rank_label: row.dvp_label,
+          avg_allowed: null, // Not in table yet
+          matchup_quality: matchupQuality,
+        }
+      : null,
     pace_context: row.pace_context ?? paceContext,
   };
 }
@@ -314,33 +515,33 @@ function transformProfile(
 // Sort data client-side for flexibility
 function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
   const multiplier = sortDir === "asc" ? 1 : -1;
-  
+
   const fieldMap: Record<string, string> = {
-    "line": "line",
-    "l5Avg": "last_5_avg",
-    "l10Avg": "last_10_avg",
-    "seasonAvg": "season_avg",
-    "streak": "hit_streak",
-    "l5Pct": "last_5_pct",
-    "l10Pct": "last_10_pct",
-    "l20Pct": "last_20_pct",
-    "seasonPct": "season_pct",
-    "h2hPct": "h2h_pct",
-    "matchupRank": "dvp_rank",
+    line: "line",
+    l5Avg: "last_5_avg",
+    l10Avg: "last_10_avg",
+    seasonAvg: "season_avg",
+    streak: "hit_streak",
+    l5Pct: "last_5_pct",
+    l10Pct: "last_10_pct",
+    l20Pct: "last_20_pct",
+    seasonPct: "season_pct",
+    h2hPct: "h2h_pct",
+    matchupRank: "dvp_rank",
   };
-  
+
   const dbField = fieldMap[sort];
   if (!dbField) return data;
-  
+
   return [...data].sort((a, b) => {
     const aVal = a[dbField];
     const bVal = b[dbField];
-    
+
     // ALWAYS push nulls to the END of the list
     if (aVal === null && bVal === null) return 0;
-    if (aVal === null) return 1;  // a goes after b
+    if (aVal === null) return 1; // a goes after b
     if (bVal === null) return -1; // b goes after a
-    
+
     return (aVal - bVal) * multiplier;
   });
 }
@@ -359,25 +560,26 @@ function filterData(
   data: any[],
   search?: string,
   market?: string,
-  playerId?: number
+  playerId?: number,
 ): any[] {
   let result = data.filter((row) => !NBA_DROPPED_MARKETS.has(row.market));
 
   if (search?.trim()) {
     const searchLower = search.toLowerCase().trim();
-    result = result.filter(row =>
-      row.player_name?.toLowerCase().includes(searchLower) ||
-      row.team_name?.toLowerCase().includes(searchLower) ||
-      row.team_abbr?.toLowerCase().includes(searchLower)
+    result = result.filter(
+      (row) =>
+        row.player_name?.toLowerCase().includes(searchLower) ||
+        row.team_name?.toLowerCase().includes(searchLower) ||
+        row.team_abbr?.toLowerCase().includes(searchLower),
     );
   }
 
   if (market) {
-    result = result.filter(row => row.market === market);
+    result = result.filter((row) => row.market === market);
   }
 
   if (playerId) {
-    result = result.filter(row => row.player_id === playerId);
+    result = result.filter((row) => row.player_id === playerId);
   }
 
   return result;
@@ -386,7 +588,7 @@ function filterData(
 export async function GET(request: Request) {
   const startTime = Date.now();
   const url = new URL(request.url);
-  
+
   const query = QuerySchema.safeParse({
     date: url.searchParams.get("date") ?? undefined,
     market: url.searchParams.get("market") ?? undefined,
@@ -404,40 +606,40 @@ export async function GET(request: Request) {
   if (!query.success) {
     return NextResponse.json(
       { error: "Invalid query params", details: query.error.flatten() },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  const { 
-    date, 
-    market: rawMarket, 
-    minHitRate, 
-    limit = DEFAULT_LIMIT, 
-    offset = 0, 
-    search, 
+  const {
+    date,
+    market: rawMarket,
+    minHitRate,
+    limit = DEFAULT_LIMIT,
+    offset = 0,
+    search,
     playerId,
     sort = "l10Pct",
     sortDir = "desc",
     skipCache = false,
     hasOdds = true, // Default to only profiles with odds
   } = query.data;
-  
+
   // When no market specified, fetch ALL markets (client filters as needed)
   const market = rawMarket || null;
 
   const todayET = getETDate();
   const tomorrowET = getETDate(1);
-  
+
   // Determine dates to fetch
   const datesToFetch = date ? [date] : [todayET, tomorrowET];
-  
+
   try {
     let allData: any[] = [];
     let cacheHit = false;
-    
+
     // Try cache first (unless search/player filter or skipCache)
     const canUseCache = !search && !playerId && !skipCache;
-    
+
     if (canUseCache) {
       const cacheKey = getCacheKey(datesToFetch, market, hasOdds);
       try {
@@ -445,35 +647,40 @@ export async function GET(request: Request) {
         if (cached && cached.data) {
           allData = cached.data;
           cacheHit = true;
-          console.log(`[Hit Rates v2] Cache HIT (${allData.length} profiles) in ${Date.now() - startTime}ms`);
+          console.log(
+            `[Hit Rates v2] Cache HIT (${allData.length} profiles) in ${Date.now() - startTime}ms`,
+          );
         }
       } catch (e) {
         console.error("[Hit Rates v2] Cache read error:", e);
       }
     }
-    
+
     // Cache miss - fetch from Supabase using FAST RPC
     if (!cacheHit) {
       const supabase = createServerSupabaseClient();
       const dbStartTime = Date.now();
-      
+
       // Call the new optimized RPC function (v3 includes sel_key for Redis lookup)
-      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast_v3", {
-        p_dates: datesToFetch,
-        p_market: market || null,
-        p_has_odds: hasOdds,
-        p_limit: market ? 500 : 3000, // 500 per market, 3000 for all markets
-        p_offset: 0,
-      });
-      
+      const { data, error } = await supabase.rpc(
+        "get_nba_hit_rate_profiles_fast_v3",
+        {
+          p_dates: datesToFetch,
+          p_market: market || null,
+          p_has_odds: hasOdds,
+          p_limit: market ? 500 : 3000, // 500 per market, 3000 for all markets
+          p_offset: 0,
+        },
+      );
+
       if (error) {
         console.error("[Hit Rates v2] RPC error:", error.message);
         return NextResponse.json(
           { error: "Database error", details: error.message },
-          { status: 500 }
+          { status: 500 },
         );
       }
-      
+
       allData = data || [];
 
       // Supplement: DD/TD are singleLine yes/no props that rarely carry
@@ -481,9 +688,14 @@ export async function GET(request: Request) {
       // them out. WNBA's RPC bypasses this gate by default; here we reach
       // the same outcome by re-querying DD/TD with the filter relaxed and
       // merging results. Keeps the rest of the default odds gate intact.
-      const ALWAYS_INCLUDE_MARKETS = ["player_double_double", "player_triple_double"];
+      const ALWAYS_INCLUDE_MARKETS = [
+        "player_double_double",
+        "player_triple_double",
+      ];
       const supplementTargets = market
-        ? ALWAYS_INCLUDE_MARKETS.includes(market) ? [market] : []
+        ? ALWAYS_INCLUDE_MARKETS.includes(market)
+          ? [market]
+          : []
         : ALWAYS_INCLUDE_MARKETS;
       if (hasOdds && supplementTargets.length > 0) {
         const supplements = await Promise.all(
@@ -494,13 +706,16 @@ export async function GET(request: Request) {
               p_has_odds: false,
               p_limit: 500,
               p_offset: 0,
-            })
-          )
+            }),
+          ),
         );
         const seenIds = new Set(allData.map((r: any) => r.id));
         for (const { data: rows, error: supErr } of supplements) {
           if (supErr) {
-            console.warn("[Hit Rates v2] DD/TD supplement error:", supErr.message);
+            console.warn(
+              "[Hit Rates v2] DD/TD supplement error:",
+              supErr.message,
+            );
             continue;
           }
           for (const row of rows ?? []) {
@@ -513,68 +728,113 @@ export async function GET(request: Request) {
       }
 
       const dbTime = Date.now() - dbStartTime;
-      const withOddsCount = allData.filter((r: any) => r.odds_selection_id).length;
-      console.log(`[Hit Rates v2] RPC fetch: ${allData.length} profiles (${withOddsCount} with odds) in ${dbTime}ms`);
-      
+      const withOddsCount = allData.filter(
+        (r: any) => r.odds_selection_id,
+      ).length;
+      console.log(
+        `[Hit Rates v2] RPC fetch: ${allData.length} profiles (${withOddsCount} with odds) in ${dbTime}ms`,
+      );
+
       // Cache the data
       if (canUseCache && allData.length > 0) {
         const cacheKey = getCacheKey(datesToFetch, market, hasOdds);
-        redis.set(cacheKey, {
-          data: allData,
-          ts: Date.now(),
-        }, { ex: CACHE_TTL_SECONDS }).catch(e => 
-          console.error("[Hit Rates v2] Cache write error:", e)
-        );
+        redis
+          .set(
+            cacheKey,
+            {
+              data: allData,
+              ts: Date.now(),
+            },
+            { ex: CACHE_TTL_SECONDS },
+          )
+          .catch((e) => console.error("[Hit Rates v2] Cache write error:", e));
       }
     }
-    
+
+    const enrichmentSupabase = createServerSupabaseClient();
+    allData = await hydrateSingleLineOddsContext(
+      allData,
+      enrichmentSupabase,
+      datesToFetch,
+    );
+
     // Apply client-side filters (for search/playerId which bypass cache)
     let filteredData = filterData(allData, search, undefined, playerId);
-    
+
     // Apply sorting
     filteredData = sortData(filteredData, sort, sortDir);
-    
+
     // Apply min hit rate filter if specified
     if (minHitRate) {
-      filteredData = filteredData.filter(row => 
-        row.last_10_pct !== null && row.last_10_pct >= minHitRate
+      filteredData = filteredData.filter(
+        (row) => row.last_10_pct !== null && row.last_10_pct >= minHitRate,
       );
     }
-    
+
     // Apply pagination
     const paginatedData = filteredData.slice(offset, offset + limit);
-    
+
     // Fetch live best odds from Redis for paginated rows
     const bestOddsStartTime = Date.now();
     const bestOddsMap = await fetchBestOddsForRows(paginatedData);
     const bestOddsTime = Date.now() - bestOddsStartTime;
-    console.log(`[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${bestOddsTime}ms`);
+    console.log(
+      `[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${bestOddsTime}ms`,
+    );
 
     // Fetch event start times from Redis for favorites/expiry workflows
     const eventStartTimes = await fetchEventStartTimes(paginatedData);
-    const supabase = createServerSupabaseClient();
-    const paceContextMap = await fetchPaceContextsForRows(supabase, "nba", paginatedData);
-    const gameLineContextMap = await fetchGameLineContextsForRows("nba", paginatedData);
-    
+    const playerInjuryMetadataMap = await fetchPlayerInjuryMetadata(
+      enrichmentSupabase,
+      paginatedData,
+    );
+    const paceContextMap = await fetchPaceContextsForRows(
+      enrichmentSupabase,
+      "nba",
+      paginatedData,
+    );
+    const gameLineContextMap = await fetchGameLineContextsForRows(
+      "nba",
+      paginatedData,
+    );
+
     // Transform to frontend format with best odds merged
-    const transformedData = paginatedData.map(row => {
+    const transformedData = paginatedData.map((row) => {
       // Build composite key for lookup
-      const compositeKey = row.event_id && row.market && row.sel_key 
-        ? `${row.event_id}:${row.market}:${row.sel_key}` 
+      const compositeKey =
+        row.event_id && row.market && row.sel_key
+          ? `${row.event_id}:${row.market}:${row.sel_key}`
+          : null;
+      const bestOdds = compositeKey
+        ? (bestOddsMap.get(compositeKey) ?? null)
         : null;
-      const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
-      const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
+      const eventStartTime = row.event_id
+        ? (eventStartTimes.get(row.event_id) ?? null)
+        : null;
+      const playerInjuryMetadata = row.player_id
+        ? (playerInjuryMetadataMap.get(row.player_id) ?? null)
+        : null;
       const paceContext = paceContextMap.get(getPaceContextKey(row)) ?? null;
-      const gameLineContext = gameLineContextMap.get(getGameLineContextKey(row)) ?? null;
-      return transformProfile(row, bestOdds, eventStartTime, paceContext, gameLineContext);
+      const gameLineContext =
+        gameLineContextMap.get(getGameLineContextKey(row)) ?? null;
+      return transformProfile(
+        row,
+        bestOdds,
+        eventStartTime,
+        playerInjuryMetadata,
+        paceContext,
+        gameLineContext,
+      );
     });
-    
+
     // Get unique dates from response
-    const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
+    const availableDates = [
+      ...new Set(allData.map((r: any) => r.game_date)),
+    ].sort();
     const primaryDate = availableDates[0] || todayET;
-    
+
     const responseTime = Date.now() - startTime;
-    
+
     return NextResponse.json(
       {
         data: transformedData,
@@ -595,13 +855,13 @@ export async function GET(request: Request) {
         headers: {
           "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
         },
-      }
+      },
     );
   } catch (error) {
     console.error("[Hit Rates v2] Unexpected error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -51,6 +51,10 @@ export interface RawHitRateProfile {
   total_book?: string | null;
   injury_status: string | null;
   injury_notes: string | null;
+  injury_updated_at?: string | null;
+  injury_return_date?: string | null;
+  injury_source?: string | null;
+  injury_raw_status?: string | null;
   position: string | null;
   jersey_number: number | null;
   batting_hand?: string | null;
@@ -132,6 +136,10 @@ export interface HitRateProfile {
   totalBook?: string | null;
   injuryStatus: string | null;
   injuryNotes: string | null;
+  injuryUpdatedAt: string | null;
+  injuryReturnDate: string | null;
+  injurySource: string | null;
+  injuryRawStatus: string | null;
   position: string | null;
   jerseyNumber: number | null;
   battingHand: string | null;

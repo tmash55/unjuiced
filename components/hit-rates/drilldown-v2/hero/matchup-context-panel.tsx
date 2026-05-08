@@ -66,7 +66,8 @@ function PaceTab({ profile, sport }: { profile: HitRateProfile; sport: "nba" | "
   );
   const { teams, totalTeams, isLoading } = useTeamPace({
     teamIds,
-    enabled: !hasEmbeddedPace && sport === "nba" && teamIds.length > 0,
+    sport,
+    enabled: !hasEmbeddedPace && teamIds.length > 0,
   });
 
   if (!hasEmbeddedPace && isLoading) {
@@ -89,7 +90,7 @@ function PaceTab({ profile, sport }: { profile: HitRateProfile; sport: "nba" | "
     : profile.opponentTeamId
       ? teams[String(profile.opponentTeamId)]
       : null;
-  const paceTotalTeams = totalTeams || (sport === "nba" ? 30 : 15);
+  const paceTotalTeams = totalTeams || (sport === "nba" ? 30 : 13);
 
   if (!playerRow && !oppRow) {
     return (

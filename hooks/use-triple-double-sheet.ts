@@ -91,10 +91,15 @@ async function fetchSheet(): Promise<TripleDoubleSheetResponse> {
   }
 }
 
-export function useTripleDoubleSheet() {
+export function useTripleDoubleSheet({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   return useQuery({
     queryKey: ["triple-double-sheet"],
     queryFn: fetchSheet,
+    enabled,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
