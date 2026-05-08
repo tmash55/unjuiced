@@ -5,6 +5,7 @@ import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { useTeamRoster } from "@/hooks/use-team-roster";
+import { useLineup, type LineupPlayer, type TeamLineup } from "@/hooks/use-lineup";
 import {
   usePlayerGamesWithInjuries,
   usePlayersOutForFilter,
@@ -173,6 +174,39 @@ export function PlayerDrilldownV2({
     sport,
     enabled: !!profile.opponentTeamId,
   });
+
+  // Daily lineup feed for tonight's matchup — drives the "Starter / Bench /
+  // Projected vs Confirmed" badges in the Roster tab. Falls back to teamId+date
+  // when gameId is missing client-side. We pull the whole game (both sides)
+  // off a single gameId-keyed query so the Roster tab can show both teams.
+  const lineupQuery = useLineup({
+    gameId: profile.gameId,
+    teamId: profile.teamId ?? null,
+    date: profile.gameDate ?? null,
+    sport,
+    enabled: !!(profile.gameId || (profile.teamId && profile.gameDate)),
+  });
+
+  // Quick-lookup map: nba_player_id → LineupPlayer for the active player's
+  // team. The roster table joins on this to surface starter slot, lineup
+  // status (confirmed/expected/may_not_play) and play probability.
+  const lineupByPlayerId = useMemo(() => {
+    const map = new Map<number, LineupPlayer>();
+    const playerTeamId = profile.teamId;
+    if (playerTeamId == null) return map;
+    const playerTeam = lineupQuery.teams.find((t) => t.teamId === playerTeamId);
+    if (!playerTeam) return map;
+    for (const p of playerTeam.players) {
+      if (p.playerId != null) map.set(p.playerId, p);
+    }
+    return map;
+  }, [lineupQuery.teams, profile.teamId]);
+
+  const playerTeamLineup: TeamLineup | null = useMemo(() => {
+    const teamId = profile.teamId;
+    if (teamId == null) return null;
+    return lineupQuery.teams.find((t) => t.teamId === teamId) ?? null;
+  }, [lineupQuery.teams, profile.teamId]);
 
   // Per-game injury context — used to (a) render "Teammates Out" in each bar's
   // hover tooltip and (b) filter the chart by With/Without teammate filters.
@@ -600,6 +634,9 @@ export function PlayerDrilldownV2({
         onTeammateFilterToggle={toggleTeammate}
         isLoadingGames={isLoadingBoxScores}
         isLoadingRoster={rosterQuery.isLoading}
+        lineupByPlayerId={lineupByPlayerId}
+        teamLineup={playerTeamLineup}
+        isLoadingLineup={lineupQuery.isLoading}
         activeLine={effectiveLine}
         onLineSelect={(line) => setCustomLine(line)}
         chartRange={chartRange}

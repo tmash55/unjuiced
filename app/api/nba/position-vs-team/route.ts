@@ -7,9 +7,23 @@ const QuerySchema = z.object({
   position: z.string().min(1),
   opponentTeamId: z.coerce.number().int().positive(),
   market: z.string().min(1),
-  season: z.string().nullish().transform(v => v ?? "2025-26"),
-  limit: z.coerce.number().int().min(1).max(100).nullish().transform(v => v ?? 50),
-  minMinutes: z.coerce.number().int().min(0).nullish().transform(v => v ?? 0),
+  season: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? "2025-26"),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .nullish()
+    .transform((v) => v ?? 50),
+  minMinutes: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .nullish()
+    .transform((v) => v ?? 0),
 });
 
 // RPC response structure
@@ -66,6 +80,9 @@ interface PositionVsTeamPlayer {
   closingPriceUnder: number | null;
   hitOver: boolean | null;
   gameDate: string;
+  teamScore: number | null;
+  opponentScore: number | null;
+  result: "W" | "L" | null;
   pts: number;
   reb: number;
   ast: number;
@@ -99,10 +116,79 @@ interface PositionVsTeamResponse {
   market: string;
 }
 
+async function attachGameScores(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  players: PositionVsTeamPlayer[],
+): Promise<PositionVsTeamPlayer[]> {
+  if (players.length === 0) return players;
+
+  const playerIds = Array.from(
+    new Set(players.map((player) => player.playerId)),
+  );
+  const gameDates = Array.from(
+    new Set(players.map((player) => player.gameDate)),
+  );
+
+  const { data: boxRows } = await supabase
+    .from("nba_player_box_scores")
+    .select("player_id, game_date, game_id, home_away")
+    .in("player_id", playerIds)
+    .in("game_date", gameDates);
+
+  const boxByPlayerDate = new Map<
+    string,
+    { game_id: number | null; home_away: string | null }
+  >();
+  for (const row of boxRows ?? []) {
+    boxByPlayerDate.set(`${row.player_id}:${row.game_date}`, {
+      game_id: row.game_id,
+      home_away: row.home_away,
+    });
+  }
+
+  const gameIds = Array.from(
+    new Set(
+      (boxRows ?? [])
+        .map((row) => row.game_id)
+        .filter((id): id is number => id != null),
+    ),
+  );
+  if (gameIds.length === 0) return players;
+
+  const { data: games } = await supabase
+    .from("nba_games_hr")
+    .select("game_id, home_team_score, away_team_score")
+    .in("game_id", gameIds);
+
+  const gameById = new Map((games ?? []).map((game) => [game.game_id, game]));
+
+  return players.map((player) => {
+    const box = boxByPlayerDate.get(`${player.playerId}:${player.gameDate}`);
+    const game = box?.game_id != null ? gameById.get(box.game_id) : null;
+    if (!game) return player;
+
+    const isHome = (box?.home_away ?? "").toUpperCase() === "H";
+    const teamScore = isHome ? game.home_team_score : game.away_team_score;
+    const opponentScore = isHome ? game.away_team_score : game.home_team_score;
+
+    return {
+      ...player,
+      teamScore,
+      opponentScore,
+      result:
+        teamScore == null || opponentScore == null
+          ? null
+          : teamScore > opponentScore
+            ? "W"
+            : "L",
+    };
+  });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    
+
     const parsed = QuerySchema.safeParse({
       position: searchParams.get("position"),
       opponentTeamId: searchParams.get("opponentTeamId"),
@@ -115,11 +201,12 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request", details: parsed.error.flatten() },
-        { status: 400, headers: { "Cache-Control": "no-store" } }
+        { status: 400, headers: { "Cache-Control": "no-store" } },
       );
     }
 
-    const { position, opponentTeamId, market, season, limit, minMinutes } = parsed.data;
+    const { position, opponentTeamId, market, season, limit, minMinutes } =
+      parsed.data;
 
     const supabase = createServerSupabaseClient();
 
@@ -133,19 +220,25 @@ export async function GET(req: NextRequest) {
     const opponentTeamAbbr = opponentTeam?.abbreviation || "UNK";
 
     // Call the RPC function
-    const { data: rpcResult, error } = await supabase.rpc("get_positional_matchup_stats", {
-      p_position: position,
-      p_opponent_team_id: opponentTeamId,
-      p_market: market,
-      p_season: season,
-      p_limit: limit,
-    });
+    const { data: rpcResult, error } = await supabase.rpc(
+      "get_positional_matchup_stats",
+      {
+        p_position: position,
+        p_opponent_team_id: opponentTeamId,
+        p_market: market,
+        p_season: season,
+        p_limit: limit,
+      },
+    );
 
     if (error) {
       console.error("[Position vs Team] RPC error:", error);
       return NextResponse.json(
-        { error: "Failed to fetch position vs team data", details: error.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        {
+          error: "Failed to fetch position vs team data",
+          details: error.message,
+        },
+        { status: 500, headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -170,60 +263,84 @@ export async function GET(req: NextRequest) {
     const data = rpcResult as RpcResponse;
 
     // Map recent games to frontend format and filter by minMinutes
-    const players: PositionVsTeamPlayer[] = (data.recent_games || [])
+    const basePlayers = (data.recent_games || [])
       .filter((game) => game.minutes >= minMinutes)
       .map((game) => ({
         playerId: game.player_id,
-      playerName: game.player_name,
-      teamAbbr: game.team_abbr,
+        playerName: game.player_name,
+        teamAbbr: game.team_abbr,
         position: game.position || position, // Use player's actual position, fallback to queried
-      stat: game.stat,
+        stat: game.stat,
         closingLine: game.closing_line,
         closingPriceOver: game.closing_price_over,
         closingPriceUnder: game.closing_price_under,
         hitOver: game.hit_over,
-      gameDate: game.date,
-      pts: game.pts,
-      reb: game.reb,
-      ast: game.ast,
+        gameDate: game.date,
+        teamScore: null,
+        opponentScore: null,
+        result: null,
+        pts: game.pts,
+        reb: game.reb,
+        ast: game.ast,
         fg3m: game.fg3m,
         stl: game.stl,
         blk: game.blk,
         tov: game.tov,
         fgm: game.fgm,
         fga: game.fga,
-      minutes: game.minutes,
-    }));
+        minutes: game.minutes,
+      }));
+
+    const players = await attachGameScores(supabase, basePlayers);
 
     // Recalculate stats based on filtered players
-    const stats = players.map(p => p.stat);
-    const avgStat = stats.length > 0 ? stats.reduce((a, b) => a + b, 0) / stats.length : 0;
+    const stats = players.map((p) => p.stat);
+    const avgStat =
+      stats.length > 0 ? stats.reduce((a, b) => a + b, 0) / stats.length : 0;
     const minStat = stats.length > 0 ? Math.min(...stats) : 0;
     const maxStat = stats.length > 0 ? Math.max(...stats) : 0;
-    const uniquePlayerIds = new Set(players.map(p => p.playerId));
-    
+    const uniquePlayerIds = new Set(players.map((p) => p.playerId));
+
     // Recalculate closing line stats for filtered players
-    const playersWithLines = players.filter(p => p.closingLine !== null);
-    const overHits = playersWithLines.filter(p => p.hitOver === true).length;
-    const underHits = playersWithLines.filter(p => p.hitOver === false).length;
-    const pushes = playersWithLines.filter(p => p.hitOver === null && p.closingLine !== null).length;
+    const playersWithLines = players.filter((p) => p.closingLine !== null);
+    const overHits = playersWithLines.filter((p) => p.hitOver === true).length;
+    const underHits = playersWithLines.filter(
+      (p) => p.hitOver === false,
+    ).length;
+    const pushes = playersWithLines.filter(
+      (p) => p.hitOver === null && p.closingLine !== null,
+    ).length;
 
     const response: PositionVsTeamResponse = {
       players,
       avgStat: avgStat,
       minStat: minStat,
       maxStat: maxStat,
-      avgPoints: players.length > 0 ? players.reduce((a, b) => a + b.pts, 0) / players.length : 0,
-      avgRebounds: players.length > 0 ? players.reduce((a, b) => a + b.reb, 0) / players.length : 0,
-      avgAssists: players.length > 0 ? players.reduce((a, b) => a + b.ast, 0) / players.length : 0,
-      avgClosingLine: playersWithLines.length > 0 
-        ? playersWithLines.reduce((a, b) => a + (b.closingLine ?? 0), 0) / playersWithLines.length 
-        : null,
+      avgPoints:
+        players.length > 0
+          ? players.reduce((a, b) => a + b.pts, 0) / players.length
+          : 0,
+      avgRebounds:
+        players.length > 0
+          ? players.reduce((a, b) => a + b.reb, 0) / players.length
+          : 0,
+      avgAssists:
+        players.length > 0
+          ? players.reduce((a, b) => a + b.ast, 0) / players.length
+          : 0,
+      avgClosingLine:
+        playersWithLines.length > 0
+          ? playersWithLines.reduce((a, b) => a + (b.closingLine ?? 0), 0) /
+            playersWithLines.length
+          : null,
       gamesWithLines: playersWithLines.length,
       overHitCount: overHits,
       underHitCount: underHits,
       pushCount: pushes,
-      overHitRate: playersWithLines.length > 0 ? Math.round((overHits / playersWithLines.length) * 100) : null,
+      overHitRate:
+        playersWithLines.length > 0
+          ? Math.round((overHits / playersWithLines.length) * 100)
+          : null,
       totalGames: players.length,
       playerCount: uniquePlayerIds.size,
       position,
@@ -233,15 +350,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control":
+          "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
       },
     });
   } catch (error: any) {
     console.error("[/api/nba/position-vs-team] Error:", error);
     return NextResponse.json(
       { error: "internal_error", message: error?.message || "" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
-

@@ -447,11 +447,14 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
   }, []);
 
-  // Player drill-down handler for TABLE clicks
+  // Player drill-down handler for TABLE clicks. Forces v=2 so users land on
+  // the new drilldown layout (the legacy version is still reachable via
+  // direct link without the flag during rollout).
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
     saveFilterState();
     const params = new URLSearchParams({
       market: player.market,
+      v: "2",
     });
     const profileDate = player.gameDate || effectiveDate || apiPrimaryDate || undefined;
     if (profileDate) {

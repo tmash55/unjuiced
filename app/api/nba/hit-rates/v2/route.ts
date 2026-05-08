@@ -346,31 +346,40 @@ function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
 }
 
 // Filter data by search/market/player
+// Legacy market keys that duplicate canonical ones in the source profiles
+// table (1q_player_* shadows 1st_quarter_player_* with stale/zeroed values).
+// Drop them at the API boundary so they don't appear as ghost market tabs.
+const NBA_DROPPED_MARKETS = new Set<string>([
+  "1q_player_points",
+  "1q_player_assists",
+  "1q_player_rebounds",
+]);
+
 function filterData(
-  data: any[], 
-  search?: string, 
-  market?: string, 
+  data: any[],
+  search?: string,
+  market?: string,
   playerId?: number
 ): any[] {
-  let result = data;
-  
+  let result = data.filter((row) => !NBA_DROPPED_MARKETS.has(row.market));
+
   if (search?.trim()) {
     const searchLower = search.toLowerCase().trim();
-    result = result.filter(row => 
+    result = result.filter(row =>
       row.player_name?.toLowerCase().includes(searchLower) ||
       row.team_name?.toLowerCase().includes(searchLower) ||
       row.team_abbr?.toLowerCase().includes(searchLower)
     );
   }
-  
+
   if (market) {
     result = result.filter(row => row.market === market);
   }
-  
+
   if (playerId) {
     result = result.filter(row => row.player_id === playerId);
   }
-  
+
   return result;
 }
 
@@ -466,7 +475,43 @@ export async function GET(request: Request) {
       }
       
       allData = data || [];
-      
+
+      // Supplement: DD/TD are singleLine yes/no props that rarely carry
+      // live two-sided odds, so the default has_live_odds=true gate filters
+      // them out. WNBA's RPC bypasses this gate by default; here we reach
+      // the same outcome by re-querying DD/TD with the filter relaxed and
+      // merging results. Keeps the rest of the default odds gate intact.
+      const ALWAYS_INCLUDE_MARKETS = ["player_double_double", "player_triple_double"];
+      const supplementTargets = market
+        ? ALWAYS_INCLUDE_MARKETS.includes(market) ? [market] : []
+        : ALWAYS_INCLUDE_MARKETS;
+      if (hasOdds && supplementTargets.length > 0) {
+        const supplements = await Promise.all(
+          supplementTargets.map((m) =>
+            supabase.rpc("get_nba_hit_rate_profiles_fast_v3", {
+              p_dates: datesToFetch,
+              p_market: m,
+              p_has_odds: false,
+              p_limit: 500,
+              p_offset: 0,
+            })
+          )
+        );
+        const seenIds = new Set(allData.map((r: any) => r.id));
+        for (const { data: rows, error: supErr } of supplements) {
+          if (supErr) {
+            console.warn("[Hit Rates v2] DD/TD supplement error:", supErr.message);
+            continue;
+          }
+          for (const row of rows ?? []) {
+            if (!seenIds.has(row.id)) {
+              allData.push(row);
+              seenIds.add(row.id);
+            }
+          }
+        }
+      }
+
       const dbTime = Date.now() - dbStartTime;
       const withOddsCount = allData.filter((r: any) => r.odds_selection_id).length;
       console.log(`[Hit Rates v2] RPC fetch: ${allData.length} profiles (${withOddsCount} with odds) in ${dbTime}ms`);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
@@ -50,6 +50,12 @@ export function MarketScroller({
   onMarketChange,
 }: MarketScrollerProps) {
   const activeRef = useRef<HTMLButtonElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  // Edge fades hint at horizontal overflow — but only render them when there's
+  // actually something scrolled past on that side. Otherwise they wash out the
+  // first/last tab text (the "P" of Points was getting clipped).
+  const [showLeftFade, setShowLeftFade] = useState(false);
+  const [showRightFade, setShowRightFade] = useState(false);
 
   // Dedupe markets across profiles, then sort to canonical props.cash order.
   const seen = new Set<string>();
@@ -76,13 +82,44 @@ export function MarketScroller({
     }
   }, [selectedMarket]);
 
+  // Toggle fade visibility based on actual scroll position. 4px tolerance
+  // avoids sub-pixel jitter at the edges.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setShowLeftFade(scrollLeft > 4);
+      setShowRightFade(scrollLeft + clientWidth < scrollWidth - 4);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [items.length]);
+
   return (
     <div className="relative">
-      {/* Edge fades hint at horizontal overflow without a scrollbar */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent dark:from-neutral-950" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-white to-transparent dark:from-neutral-950" />
+      {/* Edge fades — only show when there's actually overflow on that side. */}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent transition-opacity duration-150 dark:from-neutral-950",
+          showLeftFade ? "opacity-100" : "opacity-0"
+        )}
+      />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-white to-transparent transition-opacity duration-150 dark:from-neutral-950",
+          showRightFade ? "opacity-100" : "opacity-0"
+        )}
+      />
 
       <div
+        ref={scrollerRef}
         role="tablist"
         aria-label="Player market"
         className="flex items-end gap-5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

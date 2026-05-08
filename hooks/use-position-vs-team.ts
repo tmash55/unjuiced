@@ -13,6 +13,9 @@ export interface PositionVsTeamPlayer {
   closingPriceUnder: number | null;
   hitOver: boolean | null;
   gameDate: string;
+  teamScore: number | null;
+  opponentScore: number | null;
+  result: "W" | "L" | null;
   pts: number;
   reb: number;
   ast: number;
@@ -66,14 +69,14 @@ async function fetchPositionVsTeam(
   sport: "nba" | "wnba",
   season?: string,
   limit?: number,
-  minMinutes?: number
+  minMinutes?: number,
 ): Promise<PositionVsTeamResponse> {
   const params = new URLSearchParams({
     position,
     opponentTeamId: String(opponentTeamId),
     market,
   });
-  
+
   if (season) {
     params.set("season", season);
   }
@@ -84,7 +87,9 @@ async function fetchPositionVsTeam(
     params.set("minMinutes", String(minMinutes));
   }
 
-  const res = await fetch(`/api/${sport}/position-vs-team?${params.toString()}`);
+  const res = await fetch(
+    `/api/${sport}/position-vs-team?${params.toString()}`,
+  );
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -95,13 +100,40 @@ async function fetchPositionVsTeam(
 }
 
 export function usePositionVsTeam(options: UsePositionVsTeamOptions) {
-  const { position, opponentTeamId, market, sport = "nba", season, limit, minMinutes, enabled = true } = options;
+  const {
+    position,
+    opponentTeamId,
+    market,
+    sport = "nba",
+    season,
+    limit,
+    minMinutes,
+    enabled = true,
+  } = options;
 
   const isValid = !!position && !!opponentTeamId && !!market;
 
   const query = useQuery<PositionVsTeamResponse>({
-    queryKey: ["position-vs-team", sport, position, opponentTeamId, market, season, limit, minMinutes],
-    queryFn: () => fetchPositionVsTeam(position!, opponentTeamId!, market!, sport, season, limit, minMinutes),
+    queryKey: [
+      "position-vs-team",
+      sport,
+      position,
+      opponentTeamId,
+      market,
+      season,
+      limit,
+      minMinutes,
+    ],
+    queryFn: () =>
+      fetchPositionVsTeam(
+        position!,
+        opponentTeamId!,
+        market!,
+        sport,
+        season,
+        limit,
+        minMinutes,
+      ),
     enabled: enabled && isValid,
     staleTime: 5 * 60_000, // 5 minutes (historical data doesn't change often)
     gcTime: 10 * 60_000, // 10 minutes

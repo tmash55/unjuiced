@@ -721,13 +721,23 @@ function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
   });
 }
 
+// Legacy market keys that duplicate canonical ones in the source profiles
+// table. They typically carry stale/zeroed numbers and would render as ghost
+// tabs in the market scroller. Drop them at the API boundary so every WNBA
+// surface stays clean.
+const WNBA_DROPPED_MARKETS = new Set<string>([
+  "1q_player_points",
+  "1q_player_assists",
+  "1q_player_rebounds",
+]);
+
 function filterData(
   data: any[],
   search?: string,
   market?: string,
   playerId?: number
 ): any[] {
-  let result = data;
+  let result = data.filter((row) => !WNBA_DROPPED_MARKETS.has(row.market));
 
   if (search?.trim()) {
     const searchLower = search.toLowerCase().trim();
