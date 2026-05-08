@@ -26,7 +26,9 @@
  * on pre-computed data, which is CPU-bound and fast (no Redis round-trips).
  */
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const preferredRegion = "iad1";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPreset } from "@/lib/odds/presets";
@@ -156,7 +158,7 @@ interface OpportunitiesResponse {
 
 const OPPS_CACHE_PREFIX = "v2:opps:";
 const OPPS_CACHE_TTL = 45; // seconds
-const OPPS_MAX_CACHE_BYTES = 750_000;
+const OPPS_MAX_CACHE_BYTES = 3_000_000;
 const SPORT_FETCH_CONCURRENCY = 4;
 const MAX_RESPONSE_LIMIT = 2_000;
 
@@ -187,13 +189,14 @@ function buildFiltersCacheKey(params: URLSearchParams, blend: BookWeight[] | nul
   const minBooksPerSide = params.get("minBooksPerSide") || "2";
   const requireTwoWay = params.get("requireTwoWay") || "false";
   const marketType = params.get("marketType") || "";
+  const marketLines = params.get("marketLines") || "";
   const blendKey = blend
     ? blend
         .map((b) => `${canonicalizeBookId(b.book)}:${b.weight}`)
         .sort()
         .join(",")
     : canonicalizeBookId(params.get("preset") || "default");
-  const raw = `${sports}|${markets}|${minOdds}|${maxOdds}|${minEdge}|${minEV}|${limit}|${sort}|${requireFullBlend}|${minBooksPerSide}|${requireTwoWay}|${marketType}|${blendKey}`;
+  const raw = `${sports}|${markets}|${marketLines}|${minOdds}|${maxOdds}|${minEdge}|${minEV}|${limit}|${sort}|${requireFullBlend}|${minBooksPerSide}|${requireTwoWay}|${marketType}|${blendKey}`;
   return hashCacheKey(raw);
 }
 

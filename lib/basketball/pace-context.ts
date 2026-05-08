@@ -112,6 +112,9 @@ export function normalizeBasketballSeasonType(
   gameDate?: string | null
 ) {
   const normalized = String(seasonType || "").toLowerCase();
+  if (/\b(cup|in-season|ist|emirates|commissioner)\b/.test(normalized)) {
+    return "Regular Season";
+  }
   if (normalized.includes("playoff") || normalized.includes("round") || normalized.includes("final")) {
     return "Playoffs";
   }

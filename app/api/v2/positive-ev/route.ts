@@ -26,7 +26,9 @@
  * the frontend requires no changes.
  */
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const preferredRegion = "iad1";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";

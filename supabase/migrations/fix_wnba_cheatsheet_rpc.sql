@@ -128,14 +128,7 @@ BEGIN
     h.over_price_decimal                              AS over_odds_decimal,
 
     -- Hit rate (0–1) selected by time window
-    COALESCE(
-      CASE v_hit_col
-        WHEN 'last_5_pct'  THEN h.last_5_pct
-        WHEN 'last_20_pct' THEN h.last_20_pct
-        WHEN 'season_pct'  THEN h.season_pct
-        ELSE                    h.last_10_pct
-      END, 0
-    ) / 100.0                                         AS hit_rate,
+    selected.selected_hit_pct / 100.0                  AS hit_rate,
 
     COALESCE(h.last_5_pct,  0) / 100.0               AS last_5_pct,
     COALESCE(h.last_10_pct, 0) / 100.0               AS last_10_pct,
@@ -144,91 +137,40 @@ BEGIN
     COALESCE(h.hit_streak,  0)                        AS hit_streak,
 
     -- avg_stat selected by time window
-    COALESCE(
-      CASE v_avg_col
-        WHEN 'last_5_avg'  THEN h.last_5_avg
-        WHEN 'last_20_avg' THEN h.last_20_avg
-        WHEN 'season_avg'  THEN h.season_avg
-        ELSE                    h.last_10_avg
-      END, 0
-    )                                                 AS avg_stat,
+    selected.selected_avg                              AS avg_stat,
 
     -- edge = avg_stat - line
-    COALESCE(
-      CASE v_avg_col
-        WHEN 'last_5_avg'  THEN h.last_5_avg
-        WHEN 'last_20_avg' THEN h.last_20_avg
-        WHEN 'season_avg'  THEN h.season_avg
-        ELSE                    h.last_10_avg
-      END, h.line
-    ) - h.line                                        AS edge,
+    score_parts.edge_value                             AS edge,
 
     -- edge_pct = (avg_stat / line - 1) * 100, guarded against div-by-zero
-    CASE WHEN COALESCE(h.line, 0) > 0 THEN
-      (COALESCE(
-        CASE v_avg_col
-          WHEN 'last_5_avg'  THEN h.last_5_avg
-          WHEN 'last_20_avg' THEN h.last_20_avg
-          WHEN 'season_avg'  THEN h.season_avg
-          ELSE                    h.last_10_avg
-        END, h.line
-      ) / h.line - 1.0) * 100.0
-    ELSE 0
-    END                                               AS edge_pct,
+    score_parts.edge_pct_value                         AS edge_pct,
 
     h.dvp_rank,
     NULL::NUMERIC                                     AS dvp_avg,
 
-    -- matchup_quality from dvp_rank (WNBA has 12 teams → ranks 1–12)
+    -- matchup_quality from dvp_rank. Uses the team count from the DvP season
+    -- in play, so 2026 opening day can still use 2025's 13-team scale until
+    -- 2026 DvP rows exist, then expand to the 15-team scale.
     CASE
       WHEN h.dvp_rank IS NULL   THEN 'neutral'
-      WHEN h.dvp_rank >= 9      THEN 'favorable'
-      WHEN h.dvp_rank <= 3      THEN 'unfavorable'
+      WHEN h.dvp_rank >= dvp_context.total_teams - GREATEST(1, FLOOR(dvp_context.total_teams / 3.0))::INT + 1
+        THEN 'favorable'
+      WHEN h.dvp_rank <= GREATEST(1, FLOOR(dvp_context.total_teams / 3.0))::INT
+        THEN 'unfavorable'
       ELSE                           'neutral'
     END                                               AS matchup_quality,
 
-    -- confidence_grade: simple bucket from hit rate
+    -- confidence_grade: bucket from composite confidence score
     CASE
-      WHEN COALESCE(
-        CASE v_hit_col
-          WHEN 'last_5_pct'  THEN h.last_5_pct
-          WHEN 'last_20_pct' THEN h.last_20_pct
-          WHEN 'season_pct'  THEN h.season_pct
-          ELSE                    h.last_10_pct
-        END, 0) >= 90 THEN 'A+'
-      WHEN COALESCE(
-        CASE v_hit_col
-          WHEN 'last_5_pct'  THEN h.last_5_pct
-          WHEN 'last_20_pct' THEN h.last_20_pct
-          WHEN 'season_pct'  THEN h.season_pct
-          ELSE                    h.last_10_pct
-        END, 0) >= 80 THEN 'A'
-      WHEN COALESCE(
-        CASE v_hit_col
-          WHEN 'last_5_pct'  THEN h.last_5_pct
-          WHEN 'last_20_pct' THEN h.last_20_pct
-          WHEN 'season_pct'  THEN h.season_pct
-          ELSE                    h.last_10_pct
-        END, 0) >= 70 THEN 'B+'
-      WHEN COALESCE(
-        CASE v_hit_col
-          WHEN 'last_5_pct'  THEN h.last_5_pct
-          WHEN 'last_20_pct' THEN h.last_20_pct
-          WHEN 'season_pct'  THEN h.season_pct
-          ELSE                    h.last_10_pct
-        END, 0) >= 60 THEN 'B'
+      WHEN confidence.composite_score >= 90 THEN 'A+'
+      WHEN confidence.composite_score >= 80 THEN 'A'
+      WHEN confidence.composite_score >= 70 THEN 'B+'
+      WHEN confidence.composite_score >= 60 THEN 'B'
       ELSE 'C'
     END                                               AS confidence_grade,
 
-    -- confidence_score (0–100)
-    COALESCE(
-      CASE v_hit_col
-        WHEN 'last_5_pct'  THEN h.last_5_pct
-        WHEN 'last_20_pct' THEN h.last_20_pct
-        WHEN 'season_pct'  THEN h.season_pct
-        ELSE                    h.last_10_pct
-      END, 0
-    )                                                 AS confidence_score,
+    -- confidence_score (0–100): hit rate + edge + WNBA-scaled DvP + streak + odds
+    confidence.composite_score                         AS confidence_score,
 
     -- trend: compare recency vs season baseline
     CASE
@@ -254,19 +196,97 @@ BEGIN
     h.secondary_color
 
   FROM wnba_hit_rate_profiles h
+  CROSS JOIN LATERAL (
+    SELECT
+      COALESCE(
+        CASE v_hit_col
+          WHEN 'last_5_pct'  THEN h.last_5_pct
+          WHEN 'last_20_pct' THEN h.last_20_pct
+          WHEN 'season_pct'  THEN h.season_pct
+          ELSE                    h.last_10_pct
+        END, 0
+      ) AS selected_hit_pct,
+      COALESCE(
+        CASE v_avg_col
+          WHEN 'last_5_avg'  THEN h.last_5_avg
+          WHEN 'last_20_avg' THEN h.last_20_avg
+          WHEN 'season_avg'  THEN h.season_avg
+          ELSE                    h.last_10_avg
+        END, h.line, 0
+      ) AS selected_avg
+  ) selected
+  CROSS JOIN LATERAL (
+    SELECT COALESCE(
+      NULLIF((
+        SELECT COUNT(DISTINCT d.team_id)::INT
+        FROM wnba_team_defense_by_position d
+        WHERE d.season::TEXT = EXTRACT(YEAR FROM h.game_date)::TEXT
+      ), 0),
+      NULLIF((
+        SELECT COUNT(DISTINCT d.team_id)::INT
+        FROM wnba_team_defense_by_position d
+        WHERE d.season::TEXT = (EXTRACT(YEAR FROM h.game_date)::INT - 1)::TEXT
+      ), 0),
+      13
+    ) AS total_teams
+  ) dvp_context
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN h.over_price::TEXT ~ '^-?\d+$' THEN h.over_price::TEXT::INTEGER
+      ELSE NULL::INTEGER
+    END AS over_price_int
+  ) odds_values
+  CROSS JOIN LATERAL (
+    SELECT
+      selected.selected_avg - COALESCE(h.line, selected.selected_avg, 0) AS edge_value,
+      CASE WHEN COALESCE(h.line, 0) > 0 THEN
+        (selected.selected_avg / h.line - 1.0) * 100.0
+      ELSE 0
+      END AS edge_pct_value,
+      COALESCE(
+        LEAST(
+          20.0,
+          GREATEST(
+            0.0,
+            ((h.dvp_rank - 1)::NUMERIC / GREATEST(1, dvp_context.total_teams - 1)) * 20.0
+          )
+        ),
+        10.0
+      ) AS dvp_score,
+      LEAST(10.0, GREATEST(0.0, COALESCE(h.hit_streak, 0)::NUMERIC * 2.0)) AS streak_score,
+      CASE
+        WHEN h.over_price_decimal >= 2.00 THEN 10.0
+        WHEN h.over_price_decimal >= 1.91 THEN 8.0
+        WHEN h.over_price_decimal >= 1.83 THEN 6.0
+        WHEN h.over_price_decimal >= 1.72 THEN 4.0
+        WHEN h.over_price_decimal IS NOT NULL THEN 2.0
+        WHEN odds_values.over_price_int >= 100 THEN 10.0
+        WHEN odds_values.over_price_int >= -110 THEN 8.0
+        WHEN odds_values.over_price_int >= -120 THEN 6.0
+        WHEN odds_values.over_price_int >= -140 THEN 4.0
+        WHEN odds_values.over_price_int IS NOT NULL THEN 2.0
+        ELSE 5.0
+      END AS odds_score
+  ) score_parts
+  CROSS JOIN LATERAL (
+    SELECT LEAST(
+      100.0,
+      GREATEST(
+        0.0,
+        (selected.selected_hit_pct / 100.0) * 40.0
+        + LEAST(20.0, GREATEST(0.0, score_parts.edge_value * 4.0))
+        + score_parts.dvp_score
+        + score_parts.streak_score
+        + score_parts.odds_score
+      )
+    )::NUMERIC(5, 2) AS composite_score
+  ) confidence
   WHERE
     -- Date filter: NULL → no restriction
     (p_dates IS NULL OR h.game_date = ANY(p_dates))
 
     -- Hit-rate threshold (stored as 0–100 in the table)
-    AND COALESCE(
-      CASE v_hit_col
-        WHEN 'last_5_pct'  THEN h.last_5_pct
-        WHEN 'last_20_pct' THEN h.last_20_pct
-        WHEN 'season_pct'  THEN h.season_pct
-        ELSE                    h.last_10_pct
-      END, 0
-    ) / 100.0 >= p_min_hit_rate
+    AND selected.selected_hit_pct / 100.0 >= p_min_hit_rate
 
     -- Odds filter: skip entirely when:
     --   • no bounds are provided (NULL), OR
@@ -282,14 +302,8 @@ BEGIN
     AND (p_markets IS NULL OR h.market = ANY(p_markets))
 
   ORDER BY
-    COALESCE(
-      CASE v_hit_col
-        WHEN 'last_5_pct'  THEN h.last_5_pct
-        WHEN 'last_20_pct' THEN h.last_20_pct
-        WHEN 'season_pct'  THEN h.season_pct
-        ELSE                    h.last_10_pct
-      END, 0
-    ) DESC,
+    confidence.composite_score DESC,
+    selected.selected_hit_pct DESC,
     COALESCE(h.hit_streak, 0) DESC;
 END;
 $$;

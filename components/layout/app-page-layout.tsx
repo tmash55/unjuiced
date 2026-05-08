@@ -3,6 +3,7 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 import { SportIcon } from "@/components/icons/sport-icons"
+import { WnbaExpansionWelcome } from "@/components/wnba/wnba-expansion-welcome"
 
 /**
  * AppPageLayout - Consistent layout for all authenticated app pages
@@ -121,9 +122,12 @@ export function AppPageLayout({
   maxWidth = "full",
 }: AppPageLayoutProps) {
   const sportTheme = sport ? SPORT_THEMES[sport.toLowerCase()] : null
+  const showWnbaWelcome = sport?.toLowerCase() === "wnba"
 
   return (
     <div className={cn("mx-auto px-3 sm:px-4 lg:px-6 py-5", maxWidthClasses[maxWidth], className)}>
+      {showWnbaWelcome && <WnbaExpansionWelcome />}
+
       {/* Page Header + Context Bar — wrapped in sport gradient */}
       <div
         className="-mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 -mt-5 pt-5 relative"

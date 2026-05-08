@@ -7,21 +7,24 @@ import { cn } from "@/lib/utils";
 interface MobileConfidenceGlossaryProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Drives the example player + DvP rank since league size differs
-   *  (NBA = 30, WNBA = 13). Defaults to NBA. */
+  /** Drives the example player + DvP rank since league size differs.
+   *  WNBA follows the active DvP season count, with 13 as opening fallback. */
   sport?: "nba" | "wnba" | "mlb";
+  dvpTotalTeams?: number | null;
 }
 
-function getMobileSampleLine(sport: "nba" | "wnba" | "mlb") {
+function getMobileSampleLine(sport: "nba" | "wnba" | "mlb", dvpTotalTeams?: number | null) {
   if (sport === "wnba") {
+    const totalTeams = dvpTotalTeams ?? 13;
+    const dvpRank = Math.max(1, totalTeams - 1);
     return {
       player: "A'ja Wilson",
       lineLabel: "Points O25.5",
       hitRatePts: 36,
       edgePts: "12.8",
-      dvpRank: 12,
-      dvpPts: ((12 - 1) / 12) * 20, // ≈ 18.3
-      totalTeams: 13,
+      dvpRank,
+      dvpPts: ((dvpRank - 1) / Math.max(1, totalTeams - 1)) * 20,
+      totalTeams,
       streakPts: 10,
       oddsPts: 6,
     };
@@ -87,9 +90,14 @@ const SCORE_FACTORS = [
   },
 ];
 
-export function MobileConfidenceGlossary({ isOpen, onClose, sport = "nba" }: MobileConfidenceGlossaryProps) {
+export function MobileConfidenceGlossary({
+  isOpen,
+  onClose,
+  sport = "nba",
+  dvpTotalTeams,
+}: MobileConfidenceGlossaryProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
-  const sample = getMobileSampleLine(sport);
+  const sample = getMobileSampleLine(sport, dvpTotalTeams);
   const totalPts =
     sample.hitRatePts +
     Number(sample.edgePts) +
@@ -290,4 +298,3 @@ export function MobileConfidenceGlossary({ isOpen, onClose, sport = "nba" }: Mob
     </div>
   );
 }
-

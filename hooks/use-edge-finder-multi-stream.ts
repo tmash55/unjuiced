@@ -255,16 +255,53 @@ function isRelevantUpdate(key: string, sports: Set<string>): boolean {
   return sports.has(keySport?.toLowerCase() || "");
 }
 
+function getSelectedPresetModeSports(prefs: BestOddsPrefs): string[] {
+  const selected = prefs.selectedLeagues
+    .map((league) => league.toLowerCase())
+    .filter((league) => ALL_SPORTS.includes(league));
+
+  return selected.length > 0 ? selected : ALL_SPORTS;
+}
+
+function getSelectedPresetModeMarkets(
+  prefs: BestOddsPrefs,
+  sports: string[]
+): string[] {
+  if (!prefs.selectedMarkets || prefs.selectedMarkets.length === 0) return [];
+
+  const sportSet = new Set(sports.map((sport) => sport.toLowerCase()));
+  const markets = new Set<string>();
+
+  for (const selected of prefs.selectedMarkets) {
+    const parsed = parseFilterPresetSportMarketKey(selected);
+    if (parsed) {
+      if (sportSet.has(parsed.sport)) markets.add(parsed.market);
+      continue;
+    }
+
+    const plainMarket = selected.toLowerCase().trim();
+    if (plainMarket) markets.add(plainMarket);
+  }
+
+  return Array.from(markets).sort();
+}
+
 /**
  * Build query params for preset mode (no active custom models)
  */
 function buildPresetModeParams(
-  prefs: BestOddsPrefs
+  prefs: BestOddsPrefs,
+  limit: number
 ): URLSearchParams {
   const params = new URLSearchParams();
-  
-  // Fetch ALL sports for client-side filtering (hybrid approach)
-  params.set("sports", ALL_SPORTS.join(","));
+
+  const sports = getSelectedPresetModeSports(prefs);
+  const markets = getSelectedPresetModeMarkets(prefs, sports);
+
+  params.set("sports", sports.join(","));
+  if (markets.length > 0) {
+    params.set("markets", markets.join(","));
+  }
   
   // Set comparison mode
   if (prefs.comparisonMode === "book" && prefs.comparisonBook) {
@@ -280,12 +317,12 @@ function buildPresetModeParams(
     params.set("marketLines", JSON.stringify(prefs.marketLines));
   }
   
-  // Broad fetch, filter client-side
   params.set("minOdds", String(prefs.minOdds ?? -10000));
   params.set("maxOdds", String(prefs.maxOdds ?? 20000));
-  params.set("minEdge", "0");
+  params.set("minEdge", String(prefs.minImprovement || 0));
   params.set("minBooksPerSide", "2");
   params.set("sort", "edge");
+  params.set("limit", String(limit));
   
   return params;
 }
@@ -632,7 +669,7 @@ export function useEdgeFinderMultiStream({
   const fetchPresetMode = useCallback(async (
     signal: AbortSignal
   ): Promise<FetchResult> => {
-    const params = buildPresetModeParams(prefs);
+    const params = buildPresetModeParams(prefs, limit);
     const response = await fetch(`/api/v2/opportunities?${params}`, {
       signal,
       cache: "no-store",

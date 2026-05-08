@@ -30,6 +30,7 @@ interface BestOddsData {
 export interface CheatSheetRow {
   // Player/Game Context
   playerId: number;
+  nbaPlayerId: number | null;
   playerName: string;
   teamAbbr: string;
   teamName: string;
@@ -70,6 +71,7 @@ export interface CheatSheetRow {
   // Matchup Context
   dvpRank: number | null;
   dvpAvg: number | null;
+  dvpTotalTeams?: number | null;
   matchupQuality: "favorable" | "neutral" | "unfavorable";
   
   // Confidence Metrics
@@ -213,6 +215,7 @@ export async function POST(req: NextRequest) {
       
       return {
         playerId: row.player_id,
+        nbaPlayerId: row.nba_player_id ?? row.player_id ?? null,
         playerName: row.player_name,
         teamAbbr: row.team_abbr,
         teamName: row.team_name,
@@ -331,6 +334,7 @@ export async function GET(req: NextRequest) {
     
     return {
       playerId: row.player_id,
+      nbaPlayerId: row.nba_player_id ?? row.player_id ?? null,
       playerName: row.player_name,
       teamAbbr: row.team_abbr,
       teamName: row.team_name,

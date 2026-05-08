@@ -31,6 +31,7 @@ import {
   fetchOddsLine,
   getBestSideFromOddsLine,
 } from "@/hooks/use-odds-line";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 
 interface CheatSheetTableProps {
   rows: CheatSheetRow[];
@@ -41,6 +42,7 @@ interface CheatSheetTableProps {
   onPlayerClick?: (row: CheatSheetRow) => void;
   onGlossaryOpen?: () => void;
   hideNoOdds?: boolean;
+  sport?: "nba" | "wnba" | "mlb";
 }
 
 type SortField = 
@@ -147,22 +149,52 @@ function TrendIcon({ trend }: { trend: CheatSheetRow["trend"] }) {
 }
 
 // DvP rank badge - simplified with tooltip
-function DvpBadge({ rank, position }: { rank: number | null; position?: string }) {
+function DvpBadge({
+  rank,
+  position,
+  sport = "nba",
+  totalTeams,
+}: {
+  rank: number | null;
+  position?: string;
+  sport?: "nba" | "wnba" | "mlb";
+  totalTeams?: number | null;
+}) {
   if (rank === null) return <span className="text-neutral-400">—</span>;
+  const isWnba = sport === "wnba";
+  const leagueTeams = totalTeams ?? (isWnba ? 13 : 30);
+  const tierSize = Math.max(1, Math.floor(leagueTeams / 3));
+  const toughMax = tierSize;
+  const easyMin = leagueTeams - tierSize + 1;
   
   const getColor = () => {
-    if (rank >= 21) return "text-emerald-500"; // Easy matchup (rank 21-30)
-    if (rank >= 11) return "text-yellow-500";  // Neutral matchup (rank 11-20)
-    return "text-red-500";                      // Tough matchup (rank 1-10)
+    if (isWnba) {
+      if (rank >= easyMin) return "text-emerald-500";
+      if (rank > toughMax) return "text-yellow-500";
+      return "text-red-500";
+    }
+    if (rank >= 21) return "text-emerald-500";
+    if (rank >= 11) return "text-yellow-500";
+    return "text-red-500";
   };
 
   const getBgColor = () => {
+    if (isWnba) {
+      if (rank >= easyMin) return "bg-emerald-500/10";
+      if (rank > toughMax) return "bg-yellow-500/10";
+      return "bg-red-500/10";
+    }
     if (rank >= 21) return "bg-emerald-500/10";
     if (rank >= 11) return "bg-yellow-500/10";
     return "bg-red-500/10";
   };
 
   const getLabel = () => {
+    if (isWnba) {
+      if (rank >= easyMin) return "Easy";
+      if (rank > toughMax) return "Neutral";
+      return "Tough";
+    }
     if (rank >= 21) return "Easy";
     if (rank >= 11) return "Neutral";
     return "Tough";
@@ -272,7 +304,7 @@ function SortIcon({ field, currentField, direction }: {
     : <ChevronUp className="w-3 h-3 text-brand" />;
 }
 
-export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
+export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true, sport = "nba" }: CheatSheetTableProps) {
   const [sortField, setSortField] = useState<SortField>("hitRate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   // const [expandedRow, setExpandedRow] = useState<number | null>(null); // Reserved for SGP feature
@@ -638,7 +670,9 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
                         }}
                       >
                         <PlayerHeadshot
-                          nbaPlayerId={row.playerId}
+                          nbaPlayerId={row.nbaPlayerId ?? (sport === "nba" ? row.playerId : null)}
+                          mlbPlayerId={sport === "mlb" ? row.playerId : null}
+                          sport={sport}
                           name={row.playerName}
                           size="small"
                           className="h-full w-full object-cover"
@@ -716,7 +750,7 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
                     <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
                       {row.teamAbbr && (
                         <img
-                          src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                          src={getTeamLogoUrl(row.teamAbbr, sport)}
                           alt={row.teamAbbr}
                           className="h-4 w-4 object-contain"
                         />
@@ -781,7 +815,12 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
               {/* DvP Column */}
               <td className="px-3 py-2">
                 <div className="flex justify-center">
-                  <DvpBadge rank={row.dvpRank} position={row.playerPosition} />
+                  <DvpBadge
+                    rank={row.dvpRank}
+                    position={row.playerPosition}
+                    sport={sport}
+                    totalTeams={row.dvpTotalTeams}
+                  />
                 </div>
               </td>
 

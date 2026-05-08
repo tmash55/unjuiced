@@ -250,13 +250,43 @@ const FULL_BATCH_SIZE = 1500; // Then load larger batch in background
 const PRESET_STALE_TIME_MS = 5_000;
 const CUSTOM_STALE_TIME_MS = 45_000;
 
+function getPresetModeSports(
+  prefs: BestOddsPrefs,
+  leagueToSport: Record<string, Sport>
+): Sport[] {
+  const selected = (prefs.selectedLeagues || [])
+    .map((league) => leagueToSport[league.toLowerCase()])
+    .filter((sport): sport is Sport => !!sport);
+
+  return selected.length > 0 ? selected : ALL_SPORTS;
+}
+
+function getPresetModeMarkets(
+  prefs: BestOddsPrefs,
+  sports: Sport[]
+): string[] {
+  const selectedMarkets = toStringArray(prefs.selectedMarkets as unknown);
+  if (selectedMarkets.length === 0) return [];
+
+  const sportSet = new Set(sports.map((sport) => sport.toLowerCase()));
+  const markets = new Set<string>();
+
+  for (const selected of selectedMarkets) {
+    const parsed = parseFilterPresetSportMarketKey(selected);
+    if (parsed) {
+      if (sportSet.has(parsed.sport)) markets.add(parsed.market);
+      continue;
+    }
+
+    const plainMarket = selected.toLowerCase().trim();
+    if (plainMarket) markets.add(plainMarket);
+  }
+
+  return Array.from(markets).sort();
+}
+
 /**
  * Build filter configurations from active presets
- * 
- * HYBRID APPROACH for Preset Mode:
- * - Fetches ALL sports, ALL market types with broad odds range
- * - Client-side filtering for sports, markets, odds (instant changes)
- * - Only comparison mode changes trigger new API calls
  */
 function buildFilterConfigs(
   prefs: BestOddsPrefs,
@@ -290,7 +320,6 @@ function buildFilterConfigs(
   };
 
   // If no active presets, use preset mode (single filter from prefs)
-  // HYBRID: Fetch broader data for client-side filtering
   if (activePresets.length === 0) {
     let preset: string | null = null;
     let filterName: string;
@@ -308,39 +337,33 @@ function buildFilterConfigs(
       filterName = "vs Average";
     }
 
-    // HYBRID: Fetch ALL sports, ALL market types
-    // Use user preferences for odds range when set, otherwise use broad fallback
-    const broadLimit = isPro
-      ? (phase === "initial" ? Math.max(limit, 500) : Math.max(limit, FULL_BATCH_SIZE))
-      : Math.max(limit, 100);
-    
-    // Always send broad defaults to server — odds range is filtered client-side
-    // This avoids refetching when user changes odds range slider
+    const serverSports = getPresetModeSports(prefs, leagueToSport);
+    const serverMarkets = getPresetModeMarkets(prefs, serverSports);
     const safeMarketLines = toNumberRecord(prefs.marketLines as unknown);
 
     return [{
       filters: {
         ...DEFAULT_FILTERS,
-        sports: ALL_SPORTS, // Fetch ALL sports
+        sports: serverSports,
         preset,
         blend: null,
-        limit: broadLimit, // Larger batch for client-side filtering
-        minEdge: 0, // Fetch all edges, filter client-side
-        minOdds: -10000, // Broad range — client-side filtering narrows
-        maxOdds: 100000, // Broad range — client-side filtering narrows
+        limit,
+        minEdge: prefs.minImprovement || 0,
+        minOdds: prefs.minOdds ?? -10000,
+        maxOdds: prefs.maxOdds ?? 20000,
         searchQuery: "", // Search is client-side
         selectedBooks: [], // Book exclusions are client-side
-        selectedMarkets: [], // Send empty to get ALL markets
-        selectedLeagues: [], // Sport filtering is client-side
+        selectedMarkets: serverMarkets,
+        selectedLeagues: [],
         marketLines: safeMarketLines, // Market lines stay server-side (specific line filters)
         minBooksPerSide: 2,
         requireFullBlend: false,
-        marketType: "all", // Fetch both player and game, filter client-side
+        marketType: "all",
       },
       metadata: {
         filterId: "default",
         filterName,
-        filterIcon: ALL_SPORTS.join(","),
+        filterIcon: serverSports.join(","),
         isCustom: false,
         filterColor: null,
       },
@@ -820,12 +843,36 @@ export function useMultiFilterOpportunities({
   // Build filter configs - one for initial fast load, one for full load
   const initialFilterConfigs = useMemo(
     () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit, "initial"),
-    [activePresets, isPro, initialLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
+    [
+      activePresets,
+      isPro,
+      initialLimit,
+      prefs.comparisonMode,
+      prefs.comparisonBook,
+      prefs.marketLines,
+      prefs.selectedLeagues,
+      prefs.selectedMarkets,
+      prefs.minImprovement,
+      prefs.minOdds,
+      prefs.maxOdds,
+    ]
   );
   
   const fullFilterConfigs = useMemo(
     () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit, "full"),
-    [activePresets, isPro, fullLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
+    [
+      activePresets,
+      isPro,
+      fullLimit,
+      prefs.comparisonMode,
+      prefs.comparisonBook,
+      prefs.marketLines,
+      prefs.selectedLeagues,
+      prefs.selectedMarkets,
+      prefs.minImprovement,
+      prefs.minOdds,
+      prefs.maxOdds,
+    ]
   );
   
   // For backwards compatibility, expose the full configs
@@ -854,13 +901,31 @@ export function useMultiFilterOpportunities({
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
         JSON.stringify(prefs.marketLines || {}),
+        JSON.stringify(prefs.selectedLeagues || []),
+        JSON.stringify(prefs.selectedMarkets || []),
+        prefs.minImprovement || 0,
+        prefs.minOdds ?? -10000,
+        prefs.maxOdds ?? 20000,
         phaseLimit,
-        // minOdds/maxOdds removed from key — server always gets broad range,
-        // client-side filtering in applyGlobalFilters handles user's preference
         isPro,
       ];
     }
-  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, initialLimit, fullLimit, isPro]);
+  }, [
+    isCustomMode,
+    initialFilterConfigs,
+    fullFilterConfigs,
+    prefs.comparisonMode,
+    prefs.comparisonBook,
+    prefs.marketLines,
+    prefs.selectedLeagues,
+    prefs.selectedMarkets,
+    prefs.minImprovement,
+    prefs.minOdds,
+    prefs.maxOdds,
+    initialLimit,
+    fullLimit,
+    isPro,
+  ]);
 
   const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
   const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);

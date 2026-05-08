@@ -80,8 +80,10 @@ const normalizeInjuryGameId = (
 
 const isPlayoffSeasonType = (seasonType: string | null | undefined) => {
   if (!seasonType) return false;
+  const lower = seasonType.toLowerCase();
+  if (isCupSeasonType(lower)) return false;
   return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(
-    seasonType.toLowerCase(),
+    lower,
   );
 };
 
@@ -91,6 +93,9 @@ const isRegularSeasonType = (seasonType: string | null | undefined) => {
   if (isPlayoffSeasonType(seasonType)) return false;
   return lower !== "preseason";
 };
+
+const isCupSeasonType = (lowerSeasonType: string) =>
+  /\b(cup|in-season|ist|emirates|commissioner)\b/.test(lowerSeasonType);
 
 const gameMatchesChartSplit = (game: BoxScoreGame, split: ChartSplit) => {
   switch (split) {

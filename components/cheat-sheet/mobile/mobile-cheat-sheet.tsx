@@ -37,6 +37,7 @@ import {
 } from "@/hooks/use-odds-line";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
+import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -145,8 +146,17 @@ const getGradeColor = (grade: string) => {
   }
 };
 
-const getDvpColor = (rank: number | null) => {
+const getDvpColor = (rank: number | null, sport = "nba", totalTeams?: number | null) => {
   if (rank === null) return "text-neutral-400 bg-neutral-100 dark:bg-neutral-800";
+  if (sport === "wnba") {
+    const leagueTeams = totalTeams ?? 13;
+    const tierSize = Math.max(1, Math.floor(leagueTeams / 3));
+    const toughMax = tierSize;
+    const easyMin = leagueTeams - tierSize + 1;
+    if (rank >= easyMin) return "text-emerald-600 bg-emerald-500/15";
+    if (rank > toughMax) return "text-yellow-600 bg-yellow-500/15";
+    return "text-red-600 bg-red-500/15";
+  }
   if (rank >= 21) return "text-emerald-600 bg-emerald-500/15";
   if (rank >= 11) return "text-yellow-600 bg-yellow-500/15";
   return "text-red-600 bg-red-500/15";
@@ -861,7 +871,9 @@ export function MobileCheatSheet({
                                 >
                                   <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
                                     <PlayerHeadshot
-                                      nbaPlayerId={row.playerId}
+                                      nbaPlayerId={row.nbaPlayerId ?? (sport === "nba" ? row.playerId : null)}
+                                      mlbPlayerId={sport === "mlb" ? row.playerId : null}
+                                      sport={sport as "nba" | "wnba" | "mlb"}
                                       name={row.playerName}
                                       size="small"
                                       className="w-full h-auto"
@@ -872,7 +884,7 @@ export function MobileCheatSheet({
                               {/* Team logo overlay */}
                               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
                                 <img
-                                  src={`/team-logos/nba/${row.teamAbbr?.toUpperCase()}.svg`}
+                                  src={getTeamLogoUrl(row.teamAbbr, sport)}
                                   alt={row.teamAbbr ?? ""}
                                   className="h-1.5 w-1.5 object-contain"
                                   onError={(e) => { 
@@ -976,7 +988,7 @@ export function MobileCheatSheet({
                           {row.dvpRank ? (
                             <span className={cn(
                               "inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold",
-                              getDvpColor(row.dvpRank)
+                              getDvpColor(row.dvpRank, sport, row.dvpTotalTeams)
                             )}>
                               {row.dvpRank}
                             </span>

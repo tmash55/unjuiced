@@ -1288,6 +1288,11 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     return filteredRows.filter(row => row.bestOdds === null).length;
   }, [filteredRows]);
 
+  const dvpTotalTeams = useMemo(() => {
+    if (sport !== "wnba") return null;
+    return displayRows.find((row) => typeof row.dvpTotalTeams === "number")?.dvpTotalTeams ?? null;
+  }, [displayRows, sport]);
+
   const handleRowClick = (row: CheatSheetRow) => {
     // TODO: Open player detail modal or navigate to hit rates drilldown
     console.log("Clicked row:", row);
@@ -1344,6 +1349,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
           isOpen={isGlossaryOpen}
           onClose={() => setIsGlossaryOpen(false)}
           sport={sport}
+          dvpTotalTeams={dvpTotalTeams}
         />
       </>
     );
@@ -1418,6 +1424,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
         isOpen={isGlossaryOpen}
         onClose={() => setIsGlossaryOpen(false)}
         sport={sport}
+        dvpTotalTeams={dvpTotalTeams}
       />
 
       {/* Player Quick View Modal */}

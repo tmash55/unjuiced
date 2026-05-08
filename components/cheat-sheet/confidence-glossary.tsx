@@ -7,9 +7,10 @@ import { X, Target, TrendingUp, Shield, Flame, DollarSign, HelpCircle } from "lu
 interface ConfidenceGlossaryProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Drives the DvP-rank example + formula since league size differs
-   *  (NBA = 30 teams, WNBA = 13). Defaults to NBA for back-compat. */
+  /** Drives the DvP-rank example + formula since league size differs.
+   *  WNBA follows the active DvP season count, with 13 as opening fallback. */
   sport?: "nba" | "wnba" | "mlb";
+  dvpTotalTeams?: number | null;
 }
 
 // Grade thresholds
@@ -21,17 +22,18 @@ const GRADE_THRESHOLDS = [
   { grade: "C", range: "Below 60", color: "text-neutral-500 bg-neutral-500/10" },
 ];
 
-// League size drives the DvP formula. NBA has 30 teams (rank 1..30, divisor
-// 29), WNBA has 13 (rank 1..13, divisor 12). MLB doesn't use DvP this way
-// today; falls back to NBA values so the glossary still renders cleanly.
-function getLeagueSize(sport: "nba" | "wnba" | "mlb"): number {
-  return sport === "wnba" ? 13 : 30;
+// League size drives the DvP formula. WNBA uses the active DvP data set:
+// 2026 opening day can still explain a 13-team fallback, then move to 15 when
+// the new-season DvP table is populated. MLB doesn't use DvP this way today.
+function getLeagueSize(sport: "nba" | "wnba" | "mlb", dvpTotalTeams?: number | null): number {
+  if (sport === "wnba") return dvpTotalTeams ?? 13;
+  return 30;
 }
 
 // Score factors. Sport-aware so the DvP entry shows the correct league
 // size in its formula and example.
-function getScoreFactors(sport: "nba" | "wnba" | "mlb") {
-  const totalTeams = getLeagueSize(sport);
+function getScoreFactors(sport: "nba" | "wnba" | "mlb", dvpTotalTeams?: number | null) {
+  const totalTeams = getLeagueSize(sport, dvpTotalTeams);
   const dvpDivisor = totalTeams - 1;
   const easyRank = totalTeams; // worst-defense rank = easiest matchup
   const easyPts = ((easyRank - 1) / dvpDivisor) * 20;
@@ -90,15 +92,16 @@ function getScoreFactors(sport: "nba" | "wnba" | "mlb") {
 }
 
 // Sport-tailored sample player + line for the example calculation block.
-function getSampleLine(sport: "nba" | "wnba" | "mlb") {
+function getSampleLine(sport: "nba" | "wnba" | "mlb", dvpTotalTeams?: number | null) {
   if (sport === "wnba") {
+    const totalTeams = getLeagueSize(sport, dvpTotalTeams);
     return {
       player: "A'ja Wilson",
       lineLabel: "Points O25.5 @ -115",
       hitRatePct: 90,
       edge: 3.2,
-      // DvP example: WNBA rank 12 of 13 = soft matchup
-      dvpRank: 12,
+      // DvP example: near-bottom WNBA defense on the active DvP team count.
+      dvpRank: Math.max(1, totalTeams - 1),
       streak: 5,
       decimalOdds: 1.87,
       oddsLabel: "-115",
@@ -119,10 +122,21 @@ function getSampleLine(sport: "nba" | "wnba" | "mlb") {
   };
 }
 
-export function ConfidenceGlossary({ isOpen, onClose, sport = "nba" }: ConfidenceGlossaryProps) {
-  const SCORE_FACTORS = React.useMemo(() => getScoreFactors(sport), [sport]);
-  const sample = React.useMemo(() => getSampleLine(sport), [sport]);
-  const totalTeams = getLeagueSize(sport);
+export function ConfidenceGlossary({
+  isOpen,
+  onClose,
+  sport = "nba",
+  dvpTotalTeams,
+}: ConfidenceGlossaryProps) {
+  const SCORE_FACTORS = React.useMemo(
+    () => getScoreFactors(sport, dvpTotalTeams),
+    [sport, dvpTotalTeams]
+  );
+  const sample = React.useMemo(
+    () => getSampleLine(sport, dvpTotalTeams),
+    [sport, dvpTotalTeams]
+  );
+  const totalTeams = getLeagueSize(sport, dvpTotalTeams);
   const dvpDivisor = totalTeams - 1;
   const dvpExamplePts = ((sample.dvpRank - 1) / dvpDivisor) * 20;
   const hitRatePts = (sample.hitRatePct / 100) * 40;
@@ -354,4 +368,3 @@ export function ConfidenceGlossary({ isOpen, onClose, sport = "nba" }: Confidenc
     </div>
   );
 }
-

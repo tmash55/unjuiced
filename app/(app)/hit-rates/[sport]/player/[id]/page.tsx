@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
+import { WnbaExpansionWelcome } from "@/components/wnba/wnba-expansion-welcome";
 
 const SUPPORTED_SPORTS = ["nba", "wnba"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
@@ -237,6 +238,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   if (useV2) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-6">
+        {sport === "wnba" && <WnbaExpansionWelcome />}
         <PlayerDrilldownV2
           profile={profile}
           allPlayerProfiles={playerProfiles}
@@ -256,6 +258,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
 
   return (
     <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-6">
+      {sport === "wnba" && <WnbaExpansionWelcome />}
       <PlayerDrilldown
         profile={profile}
         allPlayerProfiles={playerProfiles}
