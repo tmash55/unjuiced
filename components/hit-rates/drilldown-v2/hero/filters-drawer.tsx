@@ -17,6 +17,7 @@ import { Tooltip } from "@/components/tooltip";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import {
   METRIC_FILTERS,
+  DVP_RANK_CONFIG,
   getQuickFilters,
   metricFilterId,
   parseMetricFilterId,
@@ -25,6 +26,29 @@ import {
   type PlayTypeDefenseQuickFilter,
   type QuickFilter,
 } from "../shared/quick-filters";
+
+// Drawer-side mapping from canonical metric key back to the legacy
+// short-form chip prefix (e.g. "minutes" → "minutes30" / "fga" → "fga15").
+// Used when the volume/defense sliders apply a range so we also clear any
+// stale tier chips for the same metric in the active filter set.
+const METRIC_KEY_TO_LEGACY_PREFIX: Record<string, string> = {
+  minutes: "minutes",
+  fga: "fga",
+  fg3a: "threePtA",
+  potentialReb: "rebChances",
+  potentialAssists: "potAst",
+};
+
+// Volume tab pulls these specific keys from METRIC_FILTERS — minutes drives
+// opportunity, fga/fg3a drive shooting volume, potentialReb/potentialAssists
+// drive playmaking volume.
+const VOLUME_METRIC_KEYS = [
+  "minutes",
+  "fga",
+  "fg3a",
+  "potentialReb",
+  "potentialAssists",
+];
 
 type FilterCategoryId =
   | "defense"
@@ -623,23 +647,55 @@ export function FiltersDrawer({
         {/* DEFENSE — DvP chips + Defense vs Play Type segmented controls */}
         {!normalizedQuery && activeCategory === "defense" && (
           <div className="space-y-4">
-            {filtersByCategory.defense.filter((f) => f.id.startsWith("dvp")).length > 0 && (
+            {dvpRankByOpponent && dvpRankByOpponent.size > 0 && (
               <section>
                 <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
                   Defense vs Position
                 </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.defense
-                    .filter((f) => f.id.startsWith("dvp"))
-                    .map((f) => (
-                      <FilterChip
-                        key={f.id}
-                        label={f.label}
-                        isActive={active.has(f.id)}
-                        onClick={() => onToggle(f.id)}
-                      />
-                    ))}
-                </div>
+                {(() => {
+                  // DvP rank slider — collapsed in place of the old tier
+                  // chips. Bounds are 1..totalTeams (fixed by league size);
+                  // avg is the mean rank across the player's recent
+                  // opponents, useful as a "you've played a tough/soft
+                  // schedule" reference.
+                  const total = totalTeams ?? 30;
+                  const ranks = recentGames
+                    .map((g) => dvpRankByOpponent.get(g.opponentTeamId) ?? null)
+                    .filter((r): r is number => r != null);
+                  const avg =
+                    ranks.length > 0
+                      ? ranks.reduce((a, b) => a + b, 0) / ranks.length
+                      : total / 2;
+                  return (
+                    <MetricSliderRow
+                      config={DVP_RANK_CONFIG}
+                      min={1}
+                      max={total}
+                      avg={avg}
+                      games={ranks.length}
+                      activeRange={activeMetricRange("dvpRank")}
+                      onChange={(range) => {
+                        const next = new Set(active);
+                        // Clear any existing dvp tier chip OR existing
+                        // dvpRank range so a fresh selection doesn't
+                        // double-count.
+                        for (const id of [...next]) {
+                          const parsed = parseMetricFilterId(id);
+                          if (parsed?.key === "dvpRank") next.delete(id);
+                          if (
+                            id.startsWith("dvp") &&
+                            !id.startsWith("metric:")
+                          )
+                            next.delete(id);
+                        }
+                        if (range) {
+                          next.add(metricFilterId("dvpRank", range.min, range.max));
+                        }
+                        onApplyPreset(next);
+                      }}
+                    />
+                  );
+                })()}
               </section>
             )}
             {playTypeGroups.length > 0 && (
@@ -661,10 +717,10 @@ export function FiltersDrawer({
                         {group.items.map((item) => {
                           const isActive = active.has(item.id);
                           const tier = item.id.endsWith(":tough")
-                            ? "Top 10"
+                            ? "1-10"
                             : item.id.endsWith(":favorable")
-                              ? "Bottom 10"
-                              : "Mid";
+                              ? "21-30"
+                              : "11-20";
                           return (
                             <button
                               key={item.id}
@@ -693,33 +749,70 @@ export function FiltersDrawer({
           </div>
         )}
 
-        {/* VOLUME — chips for FGA/3PA/Pot AST/Reb Chances + Minutes */}
+        {/* VOLUME — sliders for Min / FGA / 3PA / Pot AST / Reb Chances.
+            Each slider's bounds come from the player's actual recent games
+            so the user can pick e.g. "32-44 minutes" or "8-12 FGA" with
+            real grain instead of toggling fixed thresholds. */}
         {!normalizedQuery && activeCategory === "volume" && (
           <div className="space-y-4">
             <section>
               <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                Player-Relative Thresholds
+                Volume Sliders
               </h3>
               <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
-                Tuned to this player's averages — `30+ Min` means roughly his
-                starter floor, not a league constant.
+                Drag either side or type an exact range. Bounds reflect this
+                player's recent extents — not a league constant.
               </p>
-              {filtersByCategory.volume.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.volume.map((f) => (
-                    <FilterChip
-                      key={f.id}
-                      label={f.label}
-                      isActive={active.has(f.id)}
-                      onClick={() => onToggle(f.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyHint>
-                  No volume thresholds suggested for this market yet.
-                </EmptyHint>
-              )}
+              {(() => {
+                const volumeRows = metricRows.filter((row) =>
+                  VOLUME_METRIC_KEYS.includes(row.config.key),
+                );
+                if (volumeRows.length === 0) {
+                  return (
+                    <EmptyHint>
+                      No volume metrics available for this player yet.
+                    </EmptyHint>
+                  );
+                }
+                return (
+                  <div className="space-y-1.5">
+                    {volumeRows.map((row) => (
+                      <MetricSliderRow
+                        key={row.config.key}
+                        config={row.config}
+                        min={row.min}
+                        max={row.max}
+                        avg={row.avg}
+                        games={row.games}
+                        activeRange={activeMetricRange(row.config.key)}
+                        onChange={(range) => {
+                          const next = new Set(active);
+                          // Clear any existing range filter for this metric
+                          // and any legacy short-form chip (e.g. minutes32,
+                          // fga15) for the same metric — both forms could
+                          // be present from saved filter sets.
+                          const legacyPrefix =
+                            METRIC_KEY_TO_LEGACY_PREFIX[row.config.key];
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed?.key === row.config.key) next.delete(id);
+                            if (legacyPrefix) {
+                              const m = id.match(/^([a-zA-Z]+)\d+(?:\.\d+)?$/);
+                              if (m && m[1] === legacyPrefix) next.delete(id);
+                            }
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId(row.config.key, range.min, range.max),
+                            );
+                          }
+                          onApplyPreset(next);
+                        }}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
             </section>
           </div>
         )}
