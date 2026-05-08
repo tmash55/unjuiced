@@ -16,12 +16,34 @@ import {
   getQuickFilters,
   getInlineQuickFilters,
   resolveQuickFilter,
+  METRIC_FILTERS,
+  DVP_RANK_CONFIG,
+  metricFilterId,
+  parseMetricFilterId,
   type PlayTypeDefenseQuickFilter,
 } from "../shared/quick-filters";
 import { Tile } from "../shared/tile";
 import { FiltersDrawer } from "./filters-drawer";
 import { ChartSettingsPopover } from "./chart-settings-popover";
+import { MetricRangePopover } from "./metric-range-popover";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+
+// Maps the short-form inline-chip prefix (e.g. "minutes" from "minutes30")
+// onto the corresponding METRIC_FILTERS key. Anything in this map will
+// render as a popover-trigger instead of a single-toggle chip.
+const INLINE_CHIP_TO_METRIC_KEY: Record<string, string> = {
+  minutes: "minutes",
+  fga: "fga",
+  threePtA: "fg3a",
+  rebChances: "potentialReb",
+  potAst: "potentialAssists",
+};
+
+function getMetricKeyFromInlineChipId(id: string): string | null {
+  const match = id.match(/^([a-zA-Z]+)\d+(?:\.\d+)?$/);
+  if (!match) return null;
+  return INLINE_CHIP_TO_METRIC_KEY[match[1]] ?? null;
+}
 
 export type ChartSplit =
   | "all"
@@ -652,7 +674,6 @@ export function HitRateChart({
       }
       headerRight={
         <div className="flex flex-wrap items-center gap-1">
-          <ChartSettingsPopover />
           {hitRateSegments.map((seg) => {
             const active = seg.range === range;
             const tone = rangeButtonTone(seg.pct);
@@ -817,20 +838,6 @@ export function HitRateChart({
                 Inner mx-auto centers the bars when there's empty horizontal space. */}
             <div className="w-max min-w-full">
               <div ref={innerTrackRef} className="relative mx-auto" style={{ width: Math.max(trackWidth, 0) }}>
-              {/* Crosshair — vertical brand-cyan line at the hovered bar's
-                  center X. Stays clear of the x-axis row at the bottom. */}
-              {hoveredIndex !== null && hoveredIndex < chartGames.length && (
-                <div
-                  className="pointer-events-none absolute z-30 border-l border-dashed border-brand/60 transition-[left] duration-150 ease-out"
-                  style={{
-                    left: hoveredIndex * (barWidth + gapPx) + barWidth / 2 - 0.5,
-                    top: 0,
-                    bottom: 36,
-                  }}
-                  aria-hidden
-                />
-              )}
-
               {/* Hover card is portaled to body below — see HoverCardPortal. */}
               {/* Chart frame */}
               <div className="relative" style={{ height: CHART_HEIGHT }}>
@@ -1154,7 +1161,128 @@ export function HitRateChart({
           <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
             Quick
           </span>
-          {inlineQuickFilters.map((qf) => {
+          {(() => {
+            // Pre-process: collapse all dvp tier chips (dvpTopFive, dvpTough,
+            // dvpAvg, dvpWeak, dvpBottomFive) into a single "DEF" popover
+            // entry. Without this we'd render five chips for what the user
+            // can express as a single rank range.
+            const dvpChips: Array<typeof inlineQuickFilters[number]> = [];
+            const remainingChips: typeof inlineQuickFilters = [];
+            for (const qf of inlineQuickFilters) {
+              if (qf.id.startsWith("dvp")) dvpChips.push(qf);
+              else remainingChips.push(qf);
+            }
+            const showDvpRange = dvpChips.length > 0 && !!dvpRankByOpponent && dvpRankByOpponent.size > 0;
+            return (
+              <>
+                {showDvpRange && (() => {
+                  // Active range comes from any `metric:dvpRank:*` chip in
+                  // the current filter set. Legacy dvp tier chip ids
+                  // (dvpTopFive etc.) just dim the trigger to show "active"
+                  // without trying to back-translate cutoffs into a range.
+                  const ids = [...(quickFilters ?? new Set<string>())];
+                  let activeRange: { min: number; max: number | null } | null = null;
+                  let legacyActive = false;
+                  for (const id of ids) {
+                    const parsed = parseMetricFilterId(id);
+                    if (parsed && parsed.key === "dvpRank") {
+                      activeRange = { min: parsed.min, max: parsed.max };
+                      break;
+                    }
+                    if (id.startsWith("dvp")) legacyActive = true;
+                  }
+                  return (
+                    <MetricRangePopover
+                      config={DVP_RANK_CONFIG}
+                      recentGames={games}
+                      activeRange={activeRange}
+                      active={activeRange !== null || legacyActive}
+                      getValueOverride={(g) =>
+                        dvpRankByOpponent?.get(g.opponentTeamId) ?? null
+                      }
+                      minOverride={1}
+                      maxOverride={dvpTotalTeams}
+                      onChange={(range) => {
+                        const next = new Set(quickFilters ?? new Set<string>());
+                        // Drop any existing dvp filter — both metric:dvpRank:*
+                        // and the legacy tier chips — so a fresh range
+                        // doesn't double up with old presets.
+                        for (const id of [...next]) {
+                          const parsed = parseMetricFilterId(id);
+                          if (parsed && parsed.key === "dvpRank") next.delete(id);
+                          if (id.startsWith("dvp")) next.delete(id);
+                        }
+                        if (range) {
+                          next.add(metricFilterId("dvpRank", range.min, range.max));
+                        }
+                        onQuickFiltersSet?.(next);
+                      }}
+                    />
+                  );
+                })()}
+                {remainingChips.map((qf) => {
+            // Threshold-style chips (minutes30, fga15, threePtA5, etc.) get
+            // upgraded to a popover trigger with slider + numeric inputs +
+            // quick-pill thresholds. Other chips (venue, gameflow, etc.)
+            // stay as plain toggle buttons since they're already binary.
+            const metricKey = getMetricKeyFromInlineChipId(qf.id);
+            const metricConfig = metricKey
+              ? METRIC_FILTERS.find((c) => c.key === metricKey)
+              : null;
+            if (metricConfig) {
+              // Resolve the active range (if any) for this metric from the
+              // current quickFilters set — could be a `metric:KEY:range:...`
+              // or `metric:KEY:gte:...` id, OR the legacy short-form (e.g.,
+              // `minutes30`). All three cases collapse to {min, max} here.
+              let activeRange: { min: number; max: number | null } | null = null;
+              const ids = [...(quickFilters ?? new Set<string>())];
+              for (const id of ids) {
+                const parsed = parseMetricFilterId(id);
+                if (parsed && parsed.key === metricKey) {
+                  activeRange = { min: parsed.min, max: parsed.max };
+                  break;
+                }
+                const legacy = id.match(/^([a-zA-Z]+)(\d+(?:\.\d+)?)$/);
+                if (
+                  legacy &&
+                  INLINE_CHIP_TO_METRIC_KEY[legacy[1]] === metricKey
+                ) {
+                  activeRange = { min: Number(legacy[2]), max: null };
+                  break;
+                }
+              }
+              const isActive = activeRange !== null;
+              return (
+                <MetricRangePopover
+                  key={qf.id}
+                  config={metricConfig}
+                  recentGames={games}
+                  activeRange={activeRange}
+                  active={isActive}
+                  onChange={(range) => {
+                    // Replace any existing chip for this metric (legacy or
+                    // metric:* form) with the new range. Reuse the same
+                    // toggle hook by clearing first then adding.
+                    const next = new Set(quickFilters ?? new Set<string>());
+                    for (const id of [...next]) {
+                      const parsed = parseMetricFilterId(id);
+                      if (parsed && parsed.key === metricKey) next.delete(id);
+                      const legacy = id.match(/^([a-zA-Z]+)\d+(?:\.\d+)?$/);
+                      if (
+                        legacy &&
+                        INLINE_CHIP_TO_METRIC_KEY[legacy[1]] === metricKey
+                      )
+                        next.delete(id);
+                    }
+                    if (range) {
+                      next.add(metricFilterId(metricConfig.key, range.min, range.max));
+                    }
+                    onQuickFiltersSet?.(next);
+                  }}
+                />
+              );
+            }
+
             const active = quickFilters?.has(qf.id) ?? false;
             return (
               <button
@@ -1172,6 +1300,9 @@ export function HitRateChart({
               </button>
             );
           })}
+              </>
+            );
+          })()}
           {(quickFilters?.size ?? 0) > 0 && onQuickFiltersClear && (
             <button
               type="button"
@@ -1181,7 +1312,13 @@ export function HitRateChart({
               Clear
             </button>
           )}
-          <FiltersDrawer
+          {/* Right-side cluster: chart settings (gear) + filters trigger.
+              Settings was buried up in headerRight; pairing it with Filters
+              here puts both "modify the chart's display" controls in the
+              same spot. */}
+          <div className="ml-auto inline-flex items-center gap-1.5">
+            <ChartSettingsPopover />
+            <FiltersDrawer
             market={market}
             upcomingHomeAway={upcomingHomeAway}
             recentGames={games}
@@ -1200,7 +1337,7 @@ export function HitRateChart({
               <button
                 type="button"
                 className={cn(
-                  "ml-auto inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-colors",
                   (quickFilters?.size ?? 0) > 0
                     ? "border-brand/45 bg-brand/15 text-brand hover:bg-brand/25"
                     : "border-neutral-200 text-neutral-600 hover:border-brand/40 hover:text-brand dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-brand",
@@ -1217,6 +1354,7 @@ export function HitRateChart({
               </button>
             }
           />
+          </div>
         </div>
       )}
 
@@ -1378,16 +1516,19 @@ function BarColumn({
     <div
       className="group/bar relative h-full shrink-0"
       style={{ width: barWidth }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       {/* Ghost (potential) — anchored center, sits behind the actual bar.
           Its label is a CHILD positioned at bottom-full, so the label rides
-          the ghost's height animation instead of jumping in pre-positioned. */}
+          the ghost's height animation instead of jumping in pre-positioned.
+          Hover handlers live on the bar geometry (here + the colored bar
+          below), not the column wrapper, so the tooltip only fires when the
+          cursor is actually over a bar — not the empty chart bg above it. */}
       {showGhost && (
         <div
           className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-neutral-300/45 ring-1 ring-inset ring-neutral-300/30 dark:bg-neutral-700/40 dark:ring-neutral-600/25"
           style={{ width: barWidth, height: ghostHeightPx, animation }}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
         >
           <span
             className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-medium tabular-nums leading-none text-neutral-400 dark:text-neutral-500"
@@ -1410,6 +1551,8 @@ function BarColumn({
             : "bg-gradient-to-t from-red-600/70 to-red-400 dark:from-red-500/55 dark:to-red-400"
         )}
         style={{ width: actualWidth, height: heightPx, animation }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       >
         {showValueLabel && (
           <span

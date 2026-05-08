@@ -267,6 +267,23 @@ export const METRIC_FILTERS: MetricFilterConfig[] = [
   },
 ];
 
+// Virtual metric config for opponent DvP rank. Lives outside METRIC_FILTERS
+// because its value isn't per-game (it's a season-long opponent ranking
+// looked up via QuickFilterContext.dvpRankByOpponent), so the drawer's
+// generic stat sliders can't display it. Used only by the inline DEF
+// popover in the chart header.
+export const DVP_RANK_CONFIG: MetricFilterConfig = {
+  key: "dvpRank",
+  label: "Opp Defense Rank",
+  shortLabel: "DEF",
+  category: "opportunity",
+  description: "Opp def rank vs position (1 = toughest)",
+  step: 1,
+  // Returning null is fine — the popover gets its values via a custom
+  // getValue closure that captures the dvpRankByOpponent map.
+  getValue: () => null,
+};
+
 function formatMetricIdValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -331,6 +348,29 @@ export function resolveQuickFilter(
 
   const metric = parseMetricFilterId(id);
   if (metric) {
+    // Special-case opp DvP rank — it's not a per-game stat (needs the
+    // opponent map from context). Build the predicate inline using the map
+    // so this id flows through the same `metric:KEY:range:MIN:MAX` pipeline
+    // the threshold metrics use.
+    if (metric.key === "dvpRank" && ctx?.dvpRankByOpponent) {
+      const ranks = ctx.dvpRankByOpponent;
+      const min = metric.min;
+      const max = metric.max;
+      const label =
+        max === null
+          ? `Top ${Math.round(min)} D`
+          : `D #${Math.round(min)}-${Math.round(max)}`;
+      return {
+        id,
+        label,
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          if (rank == null) return false;
+          if (max === null) return rank <= min;
+          return rank >= min && rank <= max;
+        },
+      };
+    }
     const config = METRIC_FILTERS.find((f) => f.key === metric.key);
     return config ? buildMetricQuickFilter(config, metric) : null;
   }

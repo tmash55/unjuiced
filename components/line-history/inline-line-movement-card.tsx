@@ -184,7 +184,7 @@ export function InlineLineMovementCard({
   return (
     <div
       className={cn(
-        "mt-4 overflow-hidden rounded-xl border border-neutral-200/70 bg-white/55 dark:border-neutral-800/70 dark:bg-neutral-900/35",
+        "overflow-hidden rounded-xl border border-neutral-200/70 bg-white/55 dark:border-neutral-800/70 dark:bg-neutral-900/35",
         className,
       )}
     >

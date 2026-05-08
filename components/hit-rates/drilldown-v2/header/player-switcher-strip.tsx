@@ -93,9 +93,6 @@ export const PlayerSwitcherStrip = React.memo(function PlayerSwitcherStrip({
           placeholder="Search players..."
           className="min-w-0 flex-1 bg-transparent text-xs font-medium text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-200 dark:placeholder:text-neutral-500"
         />
-        <kbd className="ml-2 rounded border border-neutral-200 bg-neutral-50 px-1 text-[10px] font-bold text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
-          /
-        </kbd>
       </label>
 
       <GamesFilterDropdown
