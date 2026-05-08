@@ -14,6 +14,7 @@ import { useWnbaGames } from "@/hooks/use-wnba-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
+import { WnbaExpansionWelcome } from "@/components/wnba/wnba-expansion-welcome";
 
 const SUPPORTED_SPORTS = ["nba", "mlb", "wnba"] as const;
 type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
@@ -207,8 +208,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   }, [sportConfig]);
   
   // Default game filter on first load.
-  // NBA: preselect next game day.
-  // MLB/WNBA: default to "All Games" to avoid empty states when one matchup/date has no profiles yet.
+  // NBA: preselect today's games when at least one today-game hasn't tipped
+  //      off yet. If today's slate is fully started/finished, fall back to
+  //      "no selection" (= All Games) so the table loads today's late games
+  //      AND tomorrow's profiles instead of jumping the user past tonight.
+  // MLB/WNBA: default to "All Games" to avoid empty states when one
+  //           matchup/date has no profiles yet.
   useEffect(() => {
     if (allGames && allGames.length > 0) {
       if (sport === "mlb" || sport === "wnba") {
@@ -228,19 +233,26 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         return String(a.game_id).localeCompare(String(b.game_id));
       });
 
-      const upcomingGames = sortedGames.filter((game) => !hasGameStarted(game));
-      const nextGameDate = upcomingGames[0]?.game_date ?? sortedGames[0]?.game_date;
-      const defaultGameIds = nextGameDate
-        ? sortedGames
-            .filter((game) => game.game_date === nextGameDate)
-            .map((game) => String(game.game_id))
-        : [];
-      
+      // Local-tz YYYY-MM-DD — game_date strings on the games rows are also
+      // local-day so a direct equality check works.
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const todaysGames = sortedGames.filter((g) => g.game_date === todayStr);
+      const todaysUnstarted = todaysGames.filter((g) => !hasGameStarted(g));
+      // Preselect today only if at least one today-game is still upcoming.
+      // Otherwise leave selection empty so the dropdown shows "All Games"
+      // and the table folds tomorrow's profiles into view alongside any
+      // late-night today games still on the slate.
+      const defaultGameIds =
+        todaysUnstarted.length > 0
+          ? todaysGames.map((g) => String(g.game_id))
+          : [];
+
       // Initialize desktop if not yet set
       if (selectedGameIds === null) {
         setSelectedGameIds(defaultGameIds);
       }
-      
+
       // Initialize mobile if not yet set
       if (mobileSelectedGameIds === null) {
         setMobileSelectedGameIds(defaultGameIds);
@@ -542,26 +554,29 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Mobile Layout
   if (isMobile) {
     return (
-      <GatedMobileHitRates
-        sport={sport}
-        rows={mobileFilteredRows}
-        games={allGames ?? []}
-        loading={isLoading}
-        error={error?.message}
-        onPlayerClick={handleTableRowClick}
-        selectedMarkets={mobileSelectedMarkets}
-        onMarketsChange={setMobileSelectedMarkets}
-        marketOptions={sportConfig.markets}
-        sortField={mobileSortField}
-        onSortChange={setMobileSortField}
-        searchQuery={mobileSearchQuery}
-        onSearchChange={setMobileSearchQuery}
-        selectedGameIds={effectiveMobileGameIds}
-        onGameIdsChange={setMobileSelectedGameIds}
-        startedGameIds={startedGameIds}
-        hideNoOdds={hideNoOdds}
-        onHideNoOddsChange={setHideNoOdds}
-      />
+      <>
+        {sport === "wnba" && <WnbaExpansionWelcome />}
+        <GatedMobileHitRates
+          sport={sport}
+          rows={mobileFilteredRows}
+          games={allGames ?? []}
+          loading={isLoading}
+          error={error?.message}
+          onPlayerClick={handleTableRowClick}
+          selectedMarkets={mobileSelectedMarkets}
+          onMarketsChange={setMobileSelectedMarkets}
+          marketOptions={sportConfig.markets}
+          sortField={mobileSortField}
+          onSortChange={setMobileSortField}
+          searchQuery={mobileSearchQuery}
+          onSearchChange={setMobileSearchQuery}
+          selectedGameIds={effectiveMobileGameIds}
+          onGameIdsChange={setMobileSelectedGameIds}
+          startedGameIds={startedGameIds}
+          hideNoOdds={hideNoOdds}
+          onHideNoOddsChange={setHideNoOdds}
+        />
+      </>
     );
   }
 

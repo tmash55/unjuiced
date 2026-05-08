@@ -2594,7 +2594,9 @@ export function HitRateTable({
         )}
       </div>
 
-      {/* Compact View Toggle — hides Recent (10) chart and tightens row padding */}
+      {/* Compact View Toggle — hides Recent (10) chart and tightens row padding.
+          ml-auto pushes the right cluster (Compact / Filters / props pill) to
+          the far right edge so the search input stays anchored on the left. */}
       <Tooltip
         content={
           compactView
@@ -2608,7 +2610,7 @@ export function HitRateTable({
           onClick={() => setCompactView(!compactView)}
           aria-pressed={compactView}
           className={cn(
-            "flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200",
+            "ml-auto flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200",
             compactView
               ? "bg-brand/10 border-brand/40 text-brand shadow-brand/10 dark:bg-brand/20 dark:border-brand/50 shadow-sm"
               : "border-neutral-200/80 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 hover:shadow-md dark:border-neutral-700/80 dark:bg-neutral-800/90 dark:text-neutral-300 dark:hover:bg-neutral-800",
@@ -2798,8 +2800,10 @@ export function HitRateTable({
         )}
       </div>
 
-      {/* Count indicator - Premium pill style */}
-      <div className="ml-auto rounded-full border border-neutral-200/60 bg-neutral-100 px-3 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800">
+      {/* Count indicator - Premium pill style. ml-auto on the Compact button
+          above already anchors the right cluster, so no extra spacing needed
+          here — just sits flush after Filters. */}
+      <div className="rounded-full border border-neutral-200/60 bg-neutral-100 px-3 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800">
         <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
           {hasActiveFilters ||
           selectedMarkets.length < effectiveMarketOptions.length ? (
