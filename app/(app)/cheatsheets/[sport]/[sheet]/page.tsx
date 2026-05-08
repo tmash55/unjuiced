@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState, useMemo, useRef, useEffect } from "react";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { useCheatSheet, CheatSheetRow } from "@/hooks/use-cheat-sheet";
 import { useInjuryImpactCheatsheet, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
 import { useNbaGames } from "@/hooks/use-nba-games";
@@ -34,6 +34,7 @@ import { ButtonLink } from "@/components/button-link";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import { DoubleDoubleSheet } from "@/components/cheat-sheet/double-double-sheet";
+import { WnbaExpansionWelcome } from "@/components/wnba/wnba-expansion-welcome";
 import { Lock, ArrowRight, ChevronDown, HelpCircle, LayoutGrid, BarChart3, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
@@ -1171,6 +1172,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
 }
 
 function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
   
@@ -1291,6 +1293,26 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     console.log("Clicked row:", row);
   };
 
+  const handlePlayerClick = (row: CheatSheetRow) => {
+    if (sport === "wnba") {
+      const params = new URLSearchParams();
+      params.set("market", row.market);
+      params.set("v", "2");
+      if (row.gameDate) params.set("date", row.gameDate);
+      if (row.gameId) params.set("gameId", String(row.gameId));
+      router.push(`/hit-rates/wnba/player/${row.playerId}?${params.toString()}`);
+      return;
+    }
+
+    setSelectedPlayer({
+      nba_player_id: row.nbaPlayerId ?? row.playerId,
+      player_name: row.playerName,
+      market: row.market,
+      event_id: row.eventId ?? "",
+      line: row.line,
+    });
+  };
+
   // Mobile Layout
   if (isMobile) {
     return (
@@ -1300,30 +1322,28 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
             <NoPropsEmptyState sport={sport} nextDate={nextGameDate} />
           </div>
         ) : (
-          <MobileCheatSheet
-            rows={displayRows}
-            isLoading={isLoading || isLoadingAccess}
-            filters={filters}
-            onFiltersChange={setFilters}
-            onGlossaryOpen={() => setIsGlossaryOpen(true)}
-            onRowClick={handleRowClick}
-            onPlayerClick={(row) => setSelectedPlayer({
-              nba_player_id: row.playerId,
-              player_name: row.playerName,
-              market: row.market,
-              event_id: row.eventId ?? "",
-              line: row.line,
-            })}
-            sport={sport}
-            currentSheet={sheet}
-            isGated={isGated}
-          />
+          <>
+            {sport === "wnba" && <WnbaExpansionWelcome />}
+            <MobileCheatSheet
+              rows={displayRows}
+              isLoading={isLoading || isLoadingAccess}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onGlossaryOpen={() => setIsGlossaryOpen(true)}
+              onRowClick={handleRowClick}
+              onPlayerClick={handlePlayerClick}
+              sport={sport}
+              currentSheet={sheet}
+              isGated={isGated}
+            />
+          </>
         )}
 
         {/* Mobile Glossary Bottom Sheet */}
         <MobileConfidenceGlossary
           isOpen={isGlossaryOpen}
           onClose={() => setIsGlossaryOpen(false)}
+          sport={sport}
         />
       </>
     );
@@ -1378,14 +1398,9 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
               rows={displayRows}
               isLoading={isLoading || isLoadingAccess}
               timeWindow={filters.timeWindow}
+              sport={sport}
               onRowClick={handleRowClick}
-              onPlayerClick={(row) => setSelectedPlayer({
-                nba_player_id: row.playerId,
-                player_name: row.playerName,
-                market: row.market,
-                event_id: row.eventId ?? "",
-                line: row.line,
-              })}
+              onPlayerClick={handlePlayerClick}
               onGlossaryOpen={() => setIsGlossaryOpen(true)}
               hideNoOdds={filters.hideNoOdds}
             />
@@ -1399,9 +1414,10 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
       </div>
 
       {/* Glossary Modal */}
-      <ConfidenceGlossary 
-        isOpen={isGlossaryOpen} 
-        onClose={() => setIsGlossaryOpen(false)} 
+      <ConfidenceGlossary
+        isOpen={isGlossaryOpen}
+        onClose={() => setIsGlossaryOpen(false)}
+        sport={sport}
       />
 
       {/* Player Quick View Modal */}

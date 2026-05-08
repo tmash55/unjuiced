@@ -7,6 +7,36 @@ import { cn } from "@/lib/utils";
 interface MobileConfidenceGlossaryProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Drives the example player + DvP rank since league size differs
+   *  (NBA = 30, WNBA = 13). Defaults to NBA. */
+  sport?: "nba" | "wnba" | "mlb";
+}
+
+function getMobileSampleLine(sport: "nba" | "wnba" | "mlb") {
+  if (sport === "wnba") {
+    return {
+      player: "A'ja Wilson",
+      lineLabel: "Points O25.5",
+      hitRatePts: 36,
+      edgePts: "12.8",
+      dvpRank: 12,
+      dvpPts: ((12 - 1) / 12) * 20, // ≈ 18.3
+      totalTeams: 13,
+      streakPts: 10,
+      oddsPts: 6,
+    };
+  }
+  return {
+    player: "LeBron James",
+    lineLabel: "Points O25.5",
+    hitRatePts: 36,
+    edgePts: "12.8",
+    dvpRank: 28,
+    dvpPts: ((28 - 1) / 29) * 20, // ≈ 18.6
+    totalTeams: 30,
+    streakPts: 10,
+    oddsPts: 6,
+  };
 }
 
 // Grade thresholds
@@ -57,8 +87,27 @@ const SCORE_FACTORS = [
   },
 ];
 
-export function MobileConfidenceGlossary({ isOpen, onClose }: MobileConfidenceGlossaryProps) {
+export function MobileConfidenceGlossary({ isOpen, onClose, sport = "nba" }: MobileConfidenceGlossaryProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const sample = getMobileSampleLine(sport);
+  const totalPts =
+    sample.hitRatePts +
+    Number(sample.edgePts) +
+    sample.dvpPts +
+    sample.streakPts +
+    sample.oddsPts;
+  const totalGrade =
+    totalPts >= 90 ? "A+" : totalPts >= 80 ? "A" : totalPts >= 70 ? "B+" : totalPts >= 60 ? "B" : "C";
+  const totalGradeClass =
+    totalPts >= 90
+      ? "bg-emerald-500/10 text-emerald-500"
+      : totalPts >= 80
+        ? "bg-green-500/10 text-green-500"
+        : totalPts >= 70
+          ? "bg-yellow-500/10 text-yellow-500"
+          : totalPts >= 60
+            ? "bg-orange-500/10 text-orange-500"
+            : "bg-neutral-500/10 text-neutral-500";
 
   // Close sheet when clicking outside
   useEffect(() => {
@@ -188,39 +237,39 @@ export function MobileConfidenceGlossary({ isOpen, onClose }: MobileConfidenceGl
             </div>
             <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between pb-2 border-b border-neutral-200 dark:border-neutral-700">
-                <span className="font-semibold text-sm text-neutral-900 dark:text-white">LeBron James</span>
-                <span className="text-xs text-neutral-500">Points O25.5</span>
+                <span className="font-semibold text-sm text-neutral-900 dark:text-white">{sample.player}</span>
+                <span className="text-xs text-neutral-500">{sample.lineLabel}</span>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Hit Rate (90%)</span>
-                  <span className="font-mono text-brand">36</span>
+                  <span className="font-mono text-brand">{sample.hitRatePts}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Edge (+3.2)</span>
-                  <span className="font-mono text-brand">12.8</span>
+                  <span className="font-mono text-brand">{sample.edgePts}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">DvP (28th)</span>
-                  <span className="font-mono text-brand">18.6</span>
+                  <span className="text-neutral-500">DvP ({sample.dvpRank} of {sample.totalTeams})</span>
+                  <span className="font-mono text-brand">{sample.dvpPts.toFixed(1)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Streak (5)</span>
-                  <span className="font-mono text-brand">10</span>
+                  <span className="font-mono text-brand">{sample.streakPts}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Odds (-115)</span>
-                  <span className="font-mono text-brand">6</span>
+                  <span className="font-mono text-brand">{sample.oddsPts}</span>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between pt-2 border-t border-neutral-200 dark:border-neutral-700">
                 <span className="font-bold text-sm text-neutral-900 dark:text-white">Total</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono font-bold text-neutral-900 dark:text-white">83.4</span>
-                  <span className="inline-flex items-center justify-center px-2 py-0.5 rounded bg-green-500/10 text-green-500 font-bold text-xs">
-                    A
+                  <span className="font-mono font-bold text-neutral-900 dark:text-white">{totalPts.toFixed(1)}</span>
+                  <span className={cn("inline-flex items-center justify-center px-2 py-0.5 rounded font-bold text-xs", totalGradeClass)}>
+                    {totalGrade}
                   </span>
                 </div>
               </div>

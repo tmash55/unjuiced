@@ -7,6 +7,9 @@ import { X, Target, TrendingUp, Shield, Flame, DollarSign, HelpCircle } from "lu
 interface ConfidenceGlossaryProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Drives the DvP-rank example + formula since league size differs
+   *  (NBA = 30 teams, WNBA = 13). Defaults to NBA for back-compat. */
+  sport?: "nba" | "wnba" | "mlb";
 }
 
 // Grade thresholds
@@ -18,61 +21,129 @@ const GRADE_THRESHOLDS = [
   { grade: "C", range: "Below 60", color: "text-neutral-500 bg-neutral-500/10" },
 ];
 
-// Score factors
-const SCORE_FACTORS = [
-  {
-    icon: Target,
-    name: "Hit Rate",
-    weight: "40%",
-    maxPoints: 40,
-    description: "How often the player has cleared this line recently",
-    calculation: "hit_rate × 40",
-    example: "90% hit rate = 36 pts",
-    color: "text-blue-500",
-  },
-  {
-    icon: TrendingUp,
-    name: "Edge / Cushion",
-    weight: "20%",
-    maxPoints: 20,
-    description: "The cushion between the player's average and the betting line",
-    calculation: "(avg - line) × 4, capped at 20",
-    example: "+3.0 edge = 12 pts",
-    color: "text-emerald-500",
-  },
-  {
-    icon: Shield,
-    name: "DvP Matchup",
-    weight: "20%",
-    maxPoints: 20,
-    description: "Defense vs Position ranking — favorable matchups score higher",
-    calculation: "((rank - 1) / 29) × 20",
-    example: "Rank 28 (easy) = 18.6 pts",
-    color: "text-purple-500",
-  },
-  {
-    icon: Flame,
-    name: "Hit Streak",
-    weight: "10%",
-    maxPoints: 10,
-    description: "Current consecutive games hitting the over",
-    calculation: "streak × 2, capped at 10",
-    example: "5+ streak = 10 pts",
-    color: "text-orange-500",
-  },
-  {
-    icon: DollarSign,
-    name: "Odds Value",
-    weight: "10%",
-    maxPoints: 10,
-    description: "Better odds indicate more value — plus odds score highest",
-    calculation: "Based on decimal odds",
-    example: "+100 or better = 10 pts",
-    color: "text-green-500",
-  },
-];
+// League size drives the DvP formula. NBA has 30 teams (rank 1..30, divisor
+// 29), WNBA has 13 (rank 1..13, divisor 12). MLB doesn't use DvP this way
+// today; falls back to NBA values so the glossary still renders cleanly.
+function getLeagueSize(sport: "nba" | "wnba" | "mlb"): number {
+  return sport === "wnba" ? 13 : 30;
+}
 
-export function ConfidenceGlossary({ isOpen, onClose }: ConfidenceGlossaryProps) {
+// Score factors. Sport-aware so the DvP entry shows the correct league
+// size in its formula and example.
+function getScoreFactors(sport: "nba" | "wnba" | "mlb") {
+  const totalTeams = getLeagueSize(sport);
+  const dvpDivisor = totalTeams - 1;
+  const easyRank = totalTeams; // worst-defense rank = easiest matchup
+  const easyPts = ((easyRank - 1) / dvpDivisor) * 20;
+  return [
+    {
+      icon: Target,
+      name: "Hit Rate",
+      weight: "40%",
+      maxPoints: 40,
+      description: "How often the player has cleared this line recently",
+      calculation: "hit_rate × 40",
+      example: "90% hit rate = 36 pts",
+      color: "text-blue-500",
+    },
+    {
+      icon: TrendingUp,
+      name: "Edge / Cushion",
+      weight: "20%",
+      maxPoints: 20,
+      description: "The cushion between the player's average and the betting line",
+      calculation: "(avg - line) × 4, capped at 20",
+      example: "+3.0 edge = 12 pts",
+      color: "text-emerald-500",
+    },
+    {
+      icon: Shield,
+      name: "DvP Matchup",
+      weight: "20%",
+      maxPoints: 20,
+      description: "Defense vs Position ranking — favorable matchups score higher",
+      calculation: `((rank - 1) / ${dvpDivisor}) × 20`,
+      example: `Rank ${easyRank} (easy) = ${easyPts.toFixed(1)} pts`,
+      color: "text-purple-500",
+    },
+    {
+      icon: Flame,
+      name: "Hit Streak",
+      weight: "10%",
+      maxPoints: 10,
+      description: "Current consecutive games hitting the over",
+      calculation: "streak × 2, capped at 10",
+      example: "5+ streak = 10 pts",
+      color: "text-orange-500",
+    },
+    {
+      icon: DollarSign,
+      name: "Odds Value",
+      weight: "10%",
+      maxPoints: 10,
+      description: "Better odds indicate more value — plus odds score highest",
+      calculation: "Based on decimal odds",
+      example: "+100 or better = 10 pts",
+      color: "text-green-500",
+    },
+  ];
+}
+
+// Sport-tailored sample player + line for the example calculation block.
+function getSampleLine(sport: "nba" | "wnba" | "mlb") {
+  if (sport === "wnba") {
+    return {
+      player: "A'ja Wilson",
+      lineLabel: "Points O25.5 @ -115",
+      hitRatePct: 90,
+      edge: 3.2,
+      // DvP example: WNBA rank 12 of 13 = soft matchup
+      dvpRank: 12,
+      streak: 5,
+      decimalOdds: 1.87,
+      oddsLabel: "-115",
+      oddsPts: 6,
+    };
+  }
+  return {
+    player: "LeBron James",
+    lineLabel: "Points O25.5 @ -115",
+    hitRatePct: 90,
+    edge: 3.2,
+    // NBA rank 28 of 30 = soft matchup
+    dvpRank: 28,
+    streak: 5,
+    decimalOdds: 1.87,
+    oddsLabel: "-115",
+    oddsPts: 6,
+  };
+}
+
+export function ConfidenceGlossary({ isOpen, onClose, sport = "nba" }: ConfidenceGlossaryProps) {
+  const SCORE_FACTORS = React.useMemo(() => getScoreFactors(sport), [sport]);
+  const sample = React.useMemo(() => getSampleLine(sport), [sport]);
+  const totalTeams = getLeagueSize(sport);
+  const dvpDivisor = totalTeams - 1;
+  const dvpExamplePts = ((sample.dvpRank - 1) / dvpDivisor) * 20;
+  const hitRatePts = (sample.hitRatePct / 100) * 40;
+  const edgePts = sample.edge * 4;
+  const streakPts = Math.min(10, sample.streak * 2);
+  const totalPts =
+    hitRatePts + edgePts + dvpExamplePts + streakPts + sample.oddsPts;
+  const totalGrade =
+    totalPts >= 90 ? "A+" : totalPts >= 80 ? "A" : totalPts >= 70 ? "B+" : totalPts >= 60 ? "B" : "C";
+  const totalGradeClass =
+    totalPts >= 90
+      ? "bg-emerald-500/10 text-emerald-500"
+      : totalPts >= 80
+        ? "bg-green-500/10 text-green-500"
+        : totalPts >= 70
+          ? "bg-yellow-500/10 text-yellow-500"
+          : totalPts >= 60
+            ? "bg-orange-500/10 text-orange-500"
+            : "bg-neutral-500/10 text-neutral-500";
+  // Lower bound of the "soft matchup" tier — last third of the league.
+  const softTierLow = totalTeams - Math.floor(totalTeams / 3) + 1;
   // Handle Esc key to close
   React.useEffect(() => {
     if (!isOpen) return;
@@ -215,39 +286,39 @@ export function ConfidenceGlossary({ isOpen, onClose }: ConfidenceGlossaryProps)
             </h3>
             <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 pb-3 border-b border-neutral-200 dark:border-neutral-700">
-                <span className="font-bold text-neutral-900 dark:text-white">LeBron James</span>
-                <span className="text-sm text-neutral-500">Points O25.5 @ -115</span>
+                <span className="font-bold text-neutral-900 dark:text-white">{sample.player}</span>
+                <span className="text-sm text-neutral-500">{sample.lineLabel}</span>
               </div>
-              
+
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Hit Rate (90% L10)</span>
-                  <span className="font-mono text-neutral-700 dark:text-neutral-300">0.90 × 40 = <span className="text-brand font-semibold">36 pts</span></span>
+                  <span className="text-neutral-500">Hit Rate ({sample.hitRatePct}% L10)</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">{(sample.hitRatePct / 100).toFixed(2)} × 40 = <span className="text-brand font-semibold">{hitRatePts.toFixed(0)} pts</span></span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Edge (+3.2)</span>
-                  <span className="font-mono text-neutral-700 dark:text-neutral-300">3.2 × 4 = <span className="text-brand font-semibold">12.8 pts</span></span>
+                  <span className="text-neutral-500">Edge (+{sample.edge.toFixed(1)})</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">{sample.edge.toFixed(1)} × 4 = <span className="text-brand font-semibold">{edgePts.toFixed(1)} pts</span></span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">DvP Rank (28th)</span>
-                  <span className="font-mono text-neutral-700 dark:text-neutral-300">(27/29) × 20 = <span className="text-brand font-semibold">18.6 pts</span></span>
+                  <span className="text-neutral-500">DvP Rank ({sample.dvpRank} of {totalTeams})</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">({sample.dvpRank - 1}/{dvpDivisor}) × 20 = <span className="text-brand font-semibold">{dvpExamplePts.toFixed(1)} pts</span></span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Hit Streak (5 games)</span>
-                  <span className="font-mono text-neutral-700 dark:text-neutral-300">5 × 2 = <span className="text-brand font-semibold">10 pts</span></span>
+                  <span className="text-neutral-500">Hit Streak ({sample.streak} games)</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">{sample.streak} × 2 = <span className="text-brand font-semibold">{streakPts} pts</span></span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Odds Value (-115)</span>
-                  <span className="font-mono text-neutral-700 dark:text-neutral-300">~1.87 dec → <span className="text-brand font-semibold">6 pts</span></span>
+                  <span className="text-neutral-500">Odds Value ({sample.oddsLabel})</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">~{sample.decimalOdds.toFixed(2)} dec → <span className="text-brand font-semibold">{sample.oddsPts} pts</span></span>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between pt-3 border-t border-neutral-200 dark:border-neutral-700">
                 <span className="font-bold text-neutral-900 dark:text-white">Total</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-lg text-neutral-900 dark:text-white">83.4</span>
-                  <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-green-500/10 text-green-500 font-bold text-sm">
-                    A
+                  <span className="font-mono font-bold text-lg text-neutral-900 dark:text-white">{totalPts.toFixed(1)}</span>
+                  <span className={cn("inline-flex items-center justify-center px-2.5 py-1 rounded-lg font-bold text-sm", totalGradeClass)}>
+                    {totalGrade}
                   </span>
                 </div>
               </div>
@@ -270,7 +341,7 @@ export function ConfidenceGlossary({ isOpen, onClose }: ConfidenceGlossaryProps)
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-brand mt-0.5">•</span>
-                <span><strong>DvP matchups</strong> can swing a play significantly — an easy matchup (21-30) adds up to 20 points.</span>
+                <span><strong>DvP matchups</strong> can swing a play significantly — an easy matchup ({softTierLow}-{totalTeams}) adds up to 20 points.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-brand mt-0.5">•</span>
