@@ -1613,7 +1613,11 @@ function renderBarTooltip({
   const date = new Date(`${game.date}T00:00:00`);
   const tooltipDate = Number.isNaN(date.getTime())
     ? game.date
-    : date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    : date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
   const opponentLabel = game.opponentAbbr || "OPP";
   const showPotential = potential != null && potential > 0;
   const conversionPct =
