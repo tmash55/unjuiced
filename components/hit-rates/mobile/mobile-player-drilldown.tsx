@@ -34,6 +34,7 @@ import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
+import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
@@ -113,6 +114,13 @@ const MARKET_ORDER = [
   "player_blocks",
   "player_blocks_steals",
   "player_turnovers",
+  // Binary game-long props
+  "player_double_double",
+  "player_triple_double",
+  // 1Q markets
+  "1st_quarter_player_points",
+  "1st_quarter_player_rebounds",
+  "1st_quarter_player_assists",
 ];
 
 interface MobilePlayerDrilldownProps {
@@ -175,6 +183,13 @@ const MARKET_TO_FIELD: Record<string, string> = {
   "player_blocks": "blk",
   "player_turnovers": "tov",
   "player_blocks_steals": "blk_stl",
+  // 1Q markets — q1Pts/q1Reb/q1Ast are merged onto each game when the
+  // active market is 1Q (see mobile drilldown's box-scores hook below).
+  "1st_quarter_player_points": "q1Pts",
+  "1st_quarter_player_rebounds": "q1Reb",
+  "1st_quarter_player_assists": "q1Ast",
+  // DD/TD have no single field; getMarketStat short-circuits before this
+  // map for those cases.
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -460,17 +475,36 @@ function MobileOddsLineRow({
 }
 
 // Get the stat value for a market from a box score game
+const countDoubleDigitCategories = (game: any): number => {
+  let count = 0;
+  if ((game.pts ?? 0) >= 10) count++;
+  if ((game.reb ?? 0) >= 10) count++;
+  if ((game.ast ?? 0) >= 10) count++;
+  if ((game.stl ?? 0) >= 10) count++;
+  if ((game.blk ?? 0) >= 10) count++;
+  return count;
+};
+
 const getMarketStat = (game: any, market: string): number => {
+  // Binary game-long props — return 1 when achieved, 0 otherwise. Hit/miss
+  // logic downstream compares against the prop line (typically 0.5).
+  if (market === "player_double_double") {
+    return countDoubleDigitCategories(game) >= 2 ? 1 : 0;
+  }
+  if (market === "player_triple_double") {
+    return countDoubleDigitCategories(game) >= 3 ? 1 : 0;
+  }
+
   const field = MARKET_TO_FIELD[market];
   if (!field) return 0;
-  
+
   // Handle combo stats
   if (field === "pra") return (game.pts ?? 0) + (game.reb ?? 0) + (game.ast ?? 0);
   if (field === "pr") return (game.pts ?? 0) + (game.reb ?? 0);
   if (field === "pa") return (game.pts ?? 0) + (game.ast ?? 0);
   if (field === "ra") return (game.reb ?? 0) + (game.ast ?? 0);
   if (field === "blk_stl") return (game.blk ?? 0) + (game.stl ?? 0);
-  
+
   return game[field] ?? 0;
 };
 
@@ -736,11 +770,12 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
           <div
             className={cn(
               "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[5] flex flex-col-reverse overflow-hidden",
+              "shadow-[0_-1px_0_rgba(255,255,255,0.22)_inset]",
               !hasLine
                 ? "bg-neutral-400 dark:bg-neutral-500"
-                : isHit 
-                  ? "bg-emerald-500 dark:bg-emerald-400" 
-                  : "bg-red-400 dark:bg-red-500",
+                : isHit
+                  ? "bg-gradient-to-t from-emerald-600/70 to-emerald-400 dark:from-emerald-500/55 dark:to-emerald-400"
+                  : "bg-gradient-to-t from-red-600/70 to-red-400 dark:from-red-500/55 dark:to-red-400",
               isPressed && "opacity-80"
             )}
             style={{ 
@@ -779,14 +814,15 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
           <div
             className={cn(
               "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[5]",
+              "shadow-[0_-1px_0_rgba(255,255,255,0.22)_inset]",
               !hasLine
                 ? "bg-neutral-400 dark:bg-neutral-500"
-                : isHit 
-                  ? "bg-emerald-500 dark:bg-emerald-400" 
-                  : "bg-red-400 dark:bg-red-500",
+                : isHit
+                  ? "bg-gradient-to-t from-emerald-600/70 to-emerald-400 dark:from-emerald-500/55 dark:to-emerald-400"
+                  : "bg-gradient-to-t from-red-600/70 to-red-400 dark:from-red-500/55 dark:to-red-400",
               isPressed && "opacity-80"
             )}
-            style={{ 
+            style={{
               height: `${heightPct}%`,
               animationDelay: `${index * 50}ms`
             }}
@@ -3828,11 +3864,48 @@ export function MobilePlayerDrilldown({
   }, [allPlayerProfiles, initialProfile]);
   
   // Fetch box scores
-  const { games: boxScoreGames, isLoading } = usePlayerBoxScores({
+  const { games: rawBoxScoreGames, isLoading: isLoadingFullBoxScores } = usePlayerBoxScores({
     playerId: profile.playerId,
     sport,
     limit: 50,
   });
+  // 1Q markets need first-quarter splits merged onto each game so the chart
+  // bars + hit rate calc read real Q1 values instead of full-game totals.
+  // Only fetched when the active market is 1Q to avoid an extra request on
+  // every drilldown load.
+  const isQ1Market = profile.market.startsWith("1st_quarter_player_");
+  const periodBoxScoresQuery = usePlayerPeriodBoxScores({
+    playerId: profile.playerId,
+    sport,
+    period: 1,
+    enabled: !!profile.playerId && isQ1Market,
+  });
+  const periodStatsByGameId = useMemo(() => {
+    const map = new Map<string, { pts: number; reb: number; ast: number }>();
+    for (const g of periodBoxScoresQuery.games ?? []) {
+      map.set(String(g.gameId).replace(/^0+/, "") || "0", {
+        pts: g.pts ?? 0,
+        reb: g.reb ?? 0,
+        ast: g.ast ?? 0,
+      });
+    }
+    return map;
+  }, [periodBoxScoresQuery.games]);
+  const boxScoreGames = useMemo(() => {
+    const games = rawBoxScoreGames ?? [];
+    if (!isQ1Market) return games;
+    return games.map((g) => {
+      const q1 = periodStatsByGameId.get(String(g.gameId).replace(/^0+/, "") || "0");
+      return {
+        ...g,
+        q1Pts: q1?.pts ?? 0,
+        q1Reb: q1?.reb ?? 0,
+        q1Ast: q1?.ast ?? 0,
+      };
+    });
+  }, [rawBoxScoreGames, isQ1Market, periodStatsByGameId]);
+  const isLoading =
+    isLoadingFullBoxScores || (isQ1Market && periodBoxScoresQuery.isLoading);
   
   // Fetch games with injury context (for accurate teammates_out data across ALL games)
   // This replaces the limited gameLogs data from the profile
