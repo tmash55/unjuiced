@@ -212,9 +212,9 @@ function RangeBody({
 
       {/* Quick pills — common thresholds. Sets min to the pill, leaves max
           at the natural ceiling so it behaves like the old "30+" toggle.
-          Wider pills + larger gap so the row reads as deliberate buttons,
-          not crowded toggles. */}
-      <div className="flex flex-wrap gap-1.5">
+          flex-1 on each so they evenly divide the popover width and feel
+          like a proper control segment instead of left-clustered chips. */}
+      <div className="flex items-stretch gap-1.5">
         {quickThresholds.map((threshold) => {
           const isPicked =
             isActive && draftMin === threshold && draftMax === max;
@@ -224,7 +224,7 @@ function RangeBody({
               type="button"
               onClick={() => commit(threshold, max)}
               className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-black tabular-nums transition-colors",
+                "flex-1 rounded-full px-3 py-1.5 text-[11px] font-black tabular-nums transition-colors",
                 isPicked
                   ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
                   : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
