@@ -162,6 +162,8 @@ const OPPS_CACHE_TTL = 45; // seconds
 const OPPS_MAX_CACHE_BYTES = 3_000_000;
 const SPORT_FETCH_CONCURRENCY = 4;
 const MAX_RESPONSE_LIMIT = 2_000;
+const LIVE_LIQUIDITY_BOOKS = new Set(["novig", "prophetx", "kalshi", "pinnacle", "ps3838"]);
+const LIVE_LIQUIDITY_FETCH_CHUNK_SIZE = 500;
 
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
@@ -355,6 +357,7 @@ export async function GET(req: NextRequest) {
         const cached = await redis.get<OpportunitiesResponse>(responseCacheKey);
         if (cached) {
           const response = typeof cached === "string" ? JSON.parse(cached) : cached;
+          await hydrateOpportunitiesWithLiveLiquidity(response.opportunities);
           return NextResponse.json(
             { ...response, cache_hit: true, timing_ms: Date.now() - startTime },
             {
@@ -510,6 +513,7 @@ export async function GET(req: NextRequest) {
     });
 
     const paginated = allOpportunities.slice(0, limit);
+    await hydrateOpportunitiesWithLiveLiquidity(paginated);
 
     const response: OpportunitiesResponse = {
       opportunities: paginated,
@@ -712,6 +716,109 @@ function normalizeBookOffers(rawBooks: any[]): NormalizedBookOffer[] {
   }
 
   return Array.from(byCanonical.values());
+}
+
+function normalizeLiveLimits(limits: unknown): { max: number } | null {
+  const max = Number((limits as { max?: unknown } | null | undefined)?.max);
+  return Number.isFinite(max) && max > 0 ? { max } : null;
+}
+
+function hasLiveLimits(limits: unknown): boolean {
+  return normalizeLiveLimits(limits) !== null;
+}
+
+function normalizeEntityName(name: string): string {
+  return name.toLowerCase().replace(/ /g, "_").replace(/\./g, "").replace(/'/g, "").replace(/-/g, "_");
+}
+
+function getLiveSelection(
+  liveBook: Record<string, any> | undefined,
+  entityName: string,
+  side: Opportunity["side"],
+  line: number
+): Record<string, any> | null {
+  if (!liveBook) return null;
+  const normalizedEntity = normalizeEntityName(entityName || "game_total");
+  const selection = liveBook[`${normalizedEntity}|${side}|${line}`];
+  return selection && typeof selection === "object" ? selection : null;
+}
+
+async function fetchLiveLiquidityBooks(
+  keys: string[],
+  cacheKeys: string[]
+): Promise<Map<string, Record<string, any>>> {
+  const cache = new Map<string, Record<string, any>>();
+  for (let i = 0; i < keys.length; i += LIVE_LIQUIDITY_FETCH_CHUNK_SIZE) {
+    try {
+      const keyChunk = keys.slice(i, i + LIVE_LIQUIDITY_FETCH_CHUNK_SIZE);
+      const cacheKeyChunk = cacheKeys.slice(i, i + LIVE_LIQUIDITY_FETCH_CHUNK_SIZE);
+      const values = await redis.mget<(string | null)[]>(...keyChunk);
+      for (let j = 0; j < values.length; j++) {
+        const parsed = parseRedisValue<Record<string, any>>(values[j] as string | null, keyChunk[j]);
+        if (parsed) cache.set(cacheKeyChunk[j], parsed);
+      }
+    } catch (err) {
+      console.warn("[opportunities] live liquidity mget failed:", err);
+    }
+  }
+  return cache;
+}
+
+async function hydrateOpportunitiesWithLiveLiquidity(opportunities: Opportunity[]): Promise<void> {
+  const redisKeys: string[] = [];
+  const cacheKeys: string[] = [];
+  const seen = new Set<string>();
+
+  const queueBook = (
+    opp: Opportunity,
+    bookId: string,
+    limits: { max: number } | null | undefined
+  ) => {
+    const canonicalBook = canonicalizeBookId(bookId);
+    if (!LIVE_LIQUIDITY_BOOKS.has(canonicalBook) || hasLiveLimits(limits)) return;
+    if (!opp.sport || !opp.event_id || !opp.market) return;
+
+    const redisKey = `odds:${opp.sport}:${opp.event_id}:${opp.market}:${canonicalBook}`;
+    if (seen.has(redisKey)) return;
+    seen.add(redisKey);
+    redisKeys.push(redisKey);
+    cacheKeys.push(`${opp.sport}/${opp.event_id}/${opp.market}/${canonicalBook}`);
+  };
+
+  for (const opp of opportunities) {
+    for (const book of opp.all_books ?? []) queueBook(opp, book.book, book.limits);
+    for (const book of opp.opposite_side?.all_books ?? []) queueBook(opp, book.book, book.limits);
+  }
+
+  if (redisKeys.length === 0) return;
+  const liveOddsCache = await fetchLiveLiquidityBooks(redisKeys, cacheKeys);
+
+  const hydrateBook = (
+    opp: Opportunity,
+    book: BookOffer,
+    side: Opportunity["side"]
+  ) => {
+    const canonicalBook = canonicalizeBookId(book.book);
+    if (!LIVE_LIQUIDITY_BOOKS.has(canonicalBook) || hasLiveLimits(book.limits)) return;
+
+    const liveBook = liveOddsCache.get(`${opp.sport}/${opp.event_id}/${opp.market}/${canonicalBook}`);
+    const selection = getLiveSelection(liveBook, opp.player || "game_total", side, opp.line);
+    if (!selection) return;
+
+    const limits = normalizeLiveLimits(selection.limits);
+    if (limits) book.limits = limits;
+    if (!book.link && typeof selection.link === "string") book.link = selection.link;
+    if (!book.mobile_link && typeof selection.mobile_link === "string") book.mobile_link = selection.mobile_link;
+    if (!book.sgp && typeof selection.sgp === "string") book.sgp = selection.sgp;
+    if (!book.odd_id && typeof selection.odd_id === "string") book.odd_id = selection.odd_id;
+  };
+
+  for (const opp of opportunities) {
+    for (const book of opp.all_books ?? []) hydrateBook(opp, book, opp.side);
+    if (opp.opposite_side) {
+      for (const book of opp.opposite_side.all_books ?? []) hydrateBook(opp, book, opp.opposite_side.side);
+    }
+  }
 }
 
 function blendAmericanOdds(

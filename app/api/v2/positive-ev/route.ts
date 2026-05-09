@@ -83,6 +83,8 @@ const LIVE_ODDS_SUPPLEMENTAL_BOOKS = [
 ] as const;
 
 type LiveOddsCache = Map<string, Record<string, any>>;
+const LIVE_LIQUIDITY_BOOKS = new Set(["novig", "prophetx", "kalshi", "pinnacle", "ps3838"]);
+const LIVE_LIQUIDITY_FETCH_CHUNK_SIZE = 500;
 
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
@@ -345,6 +347,7 @@ export async function GET(req: NextRequest) {
         const cached = await redis.get<PositiveEVResponse>(responseCacheKey);
         if (cached) {
           const response = typeof cached === "string" ? JSON.parse(cached) : cached;
+          await hydratePositiveEVOpportunitiesWithLiveLiquidity(response.opportunities);
           return NextResponse.json(response, {
             headers: {
               "X-Cache": "HIT",
@@ -604,6 +607,7 @@ export async function GET(req: NextRequest) {
     const opportunities: PositiveEVOpportunity[] = limitedRows.map((row) =>
       evRowToOpportunity(row, effectiveSharpPreset, devigMethods)
     );
+    await hydratePositiveEVOpportunitiesWithLiveLiquidity(opportunities);
 
     const response: PositiveEVResponse = {
       opportunities,
@@ -1023,6 +1027,113 @@ function evRowToOpportunity(
 // Match the same name normalization used when SSE odds keys are written
 function normalizeEntityName(name: string): string {
   return name.toLowerCase().replace(/ /g, "_").replace(/\./g, "").replace(/'/g, "").replace(/-/g, "_");
+}
+
+function normalizeLiveLimits(limits: unknown): { max: number } | null {
+  const max = Number((limits as { max?: unknown } | null | undefined)?.max);
+  return Number.isFinite(max) && max > 0 ? { max } : null;
+}
+
+function hasLiveLimits(limits: unknown): boolean {
+  return normalizeLiveLimits(limits) !== null;
+}
+
+function getOppositeSelectionSide(side: PositiveEVOpportunity["side"]): PositiveEVOpportunity["side"] {
+  if (side === "over") return "under";
+  if (side === "under") return "over";
+  if (side === "yes") return "no";
+  return "yes";
+}
+
+function getLiveSelection(
+  liveBook: Record<string, any> | undefined,
+  entityName: string,
+  side: PositiveEVOpportunity["side"],
+  line: number
+): Record<string, any> | null {
+  if (!liveBook) return null;
+  const normalizedEntity = normalizeEntityName(entityName || "game_total");
+  const selection = liveBook[`${normalizedEntity}|${side}|${line}`];
+  return selection && typeof selection === "object" ? selection : null;
+}
+
+async function fetchLiveLiquidityBooks(
+  keys: string[],
+  cacheKeys: string[]
+): Promise<LiveOddsCache> {
+  const cache: LiveOddsCache = new Map();
+  for (let i = 0; i < keys.length; i += LIVE_LIQUIDITY_FETCH_CHUNK_SIZE) {
+    try {
+      const keyChunk = keys.slice(i, i + LIVE_LIQUIDITY_FETCH_CHUNK_SIZE);
+      const cacheKeyChunk = cacheKeys.slice(i, i + LIVE_LIQUIDITY_FETCH_CHUNK_SIZE);
+      const values = await redis.mget<(string | null)[]>(...keyChunk);
+      for (let j = 0; j < values.length; j++) {
+        const parsed = parseRedisValue<Record<string, any>>(values[j] as string | null, keyChunk[j]);
+        if (parsed) cache.set(cacheKeyChunk[j], parsed);
+      }
+    } catch (err) {
+      console.warn("[positive-ev] live liquidity mget failed:", err);
+    }
+  }
+  return cache;
+}
+
+async function hydratePositiveEVOpportunitiesWithLiveLiquidity(
+  opportunities: PositiveEVOpportunity[]
+): Promise<void> {
+  const redisKeys: string[] = [];
+  const cacheKeys: string[] = [];
+  const seen = new Set<string>();
+
+  const queueBook = (
+    opp: PositiveEVOpportunity,
+    bookId: string,
+    limits: { max: number } | null | undefined
+  ) => {
+    const canonicalBook = canonicalizeCustomBookId(bookId);
+    if (!LIVE_LIQUIDITY_BOOKS.has(canonicalBook) || hasLiveLimits(limits)) return;
+    if (!opp.sport || !opp.eventId || !opp.market) return;
+
+    const redisKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}:${canonicalBook}`;
+    if (seen.has(redisKey)) return;
+    seen.add(redisKey);
+    redisKeys.push(redisKey);
+    cacheKeys.push(`${opp.sport}/${opp.eventId}/${opp.market}/${canonicalBook}`);
+  };
+
+  for (const opp of opportunities) {
+    for (const book of opp.allBooks ?? []) queueBook(opp, book.bookId, book.limits);
+    for (const book of opp.oppositeBooks ?? []) queueBook(opp, book.bookId, book.limits);
+  }
+
+  if (redisKeys.length === 0) return;
+  const liveOddsCache = await fetchLiveLiquidityBooks(redisKeys, cacheKeys);
+
+  const hydrateBook = (
+    opp: PositiveEVOpportunity,
+    book: PositiveEVOpportunity["allBooks"][number],
+    side: PositiveEVOpportunity["side"]
+  ) => {
+    const canonicalBook = canonicalizeCustomBookId(book.bookId);
+    if (!LIVE_LIQUIDITY_BOOKS.has(canonicalBook) || hasLiveLimits(book.limits)) return;
+
+    const liveBook = liveOddsCache.get(`${opp.sport}/${opp.eventId}/${opp.market}/${canonicalBook}`);
+    const selection = getLiveSelection(liveBook, opp.playerName || "game_total", side, opp.line);
+    if (!selection) return;
+
+    const limits = normalizeLiveLimits(selection.limits);
+    if (limits) book.limits = limits;
+    if (!book.link && typeof selection.link === "string") book.link = selection.link;
+    if (!book.mobileLink && typeof selection.mobile_link === "string") book.mobileLink = selection.mobile_link;
+    if (!book.sgp && typeof selection.sgp === "string") book.sgp = selection.sgp;
+    if (!book.oddId && typeof selection.odd_id === "string") book.oddId = selection.odd_id;
+  };
+
+  for (const opp of opportunities) {
+    const oppositeSide = getOppositeSelectionSide(opp.side);
+    for (const book of opp.allBooks ?? []) hydrateBook(opp, book, opp.side);
+    for (const book of opp.oppositeBooks ?? []) hydrateBook(opp, book, oppositeSide);
+  }
 }
 
 // Batch-fetch live odds for LIVE_ODDS_SUPPLEMENTAL_BOOKS across all event/market combos
