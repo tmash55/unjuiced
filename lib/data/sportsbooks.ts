@@ -493,6 +493,25 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     isActive: true,
     requiresState: false
   },
+  "prop-builder": {
+    id: "prop-builder",
+    oddsVendorId: "prop-builder",
+    name: "Props Builder",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.bovada.lv/",
+      mobile: "https://www.bovada.lv/"
+    },
+    image: {
+      light: "/images/sports-books/bovada.png",
+      long: "/images/sports-books/bovada_long.png"
+    },
+    brandColor: "#CC1B00",
+    priority: 4,
+    isActive: true,
+    requiresState: false
+  },
   "bodog": {
     id: "bodog",
     name: "Bodog",
@@ -609,6 +628,9 @@ export function normalizeSportsbookId(id: string): string {
     'betonline': 'betonline',
     'fanduel-yourway': 'fanduelyourway',
     'fanduel_yourway': 'fanduelyourway',
+    'props-builder': 'prop-builder',
+    'props_builder': 'prop-builder',
+    'prop_builder': 'prop-builder',
     // BetMGM Michigan is our preferred BetMGM source (US odds)
     'betmgm-michigan': 'betmgm',
     'betmgm_michigan': 'betmgm',
