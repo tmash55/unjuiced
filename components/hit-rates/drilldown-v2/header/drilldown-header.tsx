@@ -160,43 +160,58 @@ export function DrilldownHeader({
           favorite, subdued for dog) and a hairline-separated tip-off. Reads
           like a sportsbook ticker: instant team + price context, no mental
           inversion required. */}
-      <div className={cn(
-        "hidden md:flex md:flex-col lg:flex-shrink-0",
-        // Compact mode (modal) drops the card chrome — reads as an inline
-        // ESPN-style ticker. Default keeps the bordered glass card so it
-        // still feels like a contained matchup tile in the full drilldown.
-        compact
-          ? "min-w-0 gap-1"
-          : "min-w-[330px] gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm dark:border-neutral-800/70 dark:bg-neutral-950/35",
-      )}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
-            <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
-              @
-            </span>
-            <TeamGlyph
-              abbr={homeAbbr ?? opponent}
-              sport={sport}
-              spread={homeSpread}
-            />
-          </div>
-          <span className={cn(
-            "shrink-0 text-[11px] font-black tabular-nums",
-            compact
-              ? "text-neutral-500 dark:text-neutral-400"
-              : "rounded-md bg-white/70 px-2 py-1 text-neutral-700 ring-1 ring-neutral-200/70 dark:bg-neutral-900/70 dark:text-neutral-200 dark:ring-neutral-800/70",
-          )}>
+      {compact ? (
+        // Compact: single-line ESPN-style ticker — team chips already carry
+        // each team's spread, so we drop the second SPREAD/TOTAL row entirely
+        // and inline only what's missing (tip-off + total).
+        <div className="hidden min-w-0 items-center gap-2 md:flex lg:flex-shrink-0">
+          <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
+          <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
+            @
+          </span>
+          <TeamGlyph
+            abbr={homeAbbr ?? opponent}
+            sport={sport}
+            spread={homeSpread}
+          />
+          <span className="ml-1 text-[11px] font-black tabular-nums text-neutral-500 dark:text-neutral-400">
             {gameTime}
           </span>
-        </div>
-        <div className="flex items-center gap-2 pl-0.5">
-          <LineBadge label="Spread" value={formatGameSpread(playerSpread)} />
           {profile.total !== null && (
-            <LineBadge label="Total" value={formatTotal(profile.total)} />
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+              <span className="text-[11px] font-black tabular-nums text-neutral-500 dark:text-neutral-400">
+                O/U {formatTotal(profile.total)}
+              </span>
+            </>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="hidden min-w-[330px] flex-col gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
+              <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
+                @
+              </span>
+              <TeamGlyph
+                abbr={homeAbbr ?? opponent}
+                sport={sport}
+                spread={homeSpread}
+              />
+            </div>
+            <span className="shrink-0 rounded-md bg-white/70 px-2 py-1 text-[11px] font-black tabular-nums text-neutral-700 ring-1 ring-neutral-200/70 dark:bg-neutral-900/70 dark:text-neutral-200 dark:ring-neutral-800/70">
+              {gameTime}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 pl-0.5">
+            <LineBadge label="Spread" value={formatGameSpread(playerSpread)} />
+            {profile.total !== null && (
+              <LineBadge label="Total" value={formatTotal(profile.total)} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* RIGHT — line + odds, grouped together. Mirrors the left group's
           flex-1 so the matchup centers between them, and keeps the actionable
