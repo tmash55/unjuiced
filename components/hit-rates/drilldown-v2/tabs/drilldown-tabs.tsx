@@ -3592,10 +3592,15 @@ export function MatchupPanel({
   profile,
   sport,
   activeLine,
+  stacked = false,
 }: {
   profile: HitRateProfile;
   sport: "nba" | "wnba";
   activeLine: number | null;
+  /** When true, render the two cards (Defense vs Position + Similar Players)
+   *  one above the other instead of side-by-side. Used by the quick-view modal
+   *  where the dialog isn't wide enough for the dual-column layout. */
+  stacked?: boolean;
 }) {
   const [wnbaSeason, setWnbaSeason] = useState<"2025" | "2026">("2025");
   const [gameLimit, setGameLimit] = useState(20);
@@ -3663,7 +3668,7 @@ export function MatchupPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(430px,0.9fr)_minmax(620px,1.1fr)]">
+      <div className={cn("grid gap-3", stacked ? "grid-cols-1" : "grid-cols-1 xl:grid-cols-[minmax(430px,0.9fr)_minmax(620px,1.1fr)]")}>
         <DefenseGridPanel
           positions={defenseQuery.positions}
           positionsToShow={positionsToShow}

@@ -4664,459 +4664,139 @@ export function PlayerQuickViewModal({
         ) : (
           <div className="flex flex-col max-h-[92vh] overflow-hidden w-full">
             {/* ═══════════════════════════════════════════════════════════════════
-                STICKY HEADER - Premium Design
+                STICKY HEADER — slim version. Player identity, matchup ticker,
+                line stepper, and best-price column all live in the v2
+                DrilldownHeader baked into the chart's topSlot, so this row only
+                carries close + market dropdown + season averages.
                 ═══════════════════════════════════════════════════════════════════ */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-white to-white/95 dark:from-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl border-b border-neutral-200/50 dark:border-neutral-800/80">
-              {/* Top Section - Player Info + Season Stats */}
-              <div 
-                className="relative overflow-hidden"
-                style={{ 
-                  background: profile?.primaryColor 
-                    ? `linear-gradient(135deg, ${profile.primaryColor}20 0%, ${profile.primaryColor}05 40%, transparent 70%)`
-                    : undefined
-                }}
-              >
-                {/* Subtle gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-white/50 dark:via-neutral-950/30 dark:to-neutral-950/50" />
-                
-                {/* Close button */}
+              <div className="relative px-4 sm:px-6 py-2.5 sm:py-3">
+                <div className="flex items-center gap-2 sm:gap-3 pr-10">
+                  {/* Market Dropdown - selects which prop the chart + tabs render. */}
+                  <div className="relative shrink-0" ref={marketDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
+                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/50 dark:border-neutral-700/80 text-xs sm:text-sm font-bold text-neutral-900 dark:text-white hover:border-brand/45 hover:shadow-md transition-all shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                    >
+                      <span className="text-brand">{formatMarketLabel(currentMarket)}</span>
+                      <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200", isMarketDropdownOpen && "rotate-180")} />
+                    </button>
+                    {isMarketDropdownOpen && (
+                      <div className="absolute top-full left-0 mt-2 z-[9999] min-w-[180px] p-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/50 dark:border-neutral-700/80 shadow-2xl ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl">
+                        <div className="max-h-[280px] overflow-y-auto">
+                          {availableMarkets.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMarket(m);
+                                onMarketChange?.(m);
+                                setIsMarketDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full px-3 py-2.5 text-left text-sm font-semibold rounded-lg transition-all",
+                                m === currentMarket
+                                  ? "bg-brand/10 text-brand ring-1 ring-brand/20"
+                                  : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/50"
+                              )}
+                            >
+                              {formatMarketLabel(m)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Season averages — compact horizontal pill row. */}
+                  {headerSeasonSummary && (
+                    <div className="hidden sm:flex flex-1 min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+                      {headerSeasonSummary.stats.map((stat) => (
+                        <div
+                          key={stat.label}
+                          className={cn(
+                            "flex items-baseline gap-1.5 px-2.5 py-1.5 rounded-lg whitespace-nowrap",
+                            stat.highlight
+                              ? "bg-brand/10 ring-1 ring-brand/20"
+                              : "bg-neutral-100/60 dark:bg-neutral-800/50 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+                          )}
+                        >
+                          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">{stat.label}</span>
+                          <span className={cn(
+                            "text-sm font-black tabular-nums",
+                            stat.highlight ? "text-brand" : "text-neutral-900 dark:text-white"
+                          )}>
+                            {stat.value}
+                          </span>
+                        </div>
+                      ))}
+                      <span className="ml-1 text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">{headerSeasonSummary.label}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile season averages: tighter grid below the market row. */}
+                {headerSeasonSummary && (
+                  <div className="flex sm:hidden mt-2.5 gap-1 overflow-x-auto scrollbar-hide">
+                    {headerSeasonSummary.stats.map((stat) => (
+                      <div
+                        key={stat.label}
+                        className={cn(
+                          "flex items-baseline gap-1.5 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0",
+                          stat.highlight
+                            ? "bg-brand/10 ring-1 ring-brand/20"
+                            : "bg-neutral-100/60 dark:bg-neutral-800/50 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+                        )}
+                      >
+                        <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">{stat.label}</span>
+                        <span className={cn(
+                          "text-sm font-black tabular-nums",
+                          stat.highlight ? "text-brand" : "text-neutral-900 dark:text-white"
+                        )}>
+                          {stat.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Close button — pinned top-right of header. */}
                 <button
                   onClick={() => onOpenChange(false)}
-                  className="absolute top-3 right-3 p-2 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 z-10 backdrop-blur-sm"
+                  className="absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 z-10 backdrop-blur-sm"
                 >
                   <X className="h-5 w-5" />
                 </button>
 
-                <div className="relative px-4 sm:px-6 pt-5 pb-4">
-                  <div className="flex items-start gap-4">
-                    {/* Left: Headshot + Basic Info */}
-                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div 
-                        className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl overflow-hidden shadow-xl shrink-0 ring-2 ring-white dark:ring-neutral-700 transition-transform hover:scale-105"
-                        style={{ 
-                          background: profile?.primaryColor && profile?.secondaryColor 
-                            ? `linear-gradient(180deg, ${profile.primaryColor} 0%, ${profile.secondaryColor} 100%)`
-                            : profile?.primaryColor || '#374151'
-                        }}
-                      >
-                        <PlayerHeadshot
-                          nbaPlayerId={nba_player_id || null}
-                          mlbPlayerId={isMlb ? resolvedPlayerId ?? null : null}
-                          sport={sport}
-                          name={displayName}
-                          size="small"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1 min-w-0 pr-10 sm:pr-0">
-                        <DialogTitle className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white leading-tight truncate tracking-tight">
-                          {displayName}
-                        </DialogTitle>
-                        <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                          {displayTeam && (
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50">
-                              <img
-                                src={getTeamLogoUrl(displayTeam, teamLogoSport)}
-                                alt={displayTeam}
-                                className="h-4 w-4 object-contain"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                              />
-                              <span className="font-bold text-neutral-700 dark:text-neutral-300">{displayTeam}</span>
-                            </div>
-                          )}
-                          {displayPosition && (
-                            <span className="px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 font-semibold text-neutral-600 dark:text-neutral-400">
-                              {displayPosition}
-                            </span>
-                          )}
-                          {displayJersey && (
-                            <span className="font-medium text-neutral-400">#{displayJersey}</span>
-                          )}
-                        </div>
-                        {/* Next Game - Premium Badge */}
-                        {nextGame && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200/50 dark:border-emerald-700/30">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              <span className="text-[10px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-400">Next</span>
-                              {nextGame.homeAway && (
-                                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">{nextGame.homeAway === "H" ? "vs" : "@"}</span>
-                              )}
-                              {nextGame.opponentTeamAbbr && (
-                                <img
-                                  src={getTeamLogoUrl(nextGame.opponentTeamAbbr, teamLogoSport)}
-                                  alt={nextGame.opponentTeamAbbr}
-                                  className="h-3.5 w-3.5 object-contain"
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                />
-                              )}
-                              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{nextGame.opponentTeamAbbr}</span>
-                              {nextGameDetail && (
-                                <>
-                                  <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">•</span>
-                                  <span className="text-[10px] font-medium text-emerald-600/80 dark:text-emerald-400/80">{nextGameDetail}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: Season Stats Card - Premium Glass Design */}
-                    {headerSeasonSummary && (
-                      <div className="hidden sm:flex flex-col items-center gap-1.5 mr-8">
-                        <div className="flex items-stretch gap-1 p-1.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50 shadow-sm">
-                          {headerSeasonSummary.stats.map((stat) => (
-                            <div 
-                              key={stat.label}
-                              className={cn(
-                                "flex flex-col items-center justify-center px-3 py-1.5 min-w-[52px] rounded-lg transition-colors",
-                                stat.highlight && "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20"
-                              )}
-                            >
-                              <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{stat.label}</span>
-                              <span className={cn(
-                                "text-lg font-bold tabular-nums tracking-tight",
-                                stat.highlight ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                              )}>
-                                {stat.value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{headerSeasonSummary.label}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Mobile Season Stats - Premium Grid */}
-                  {headerSeasonSummary && (
-                    <div className="flex sm:hidden flex-col items-center gap-2 mt-4">
-                      <div className="grid grid-cols-4 gap-1 w-full max-w-xs p-1.5 rounded-xl bg-white/60 dark:bg-neutral-800/40 backdrop-blur-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                        {headerSeasonSummary.stats.map((stat) => (
-                          <div 
-                            key={stat.label}
-                            className={cn(
-                              "flex flex-col items-center justify-center py-2 rounded-lg",
-                              stat.highlight && "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30"
-                            )}
-                          >
-                            <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{stat.label}</span>
-                            <span className={cn(
-                              "text-base font-bold tabular-nums",
-                              stat.highlight ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                            )}>
-                              {stat.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-[7px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{headerSeasonSummary.label}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Bottom Section - Prop Controls - Premium Glass */}
-              <div className="px-4 sm:px-6 py-3 bg-gradient-to-r from-neutral-50/80 via-white/60 to-neutral-50/80 dark:from-neutral-900/60 dark:via-neutral-800/40 dark:to-neutral-900/60 border-t border-neutral-200/60 dark:border-neutral-800/60">
-                <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-                  {/* Left: Market Dropdown + Line Chip */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Market Dropdown - Premium */}
-                    <div className="relative" ref={marketDropdownRef}>
-                      <button
-                        type="button"
-                        onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
-                        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/50 dark:border-neutral-700/80 text-xs sm:text-sm font-bold text-neutral-900 dark:text-white hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-                      >
-                        <span className="text-emerald-600 dark:text-emerald-400">{formatMarketLabel(currentMarket)}</span>
-                        <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200", isMarketDropdownOpen && "rotate-180")} />
-                      </button>
-                      {isMarketDropdownOpen && (
-                        <div className="absolute top-full left-0 mt-2 z-[9999] min-w-[180px] p-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/50 dark:border-neutral-700/80 shadow-2xl ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl">
-                          <div className="max-h-[280px] overflow-y-auto">
-                            {availableMarkets.map((m) => (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedMarket(m);
-                                  onMarketChange?.(m);
-                                  setIsMarketDropdownOpen(false);
-                                }}
-                                className={cn(
-                                  "w-full px-3 py-2.5 text-left text-sm font-semibold rounded-lg transition-all",
-                                  m === currentMarket
-                                    ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30"
-                                    : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/50"
-                                )}
-                              >
-                                {formatMarketLabel(m)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Line Chip */}
-                    <div
-                      className={cn(
-                        "relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-md transition-all cursor-pointer",
-                        customLine !== null && customLine !== defaultLine
-                          ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-white dark:ring-offset-neutral-950" 
-                          : "hover:shadow-lg"
-                      )}
-                      style={{ backgroundColor: profile?.primaryColor || '#6366f1' }}
-                      onClick={() => {
-                        if (!isEditingLine) {
-                          setEditValue(String(activeLine));
-                          setIsEditingLine(true);
-                        }
-                      }}
-                    >
-                      {isEditingLine ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleLineEdit(); }}
-                            onBlur={handleLineEdit}
-                            className="w-12 px-1.5 py-0.5 text-sm font-bold text-neutral-900 bg-white rounded text-center"
-                            autoFocus
-                          />
-                          <button onClick={handleLineEdit} className="p-0.5 text-white hover:bg-white/20 rounded">
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="text-base font-bold text-white tabular-nums">{activeLine}+</span>
-                          <Pencil className="h-3 w-3 text-white/60" />
-                        </>
-                      )}
-                    </div>
-
-                    {/* Reset Line Button - Only shown when line is customized */}
-                    {customLine !== null && customLine !== defaultLine && (
-                      <button
-                        type="button"
-                        onClick={() => setCustomLine(null)}
-                        className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-750 hover:text-neutral-900 dark:hover:text-white transition-colors"
-                        title="Reset to original line"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span className="hidden sm:inline">Reset</span>
-                      </button>
-                    )}
-
-                    {/* Odds */}
-                    <div className="flex items-center gap-0.5 sm:gap-1">
-                      {activeOdds?.over ? (
-                        <button
-                          type="button"
-                          onClick={() => activeOdds.over?.mobileLink && window.open(applyState(activeOdds.over.mobileLink) || activeOdds.over.mobileLink, "_blank", "noopener,noreferrer")}
-                          className={cn(
-                            "flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all text-xs",
-                            activeOdds.over?.mobileLink && "hover:border-emerald-400/50 cursor-pointer"
-                          )}
-                        >
-                          {activeOdds.over.book && (() => {
-                            const sb = getSportsbookById(activeOdds.over.book);
-                            return sb?.image?.light ? (
-                              <img src={sb.image.light} alt={sb.name} className="h-3.5 w-3.5 object-contain" />
-                            ) : null;
-                          })()}
-                          <span className="font-medium text-neutral-400">O</span>
-                          <span className={cn(
-                            "font-bold tabular-nums",
-                            activeOdds.over.price > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
-                          )}>
-                            {activeOdds.over.price > 0 ? `+${activeOdds.over.price}` : activeOdds.over.price}
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
-                          <span className="font-medium text-neutral-400">O</span>
-                          <span className="font-bold tabular-nums text-neutral-400">—</span>
-                        </div>
-                      )}
-                      {activeOdds?.under ? (
-                        <button
-                          type="button"
-                          onClick={() => activeOdds.under?.mobileLink && window.open(applyState(activeOdds.under.mobileLink) || activeOdds.under.mobileLink, "_blank", "noopener,noreferrer")}
-                          className={cn(
-                            "flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all text-xs",
-                            activeOdds.under?.mobileLink && "hover:border-red-400/50 cursor-pointer"
-                          )}
-                        >
-                          {activeOdds.under.book && (() => {
-                            const sb = getSportsbookById(activeOdds.under.book);
-                            return sb?.image?.light ? (
-                              <img src={sb.image.light} alt={sb.name} className="h-3.5 w-3.5 object-contain" />
-                            ) : null;
-                          })()}
-                          <span className="font-medium text-neutral-400">U</span>
-                          <span className={cn(
-                            "font-bold tabular-nums",
-                            activeOdds.under.price > 0 ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300"
-                          )}>
-                            {activeOdds.under.price > 0 ? `+${activeOdds.under.price}` : activeOdds.under.price}
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
-                          <span className="font-medium text-neutral-400">U</span>
-                          <span className="font-bold tabular-nums text-neutral-400">—</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right: Hit Rate Strip - Premium Pills */}
-                  <div className="hidden sm:flex items-center gap-1 p-1 rounded-xl bg-neutral-100/50 dark:bg-neutral-800/30">
-                    {[
-                      { label: "L5", value: dynamicHitRates.l5, count: 5 as const },
-                      { label: "L10", value: dynamicHitRates.l10, count: 10 as const },
-                      { label: "L20", value: dynamicHitRates.l20, count: 20 as const },
-                      { label: "SZN", value: dynamicHitRates.season, count: "season" as const },
-                      { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" as const },
-                    ].map((stat) => {
-                      const isSelected = gameCount === stat.count;
-                      const hitColor = stat.value !== null && stat.value >= 70 
-                        ? "emerald" 
-                        : stat.value !== null && stat.value >= 50 
-                          ? "amber" 
-                          : "red";
-                      return (
-                        <button
-                          key={stat.label}
-                          type="button"
-                          onClick={() => setGameCount(stat.count)}
-                          className={cn(
-                            "relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-xs font-semibold",
-                            isSelected 
-                              ? "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50" 
-                              : "hover:bg-white/50 dark:hover:bg-neutral-800/50"
-                          )}
-                        >
-                          <span className={cn(
-                            "font-bold tabular-nums tracking-tight",
-                            isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-500"
-                          )}>
-                            {stat.label}
-                          </span>
-                          <span className={cn(
-                            "font-bold tabular-nums",
-                            hitColor === "emerald" && "text-emerald-600 dark:text-emerald-400",
-                            hitColor === "amber" && "text-amber-600 dark:text-amber-400",
-                            hitColor === "red" && "text-red-500 dark:text-red-400",
-                            stat.value === null && "text-neutral-400 dark:text-neutral-500"
-                          )}>
-                            {stat.value != null ? `${stat.value}%` : "—"}
-                          </span>
-                          {isSelected && (
-                            <div className={cn(
-                              "absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full",
-                              hitColor === "emerald" && "bg-emerald-500",
-                              hitColor === "amber" && "bg-amber-500",
-                              hitColor === "red" && "bg-red-500",
-                              stat.value === null && "bg-neutral-400"
-                            )} />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Mobile Hit Rate Strip - Premium Touch Targets */}
-                <div className="flex sm:hidden items-center justify-center gap-1 mt-3 p-1 rounded-xl bg-neutral-100/60 dark:bg-neutral-800/40 overflow-x-auto">
-                  {[
-                    { label: "L5", value: dynamicHitRates.l5, count: 5 as const },
-                    { label: "L10", value: dynamicHitRates.l10, count: 10 as const },
-                    { label: "L20", value: dynamicHitRates.l20, count: 20 as const },
-                    { label: "SZN", value: dynamicHitRates.season, count: "season" as const },
-                    { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" as const },
-                  ].map((stat) => {
-                    const isSelected = gameCount === stat.count;
-                    const hitColor = stat.value !== null && stat.value >= 70 
-                      ? "emerald" 
-                      : stat.value !== null && stat.value >= 50 
-                        ? "amber" 
-                        : "red";
-                    return (
-                      <button
-                        key={stat.label}
-                        type="button"
-                        onClick={() => setGameCount(stat.count)}
-                        className={cn(
-                          "relative flex flex-col items-center justify-center px-2.5 py-2 rounded-lg transition-all min-w-[52px]",
-                          isSelected 
-                            ? "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/60 dark:ring-neutral-700/60" 
-                            : "active:scale-95"
-                        )}
-                      >
-                        <span className={cn(
-                          "text-[9px] font-bold uppercase tracking-wide",
-                          isSelected ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-500"
-                        )}>
-                          {stat.label}
-                        </span>
-                        <span className={cn(
-                          "text-sm font-bold tabular-nums",
-                          hitColor === "emerald" && "text-emerald-600 dark:text-emerald-400",
-                          hitColor === "amber" && "text-amber-600 dark:text-amber-400",
-                          hitColor === "red" && "text-red-500 dark:text-red-400",
-                          stat.value === null && "text-neutral-400 dark:text-neutral-500"
-                        )}>
-                          {stat.value != null ? `${stat.value}%` : "—"}
-                        </span>
-                        {isSelected && (
-                          <div className={cn(
-                            "absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-1 rounded-full",
-                            hitColor === "emerald" && "bg-emerald-500",
-                            hitColor === "amber" && "bg-amber-500",
-                            hitColor === "red" && "bg-red-500",
-                            stat.value === null && "bg-neutral-400"
-                          )} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Mobile CTA: quick access to full hit rate card */}
+                {/* Mobile CTA: quick access to full hit rate card. */}
                 {showFullProfileLink && (
-                <div className="sm:hidden mt-2">
-                  {hasAdvancedAccess ? (
-                    <Link
-                      href={fullProfileHref}
-                      target="_blank"
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                      onClick={() => onOpenChange(false)}
-                    >
-                      View Full Hit Rate Card
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/pricing"
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-colors"
-                      onClick={() => onOpenChange(false)}
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                      {isAuthenticated ? "Upgrade for Full Hit Rate Card" : "Try Free for Full Hit Rate Card"}
-                    </Link>
-                  )}
-                </div>
+                  <div className="sm:hidden mt-2.5">
+                    {hasAdvancedAccess ? (
+                      <Link
+                        href={fullProfileHref}
+                        target="_blank"
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        View Full Hit Rate Card
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/pricing"
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-colors"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        {isAuthenticated ? "Upgrade for Full Hit Rate Card" : "Try Free for Full Hit Rate Card"}
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
+
 
             {/* ═══════════════════════════════════════════════════════════════════
                 TAB NAVIGATION - Premium Style
@@ -5307,6 +4987,7 @@ export function PlayerQuickViewModal({
                         profile={profile as any}
                         sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
                         activeLine={activeLine}
+                        stacked
                       />
                     )}
                   </div>
