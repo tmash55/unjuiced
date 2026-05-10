@@ -52,31 +52,41 @@ const OVERLAY_SUPPORTED_KEYS = new Set<string>([
 
 const OVERLAY_STYLES: Record<
   string,
-  { label: string; tickClass: string; pillClass: string; ringClass: string }
+  {
+    label: string;
+    tickClass: string;
+    pillClass: string;
+    ringClass: string;
+    fillClass: string;
+  }
 > = {
   minutes: {
     label: "m",
     tickClass: "bg-sky-500 dark:bg-sky-400",
     pillClass: "text-sky-700 dark:text-sky-300",
     ringClass: "ring-sky-500/40 dark:ring-sky-400/40",
+    fillClass: "bg-sky-400/12 dark:bg-sky-500/10",
   },
   fga: {
     label: "fga",
     tickClass: "bg-amber-500 dark:bg-amber-400",
     pillClass: "text-amber-700 dark:text-amber-300",
     ringClass: "ring-amber-500/40 dark:ring-amber-400/40",
+    fillClass: "bg-amber-400/12 dark:bg-amber-500/10",
   },
   fg3a: {
     label: "3pa",
     tickClass: "bg-violet-500 dark:bg-violet-400",
     pillClass: "text-violet-700 dark:text-violet-300",
     ringClass: "ring-violet-500/40 dark:ring-violet-400/40",
+    fillClass: "bg-violet-400/12 dark:bg-violet-500/10",
   },
   passes: {
     label: "pass",
     tickClass: "bg-rose-500 dark:bg-rose-400",
     pillClass: "text-rose-700 dark:text-rose-300",
     ringClass: "ring-rose-500/40 dark:ring-rose-400/40",
+    fillClass: "bg-rose-400/12 dark:bg-rose-500/10",
   },
 };
 
@@ -1064,6 +1074,7 @@ export function HitRateChart({
                           tickClass: style.tickClass,
                           pillClass: style.pillClass,
                           ringClass: style.ringClass,
+                          fillClass: style.fillClass,
                         };
                       })
                       .filter((o): o is NonNullable<typeof o> => !!o);
@@ -1587,9 +1598,11 @@ interface BarColumnProps {
   // Hide the per-bar numeric label. Season view stuffs 30+ bars into the same
   // strip and the labels become illegible noise; tooltip still shows the value.
   showValueLabel?: boolean;
-  // Per-game stat overlays. Each renders as a colored tick line at its
-  // height with a small label pill — no fill, so multiple overlays can
-  // stack on the same column without burying the prop bar.
+  // Per-game stat overlays. Each renders as a faint translucent fill
+  // (anchored to the baseline, capped at the metric's height) plus a
+  // colored tick line + label pill at the top edge. Fill opacity is
+  // intentionally low (~10%) so multiple overlays don't blend into
+  // mud and the potential ghost stays the louder secondary layer.
   overlays?: Array<{
     key: string;
     value: number;
@@ -1598,6 +1611,7 @@ interface BarColumnProps {
     tickClass: string;
     pillClass: string;
     ringClass: string;
+    fillClass: string;
   }>;
 }
 
@@ -1646,6 +1660,17 @@ function BarColumn({
           readable when it lands over the colored prop bar. */}
       {overlays?.map((ov) => (
         <React.Fragment key={ov.key}>
+          {/* Translucent fill — anchored bottom, capped at the metric's
+              height. Keeps the bar feel without overpowering the prop /
+              potential bars when multiple overlays stack. */}
+          <div
+            className={cn(
+              "pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px]",
+              ov.fillClass,
+            )}
+            style={{ width: barWidth, height: ov.heightPx, animation }}
+            aria-hidden
+          />
           <div
             className={cn(
               "pointer-events-none absolute left-1/2 z-[3] h-px -translate-x-1/2",
