@@ -161,8 +161,13 @@ export function DrilldownHeader({
           like a sportsbook ticker: instant team + price context, no mental
           inversion required. */}
       <div className={cn(
-        "hidden rounded-xl border border-neutral-200/70 bg-neutral-50/70 shadow-sm md:flex md:flex-col lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35",
-        compact ? "min-w-0 gap-1 px-2 py-1.5 md:gap-1" : "min-w-[330px] px-3 py-2 md:gap-1.5",
+        "hidden md:flex md:flex-col lg:flex-shrink-0",
+        // Compact mode (modal) drops the card chrome — reads as an inline
+        // ESPN-style ticker. Default keeps the bordered glass card so it
+        // still feels like a contained matchup tile in the full drilldown.
+        compact
+          ? "min-w-0 gap-1"
+          : "min-w-[330px] gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm dark:border-neutral-800/70 dark:bg-neutral-950/35",
       )}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -176,7 +181,12 @@ export function DrilldownHeader({
               spread={homeSpread}
             />
           </div>
-          <span className="shrink-0 rounded-md bg-white/70 px-2 py-1 text-[11px] font-black text-neutral-700 tabular-nums ring-1 ring-neutral-200/70 dark:bg-neutral-900/70 dark:text-neutral-200 dark:ring-neutral-800/70">
+          <span className={cn(
+            "shrink-0 text-[11px] font-black tabular-nums",
+            compact
+              ? "text-neutral-500 dark:text-neutral-400"
+              : "rounded-md bg-white/70 px-2 py-1 text-neutral-700 ring-1 ring-neutral-200/70 dark:bg-neutral-900/70 dark:text-neutral-200 dark:ring-neutral-800/70",
+          )}>
             {gameTime}
           </span>
         </div>
