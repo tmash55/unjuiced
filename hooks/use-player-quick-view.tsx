@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import type { LiveBookOfferInput, OddsData } from "@/components/player-quick-view-modal";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 
 export interface PlayerQuickViewTarget {
@@ -14,6 +15,8 @@ export interface PlayerQuickViewTarget {
   initial_line?: number;
   event_id?: string;
   gameContext?: QuickViewGameContext;
+  odds?: OddsData;
+  liveBookOffers?: LiveBookOfferInput[];
 }
 
 /**
@@ -44,6 +47,8 @@ export function usePlayerQuickView() {
       initial_line={target.initial_line}
       event_id={target.event_id}
       gameContext={target.gameContext}
+      odds={target.odds}
+      liveBookOffers={target.liveBookOffers}
       open={!!target}
       onOpenChange={(open) => {
         if (!open) closeQuickView();

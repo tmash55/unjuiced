@@ -27,6 +27,8 @@ import { Tooltip } from "@/components/tooltip";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
 import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
+import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
+import type { LiveBookOfferInput, OddsData } from "@/components/player-quick-view-modal";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,38 @@ function normalizePlayerForOdds(name: string): string {
 /** Find a player's odds entry by normalized name lookup */
 function findPlayerOdds(odds: Record<string, BatterOddsEntry>, playerName: string): BatterOddsEntry | null {
   return odds[normalizePlayerForOdds(playerName)] ?? null;
+}
+
+function buildQuickViewOddsFromEntry(entry?: BatterOddsEntry | null): OddsData | undefined {
+  if (!entry) return undefined;
+  const side = entry.side === "under" ? "under" : "over";
+  return {
+    [side]: {
+      price: entry.best_price,
+      line: entry.line,
+      book: entry.best_book,
+      mobileLink: entry.best_mobile_link ?? entry.best_link,
+    },
+  };
+}
+
+function buildQuickViewOffersFromEntry(entry?: BatterOddsEntry | null): LiveBookOfferInput[] | undefined {
+  if (!entry?.all_books?.length) return undefined;
+  const side = entry.side === "under" ? "under" : "over";
+  return entry.all_books
+    .filter((book) => book.book && Number.isFinite(book.price))
+    .map((book) => ({
+      side,
+      book: book.book,
+      price: book.price,
+      line: book.line ?? entry.line,
+      url: book.link,
+      mobileUrl: book.mobile_link,
+      evPercent: entry.ev_pct,
+      isSharpRef: entry.sharp_book ? normalizeSportsbookId(book.book) === normalizeSportsbookId(entry.sharp_book) : false,
+      sgp: book.sgp ?? null,
+      oddId: book.odd_id ?? null,
+    }));
 }
 
 function getPreferredLink(desktopLink?: string | null, mobileLink?: string | null): string | null {
@@ -1745,8 +1779,11 @@ function BatterRow({
   hasSharpAccess,
   oddsLoading,
   gameId,
+  gameContext,
   propScores,
   scoreMarket,
+  quickViewMarket = "player_hits",
+  quickViewLine,
   zebra = false,
   activeStatcast,
 }: {
@@ -1762,15 +1799,26 @@ function BatterRow({
   hasSharpAccess?: boolean;
   oddsLoading?: boolean;
   gameId?: number | null;
+  gameContext?: QuickViewGameContext;
   propScores?: Record<string, PropScorePlayer>;
   scoreMarket?: string;
+  quickViewMarket?: string;
+  quickViewLine?: number;
   zebra?: boolean;
   activeStatcast?: { contact_pct: number | null; avg_ev: number | null; hard_hit_pct: number | null; barrel_pct: number | null; sweet_spot_pct: number | null; max_ev: number | null } | null;
 }) {
   const { openQuickView, quickViewElement } = usePlayerQuickView();
   const handleOpenBatter = (event: React.MouseEvent) => {
     event.stopPropagation();
-    openQuickView({ mlb_player_id: batter.player_id, player_name: batter.player_name, initial_market: "player_hits" });
+    openQuickView({
+      mlb_player_id: batter.player_id,
+      player_name: batter.player_name,
+      initial_market: quickViewMarket,
+      initial_line: oddsEntry?.line ?? quickViewLine,
+      gameContext,
+      odds: buildQuickViewOddsFromEntry(oddsEntry),
+      liveBookOffers: buildQuickViewOffersFromEntry(oddsEntry),
+    });
   };
   // Use filtered stats if provided, otherwise use overall batter stats
   const ds = displayStats ?? {
@@ -2726,8 +2774,11 @@ function ComparisonView({
   batterOdds,
   hasSharpAccess,
   gameId,
+  gameContext,
   propScoreMap,
   scoreMarket,
+  quickViewMarket = "player_hits",
+  quickViewLine,
 }: {
   batters: BatterMatchup[];
   pitcher: PitcherProfile;
@@ -2738,8 +2789,11 @@ function ComparisonView({
   batterOdds?: Record<string, BatterOddsEntry>;
   hasSharpAccess?: boolean;
   gameId?: number | null;
+  gameContext?: QuickViewGameContext;
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
   scoreMarket?: string;
+  quickViewMarket?: string;
+  quickViewLine?: number;
 }) {
   const { openQuickView, quickViewElement } = usePlayerQuickView();
   const primary = pitcher.arsenal[0] ?? null;
@@ -2806,6 +2860,7 @@ function ComparisonView({
       {/* Matchup cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
         {sorted.map((b) => {
+          const quickViewOddsEntry = batterOdds ? findPlayerOdds(batterOdds, b.player_name) : null;
           const playerPropScores = propScoreMap?.get(b.player_id);
           const displayScore = playerPropScores?.[activePropMarket]?.composite_score ?? b.hr_probability_score ?? 0;
           const overlap = b.overlap_score ?? 0;
@@ -2848,8 +2903,32 @@ function ComparisonView({
                   <span
                     role="button"
                     tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openQuickView({ mlb_player_id: b.player_id, player_name: b.player_name, initial_market: "player_hits" }); } }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openQuickView({
+                        mlb_player_id: b.player_id,
+                        player_name: b.player_name,
+                        initial_market: quickViewMarket,
+                        initial_line: quickViewOddsEntry?.line ?? quickViewLine,
+                        gameContext,
+                        odds: buildQuickViewOddsFromEntry(quickViewOddsEntry),
+                        liveBookOffers: buildQuickViewOffersFromEntry(quickViewOddsEntry),
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.stopPropagation();
+                        openQuickView({
+                          mlb_player_id: b.player_id,
+                          player_name: b.player_name,
+                          initial_market: quickViewMarket,
+                          initial_line: quickViewOddsEntry?.line ?? quickViewLine,
+                          gameContext,
+                          odds: buildQuickViewOddsFromEntry(quickViewOddsEntry),
+                          liveBookOffers: buildQuickViewOffersFromEntry(quickViewOddsEntry),
+                        });
+                      }
+                    }}
                     className="cursor-pointer text-xs font-bold text-neutral-900 dark:text-white truncate block transition-colors hover:text-brand hover:underline"
                   >
                     {b.player_name}
@@ -3101,6 +3180,27 @@ export function MlbBatterVsPitcher({
     () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
     [games, selectedGameId]
   );
+  const quickViewGameContext = useMemo<QuickViewGameContext | undefined>(() => {
+    if (!game || !selectedGameId) return undefined;
+    const isHomeLineup = battingSide === "home";
+    const opposingPitcherId = overridePitcherId
+      ?? pitcher?.player_id
+      ?? (isHomeLineup ? game.away_pitcher_id : game.home_pitcher_id);
+    const opposingPitcherName = pitcher?.name
+      ?? (isHomeLineup ? game.away_pitcher_name : game.home_pitcher_name)
+      ?? null;
+
+    return {
+      gameId: selectedGameId,
+      gameDate: game.game_date,
+      gameDatetime: game.game_datetime,
+      gameStatus: selectedGame?.game_status ?? null,
+      homeAway: isHomeLineup ? "H" : "A",
+      opponentTeamAbbr: isHomeLineup ? game.away_team.abbr : game.home_team.abbr,
+      opposingPitcherName,
+      opposingPitcherId,
+    };
+  }, [battingSide, game, overridePitcherId, pitcher?.name, pitcher?.player_id, selectedGame?.game_status, selectedGameId]);
   const activePropMarket = getMlbPropMarketFromOddsMarket(oddsMarket);
 
   // Prop scores for the selected game — overlay onto batter rows
@@ -3798,8 +3898,11 @@ export function MlbBatterVsPitcher({
                         batterOdds={batterOdds}
                         hasSharpAccess={hasSharpAccess}
                         gameId={selectedGameId}
+                        gameContext={quickViewGameContext}
                         propScoreMap={propScoreMap}
                         scoreMarket={activePropMarket}
+                        quickViewMarket={oddsMarket}
+                        quickViewLine={oddsLine}
                       />
                     ) : isMobile ? (
                       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 divide-y divide-neutral-100 dark:divide-neutral-800/30 overflow-hidden">
@@ -3818,8 +3921,11 @@ export function MlbBatterVsPitcher({
                             hasSharpAccess={hasSharpAccess}
                             oddsLoading={oddsFetching}
                             gameId={selectedGameId}
+                            gameContext={quickViewGameContext}
                             propScores={propScoreMap.get(b.player_id)}
                             scoreMarket={activePropMarket}
+                            quickViewMarket={oddsMarket}
+                            quickViewLine={oddsLine}
                             zebra={idx % 2 === 1}
                             activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                           />
@@ -4015,8 +4121,11 @@ export function MlbBatterVsPitcher({
                                 hasSharpAccess={hasSharpAccess}
                                 oddsLoading={oddsFetching}
                                 gameId={selectedGameId}
+                                gameContext={quickViewGameContext}
                                 propScores={propScoreMap.get(b.player_id)}
                                 scoreMarket={activePropMarket}
+                                quickViewMarket={oddsMarket}
+                                quickViewLine={oddsLine}
                                 zebra={idx % 2 === 1}
                                 activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                               />
@@ -4117,8 +4226,11 @@ export function MlbBatterVsPitcher({
                                     hasSharpAccess={hasSharpAccess}
                                     oddsLoading={oddsFetching}
                                     gameId={selectedGameId}
+                                    gameContext={quickViewGameContext}
                                     propScores={propScoreMap.get(b.player_id)}
                                     scoreMarket={activePropMarket}
+                                    quickViewMarket={oddsMarket}
+                                    quickViewLine={oddsLine}
                                     zebra={idx % 2 === 1}
                                     activeStatcast={(pitchFilters.length > 0 || handFilter !== "all") ? getActiveStatcast(b) : null}
                                   />
