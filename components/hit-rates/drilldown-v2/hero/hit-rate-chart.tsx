@@ -207,6 +207,10 @@ interface HitRateChartProps {
   upcomingGameDate?: string | null;
   upcomingOpponentAbbr?: string | null;
   upcomingHomeAway?: string | null;
+  /** Suppress the inline quick-filter chip row AND the chart-settings + Filters
+   *  drawer trigger. Used by the quick-view modal so users go to the full
+   *  hit-rate profile for advanced filtering. */
+  hideQuickFilters?: boolean;
 }
 
 const CHART_HEIGHT = 280;
@@ -345,6 +349,7 @@ export function HitRateChart({
   upcomingGameDate,
   upcomingOpponentAbbr,
   upcomingHomeAway,
+  hideQuickFilters = false,
 }: HitRateChartProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Index of the bar currently being hovered — drives the crosshair + pinned
@@ -1288,7 +1293,7 @@ export function HitRateChart({
       {/* Quick filters — market-aware chips. Cap pinned to upcoming game's
           venue (Home/Away). Right-aligned "+ Filters" stub for the future
           drawer that hosts the heavier overlay filters. */}
-      {inlineQuickFilters.length > 0 && (
+      {!hideQuickFilters && inlineQuickFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 border-t border-neutral-200/50 px-3 py-2 dark:border-neutral-800/50 sm:px-4">
           <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
             Quick

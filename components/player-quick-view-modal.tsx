@@ -5016,6 +5016,7 @@ export function PlayerQuickViewModal({
                       upcomingGameDate={profile.gameDate ?? null}
                       upcomingOpponentAbbr={profile.opponentTeamAbbr ?? null}
                       upcomingHomeAway={profile.homeAway ?? null}
+                      hideQuickFilters
                     />
                   ) : (
                     <Tile label="Game Log" padded={false} className="w-full overflow-hidden">
