@@ -1633,7 +1633,7 @@ export default function PositiveEVPage() {
 
       {/* Results Table - Premium Design */}
       <div data-tour="ev-table" className="rounded-2xl">
-        <div className="relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm">
+        <div className="relative overflow-y-auto overflow-x-hidden max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-[5]">
             <tr className="bg-neutral-50 dark:bg-neutral-900">
@@ -2919,7 +2919,7 @@ export default function PositiveEVPage() {
                           exit={{ opacity: 0, height: 0 }}
                           transition={{ duration: 0.25, ease: "easeOut" }}
                         >
-                          <td colSpan={totalColumns} className="p-0">
+                          <td colSpan={totalColumns} className="p-0 max-w-0 overflow-hidden">
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: isOddsChanged ? 0.5 : 1 }}
@@ -2930,7 +2930,7 @@ export default function PositiveEVPage() {
                               )}
                             >
                               {/* Full Width Container */}
-                              <div className="w-full flex flex-col items-center">
+                              <div className="w-full min-w-0 overflow-hidden flex flex-col items-center">
                                 {/* Header Row with Player Info */}
                                 <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-100/90 dark:bg-neutral-950">
                                   {/* Player & Market */}
@@ -2967,8 +2967,8 @@ export default function PositiveEVPage() {
                                 </div>
 
                                 {/* Odds Table - Centered */}
-                                <div className="flex w-full justify-center">
-                                  <div className="flex max-w-full">
+                                <div className="flex w-full min-w-0 justify-center overflow-hidden">
+                                  <div className="flex w-full max-w-full min-w-0">
                                   {/* Fixed Left Column - Side Labels */}
                                   <div className="flex-shrink-0 w-28 border-r border-neutral-200/60 dark:border-neutral-800/60 bg-white/30 dark:bg-black/20">
                                     {/* Header spacer */}
@@ -3068,7 +3068,7 @@ export default function PositiveEVPage() {
                                   </div>
 
                                   {/* Scrollable Sportsbooks */}
-                                  <div className="flex-1 overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600">
+                                  <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600">
                                     <div className="inline-flex min-w-full">
                                       {sortedBookIds.map((bookId, bookIndex) => {
                                         const bookLogo = getBookLogo(bookId);
