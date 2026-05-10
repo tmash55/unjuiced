@@ -174,6 +174,15 @@ export const METRIC_FILTERS: MetricFilterConfig[] = [
     getValue: (g) => g.potentialAssists,
   },
   {
+    key: "passes",
+    label: "Passes",
+    shortLabel: "PASS",
+    category: "opportunity",
+    description: "Total passes thrown",
+    step: 5,
+    getValue: (g) => g.passes,
+  },
+  {
     key: "fga",
     label: "FGA",
     shortLabel: "FGA",
@@ -545,6 +554,18 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
           predicate: (g) => (g.potentialAssists ?? 0) >= t,
         });
       }
+      // Passes — total passes thrown. Distinct from Pot AST (passes that
+      // *could* become assists). Useful overlay context for assists props
+      // since heavy passers tend to translate volume into more chances.
+      const avgPasses = avg(recentGames, (g) => g.passes ?? 0);
+      const tp = pickThreshold(avgPasses, { min: 30 });
+      if (tp !== null) {
+        filters.push({
+          id: `passes${tp}`,
+          label: `${tp}+ Passes`,
+          predicate: (g) => (g.passes ?? 0) >= tp,
+        });
+      }
       break;
     }
     case "player_threes_made": {
@@ -771,6 +792,7 @@ export function getInlineQuickFilters(
     "fga",
     "threePtA",
     "potAst",
+    "passes",
     "rebChances",
     "ast",
     "venue",

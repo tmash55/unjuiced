@@ -37,6 +37,54 @@ const INLINE_CHIP_TO_METRIC_KEY: Record<string, string> = {
   threePtA: "fg3a",
   rebChances: "potentialReb",
   potAst: "potentialAssists",
+  passes: "passes",
+};
+
+// Metric keys whose values can be rendered as a per-game tick + label
+// overlay on the chart bars. Each gets a distinct brand-adjacent color
+// so multiple overlays stay distinguishable when stacked.
+const OVERLAY_SUPPORTED_KEYS = new Set<string>([
+  "minutes",
+  "fga",
+  "fg3a",
+  "passes",
+]);
+
+const OVERLAY_STYLES: Record<
+  string,
+  { label: string; tickClass: string; pillClass: string; ringClass: string }
+> = {
+  minutes: {
+    label: "m",
+    tickClass: "bg-sky-500 dark:bg-sky-400",
+    pillClass: "text-sky-700 dark:text-sky-300",
+    ringClass: "ring-sky-500/40 dark:ring-sky-400/40",
+  },
+  fga: {
+    label: "fga",
+    tickClass: "bg-amber-500 dark:bg-amber-400",
+    pillClass: "text-amber-700 dark:text-amber-300",
+    ringClass: "ring-amber-500/40 dark:ring-amber-400/40",
+  },
+  fg3a: {
+    label: "3pa",
+    tickClass: "bg-violet-500 dark:bg-violet-400",
+    pillClass: "text-violet-700 dark:text-violet-300",
+    ringClass: "ring-violet-500/40 dark:ring-violet-400/40",
+  },
+  passes: {
+    label: "pass",
+    tickClass: "bg-rose-500 dark:bg-rose-400",
+    pillClass: "text-rose-700 dark:text-rose-300",
+    ringClass: "ring-rose-500/40 dark:ring-rose-400/40",
+  },
+};
+
+const OVERLAY_VALUE_GETTERS: Record<string, (g: BoxScoreGame) => number | null | undefined> = {
+  minutes: (g) => g.minutes,
+  fga: (g) => g.fga,
+  fg3a: (g) => g.fg3a,
+  passes: (g) => g.passes,
 };
 
 function getMetricKeyFromInlineChipId(id: string): string | null {
@@ -462,21 +510,29 @@ export function HitRateChart({
   const hasAnyPotential =
     !hidePotential && supportsPotential && potentials.some((p) => p != null && p > 0);
 
-  // Minutes overlay scaling — values mapped against the player's own
-  // visible-game range (with a small floor so a single short outing
-  // doesn't scale all other bars to 100%). Padding the bottom by 4px so
-  // the shortest minute bar is still visible above the baseline.
-  const showMinutesOverlay = !!metricOverlays?.has("minutes");
-  const minutesValues = chartGames.map((g) => g.minutes ?? 0);
-  const minutesContext = (() => {
-    if (!showMinutesOverlay) return null;
-    const valid = minutesValues.filter((m) => m > 0);
-    if (valid.length === 0) return null;
-    const min = Math.max(0, Math.floor(Math.min(...valid) - 4));
-    const max = Math.ceil(Math.max(...valid) + 2);
-    const span = Math.max(1, max - min);
-    return { min, max, span };
-  })();
+  // Per-overlay scaling — each enabled metric (Minutes / FGA / 3PA /
+  // Passes today) gets its own player-relative axis so values stay
+  // legible across short (1Q) and long (combo) markets alike. Indexed
+  // by metric key so BarColumn can render any subset stacked on the
+  // same column.
+  const overlayContexts = useMemo(() => {
+    const out: Record<string, { min: number; max: number; span: number; values: number[] }> = {};
+    if (!metricOverlays) return out;
+    for (const key of metricOverlays) {
+      const getter = OVERLAY_VALUE_GETTERS[key];
+      if (!getter) continue;
+      const values = chartGames.map((g) => Number(getter(g) ?? 0));
+      const valid = values.filter((v) => v > 0);
+      if (valid.length === 0) continue;
+      // Pad slightly so the smallest sample still shows above baseline
+      // and the largest doesn't kiss the chart top.
+      const min = Math.max(0, Math.floor(Math.min(...valid) - 4));
+      const max = Math.ceil(Math.max(...valid) + 2);
+      const span = Math.max(1, max - min);
+      out[key] = { min, max, span, values };
+    }
+    return out;
+  }, [chartGames, metricOverlays]);
 
   // Y-axis cap: enough headroom that even the tallest bar leaves room for its
   // value label above the bar top. When potential bars exist they're often
@@ -990,17 +1046,27 @@ export function HitRateChart({
                   style={{ gap: gapPx }}
                 >
                   {chartGames.map((game, idx) => {
-                    const minutesValue = minutesValues[idx];
-                    const minutesHeightPx =
-                      minutesContext && minutesValue > 0
-                        ? Math.max(
-                            4,
-                            ((Math.min(minutesContext.max, minutesValue) -
-                              minutesContext.min) /
-                              minutesContext.span) *
-                              CHART_HEIGHT,
-                          )
-                        : 0;
+                    const barOverlays = Object.entries(overlayContexts)
+                      .map(([key, ctx]) => {
+                        const v = ctx.values[idx];
+                        if (!(v > 0)) return null;
+                        const heightPx = Math.max(
+                          4,
+                          ((Math.min(ctx.max, v) - ctx.min) / ctx.span) *
+                            CHART_HEIGHT,
+                        );
+                        const style = OVERLAY_STYLES[key] ?? OVERLAY_STYLES.minutes;
+                        return {
+                          key,
+                          value: v,
+                          heightPx,
+                          labelText: `${Math.round(v)}${style.label}`,
+                          tickClass: style.tickClass,
+                          pillClass: style.pillClass,
+                          ringClass: style.ringClass,
+                        };
+                      })
+                      .filter((o): o is NonNullable<typeof o> => !!o);
                     return (
                       <BarColumn
                         key={`${game.gameId}-${idx}`}
@@ -1013,8 +1079,7 @@ export function HitRateChart({
                         hasAnyPotential={hasAnyPotential}
                         animationDelay={idx * 12}
                         showValueLabel={range !== "szn"}
-                        minutesValue={showMinutesOverlay ? minutesValue : null}
-                        minutesHeightPx={minutesHeightPx}
+                        overlays={barOverlays}
                         onMouseEnter={() => {
                           cancelHoverClear();
                           setHoveredIndex(idx);
@@ -1301,7 +1366,7 @@ export function HitRateChart({
                   activeRange={activeRange}
                   active={isActive}
                   overlayActive={metricOverlays?.has(metricConfig.key) ?? false}
-                  overlaySupported={metricConfig.key === "minutes"}
+                  overlaySupported={OVERLAY_SUPPORTED_KEYS.has(metricConfig.key)}
                   onOverlayToggle={() => onMetricOverlayToggle?.(metricConfig.key)}
                   onChange={(range) => {
                     // Replace any existing chip for this metric (legacy or
@@ -1522,12 +1587,18 @@ interface BarColumnProps {
   // Hide the per-bar numeric label. Season view stuffs 30+ bars into the same
   // strip and the labels become illegible noise; tooltip still shows the value.
   showValueLabel?: boolean;
-  // Optional minutes overlay — renders a translucent purple ghost bar
-  // BEHIND everything else on the column when toggled. Scaled against the
-  // player's own min/max minutes so the bar stays meaningful across short
-  // (1Q) markets without dwarfing the prop bars.
-  minutesValue?: number | null;
-  minutesHeightPx?: number;
+  // Per-game stat overlays. Each renders as a colored tick line at its
+  // height with a small label pill — no fill, so multiple overlays can
+  // stack on the same column without burying the prop bar.
+  overlays?: Array<{
+    key: string;
+    value: number;
+    heightPx: number;
+    labelText: string;
+    tickClass: string;
+    pillClass: string;
+    ringClass: string;
+  }>;
 }
 
 function BarColumn({
@@ -1542,18 +1613,12 @@ function BarColumn({
   onMouseEnter,
   onMouseLeave,
   showValueLabel = true,
-  minutesValue,
-  minutesHeightPx,
+  overlays,
 }: BarColumnProps) {
   const isHit = value >= line;
   const heightPx = Math.max(4, (value / maxValue) * chartHeight);
   const showGhost = hasAnyPotential && potential != null && potential > 0;
   const ghostHeightPx = showGhost ? Math.max(4, (potential! / maxValue) * chartHeight) : 0;
-  const showMinutes =
-    typeof minutesValue === "number" &&
-    minutesValue > 0 &&
-    typeof minutesHeightPx === "number" &&
-    minutesHeightPx > 0;
   // Slim the actual bar whenever the chart is in "potential mode" — keeps bar
   // widths consistent across all columns even when a game is missing potential.
   // Wider ratio (0.78) so the colored bar reads as the primary value with the
@@ -1572,29 +1637,22 @@ function BarColumn({
       className="group/bar relative h-full shrink-0"
       style={{ width: barWidth }}
     >
-      {/* Minutes overlay — three layers so the value is always readable
-          regardless of whether the minutes height exceeds the prop bar:
-          1. Ghost FILL behind everything for context when minutes is the
-             tallest thing on the column.
-          2. Brand-blue TICK line at the minutes height — sits ABOVE the
-             prop bar (z-[3]) so even when prop > minutes the marker is
-             visible crossing the colored bar.
-          3. Pill-styled LABEL at the tick height — bg keeps it legible
-             when overlapping the colored prop bar.
-          Brand blue chosen so it reads as a distinct secondary metric
-          against the green/red prop bars and the neutral potential
-          ghost. */}
-      {showMinutes && (
-        <>
+      {/* Stat overlays — colored tick line + label pill at each metric's
+          height. No background fill: keeping multiple overlays "fill-less"
+          means they don't compete with the prop bar or the potential
+          ghost. The tick sits at z-[3] so the marker is always visible,
+          even when the metric's height is below the prop bar's top
+          (e.g., 18 minutes on a 20-PTS prop). Pill bg keeps the label
+          readable when it lands over the colored prop bar. */}
+      {overlays?.map((ov) => (
+        <React.Fragment key={ov.key}>
           <div
-            className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-sky-400/20 dark:bg-sky-500/15"
-            style={{ width: barWidth, height: minutesHeightPx, animation }}
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute left-1/2 z-[3] h-px -translate-x-1/2 bg-sky-500 dark:bg-sky-400"
+            className={cn(
+              "pointer-events-none absolute left-1/2 z-[3] h-px -translate-x-1/2",
+              ov.tickClass,
+            )}
             style={{
-              bottom: minutesHeightPx,
+              bottom: ov.heightPx,
               width: barWidth + 6,
               animation,
             }}
@@ -1602,14 +1660,18 @@ function BarColumn({
           />
           {showValueLabel && (
             <span
-              className="pointer-events-none absolute left-1/2 z-[3] -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/90 px-1 text-[8px] font-bold tabular-nums leading-none text-sky-700 ring-1 ring-sky-500/40 dark:bg-neutral-900/85 dark:text-sky-300 dark:ring-sky-400/40"
-              style={{ bottom: minutesHeightPx + 2, animation }}
+              className={cn(
+                "pointer-events-none absolute left-1/2 z-[3] -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/90 px-1 text-[8px] font-bold tabular-nums leading-none ring-1 dark:bg-neutral-900/85",
+                ov.pillClass,
+                ov.ringClass,
+              )}
+              style={{ bottom: ov.heightPx + 2, animation }}
             >
-              {Math.round(minutesValue!)}m
+              {ov.labelText}
             </span>
           )}
-        </>
-      )}
+        </React.Fragment>
+      ))}
       {/* Ghost (potential) — anchored center, sits behind the actual bar.
           Its label is a CHILD positioned at bottom-full, so the label rides
           the ghost's height animation instead of jumping in pre-positioned.
