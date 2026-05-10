@@ -1572,25 +1572,43 @@ function BarColumn({
       className="group/bar relative h-full shrink-0"
       style={{ width: barWidth }}
     >
-      {/* Minutes overlay — translucent purple bar BEHIND the potential
-          ghost and the actual prop bar. Slightly wider than barWidth so
-          a sliver peeks out either side as a clear visual signal that
-          this is a *secondary* metric, not the prop being charted. */}
+      {/* Minutes overlay — three layers so the value is always readable
+          regardless of whether the minutes height exceeds the prop bar:
+          1. Ghost FILL behind everything for context when minutes is the
+             tallest thing on the column.
+          2. Brand-blue TICK line at the minutes height — sits ABOVE the
+             prop bar (z-[3]) so even when prop > minutes the marker is
+             visible crossing the colored bar.
+          3. Pill-styled LABEL at the tick height — bg keeps it legible
+             when overlapping the colored prop bar.
+          Brand blue chosen so it reads as a distinct secondary metric
+          against the green/red prop bars and the neutral potential
+          ghost. */}
       {showMinutes && (
-        <div
-          className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-purple-400/35 ring-1 ring-inset ring-purple-400/30 dark:bg-purple-500/25 dark:ring-purple-400/25"
-          style={{ width: barWidth, height: minutesHeightPx, animation }}
-          aria-hidden
-        >
+        <>
+          <div
+            className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-sky-400/20 dark:bg-sky-500/15"
+            style={{ width: barWidth, height: minutesHeightPx, animation }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute left-1/2 z-[3] h-px -translate-x-1/2 bg-sky-500 dark:bg-sky-400"
+            style={{
+              bottom: minutesHeightPx,
+              width: barWidth + 6,
+              animation,
+            }}
+            aria-hidden
+          />
           {showValueLabel && (
             <span
-              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-bold tabular-nums leading-none text-purple-600 dark:text-purple-300"
-              style={{ marginBottom: 2 }}
+              className="pointer-events-none absolute left-1/2 z-[3] -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/90 px-1 text-[8px] font-bold tabular-nums leading-none text-sky-700 ring-1 ring-sky-500/40 dark:bg-neutral-900/85 dark:text-sky-300 dark:ring-sky-400/40"
+              style={{ bottom: minutesHeightPx + 2, animation }}
             >
               {Math.round(minutesValue!)}m
             </span>
           )}
-        </div>
+        </>
       )}
       {/* Ghost (potential) — anchored center, sits behind the actual bar.
           Its label is a CHILD positioned at bottom-full, so the label rides
