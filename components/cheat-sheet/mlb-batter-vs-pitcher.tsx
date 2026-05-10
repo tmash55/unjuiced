@@ -974,9 +974,39 @@ function TbdPitcherCard({ teamPitchers, onChangePitcher }: { teamPitchers?: Team
   );
 }
 
-function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabilityTags, gameId, hasSharpAccess, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherProfile; lineupLHBCount?: number; lineupRHBCount?: number; vulnerabilityTags?: { label: string }[]; gameId?: number | null; hasSharpAccess?: boolean; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
+function PitcherProfileCard({
+  pitcher,
+  lineupLHBCount,
+  lineupRHBCount,
+  vulnerabilityTags,
+  gameId,
+  quickViewGameContext,
+  hasSharpAccess,
+  teamPitchers,
+  onChangePitcher,
+  isOverride,
+}: {
+  pitcher: PitcherProfile;
+  lineupLHBCount?: number;
+  lineupRHBCount?: number;
+  vulnerabilityTags?: { label: string }[];
+  gameId?: number | null;
+  quickViewGameContext?: QuickViewGameContext;
+  hasSharpAccess?: boolean;
+  teamPitchers?: TeamPitcher[];
+  onChangePitcher?: (id: number | null) => void;
+  isOverride?: boolean;
+}) {
   const { openQuickView, quickViewElement } = usePlayerQuickView();
   const [arsenalSplitView, setArsenalSplitView] = useState<"all" | "lhb" | "rhb">("all");
+  const handleOpenPitcherQuickView = useCallback(() => {
+    openQuickView({
+      mlb_player_id: pitcher.player_id,
+      player_name: pitcher.name,
+      initial_market: "pitcher_strikeouts",
+      gameContext: quickViewGameContext,
+    });
+  }, [openQuickView, pitcher.name, pitcher.player_id, quickViewGameContext]);
 
   const vsLHB = pitcher.pitcher_splits?.vs_lhb;
   const vsRHB = pitcher.pitcher_splits?.vs_rhb;
@@ -1050,7 +1080,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+          onClick={handleOpenPitcherQuickView}
           className="relative shrink-0 rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           aria-label={`Open quick view for ${pitcher.name}`}
         >
@@ -1069,7 +1099,7 @@ function PitcherProfileCard({ pitcher, lineupLHBCount, lineupRHBCount, vulnerabi
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+              onClick={handleOpenPitcherQuickView}
               className="truncate text-left text-lg font-bold text-neutral-900 hover:text-brand hover:underline transition-colors dark:text-white"
             >
               {pitcher.name}
@@ -3201,6 +3231,21 @@ export function MlbBatterVsPitcher({
       opposingPitcherId,
     };
   }, [battingSide, game, overridePitcherId, pitcher?.name, pitcher?.player_id, selectedGame?.game_status, selectedGameId]);
+  const pitcherQuickViewGameContext = useMemo<QuickViewGameContext | undefined>(() => {
+    if (!game || !selectedGameId) return undefined;
+    const pitchingAtHome = battingSide === "away";
+
+    return {
+      gameId: selectedGameId,
+      gameDate: game.game_date,
+      gameDatetime: game.game_datetime,
+      gameStatus: selectedGame?.game_status ?? null,
+      homeAway: pitchingAtHome ? "H" : "A",
+      opponentTeamAbbr: pitchingAtHome ? game.away_team.abbr : game.home_team.abbr,
+      opposingPitcherName: null,
+      opposingPitcherId: null,
+    };
+  }, [battingSide, game, selectedGame?.game_status, selectedGameId]);
   const activePropMarket = getMlbPropMarketFromOddsMarket(oddsMarket);
 
   // Prop scores for the selected game — overlay onto batter rows
@@ -3789,6 +3834,7 @@ export function MlbBatterVsPitcher({
                         lineupRHBCount={lineupTotals?.rhb}
                         vulnerabilityTags={(summary?.pitcher_tags ?? []).filter((t) => t.type === "vulnerability" && /hittable|SLG/i.test(t.label))}
                         gameId={selectedGameId}
+                        quickViewGameContext={pitcherQuickViewGameContext}
                         hasSharpAccess={hasSharpAccess}
                         teamPitchers={teamPitchers ?? undefined}
                         onChangePitcher={setOverridePitcherId}
