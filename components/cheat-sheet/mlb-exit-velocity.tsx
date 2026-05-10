@@ -38,7 +38,7 @@ import Chart from "@/icons/chart";
 import { SegmentedControl, FilterGroup, FilterDivider, FilterSearch, FilterCount, DateNav } from "@/components/cheat-sheet/sheet-filter-bar";
 import { GameFilterDropdown } from "@/components/cheat-sheet/game-filter-dropdown";
 import { useMlbGames } from "@/hooks/use-mlb-games";
-import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
+import { usePlayerQuickView, type PlayerQuickViewTarget } from "@/hooks/use-player-quick-view";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -132,6 +132,26 @@ const getHardHitCell = (v: number) => cellColor(v, 50, 40, 28);
 const getSlgCell = (v: number) => cellColor(v, 0.550, 0.450, 0.300);
 const getIsoCell = (v: number) => cellColor(v, 0.250, 0.180, 0.100);
 const getSweetSpotCell = (v: number) => cellColor(v, 40, 33, 20);
+
+function buildExitVelocityQuickViewTarget(leader: ExitVeloLeader): PlayerQuickViewTarget {
+  const homeAway = leader.home_away === "H" || leader.home_away === "A" ? leader.home_away : null;
+  return {
+    mlb_player_id: leader.player_id,
+    player_name: leader.player_name,
+    initial_market: "player_hits",
+    initial_line: 0.5,
+    gameContext: {
+      gameId: leader.game_id,
+      gameDate: leader.game_date,
+      gameDatetime: null,
+      gameStatus: null,
+      homeAway,
+      opponentTeamAbbr: leader.opponent_team_abbr,
+      opposingPitcherName: leader.opposing_pitcher,
+      opposingPitcherId: null,
+    },
+  };
+}
 
 function getSlgColor(slg: number): string {
   if (slg >= 0.550) return "text-emerald-600 dark:text-emerald-400";
@@ -260,7 +280,7 @@ function MobileEvCard({ leader, rank }: { leader: ExitVeloLeader; rank: number }
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => openQuickView({ mlb_player_id: leader.player_id, player_name: leader.player_name, initial_market: "player_hits" })}
+              onClick={() => openQuickView(buildExitVelocityQuickViewTarget(leader))}
               className="font-bold text-sm text-neutral-900 dark:text-white truncate text-left transition-colors hover:text-brand hover:underline"
             >
               {leader.player_name}
@@ -1587,7 +1607,10 @@ export function MlbExitVelocity() {
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); openQuickView({ mlb_player_id: leader.player_id, player_name: leader.player_name, initial_market: "player_hits" }); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openQuickView(buildExitVelocityQuickViewTarget(leader));
+                                    }}
                                     className="font-bold text-sm text-neutral-900 dark:text-white leading-tight text-left transition-colors hover:text-brand hover:underline"
                                   >
                                     {leader.player_name}

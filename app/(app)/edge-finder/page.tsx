@@ -43,7 +43,7 @@ import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 import { useSSE } from "@/hooks/use-sse";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
-import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import { PlayerQuickViewModal, type LiveBookOfferInput } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
 import { useAvailableMarkets, FALLBACK_MARKETS, FALLBACK_MARKET_SPORTS } from "@/hooks/use-available-markets";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
@@ -212,7 +212,7 @@ export default function EdgeFinderPage() {
     line?: number;
     odds?: BestOddsData;
     gameContext?: QuickViewGameContext;
-    liveBookOffers?: Array<{ side: "over" | "under"; book: string; price: number; line?: number | null; url?: string | null; mobileUrl?: string | null; mobileLink?: string | null; decimal?: number | null }>;
+    liveBookOffers?: LiveBookOfferInput[];
   } | null>(null);
   const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
 
@@ -585,6 +585,60 @@ export default function EdgeFinderPage() {
             if (opp.playerId && opp.player) {
               const quickViewSport = getQuickViewSport(opp.sport);
               if (!quickViewSport) return;
+              const primarySide = opp.side === "under" ? "under" : "over";
+              const oppositeSide = opp.oppositeSide?.side === "under"
+                ? "under"
+                : opp.oppositeSide?.side === "over"
+                  ? "over"
+                  : null;
+              const primaryOdds = {
+                price: Number(opp.bestPrice),
+                line: opp.line,
+                book: opp.bestBook,
+                link: opp.bestLink,
+                mobileLink: opp.bestMobileLink,
+              };
+              const oppositeBestBook = opp.oppositeSide?.allBooks?.find((book) => book.book === opp.oppositeSide?.bestBook)
+                ?? opp.oppositeSide?.allBooks?.[0]
+                ?? null;
+              const oppositeOdds = oppositeSide && oppositeBestBook ? {
+                price: oppositeBestBook.price,
+                line: opp.line,
+                book: oppositeBestBook.book,
+                link: oppositeBestBook.link,
+                mobileLink: oppositeBestBook.mobileLink,
+              } : undefined;
+              const liveBookOffers: LiveBookOfferInput[] = [
+                ...(primarySide === "over" || primarySide === "under"
+                  ? opp.allBooks.map((book) => ({
+                      side: primarySide as "over" | "under",
+                      book: book.book,
+                      price: book.price,
+                      line: opp.line,
+                      url: book.link,
+                      mobileUrl: book.mobileLink,
+                      decimal: book.decimal,
+                      evPercent: opp.evPct ?? opp.edgePct,
+                      isSharpRef: opp.sharpBooks.includes(book.book),
+                      sgp: book.sgp,
+                      oddId: book.oddId,
+                    }))
+                  : []),
+                ...(oppositeSide
+                  ? (opp.oppositeSide?.allBooks ?? []).map((book) => ({
+                      side: oppositeSide as "over" | "under",
+                      book: book.book,
+                      price: book.price,
+                      line: opp.line,
+                      url: book.link,
+                      mobileUrl: book.mobileLink,
+                      decimal: book.decimal,
+                      isSharpRef: opp.sharpBooks.includes(book.book),
+                      sgp: book.sgp,
+                      oddId: book.oddId,
+                    }))
+                  : []),
+              ];
               setSelectedPlayer({
                 sport: quickViewSport,
                 odds_player_id: opp.playerId,
@@ -592,6 +646,11 @@ export default function EdgeFinderPage() {
                 market: normalizeQuickViewMarket(quickViewSport, opp.market),
                 event_id: opp.eventId || "",
                 line: opp.line,
+                odds: {
+                  ...(primarySide === "over" ? { over: primaryOdds } : { under: primaryOdds }),
+                  ...(oppositeSide === "over" ? { over: oppositeOdds } : oppositeSide === "under" ? { under: oppositeOdds } : {}),
+                },
+                liveBookOffers,
                 gameContext: buildQuickViewGameContext({
                   gameId: opp.gameId,
                   startTime: opp.gameStart,

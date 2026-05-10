@@ -61,6 +61,7 @@ import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMlbHotZone } from "@/hooks/use-mlb-hot-zone";
 import { useMlbIndividualMatchup } from "@/hooks/use-mlb-individual-matchup";
+import { useMlbBatterOdds, type BatterOddsEntry } from "@/hooks/use-mlb-batter-odds";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 import type { LineHistoryApiResponse, LineHistoryBookData, LineHistoryContext, LineHistoryPoint } from "@/lib/odds/line-history";
@@ -72,7 +73,7 @@ import { toast } from "sonner";
 // Tab type for modal navigation
 type ModalTab = "gamelog" | "splits" | "matchup" | "playstyle" | "correlation";
 
-interface OddsData {
+export interface OddsData {
   over?: {
     price: number;
     line: number;
@@ -460,6 +461,17 @@ const LINE_HISTORY_BOOK_PRIORITY = ["pinnacle", "circa", "draftkings", "fanduel"
 const formatAmericanOdds = (price?: number | null) => {
   if (price === null || price === undefined) return "-";
   return price > 0 ? `+${price}` : `${price}`;
+};
+
+const normalizeMlbPlayerOddsName = (name?: string | null) =>
+  (name ?? "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+
+const findMlbPlayerOddsEntry = (
+  odds: Record<string, BatterOddsEntry>,
+  playerName?: string | null
+): BatterOddsEntry | null => {
+  const key = normalizeMlbPlayerOddsName(playerName);
+  return key ? odds[key] ?? null : null;
 };
 
 const getAmericanImpliedProbability = (price?: number | null) => {
@@ -3026,6 +3038,32 @@ export function PlayerQuickViewModal({
     const closest = [...alternateLines].sort((a, b) => Math.abs(a.ln - activeLine) - Math.abs(b.ln - activeLine))[0];
     return closest && Math.abs(closest.ln - activeLine) <= 1.5 ? closest : null;
   }, [activeLine, alternateLines]);
+  const mlbLiveOddsGameId = useMemo(() => {
+    if (!isMlb) return null;
+    return toPositiveMlbGameId(gameContext?.gameId ?? currentMarketProfile?.gameId ?? profile?.gameId);
+  }, [currentMarketProfile?.gameId, gameContext?.gameId, isMlb, profile?.gameId]);
+  const mlbLiveOddsMarket = isMlb ? getMlbLineHistoryMarket(currentMarket) : currentMarket;
+  const mlbLiveOddsPlayerName = player_name || currentMarketProfile?.playerName || profile?.playerName || "";
+  const { odds: fetchedMlbOverOdds } = useMlbBatterOdds(
+    open && isMlb ? mlbLiveOddsGameId : null,
+    mlbLiveOddsMarket,
+    activeLine,
+    "over"
+  );
+  const { odds: fetchedMlbUnderOdds } = useMlbBatterOdds(
+    open && isMlb ? mlbLiveOddsGameId : null,
+    mlbLiveOddsMarket,
+    activeLine,
+    "under"
+  );
+  const fetchedMlbOverEntry = useMemo(
+    () => findMlbPlayerOddsEntry(fetchedMlbOverOdds, mlbLiveOddsPlayerName),
+    [fetchedMlbOverOdds, mlbLiveOddsPlayerName]
+  );
+  const fetchedMlbUnderEntry = useMemo(
+    () => findMlbPlayerOddsEntry(fetchedMlbUnderOdds, mlbLiveOddsPlayerName),
+    [fetchedMlbUnderOdds, mlbLiveOddsPlayerName]
+  );
 
   // Compute odds for the current line (from alternates or original odds)
   // Always look up in alternates first since market may have changed
@@ -3064,6 +3102,23 @@ export function PlayerQuickViewModal({
         } : undefined,
       };
     }
+
+    if (isMlb && (fetchedMlbOverEntry || fetchedMlbUnderEntry)) {
+      return {
+        over: fetchedMlbOverEntry ? {
+          price: fetchedMlbOverEntry.best_price,
+          line: normalizeMlbOddsLine(fetchedMlbOverEntry.line) ?? activeLine,
+          book: fetchedMlbOverEntry.best_book,
+          mobileLink: fetchedMlbOverEntry.best_mobile_link ?? fetchedMlbOverEntry.best_link,
+        } : undefined,
+        under: fetchedMlbUnderEntry ? {
+          price: fetchedMlbUnderEntry.best_price,
+          line: normalizeMlbOddsLine(fetchedMlbUnderEntry.line) ?? activeLine,
+          book: fetchedMlbUnderEntry.best_book,
+          mobileLink: fetchedMlbUnderEntry.best_mobile_link ?? fetchedMlbUnderEntry.best_link,
+        } : undefined,
+      };
+    }
     
     // Fall back to original odds ONLY if we haven't changed markets
     // (i.e., customLine is null and odds line matches defaultLine)
@@ -3077,7 +3132,7 @@ export function PlayerQuickViewModal({
     
     // No odds available for this market/line
     return null;
-  }, [activeAlternateLine, activeHitRateLine, canUseExternalOdds, customLine, defaultLine, isMlb, odds]);
+  }, [activeAlternateLine, activeHitRateLine, activeLine, canUseExternalOdds, customLine, defaultLine, fetchedMlbOverEntry, fetchedMlbUnderEntry, isMlb, odds]);
 
   const bookOffers = useMemo<MlbBookOffer[]>(() => {
     const callerOffers: MlbBookOffer[] = canUseExternalOdds ? (liveBookOffers ?? [])
@@ -3134,6 +3189,46 @@ export function PlayerQuickViewModal({
           return (americanToDecimal(b.price) ?? 0) - (americanToDecimal(a.price) ?? 0);
         });
     };
+
+    const buildFetchedMlbOffers = (
+      entry: BatterOddsEntry | null,
+      side: "over" | "under"
+    ): MlbBookOffer[] => {
+      if (!entry) return [];
+      const line = normalizeMlbOddsLine(entry.line) ?? activeLine;
+      const sourceBooks = entry.all_books?.length
+        ? entry.all_books
+        : [{
+            book: entry.best_book,
+            price: entry.best_price,
+            link: entry.best_link,
+            mobile_link: entry.best_mobile_link,
+            line,
+            sgp: null,
+            odd_id: null,
+          }];
+
+      return sourceBooks
+        .filter((book) => book.book && Number.isFinite(book.price))
+        .map((book) => ({
+          side,
+          book: book.book,
+          price: book.price,
+          line: normalizeMlbOddsLine(book.line ?? line) ?? line,
+          url: book.link ?? null,
+          mobileUrl: book.mobile_link ?? null,
+          isBest: false,
+          evPercent: entry.ev_pct ?? null,
+          isSharpRef: entry.sharp_book ? parseMlbBookKey(book.book) === parseMlbBookKey(entry.sharp_book) : false,
+          sgp: book.sgp ?? null,
+          oddId: book.odd_id ?? null,
+        }));
+    };
+
+    const fetchedMlbOffers = [
+      ...buildFetchedMlbOffers(fetchedMlbOverEntry, "over"),
+      ...buildFetchedMlbOffers(fetchedMlbUnderEntry, "under"),
+    ];
 
     const alternateOffers: MlbBookOffer[] = [];
     if (activeAlternateLine?.books) {
@@ -3203,7 +3298,7 @@ export function PlayerQuickViewModal({
           oddId: null,
         });
       }
-      return mergeOffers(callerOffers, [...alternateOffers, ...fallback]);
+      return mergeOffers(callerOffers, [...fetchedMlbOffers, ...alternateOffers, ...fallback]);
     }
 
     const offers: MlbBookOffer[] = [];
@@ -3241,8 +3336,8 @@ export function PlayerQuickViewModal({
       }
     });
 
-	    return mergeOffers(callerOffers, [...alternateOffers, ...offers]);
-	  }, [activeAlternateLine, activeHitRateLine, activeOdds, activeLine, canUseExternalOdds, isMlb, liveBookOffers]);
+	    return mergeOffers(callerOffers, [...fetchedMlbOffers, ...alternateOffers, ...offers]);
+	  }, [activeAlternateLine, activeHitRateLine, activeOdds, activeLine, canUseExternalOdds, fetchedMlbOverEntry, fetchedMlbUnderEntry, isMlb, liveBookOffers]);
 
 	  const rightRailLineOptions = useMemo(() => {
 	    const lines = new Set<number>();
