@@ -770,7 +770,7 @@ export function MobileEdgeCard({
                               }}
                               disabled={!pair.over}
                               className={cn(
-                                "flex-1 flex items-center justify-end px-2 py-1.5 rounded-lg",
+                                "flex-1 flex flex-col items-end justify-center px-2 py-1.5 rounded-lg min-h-[38px]",
                                 "transition-all duration-100 active:scale-[0.98]",
                                 !pair.over && "opacity-40 cursor-not-allowed",
                                 isBestOver 
@@ -784,6 +784,11 @@ export function MobileEdgeCard({
                               )}>
                                 {pair.over ? formatOdds(pair.over.price) : "—"}
                               </span>
+                              {pair.over?.limits?.max && (
+                                <span className="text-[8px] font-medium text-neutral-400 leading-none">
+                                  Max ${pair.over.limits.max >= 1000 ? `${(pair.over.limits.max / 1000).toFixed(0)}k` : pair.over.limits.max}
+                                </span>
+                              )}
                             </button>
                             
                             {/* Center Logo */}
@@ -810,7 +815,7 @@ export function MobileEdgeCard({
                               }}
                               disabled={!pair.under}
                               className={cn(
-                                "flex-1 flex items-center justify-start px-2 py-1.5 rounded-lg",
+                                "flex-1 flex flex-col items-start justify-center px-2 py-1.5 rounded-lg min-h-[38px]",
                                 "transition-all duration-100 active:scale-[0.98]",
                                 !pair.under && "opacity-40 cursor-not-allowed",
                                 isBestUnder 
@@ -824,6 +829,11 @@ export function MobileEdgeCard({
                               )}>
                                 {pair.under ? formatOdds(pair.under.price) : "—"}
                               </span>
+                              {pair.under?.limits?.max && (
+                                <span className="text-[8px] font-medium text-neutral-400 leading-none">
+                                  Max ${pair.under.limits.max >= 1000 ? `${(pair.under.limits.max / 1000).toFixed(0)}k` : pair.under.limits.max}
+                                </span>
+                              )}
                             </button>
                           </div>
                         );

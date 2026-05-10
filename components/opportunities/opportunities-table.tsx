@@ -2038,7 +2038,7 @@ export function OpportunitiesTable({
     >
       <div
         ref={tableRef}
-        className="relative overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
+        className="relative overflow-y-auto overflow-x-hidden max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
       >
         {/* Subtle refresh indicator - shows when fetching with existing data */}
         {isFetching && sortedOpportunities.length > 0 && (
@@ -2330,7 +2330,7 @@ export function OpportunitiesTable({
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.25, ease: "easeOut" }}
                       >
-                        <td colSpan={filteredColumnOrder.length} className="p-0">
+                        <td colSpan={filteredColumnOrder.length} className="p-0 max-w-0 overflow-hidden">
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -2338,7 +2338,7 @@ export function OpportunitiesTable({
                             className="bg-gradient-to-b from-neutral-50 to-neutral-100/80 dark:from-neutral-900 dark:to-neutral-950 border-b border-neutral-200 dark:border-neutral-800"
                           >
                             {/* Full Width Container */}
-                            <div className="w-full flex flex-col items-center">
+                            <div className="w-full min-w-0 overflow-hidden flex flex-col items-center">
                               {/* Header Row with Player Info */}
                               <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-100/90 dark:bg-neutral-950">
                                 {/* Player & Market */}
@@ -2367,8 +2367,8 @@ export function OpportunitiesTable({
                               </div>
 
                               {/* Odds Table - Centered */}
-                              <div className="flex w-full justify-center">
-                                <div className="flex max-w-full">
+                              <div className="flex w-full min-w-0 justify-center overflow-hidden">
+                                <div className="flex w-full max-w-full min-w-0">
                                   {/* Fixed Left Column - Side Labels */}
                                   <div className="flex-shrink-0 w-28 border-r border-neutral-200/60 dark:border-neutral-800/60 bg-white/30 dark:bg-black/20">
                                     {/* Header spacer */}
@@ -2468,7 +2468,7 @@ export function OpportunitiesTable({
                                   </div>
 
                                   {/* Scrollable Sportsbooks */}
-                                  <div className="flex-1 overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600">
+                                  <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600">
                                     <div className="inline-flex min-w-full">
                                       {sortedBookIds.map((bookId) => {
                                         const bookLogo = getBookLogo(bookId);

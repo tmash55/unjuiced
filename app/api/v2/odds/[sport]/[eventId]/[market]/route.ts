@@ -12,6 +12,7 @@ import {
   SSEEvent,
   SSEBookSelections,
   SSESelection,
+  OrderbookLevel,
   getEventKey,
   getMarketOddsPattern,
   getMarketDisplay,
@@ -55,11 +56,16 @@ interface PlayerOdds {
     best_decimal: number;
     best_link: string;
     sgp: string | null;
+    best_limits: { max: number } | null;
+    best_orderbook: OrderbookLevel[] | null;
     all_books: Array<{
       book: string;
       price: string;
       decimal: number;
       link: string;
+      sgp: string | null;
+      limits: { max: number } | null;
+      orderbook: OrderbookLevel[] | null;
     }>;
   } | null;
   under: {
@@ -68,11 +74,16 @@ interface PlayerOdds {
     best_decimal: number;
     best_link: string;
     sgp: string | null;
+    best_limits: { max: number } | null;
+    best_orderbook: OrderbookLevel[] | null;
     all_books: Array<{
       book: string;
       price: string;
       decimal: number;
       link: string;
+      sgp: string | null;
+      limits: { max: number } | null;
+      orderbook: OrderbookLevel[] | null;
     }>;
   } | null;
 }
@@ -261,12 +272,16 @@ export async function GET(
               best_decimal: bestOver.selection.price_decimal,
               best_link: bestOver.selection.link,
               sgp: bestOver.selection.sgp,
+              best_limits: bestOver.selection.limits ?? null,
+              best_orderbook: bestOver.selection.orderbook ?? null,
               all_books: data.over.map((o) => ({
                 book: o.book,
                 price: o.selection.price,
                 decimal: o.selection.price_decimal,
                 link: o.selection.link,
                 sgp: o.selection.sgp || null,
+                limits: o.selection.limits ?? null,
+                orderbook: o.selection.orderbook ?? null,
               })),
             }
           : null,
@@ -277,12 +292,16 @@ export async function GET(
               best_decimal: bestUnder.selection.price_decimal,
               best_link: bestUnder.selection.link,
               sgp: bestUnder.selection.sgp,
+              best_limits: bestUnder.selection.limits ?? null,
+              best_orderbook: bestUnder.selection.orderbook ?? null,
               all_books: data.under.map((u) => ({
                 book: u.book,
                 price: u.selection.price,
                 decimal: u.selection.price_decimal,
                 link: u.selection.link,
                 sgp: u.selection.sgp || null,
+                limits: u.selection.limits ?? null,
+                orderbook: u.selection.orderbook ?? null,
               })),
             }
           : null,
