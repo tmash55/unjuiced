@@ -27,6 +27,7 @@ import { SegmentedControl } from "@/components/cheat-sheet/sheet-filter-bar";
 import { useStateLink } from "@/hooks/use-state-link";
 import { useTeamPitchers, type TeamPitcher } from "@/hooks/use-team-pitchers";
 import { usePlayerQuickView } from "@/hooks/use-player-quick-view";
+import type { QuickViewGameContext } from "@/lib/hit-rates/quick-view";
 
 // ── Row Color System (Bettor Perspective) ───────────────────────────────────
 
@@ -475,7 +476,19 @@ function GameHeaderBar({ game, gameTime }: { game: GameInfo; gameTime: string })
 
 // ── Pitcher Header (compact, for matchup card) ──────────────────────────────
 
-function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: { pitcher: PitcherData; teamPitchers?: TeamPitcher[]; onChangePitcher?: (id: number | null) => void; isOverride?: boolean }) {
+function PitcherHeader({
+  pitcher,
+  quickViewGameContext,
+  teamPitchers,
+  onChangePitcher,
+  isOverride,
+}: {
+  pitcher: PitcherData;
+  quickViewGameContext?: QuickViewGameContext;
+  teamPitchers?: TeamPitcher[];
+  onChangePitcher?: (id: number | null) => void;
+  isOverride?: boolean;
+}) {
   const { openQuickView, quickViewElement } = usePlayerQuickView();
   const h = pitcher.headline;
   const handLabel = pitcher.hand ? `${pitcher.hand}HP` : "SP";
@@ -494,6 +507,14 @@ function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
+  const handleOpenPitcherQuickView = React.useCallback(() => {
+    openQuickView({
+      mlb_player_id: pitcher.player_id,
+      player_name: pitcher.name,
+      initial_market: "pitcher_strikeouts",
+      gameContext: quickViewGameContext,
+    });
+  }, [openQuickView, pitcher.name, pitcher.player_id, quickViewGameContext]);
 
   return (
     <div className="flex items-center gap-2.5 p-3">
@@ -513,7 +534,7 @@ function PitcherHeader({ pitcher, teamPitchers, onChangePitcher, isOverride }: {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => openQuickView({ mlb_player_id: pitcher.player_id, player_name: pitcher.name, initial_market: "pitcher_strikeouts" })}
+            onClick={handleOpenPitcherQuickView}
             className="truncate text-left text-sm font-bold text-neutral-900 dark:text-white transition-colors hover:text-brand hover:underline"
           >
             {pitcher.name}
@@ -1709,6 +1730,7 @@ function MatchupCard({
   expandedBatterId,
   onToggleBatter,
   gameId,
+  pitcherQuickViewContext,
   statSeason,
   battingSide,
   propScoreMap,
@@ -1726,6 +1748,7 @@ function MatchupCard({
   expandedBatterId: number | null;
   onToggleBatter: (id: number) => void;
   gameId: number | null;
+  pitcherQuickViewContext?: QuickViewGameContext;
   statSeason: number;
   battingSide: "home" | "away";
   propScoreMap?: Map<number, Record<string, PropScorePlayer>>;
@@ -1752,7 +1775,13 @@ function MatchupCard({
     return (
       <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
         {/* Pitcher section */}
-        <PitcherHeader pitcher={pitcher} teamPitchers={teamPitchers} onChangePitcher={onChangePitcher} isOverride={isOverride} />
+        <PitcherHeader
+          pitcher={pitcher}
+          quickViewGameContext={pitcherQuickViewContext}
+          teamPitchers={teamPitchers}
+          onChangePitcher={onChangePitcher}
+          isOverride={isOverride}
+        />
         <div className="border-t border-neutral-100 dark:border-neutral-800/50">
           <PitcherSplitsTable splits={pitcher.batting_order_splits} isMobile={isMobile} />
         </div>
@@ -1806,7 +1835,13 @@ function MatchupCard({
       <div className="flex">
         {/* Left column (40%): Pitcher splits */}
         <div className="w-[40%] border-r border-neutral-200/60 dark:border-neutral-800/60">
-          <PitcherHeader pitcher={pitcher} teamPitchers={teamPitchers} onChangePitcher={onChangePitcher} isOverride={isOverride} />
+          <PitcherHeader
+            pitcher={pitcher}
+            quickViewGameContext={pitcherQuickViewContext}
+            teamPitchers={teamPitchers}
+            onChangePitcher={onChangePitcher}
+            isOverride={isOverride}
+          />
           <div className="border-t border-neutral-100 dark:border-neutral-800/50">
             <PitcherSplitsTable splits={pitcher.batting_order_splits} isMobile={false} />
           </div>
@@ -1952,6 +1987,32 @@ export function MlbPitcherWeakness({
     () => games.find((g) => Number(g.game_id) === selectedGameId) ?? null,
     [games, selectedGameId]
   );
+  const awayPitcherQuickViewContext = useMemo<QuickViewGameContext | undefined>(() => {
+    if (!game) return undefined;
+    return {
+      gameId: selectedGameId ?? game.game_id,
+      gameDate: game.game_date,
+      gameDatetime: game.game_datetime,
+      gameStatus: currentGame?.game_status ?? null,
+      homeAway: "A",
+      opponentTeamAbbr: game.home_team_abbr,
+      opposingPitcherName: null,
+      opposingPitcherId: null,
+    };
+  }, [currentGame?.game_status, game, selectedGameId]);
+  const homePitcherQuickViewContext = useMemo<QuickViewGameContext | undefined>(() => {
+    if (!game) return undefined;
+    return {
+      gameId: selectedGameId ?? game.game_id,
+      gameDate: game.game_date,
+      gameDatetime: game.game_datetime,
+      gameStatus: currentGame?.game_status ?? null,
+      homeAway: "H",
+      opponentTeamAbbr: game.away_team_abbr,
+      opposingPitcherName: null,
+      opposingPitcherId: null,
+    };
+  }, [currentGame?.game_status, game, selectedGameId]);
   const { players: allPropScores } = useMlbPropScores(currentGame?.game_date, undefined, !!selectedGameId);
   const propScoreMap = useMemo(() => {
     const map = new Map<number, Record<string, PropScorePlayer>>();
@@ -2086,6 +2147,7 @@ export function MlbPitcherWeakness({
               expandedBatterId={expandedBatterId}
               onToggleBatter={handleToggleBatter}
               gameId={selectedGameId}
+              pitcherQuickViewContext={awayPitcherQuickViewContext}
               statSeason={statSeason}
               battingSide="home"
               propScoreMap={propScoreMap}
@@ -2112,6 +2174,7 @@ export function MlbPitcherWeakness({
               expandedBatterId={expandedBatterId}
               onToggleBatter={handleToggleBatter}
               gameId={selectedGameId}
+              pitcherQuickViewContext={homePitcherQuickViewContext}
               statSeason={statSeason}
               battingSide="away"
               propScoreMap={propScoreMap}
