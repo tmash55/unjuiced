@@ -3626,11 +3626,64 @@ export function PlayerQuickViewModal({
 
   const headerSeasonSummary = useMemo(() => {
     if (isMlb) return mlbSeasonSummary;
-    if (!seasonSummary) return null;
-    // Defensive — WNBA season summaries can ship null for any individual avg
-    // when the player has no qualifying games yet (e.g. injured all season).
     const fmt = (v: number | null | undefined) =>
       typeof v === "number" && Number.isFinite(v) ? v.toFixed(1) : "—";
+
+    // Compute averages from the most recent season's games rather than the
+    // RPC's aggregate, so the strip stays in sync with the SZN range button
+    // (WNBA → 2026, NBA → current season). Falls back to the RPC summary
+    // when we don't have games loaded yet.
+    if (boxScoreGames.length > 0) {
+      const sortedByDate = [...boxScoreGames].sort((a, b) =>
+        (a.date ?? "").localeCompare(b.date ?? "")
+      );
+      const latestDate = sortedByDate[sortedByDate.length - 1].date ?? "";
+      const latestYear = parseInt(latestDate.slice(0, 4), 10);
+      const latestMonth = parseInt(latestDate.slice(5, 7), 10);
+      const latestSeasonStartYear = isWnba
+        ? latestYear
+        : latestMonth >= 8
+          ? latestYear
+          : latestYear - 1;
+      const inSeason = sortedByDate.filter((g) => {
+        const y = parseInt((g.date ?? "").slice(0, 4), 10);
+        const m = parseInt((g.date ?? "").slice(5, 7), 10);
+        if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+        if (isWnba) return y === latestSeasonStartYear;
+        const startYear = m >= 8 ? y : y - 1;
+        return startYear === latestSeasonStartYear;
+      });
+      if (inSeason.length > 0) {
+        const sum = inSeason.reduce(
+          (acc, g) => ({
+            pts: acc.pts + (g.pts ?? 0),
+            reb: acc.reb + (g.reb ?? 0),
+            ast: acc.ast + (g.ast ?? 0),
+            fgm: acc.fgm + (g.fgm ?? 0),
+            fga: acc.fga + (g.fga ?? 0),
+          }),
+          { pts: 0, reb: 0, ast: 0, fgm: 0, fga: 0 },
+        );
+        const n = inSeason.length;
+        const fgPct = sum.fga > 0 ? (sum.fgm / sum.fga) * 100 : null;
+        // WNBA seasons are single calendar years (label "2026"); NBA spans
+        // two ("25/26").
+        const seasonLabel = isWnba
+          ? `${latestSeasonStartYear} Season`
+          : `${String(latestSeasonStartYear).slice(-2)}/${String(latestSeasonStartYear + 1).slice(-2)} Season`;
+        return {
+          label: seasonLabel,
+          stats: [
+            { label: "PTS", value: fmt(sum.pts / n), highlight: true },
+            { label: "REB", value: fmt(sum.reb / n) },
+            { label: "AST", value: fmt(sum.ast / n) },
+            { label: "FG%", value: fgPct !== null ? fgPct.toFixed(1) : "—" },
+          ],
+        };
+      }
+    }
+
+    if (!seasonSummary) return null;
     return {
       label: "Season Averages",
       stats: [
@@ -3640,7 +3693,7 @@ export function PlayerQuickViewModal({
         { label: "FG%", value: fmt(seasonSummary.fgPct) },
       ],
     };
-  }, [isMlb, mlbSeasonSummary, seasonSummary]);
+  }, [isMlb, isWnba, mlbSeasonSummary, seasonSummary, boxScoreGames]);
 
   // Only wait for lookup if we don't have a direct ID
   const isLoading = (needsLookup && isLoadingLookup) || isLoadingProfiles || (isMlb ? isLoadingMlbLogs && modalGames.length === 0 : isLoadingBoxScores);
@@ -4677,14 +4730,37 @@ export function PlayerQuickViewModal({
         ) : (
           <div className="flex flex-col max-h-[92vh] overflow-hidden w-full">
             {/* ═══════════════════════════════════════════════════════════════════
-                STICKY HEADER — slim version. Player identity, matchup ticker,
-                line stepper, and best-price column all live in the v2
-                DrilldownHeader baked into the chart's topSlot, so this row only
-                carries close + market dropdown + season averages.
+                STICKY HEADER — three rows in one sticky region:
+                  1. v2 DrilldownHeader (identity, matchup, line stepper, best price)
+                  2. Market dropdown + season averages strip
+                  3. Tab pill row
+                Stays pinned while the user scrolls the active tab.
                 ═══════════════════════════════════════════════════════════════════ */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-white to-white/95 dark:from-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl border-b border-neutral-200/50 dark:border-neutral-800/80">
+              {/* Row 1 — v2 DrilldownHeader (NBA/WNBA only). */}
+              {!isMlb && profile && (
+                <div className="relative px-4 sm:px-6 pt-3 pb-2 pr-12 border-b border-neutral-200/50 dark:border-neutral-800/60">
+                  <DrilldownHeader
+                    profile={profile as any}
+                    sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                    effectiveLine={activeLine}
+                    onLineChange={handleLineChange}
+                    onLineReset={handleLineReset}
+                    odds={activeHitRateOdds ?? null}
+                  />
+                  {/* Close button — pinned top-right inside the DrilldownHeader row. */}
+                  <button
+                    onClick={() => onOpenChange(false)}
+                    className="absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 z-10"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Row 2 — market dropdown + season averages. */}
               <div className="relative px-4 sm:px-6 py-2.5 sm:py-3">
-                <div className="flex items-center gap-2 sm:gap-3 pr-10">
+                <div className={cn("flex items-center gap-2 sm:gap-3", isMlb && "pr-10")}>
                   {/* Market Dropdown - selects which prop the chart + tabs render. */}
                   <div className="relative shrink-0" ref={marketDropdownRef}>
                     <button
@@ -4774,13 +4850,16 @@ export function PlayerQuickViewModal({
                   </div>
                 )}
 
-                {/* Close button — pinned top-right of header. */}
-                <button
-                  onClick={() => onOpenChange(false)}
-                  className="absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 z-10 backdrop-blur-sm"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                {/* Close button (MLB only — NBA/WNBA close button lives in
+                    the DrilldownHeader row above). */}
+                {isMlb && (
+                  <button
+                    onClick={() => onOpenChange(false)}
+                    className="absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 z-10 backdrop-blur-sm"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
 
                 {/* Mobile CTA: quick access to full hit rate card. */}
                 {showFullProfileLink && (
@@ -4808,13 +4887,10 @@ export function PlayerQuickViewModal({
                   </div>
                 )}
               </div>
-            </div>
 
-
-            {/* ═══════════════════════════════════════════════════════════════════
-                TAB NAVIGATION - Premium Style
-                ═══════════════════════════════════════════════════════════════════ */}
-            <div className="shrink-0 px-4 sm:px-6 pt-2.5 pb-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 overflow-hidden">
+              {/* Row 3 — tab navigation. Inside the sticky region so it stays
+                  pinned alongside the DrilldownHeader + market row. */}
+              <div className="shrink-0 px-4 sm:px-6 pt-2 pb-3 border-t border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
               <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
                 {modalTabs.map((tab) => {
                   const isActive = activeTab === tab.id;
@@ -4859,6 +4935,7 @@ export function PlayerQuickViewModal({
                   );
                 })}
               </div>
+            </div>
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
@@ -4906,16 +4983,6 @@ export function PlayerQuickViewModal({
                       upcomingGameDate={profile.gameDate ?? null}
                       upcomingOpponentAbbr={profile.opponentTeamAbbr ?? null}
                       upcomingHomeAway={profile.homeAway ?? null}
-                      topSlot={
-                        <DrilldownHeader
-                          profile={profile as any}
-                          sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
-                          effectiveLine={activeLine}
-                          onLineChange={handleLineChange}
-                          onLineReset={handleLineReset}
-                          odds={activeHitRateOdds ?? null}
-                        />
-                      }
                     />
                   ) : (
                     <Tile label="Game Log" padded={false} className="w-full overflow-hidden">
