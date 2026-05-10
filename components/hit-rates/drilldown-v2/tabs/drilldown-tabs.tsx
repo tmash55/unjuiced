@@ -1760,7 +1760,7 @@ function getPppTone(ppp: number | null | undefined) {
   };
 }
 
-function OddsPanel({
+export function OddsPanel({
   profile,
   sport,
   activeLine,

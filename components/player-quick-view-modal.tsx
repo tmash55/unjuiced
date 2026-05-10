@@ -32,6 +32,7 @@ import {
   MatchupPanel as MatchupPanelV2,
   ShootingPanel as ShootingPanelV2,
   PlayTypePanel as PlayTypePanelV2,
+  OddsPanel as OddsPanelV2,
 } from "@/components/hit-rates/drilldown-v2/tabs/drilldown-tabs";
 import {
   MlbSprayChart,
@@ -57,7 +58,7 @@ import {
 } from "@/components/hit-rates/mlb/mlb-spray-chart";
 import type { BattedBallEvent } from "@/app/api/mlb/spray-chart/route";
 import { LoadingState } from "@/components/common/loading-state";
-import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, Users, Target, Zap, Lock, Sparkles, Thermometer, Wind, CloudRain, Home } from "lucide-react";
+import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, Users, Target, Zap, Lock, Sparkles, Thermometer, Wind, CloudRain, Home, BadgeDollarSign } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,7 @@ import { useFavorites, type AddFavoriteParams, type BookSnapshot, type Favorite 
 import { toast } from "sonner";
 
 // Tab type for modal navigation
-type ModalTab = "gamelog" | "splits" | "matchup" | "playstyle" | "correlation";
+type ModalTab = "gamelog" | "splits" | "matchup" | "playstyle" | "correlation" | "odds";
 
 export interface OddsData {
   over?: {
@@ -2773,13 +2774,14 @@ export function PlayerQuickViewModal({
     limit: 20, // Reduced from 50 - we only need current markets
   });
 
-  // Limit box scores to last 25 games for faster loading. The WNBA endpoint
-  // expects wnba_player_id; using the headshot nba_player_id returns nothing.
+  // Pull last 50 games for the modal so the chart's L20 + SZN ranges have
+  // enough room to draw real history. WNBA endpoint expects wnba_player_id;
+  // using the headshot nba_player_id returns nothing.
   const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
     playerId: resolvedPlayerId || null,
     sport: isMlb ? undefined : (sport as "nba" | "wnba"),
     enabled: !isMlb && open && !!resolvedPlayerId,
-    limit: 25,
+    limit: 50,
   });
 
   // Profile & market selection
@@ -4224,12 +4226,14 @@ export function PlayerQuickViewModal({
           { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
           { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
           { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
+          { id: "odds" as const, label: "Odds", mobileLabel: "Odds", icon: BadgeDollarSign, proOnly: false },
         ]
       : [
           { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
           { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
           { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
           { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
+          { id: "odds" as const, label: "Odds", mobileLabel: "Odds", icon: BadgeDollarSign, proOnly: false },
         ];
 
 	  const handleLineEdit = () => {
@@ -4763,7 +4767,7 @@ export function PlayerQuickViewModal({
             <div className="sticky top-0 z-50 bg-gradient-to-b from-white to-white/95 dark:from-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl border-b border-neutral-200/50 dark:border-neutral-800/80">
               {/* Row 1 — v2 DrilldownHeader (NBA/WNBA only). */}
               {!isMlb && profile && (
-                <div className="relative px-4 sm:px-6 pt-3 pb-2 pr-12 border-b border-neutral-200/50 dark:border-neutral-800/60">
+                <div className="relative px-4 sm:px-6 pt-3 pb-2 pr-14 sm:pr-16 border-b border-neutral-200/50 dark:border-neutral-800/60">
                   <DrilldownHeader
                     profile={profile as any}
                     sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
@@ -5209,6 +5213,20 @@ export function PlayerQuickViewModal({
                     />
                   </div>
                 </div>
+              )}
+
+              {/* ═══════════════════════════════════════════════════════════════════
+                  ODDS TAB — full all-lines table from the v2 OddsPanel.
+                  ═══════════════════════════════════════════════════════════════════ */}
+              {activeTab === "odds" && !isMlb && profile && (
+                <OddsPanelV2
+                  profile={profile as any}
+                  sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                  activeLine={activeLine}
+                  onLineSelect={handleLineChange}
+                  odds={activeHitRateOdds ?? null}
+                  isLoading={false}
+                />
               )}
             </div>
 
