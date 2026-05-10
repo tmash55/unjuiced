@@ -1441,7 +1441,7 @@ export function HitRateChart({
               here puts both "modify the chart's display" controls in the
               same spot. */}
           <div className="ml-auto inline-flex items-center gap-1.5">
-            <ChartSettingsPopover />
+            <ChartSettingsPopover market={market} />
             <FiltersDrawer
             market={market}
             upcomingHomeAway={upcomingHomeAway}

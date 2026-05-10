@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings } from "lucide-react";
+import { ChevronDown, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover } from "@/components/popover";
 import {
@@ -45,12 +45,48 @@ const METRIC_OVERLAY_OPTIONS: Array<{
   },
 ];
 
+// Most-useful overlay keys per market. Surfaced in the chart settings
+// popover by default; the rest collapse behind a "Show all" expand so the
+// popover doesn't grow into a 9-row scroll on a small screen. Minutes is
+// always relevant; the second slot tracks the prop.
+const PRIMARY_OVERLAYS_BY_MARKET: Record<string, string[]> = {
+  player_points: ["minutes", "fga"],
+  player_points_rebounds_assists: ["minutes", "fga"],
+  player_points_rebounds: ["minutes", "fga"],
+  player_points_assists: ["minutes", "fga"],
+  player_double_double: ["minutes", "fga"],
+  player_triple_double: ["minutes", "fga"],
+  player_assists: ["minutes", "passes"],
+  player_rebounds: ["minutes"],
+  player_rebounds_assists: ["minutes", "passes"],
+  player_threes_made: ["minutes", "fg3a"],
+  player_steals: ["minutes"],
+  player_blocks: ["minutes"],
+  player_blocks_steals: ["minutes"],
+  player_turnovers: ["minutes", "passes"],
+  "1st_quarter_player_points": ["minutes", "fga"],
+  "1st_quarter_player_rebounds": ["minutes"],
+  "1st_quarter_player_assists": ["minutes", "passes"],
+};
+
+function getPrimaryOverlayKeys(market?: string): string[] {
+  if (!market) return ["minutes"];
+  return PRIMARY_OVERLAYS_BY_MARKET[market] ?? ["minutes"];
+}
+
+interface ChartSettingsPopoverProps {
+  /** Active prop market — drives which stat overlays surface by default
+   *  vs. tuck behind "Show all". */
+  market?: string;
+}
+
 // Gear-icon button + popover for the player drilldown chart's overlay
 // toggles. Persists to user_preferences.chart_settings on every flip.
 // Stat overlays render here as togglable rows AND inside each metric's
 // range popover — both surfaces write to the same persisted set.
-export function ChartSettingsPopover() {
+export function ChartSettingsPopover({ market }: ChartSettingsPopoverProps = {}) {
   const [open, setOpen] = useState(false);
+  const [showAllOverlays, setShowAllOverlays] = useState(false);
   const {
     settings,
     setSetting,
@@ -65,6 +101,16 @@ export function ChartSettingsPopover() {
     // including metricOverlays: [], so a single call clears everything.
     resetSettings();
   };
+
+  // Split overlays into "primary" (market-relevant + anything currently
+  // active) and "more" (the rest). Anything the user has already toggled
+  // on stays in the visible list even when the user collapses.
+  const primaryKeys = new Set([
+    ...getPrimaryOverlayKeys(market),
+    ...settings.metricOverlays,
+  ]);
+  const primaryOverlays = METRIC_OVERLAY_OPTIONS.filter((ov) => primaryKeys.has(ov.key));
+  const moreOverlays = METRIC_OVERLAY_OPTIONS.filter((ov) => !primaryKeys.has(ov.key));
   const content = (
     <div className="flex w-[300px] flex-col">
       {/* HEADER — title + active-count chip + reset link. Compact since the
@@ -132,13 +178,15 @@ export function ChartSettingsPopover() {
           swatch={<LineSwatch color="rgb(59 130 246)" dashed />}
         />
       </div>
-      {/* Stat Overlays — same row format as the toggles above. Mirrors
-          the per-metric range popover toggles (MIN / FGA / 3PA / Passes
-          chips) so the user can flip overlays from either surface. Both
-          paths persist to user_preferences.chart_settings.metricOverlays. */}
+      {/* Stat Overlays — primary set tailored to the active market
+          (Minutes always shows; second slot tracks the prop). Anything
+          the user has flipped on stays primary. The rest collapse
+          behind "Show all" so the popover stays compact on a small
+          screen. Both surfaces (here + the per-metric popovers) write
+          to the same persisted set. */}
       <SectionHeader>Stat Overlays</SectionHeader>
       <div className="px-1.5 pb-2">
-        {METRIC_OVERLAY_OPTIONS.map((ov) => (
+        {primaryOverlays.map((ov) => (
           <ToggleRow
             key={ov.key}
             label={ov.label}
@@ -148,6 +196,37 @@ export function ChartSettingsPopover() {
             swatch={<OverlayDotSwatch dotClass={ov.dotClass} />}
           />
         ))}
+        {moreOverlays.length > 0 && (
+          <>
+            {showAllOverlays
+              ? moreOverlays.map((ov) => (
+                  <ToggleRow
+                    key={ov.key}
+                    label={ov.label}
+                    description={ov.description}
+                    active={settings.metricOverlays.includes(ov.key)}
+                    onToggle={() => toggleMetricOverlay(ov.key)}
+                    swatch={<OverlayDotSwatch dotClass={ov.dotClass} />}
+                  />
+                ))
+              : null}
+            <button
+              type="button"
+              onClick={() => setShowAllOverlays((v) => !v)}
+              className="mt-0.5 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500 transition-colors hover:bg-neutral-100/60 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/40 dark:hover:text-neutral-200"
+            >
+              <span>
+                {showAllOverlays ? "Show less" : `Show ${moreOverlays.length} more`}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 transition-transform",
+                  showAllOverlays && "rotate-180",
+                )}
+              />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
