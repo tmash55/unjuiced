@@ -163,8 +163,10 @@ export function DrilldownHeader({
       {compact ? (
         // Compact: single-line ESPN-style ticker — team chips already carry
         // each team's spread, so we drop the second SPREAD/TOTAL row entirely
-        // and inline only what's missing (tip-off + total).
-        <div className="hidden min-w-0 items-center gap-2 md:flex lg:flex-shrink-0">
+        // and inline only what's missing (tip-off + total). Renders on
+        // mobile too (no md: hidden) so users still see the matchup context.
+        // O/U hides below sm to keep the row compact on phones.
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-shrink-0">
           <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
           <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
             @
@@ -174,13 +176,13 @@ export function DrilldownHeader({
             sport={sport}
             spread={homeSpread}
           />
-          <span className="ml-1 text-[11px] font-black tabular-nums text-neutral-500 dark:text-neutral-400">
+          <span className="ml-0.5 text-[11px] font-black tabular-nums text-neutral-500 sm:ml-1 dark:text-neutral-400">
             {gameTime}
           </span>
           {profile.total !== null && (
             <>
-              <span className="text-neutral-300 dark:text-neutral-700">·</span>
-              <span className="text-[11px] font-black tabular-nums text-neutral-500 dark:text-neutral-400">
+              <span className="hidden text-neutral-300 sm:inline dark:text-neutral-700">·</span>
+              <span className="hidden text-[11px] font-black tabular-nums text-neutral-500 sm:inline dark:text-neutral-400">
                 O/U {formatTotal(profile.total)}
               </span>
             </>
