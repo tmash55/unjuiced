@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import { normalizeWnbaGameDate } from "@/lib/wnba/game-date";
 
 // Cache configuration
-const GAMES_CACHE_KEY = "wnba:games:regular-season-preferred:v2";
+const GAMES_CACHE_KEY = "wnba:games:regular-season-preferred:v3";
 const GAMES_CACHE_TTL = 300; // 5 minutes
 
 // Helper to parse game time from game_status like "7:00 pm ET" into sortable minutes
@@ -105,7 +106,8 @@ export async function GET(req: NextRequest) {
       is_primetime,
       national_broadcast,
       neutral_site,
-      season_type
+      season_type,
+      day
     `;
 
     const { data: futureGames, error: futureError } = await supabase
@@ -123,7 +125,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const allGames = getPreferredDateWindowGames(futureGames || []);
+    const normalizedGames = (futureGames || [])
+      .map((game) => ({
+        ...game,
+        source_game_date: game.game_date,
+        game_date: normalizeWnbaGameDate(game) ?? game.game_date,
+      }))
+      .filter((game) => game.game_date >= today);
+    const allGames = getPreferredDateWindowGames(normalizedGames);
     const sortedGames = sortGamesByDateTime(allGames);
     const dates = [...new Set(sortedGames.map(g => g.game_date))];
 

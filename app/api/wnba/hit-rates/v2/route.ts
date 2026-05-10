@@ -14,6 +14,10 @@ import {
   getGameLineContextKey,
   type GameLineContext,
 } from "@/lib/basketball/game-line-context";
+import {
+  getWnbaDbDatesForLocalDates,
+  normalizeWnbaGameDate,
+} from "@/lib/wnba/game-date";
 
 /**
  * Hit Rates API v2 - WNBA
@@ -24,7 +28,7 @@ import {
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:wnba:v8";
+const CACHE_KEY_PREFIX = "hitrates:wnba:v9";
 
 // =============================================================================
 // TYPES
@@ -198,6 +202,35 @@ async function fetchEventStartTimes(
       "[Hit Rates v2 WNBA] Redis event start_time fetch error:",
       error,
     );
+  }
+
+  return result;
+}
+
+async function fetchGameDateMap(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  rows: Array<{ game_id?: number | string | null }>,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const gameIds = [
+    ...new Set(rows.map((row) => row.game_id).filter(Boolean)),
+  ] as Array<number | string>;
+
+  if (gameIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("wnba_games_hr")
+    .select("game_id, game_date, day")
+    .in("game_id", gameIds);
+
+  if (error) {
+    console.error("[Hit Rates v2 WNBA] Game date map fetch error:", error.message);
+    return result;
+  }
+
+  for (const game of data || []) {
+    const normalizedDate = normalizeWnbaGameDate(game);
+    if (normalizedDate) result.set(String(game.game_id), normalizedDate);
   }
 
   return result;
@@ -642,7 +675,7 @@ async function getDefaultDatesToFetch(
 ): Promise<string[]> {
   const { data, error } = await supabase
     .from("wnba_games_hr")
-    .select("game_date, game_status, season_type")
+    .select("game_date, game_status, season_type, day")
     .gte("game_date", todayET)
     .order("game_date", { ascending: true })
     .limit(60);
@@ -655,7 +688,13 @@ async function getDefaultDatesToFetch(
     return [todayET, tomorrowET];
   }
 
-  const playableGames = (data || []).filter(isPlayableGame);
+  const playableGames = (data || [])
+    .map((game) => ({
+      ...game,
+      game_date: normalizeWnbaGameDate(game) ?? game.game_date,
+    }))
+    .filter((game) => game.game_date >= todayET)
+    .filter(isPlayableGame);
   const regularSeasonGames = playableGames.filter(isRegularSeasonGame);
   const preferredGames =
     regularSeasonGames.length > 0 ? regularSeasonGames : playableGames;
@@ -951,6 +990,7 @@ export async function GET(request: Request) {
   const datesToFetch = date
     ? [date]
     : await getDefaultDatesToFetch(supabase, todayET, tomorrowET);
+  const dbDatesToFetch = getWnbaDbDatesForLocalDates(datesToFetch);
 
   try {
     let allData: any[] = [];
@@ -980,7 +1020,7 @@ export async function GET(request: Request) {
       const { data, error } = await supabase.rpc(
         "get_wnba_hit_rate_profiles_fast_v3",
         {
-          p_dates: datesToFetch,
+          p_dates: dbDatesToFetch,
           p_market: market || null,
           p_has_odds: hasOdds ? true : null,
           p_limit: market ? 500 : 3000,
@@ -1022,6 +1062,17 @@ export async function GET(request: Request) {
           );
       }
     }
+
+    const gameDateMap = await fetchGameDateMap(supabase, allData);
+    allData = allData
+      .map((row) => ({
+        ...row,
+        game_date:
+          gameDateMap.get(String(row.game_id)) ??
+          normalizeWnbaGameDate(row) ??
+          row.game_date,
+      }))
+      .filter((row) => datesToFetch.includes(row.game_date));
 
     let filteredData = filterData(allData, search, undefined, playerId);
     const historicalContextMap = await fetchHistoricalContextForRows(

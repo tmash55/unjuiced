@@ -192,6 +192,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const wnbaGamesQuery = useWnbaGames(sport === "wnba");
   const allGames = sport === "mlb" ? mlbGamesQuery.games : sport === "wnba" ? wnbaGamesQuery.games : nbaGamesQuery.games;
   const apiPrimaryDate = sport === "mlb" ? mlbGamesQuery.primaryDate : sport === "wnba" ? wnbaGamesQuery.primaryDate : nbaGamesQuery.primaryDate;
+  const selectableGames = useMemo(() => {
+    if (sport !== "wnba") return allGames ?? [];
+    return (allGames ?? []).filter((game) => !hasGameStarted(game));
+  }, [allGames, sport]);
 
   // Ensure selected markets are valid for the active sport
   useEffect(() => {
@@ -265,7 +269,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   useEffect(() => {
     if (!allGames || allGames.length === 0) return;
 
-    const validIds = new Set(allGames.map((g) => normalizeGameId(g.game_id)));
+    const validGames = sport === "wnba" ? selectableGames : allGames;
+    const validIds = new Set(validGames.map((g) => normalizeGameId(g.game_id)));
 
     setSelectedGameIds((prev) => {
       if (prev === null) return prev;
@@ -280,7 +285,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       if (filtered.length === prev.length) return prev;
       return filtered.length > 0 ? filtered : null;
     });
-  }, [allGames]);
+  }, [allGames, selectableGames, sport]);
   
   // Effective game IDs (fallback to empty array if not yet initialized)
   const effectiveDesktopGameIds = selectedGameIds ?? [];
@@ -556,7 +561,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         <GatedMobileHitRates
           sport={sport}
           rows={mobileFilteredRows}
-          games={allGames ?? []}
+          games={selectableGames}
           loading={isLoading}
           error={error?.message}
           onPlayerClick={handleTableRowClick}
@@ -617,7 +622,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         gamesFilter={
           <GamesFilterDropdown
             sport={sport}
-            games={allGames ?? []}
+            games={selectableGames}
             selectedGameIds={effectiveDesktopGameIds}
             onToggleGame={toggleGame}
             onSelectAll={selectAllGames}

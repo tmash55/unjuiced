@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import {
+  getWnbaDbDatesForLocalDates,
+  normalizeWnbaGameDate,
+} from "@/lib/wnba/game-date";
 
 /**
  * API route for WNBA Hit Rate Cheat Sheet
@@ -734,13 +738,17 @@ async function fetchCheatSheetRows(
     dates: string[] | null;
   }
 ) {
+  const dbDates = args.dates && args.dates.length > 0
+    ? getWnbaDbDatesForLocalDates(args.dates)
+    : args.dates;
+
   const { data, error } = await supabase.rpc("get_wnba_hit_rate_cheatsheet_v2", {
     p_time_window: args.rpcTimeWindow,
     p_min_hit_rate: args.rpcMinHitRate,
     p_odds_floor: args.oddsFloor,
     p_odds_ceiling: args.oddsCeiling,
     p_markets: args.markets,
-    p_dates: args.dates,
+    p_dates: dbDates,
   });
 
   if (!error) {
@@ -759,8 +767,8 @@ async function fetchCheatSheetRows(
 
   let query = supabase.from("wnba_hit_rate_profiles").select("*");
 
-  if (args.dates && args.dates.length > 0) {
-    query = query.in("game_date", args.dates);
+  if (dbDates && dbDates.length > 0) {
+    query = query.in("game_date", dbDates);
   }
 
   if (args.markets && args.markets.length > 0) {
@@ -778,6 +786,43 @@ async function fetchCheatSheetRows(
     .map((row: any) => normalizeProfileRow(row, args.rpcTimeWindow));
 
   return { data: rows, error: null };
+}
+
+async function normalizeAndFilterGameDates(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  rows: any[],
+  dates: string[] | null,
+) {
+  const gameIds = [...new Set(rows.map((row) => row.game_id).filter(Boolean))];
+  if (gameIds.length === 0) return rows;
+
+  const { data, error } = await supabase
+    .from("wnba_games_hr")
+    .select("game_id, game_date, day")
+    .in("game_id", gameIds);
+
+  if (error) {
+    console.error("[Cheat Sheet WNBA] Game date normalization fetch error:", error.message);
+    return rows;
+  }
+
+  const gameDateMap = new Map<string, string>();
+  for (const game of data || []) {
+    const normalizedDate = normalizeWnbaGameDate(game);
+    if (normalizedDate) gameDateMap.set(String(game.game_id), normalizedDate);
+  }
+
+  const normalizedRows = rows.map((row) => ({
+    ...row,
+    game_date:
+      gameDateMap.get(String(row.game_id)) ??
+      normalizeWnbaGameDate(row) ??
+      row.game_date,
+  }));
+
+  return dates && dates.length > 0
+    ? normalizedRows.filter((row) => dates.includes(row.game_date))
+    : normalizedRows;
 }
 
 export async function POST(req: NextRequest) {
@@ -815,7 +860,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawRows = data || [];
+    const rawRows = await normalizeAndFilterGameDates(supabase, data || [], dates);
 
     const bestOddsMap = await fetchBestOddsForRows(
       rawRows.map((row: any) => ({
@@ -884,7 +929,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const rawRows = data || [];
+  const rawRows = await normalizeAndFilterGameDates(supabase, data || [], dates);
 
   const bestOddsMap = await fetchBestOddsForRows(
     rawRows.map((row: any) => ({

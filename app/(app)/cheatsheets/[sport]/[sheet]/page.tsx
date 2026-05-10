@@ -184,6 +184,22 @@ const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-r
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
 
+function getWnbaDateFilterDates(
+  filter: CheatSheetFilterState["dateFilter"],
+  scheduleDates: string[]
+): string[] | undefined {
+  if (filter !== "all") {
+    return getDateFilterDates(filter);
+  }
+
+  const today = getDateFilterDates("today")?.[0];
+  const upcomingDates = today
+    ? scheduleDates.filter((date) => date >= today)
+    : scheduleDates;
+
+  return upcomingDates.length > 0 ? upcomingDates : undefined;
+}
+
 // Sheet display names and descriptions
 const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }> = {
   "hit-rates": {
@@ -1197,19 +1213,19 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   const isGated = !isLoadingAccess && !hasAccess;
   const effectiveMarkets = isGated ? ["player_points"] : filters.markets;
 
-  // For WNBA: always fetch game dates so we can target the actual upcoming game dates
-  // instead of defaulting to today (which has no WNBA games during the season).
+  // For WNBA: fetch schedule dates for All Dates and the no-props next-game hint.
   const wnbaGamesQuery = useWnbaGames(sport === "wnba");
-  const wnbaDates = wnbaGamesQuery.gamesDates.length > 0 ? wnbaGamesQuery.gamesDates : undefined;
+  const wnbaDates = wnbaGamesQuery.gamesDates;
 
   // For WNBA, wait until the games hook resolves before firing the cheat sheet query.
-  // Without this guard the query fires immediately with no dates, the RPC defaults to
-  // "today" (no games yet), and the page shows empty before the real dates are known.
+  // Without this guard the query can briefly fire before the date filter is settled.
   const cheatSheetEnabled = sport !== "wnba" || !wnbaGamesQuery.isLoading;
 
-  // Compute effective dates: WNBA uses upcoming game dates from the schedule;
-  // NBA/MLB use the "today / tomorrow / all" date filter.
-  const effectiveDates = sport === "wnba" ? wnbaDates : getDateFilterDates(filters.dateFilter);
+  // Compute effective dates. WNBA Today/Tomorrow must stay literal calendar filters;
+  // All Dates can use schedule dates, but stale past dates from cache are dropped.
+  const effectiveDates = sport === "wnba"
+    ? getWnbaDateFilterDates(filters.dateFilter, wnbaDates)
+    : getDateFilterDates(filters.dateFilter);
 
   // Fetch data with API filters
   const { data, isLoading, error } = useCheatSheet({
@@ -1267,10 +1283,10 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   // wnbaGamesQuery is already fetched above (always enabled for WNBA)
   const rawNextDate =
     sport === "mlb" ? (mlbGamesQuery.gamesDates[0] ?? null) :
-    sport === "wnba" ? (wnbaGamesQuery.gamesDates[0] ?? null) :
+    sport === "wnba" ? (getWnbaDateFilterDates("all", wnbaDates)?.[0] ?? null) :
     (nbaGamesQuery.gamesDates[0] ?? null);
   // Only surface a next-game date if it's in the future (not today's empty-result case)
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getDateFilterDates("today")?.[0] ?? new Date().toISOString().slice(0, 10);
   const nextGameDate = rawNextDate && rawNextDate > todayStr ? rawNextDate : null;
 
   // For gated users, filter to rows WITH odds first, then limit to 7
