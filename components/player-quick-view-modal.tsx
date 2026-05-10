@@ -22,6 +22,18 @@ import { PlayerCorrelations } from "@/components/hit-rates/player-correlations";
 import { HitRateSummaryStrip } from "@/components/hit-rates/drilldown-v2/hero/hit-rate-summary-strip";
 import { Tile } from "@/components/hit-rates/drilldown-v2/shared/tile";
 import {
+  HitRateChart as HitRateChartV2,
+  type ChartSplit,
+  type ChartRange,
+  type ChartHitRateSegment,
+} from "@/components/hit-rates/drilldown-v2/hero/hit-rate-chart";
+import { DrilldownHeader } from "@/components/hit-rates/drilldown-v2/header/drilldown-header";
+import {
+  MatchupPanel as MatchupPanelV2,
+  ShootingPanel as ShootingPanelV2,
+  PlayTypePanel as PlayTypePanelV2,
+} from "@/components/hit-rates/drilldown-v2/tabs/drilldown-tabs";
+import {
   MlbSprayChart,
   MLB_EV_THRESHOLD_OPTIONS,
   MLB_HIT_FILTER_OPTIONS,
@@ -3027,6 +3039,16 @@ export function PlayerQuickViewModal({
   const handleLineChange = useCallback((line: number) => {
     setCustomLine(isMlb ? normalizeMlbOddsLine(line) ?? line : line);
   }, [isMlb]);
+  const handleLineReset = useCallback(() => setCustomLine(null), []);
+
+  // Chart state for the v2 HitRateChart embedded in the gamelog tab.
+  // The modal is a quick-view, so we keep the advanced filtering surface
+  // (teammate filters, quick-filter chips, metric overlays, DvP/pace
+  // overlays) collapsed and only thread the split + range the chart
+  // needs to render.
+  const [chartSplit, setChartSplit] = useState<ChartSplit>("all");
+  const [chartRange, setChartRange] = useState<ChartRange>("l20");
+  const isCustomLineActive = customLine !== null && Math.abs(customLine - defaultLine) > 1e-6;
 	  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   const activeHitRateLine = useMemo(() => {
     if (!activeHitRateOdds?.allLines?.length) return null;
@@ -3410,7 +3432,7 @@ export function PlayerQuickViewModal({
     if (isMlb && (activeTab === "correlation" || activeTab === "matchup")) {
       setActiveTab("gamelog");
     }
-    if (isWnba && (activeTab === "correlation" || activeTab === "playstyle")) {
+    if (isWnba && activeTab === "correlation") {
       setActiveTab("gamelog");
     }
   }, [activeTab, isMlb, isWnba]);
@@ -3487,7 +3509,7 @@ export function PlayerQuickViewModal({
     };
 
     // H2H games against current opponent
-    const h2hGames = profile?.opponentTeamAbbr 
+    const h2hGames = profile?.opponentTeamAbbr
       ? chartBaseGames.filter(g => g.opponentAbbr === profile.opponentTeamAbbr)
       : [];
 
@@ -3499,6 +3521,21 @@ export function PlayerQuickViewModal({
       h2h: calculateHitRate(h2hGames),
     };
   }, [chartBaseGames, activeLine, currentMarket, profile?.opponentTeamAbbr]);
+
+  // Sample counts mirror what dynamicHitRates filtered against — the v2 chart's
+  // segments need both pct + sample for the X/Y readout in each header chip.
+  const chartHitRateSegments: ChartHitRateSegment[] = useMemo(() => {
+    const h2hSample = profile?.opponentTeamAbbr
+      ? chartBaseGames.filter((g) => g.opponentAbbr === profile.opponentTeamAbbr).length
+      : 0;
+    return [
+      { range: "l5", label: "L5", pct: dynamicHitRates.l5, sample: Math.min(5, chartBaseGames.length) },
+      { range: "l10", label: "L10", pct: dynamicHitRates.l10, sample: Math.min(10, chartBaseGames.length) },
+      { range: "l20", label: "L20", pct: dynamicHitRates.l20, sample: Math.min(20, chartBaseGames.length) },
+      { range: "szn", label: "SZN", pct: dynamicHitRates.season, sample: chartBaseGames.length },
+      { range: "h2h", label: "H2H", pct: dynamicHitRates.h2h, sample: h2hSample },
+    ];
+  }, [dynamicHitRates, chartBaseGames, profile?.opponentTeamAbbr]);
 
   // Chart stats
   const chartStats = useMemo(() => {
@@ -4096,6 +4133,7 @@ export function PlayerQuickViewModal({
       ? [
           { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
           { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
+          { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
         ]
       : [
           { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
@@ -5149,67 +5187,62 @@ export function PlayerQuickViewModal({
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "gamelog" && (
                 <>
-                  {/* v2-style Tile chrome around the chart. Header label sits in
-                      the strip; right-side carries the at-a-glance Avg + Hit Rate
-                      badges users expect from the modal. The full L5/L10/L20/SZN/H2H
-                      strip lives just below so all five buckets read at once. */}
-                  <Tile
-                    label="Game Log"
-                    headerRight={
-                      <div className="flex items-center gap-1.5 sm:gap-2">
-                        <div className="flex items-baseline gap-1 rounded-md bg-white/70 px-2 py-1 ring-1 ring-neutral-200/70 dark:bg-neutral-900/60 dark:ring-neutral-700/60">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400">Avg</span>
-                          <span className={cn(
-                            "text-xs font-black tabular-nums",
-                            chartStats.avg && chartStats.avg > activeLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                          )}>
-                            {chartStats.avg?.toFixed(1) ?? "—"}
-                          </span>
-                        </div>
-                        <div className={cn(
-                          "flex items-baseline gap-1 rounded-md px-2 py-1 ring-1",
-                          chartStats.hitRate !== null && chartStats.hitRate >= 70
-                            ? "bg-emerald-50 ring-emerald-500/20 dark:bg-emerald-500/15 dark:ring-emerald-400/20"
-                            : chartStats.hitRate !== null && chartStats.hitRate >= 50
-                              ? "bg-amber-50 ring-amber-500/20 dark:bg-amber-500/15 dark:ring-amber-400/20"
-                              : chartStats.hitRate !== null
-                                ? "bg-red-50 ring-red-500/20 dark:bg-red-500/15 dark:ring-red-400/20"
-                                : "bg-neutral-50 ring-neutral-200/60 dark:bg-neutral-900/60 dark:ring-neutral-700/60"
-                        )}>
-                          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400">Hit Rate</span>
-                          <span className={cn("text-xs font-black tabular-nums", getPctColor(chartStats.hitRate))}>
-                            {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
-                          </span>
-                        </div>
-                      </div>
-                    }
-                    padded={false}
-                    className="w-full max-w-full overflow-visible"
-                  >
-                    {profile && !isMlb && (
-                      <div className="border-b border-neutral-200/60 px-4 py-3 dark:border-neutral-800/60">
-                        <HitRateSummaryStrip
+                  {/* v2 HitRateChart — same component the full hit-rate
+                      drilldown renders. The chart already wraps itself in a
+                      Tile and bakes the v2 DrilldownHeader in as its top slot,
+                      so the gamelog tab inherits the v2 hero look as one drop-in. */}
+                  {profile && !isMlb ? (
+                    <HitRateChartV2
+                      games={boxScoreGames}
+                      market={currentMarket}
+                      line={activeLine}
+                      sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                      isCustomLine={isCustomLineActive}
+                      isLoading={isLoadingBoxScores}
+                      split={chartSplit}
+                      onSplitChange={setChartSplit}
+                      range={chartRange}
+                      onRangeChange={setChartRange}
+                      hitRateSegments={chartHitRateSegments}
+                      opponentTeamId={profile.opponentTeamId ?? null}
+                      onLineChange={handleLineChange}
+                      onLineReset={handleLineReset}
+                      tonightDate={profile.gameDate ?? null}
+                      tonightSpread={profile.spread ?? null}
+                      tonightOpponentTeamId={profile.opponentTeamId ?? null}
+                      upcomingGameDate={profile.gameDate ?? null}
+                      upcomingOpponentAbbr={profile.opponentTeamAbbr ?? null}
+                      upcomingHomeAway={profile.homeAway ?? null}
+                      topSlot={
+                        <DrilldownHeader
                           profile={profile as any}
                           sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
-                        />
-                      </div>
-                    )}
-                    <div className="p-3 sm:p-4">
-                      {filteredGames.length > 0 ? (
-                        <GameLogChart
-                          games={filteredGames}
-                          market={currentMarket}
-                          sport={sport}
-                          line={activeLine}
+                          effectiveLine={activeLine}
                           onLineChange={handleLineChange}
-                          odds={oddsForChart}
-                          profileGameLogs={profile?.gameLogs as any}
+                          onLineReset={handleLineReset}
+                          odds={activeHitRateOdds ?? null}
                         />
-                      ) : (
-                        <div className="py-12 text-center text-sm text-neutral-500">No game data available</div>
-                      )}
-                    </div>
-                  </Tile>
+                      }
+                    />
+                  ) : (
+                    <Tile label="Game Log" padded={false} className="w-full overflow-hidden">
+                      <div className="p-3 sm:p-4">
+                        {filteredGames.length > 0 ? (
+                          <GameLogChart
+                            games={filteredGames}
+                            market={currentMarket}
+                            sport={sport}
+                            line={activeLine}
+                            onLineChange={handleLineChange}
+                            odds={oddsForChart}
+                            profileGameLogs={profile?.gameLogs as any}
+                          />
+                        ) : (
+                          <div className="py-12 text-center text-sm text-neutral-500">No game data available</div>
+                        )}
+                      </div>
+                    </Tile>
+                  )}
 
                   {/* Box Score Table */}
                   {fullProfilePlayerId && (
@@ -5243,7 +5276,6 @@ export function PlayerQuickViewModal({
 
               {activeTab === "matchup" && !isMlb && (
                 <div className="relative">
-                  {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md rounded-xl">
                       <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
@@ -5268,26 +5300,15 @@ export function PlayerQuickViewModal({
                       </div>
                     </div>
                   )}
-                  
-                  <div className={cn("space-y-6", !hasAdvancedAccess && "pointer-events-none select-none")}>
-                    {/* Defensive Analysis Matrix */}
-                    <DefensiveAnalysis
-                      playerId={profilePlayerId ?? 0}
-                      opponentTeamId={profileOpponentTeamId}
-                      opponentTeamAbbr={profileOpponentTeamAbbr}
-                      position={profilePosition}
-                      sport={isWnba ? "wnba" : "nba"}
-                    />
 
-                    {/* Position vs Team Game Log */}
-                    <PositionVsTeam
-                      position={profilePosition}
-                      opponentTeamId={profileOpponentTeamId}
-                      opponentTeamAbbr={profileOpponentTeamAbbr}
-                      market={currentMarket}
-                      currentLine={activeLine}
-                      sport={isWnba ? "wnba" : "nba"}
-                    />
+                  <div className={cn(!hasAdvancedAccess && "pointer-events-none select-none")}>
+                    {profile && (
+                      <MatchupPanelV2
+                        profile={profile as any}
+                        sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                        activeLine={activeLine}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -5336,20 +5357,21 @@ export function PlayerQuickViewModal({
                     </div>
                   )}
                   
-                  <div className={cn("space-y-6", !hasAdvancedAccess && "pointer-events-none select-none")}>
-                    <PlayTypeAnalysis
-                      playerId={profilePlayerId ?? null}
-                      opponentTeamId={profileOpponentTeamId}
-                      opponentTeamAbbr={profileOpponentTeamAbbr}
-                      playerName={profilePlayerName}
-                    />
-                    <ShootingZones
-                      playerId={profilePlayerId}
-                      opponentTeamId={profileOpponentTeamId}
-                      playerName={profilePlayerName}
-                      opponentTeamAbbr={profileOpponentTeamAbbr}
-                      showSideTable
-                    />
+                  <div className={cn("space-y-4", !hasAdvancedAccess && "pointer-events-none select-none")}>
+                    {profile && (
+                      <>
+                        <ShootingPanelV2
+                          profile={profile as any}
+                          sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                        />
+                        {!isWnba && (
+                          <PlayTypePanelV2
+                            profile={profile as any}
+                            sport="nba"
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               )}

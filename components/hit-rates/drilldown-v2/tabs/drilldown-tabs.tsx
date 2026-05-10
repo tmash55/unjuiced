@@ -686,7 +686,7 @@ function CorrelationCard({
 
 type ShotMapView = "player" | "edge" | "defense";
 
-function ShootingPanel({
+export function ShootingPanel({
   profile,
   sport,
 }: {
@@ -1515,7 +1515,7 @@ function ShotMapInfoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function PlayTypePanel({
+export function PlayTypePanel({
   profile,
   sport,
 }: {
@@ -3588,7 +3588,7 @@ function LineupImpactPlaceholder({
   );
 }
 
-function MatchupPanel({
+export function MatchupPanel({
   profile,
   sport,
   activeLine,
