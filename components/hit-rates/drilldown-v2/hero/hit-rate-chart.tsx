@@ -772,19 +772,16 @@ export function HitRateChart({
       label={
         <span className="inline-flex items-center gap-2">
           <span>Recent Performance</span>
-          <span className="text-[10px] font-medium normal-case tracking-normal text-neutral-400 dark:text-neutral-500">
+          <span className="hidden text-[10px] font-medium normal-case tracking-normal text-neutral-400 sm:inline dark:text-neutral-500">
             Last {chartGames.length} · {formatMarketLabel(market)}
           </span>
-          {isCustomLine && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-brand ring-1 ring-brand/20">
-              <span className="h-1 w-1 animate-pulse rounded-full bg-brand" />
-              What-if
-            </span>
-          )}
         </span>
       }
       headerRight={
-        <div className="flex flex-wrap items-center gap-1">
+        // Range chips need to stay on one line in tight contexts (modal, narrow
+        // viewports). Allow horizontal scroll if absolutely necessary, but tune
+        // spacing + hide the X/Y readout below sm so they normally fit.
+        <div className="-mr-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto pr-1 scrollbar-hide sm:gap-1">
           {hitRateSegments.map((seg) => {
             const active = seg.range === range;
             const tone = rangeButtonTone(seg.pct);
@@ -794,18 +791,18 @@ export function HitRateChart({
                 type="button"
                 onClick={() => onRangeChange(seg.range)}
                 className={cn(
-                  "inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 text-[10px] font-bold tabular-nums transition-all",
+                  "inline-flex shrink-0 items-baseline gap-1 rounded-md border px-1.5 py-1 text-[10px] font-bold tabular-nums transition-all sm:gap-1.5 sm:px-2",
                   active
                     ? cn("ring-1 ring-brand/40", tone.bgActive, tone.borderActive, tone.textActive)
                     : cn("border-transparent", tone.text, tone.bgHover)
                 )}
               >
-                <span className="uppercase tracking-[0.16em] opacity-70">{seg.label}</span>
-                <span className="text-[12px] leading-none tracking-tight">
+                <span className="uppercase tracking-[0.12em] opacity-70 sm:tracking-[0.16em]">{seg.label}</span>
+                <span className="text-[11px] leading-none tracking-tight sm:text-[12px]">
                   {seg.pct != null ? `${Math.round(seg.pct)}%` : "—"}
                 </span>
                 {seg.pct != null && seg.sample != null && seg.sample > 0 && (
-                  <span className="text-[9px] opacity-60">
+                  <span className="hidden text-[9px] opacity-60 lg:inline">
                     {Math.round((seg.pct / 100) * seg.sample)}/{seg.sample}
                   </span>
                 )}
