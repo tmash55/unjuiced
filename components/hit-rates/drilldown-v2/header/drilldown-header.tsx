@@ -24,6 +24,11 @@ interface DrilldownHeaderProps {
   onLineChange: (value: number) => void;
   onLineReset: () => void;
   odds: LineOdds | null;
+  /** Tighter sizing for embedded contexts (quick-view modal). Shrinks the
+   *  matchup ticker minimum width, drops the line stepper to the default
+   *  size, and tightens the best-price text so the whole strip fits in a
+   *  modal without horizontal overflow. */
+  compact?: boolean;
 }
 
 // Drilldown header — flat command-bar strip (no inner card). Reads left → right
@@ -38,6 +43,7 @@ export function DrilldownHeader({
   onLineChange,
   onLineReset,
   odds,
+  compact = false,
 }: DrilldownHeaderProps) {
   const positionLabel = formatPosition(profile.position);
   const opponent =
@@ -81,7 +87,7 @@ export function DrilldownHeader({
   const homeSpread = isHome ? playerSpread : opponentSpread;
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-5">
+    <div className={cn("flex flex-col gap-3 lg:flex-row lg:items-center", compact ? "lg:gap-3" : "lg:gap-5")}>
       {/* LEFT — identity. flex-1 so the matchup sits visually centered between
           the left and right groups when they share the leftover space evenly. */}
       <div className="flex min-w-0 items-center gap-3 lg:flex-1">
@@ -154,7 +160,10 @@ export function DrilldownHeader({
           favorite, subdued for dog) and a hairline-separated tip-off. Reads
           like a sportsbook ticker: instant team + price context, no mental
           inversion required. */}
-      <div className="hidden min-w-[330px] rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex md:flex-col md:gap-1.5 lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+      <div className={cn(
+        "hidden rounded-xl border border-neutral-200/70 bg-neutral-50/70 shadow-sm md:flex md:flex-col lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35",
+        compact ? "min-w-0 gap-1 px-2 py-1.5 md:gap-1" : "min-w-[330px] px-3 py-2 md:gap-1.5",
+      )}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
@@ -182,19 +191,22 @@ export function DrilldownHeader({
       {/* RIGHT — line + odds, grouped together. Mirrors the left group's
           flex-1 so the matchup centers between them, and keeps the actionable
           bet info (the line you're researching + where to take it) co-located. */}
-      <div className="flex items-center gap-5 lg:flex-1 lg:justify-end">
+      <div className={cn("flex items-center lg:flex-1 lg:justify-end", compact ? "gap-3" : "gap-5")}>
         <div className="lg:flex-shrink-0">
           <LineStepper
             value={effectiveLine}
             defaultValue={profile.line ?? effectiveLine}
             onChange={onLineChange}
             onReset={onLineReset}
-            size="hero"
+            size={compact ? "default" : "hero"}
             marketLabel={marketLabel}
           />
         </div>
 
-        <div className="flex flex-col gap-0.5 lg:flex-shrink-0 lg:border-l lg:border-neutral-200/60 lg:pl-5 lg:dark:border-neutral-800/60">
+        <div className={cn(
+          "flex flex-col gap-0.5 lg:flex-shrink-0 lg:border-l lg:border-neutral-200/60 lg:dark:border-neutral-800/60",
+          compact ? "lg:pl-3" : "lg:pl-5",
+        )}>
           <span className="mb-0.5 text-[9.5px] font-bold tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
             Best Price
           </span>
@@ -202,11 +214,13 @@ export function DrilldownHeader({
             side="O"
             price={bestOver?.price ?? null}
             book={bestOver?.book ?? null}
+            compact={compact}
           />
           <OddsRow
             side="U"
             price={bestUnder?.price ?? null}
             book={bestUnder?.book ?? null}
+            compact={compact}
           />
         </div>
       </div>
@@ -248,19 +262,26 @@ function OddsRow({
   side,
   price,
   book,
+  compact = false,
 }: {
   side: "O" | "U";
   price: number | null;
   book: string | null;
+  compact?: boolean;
 }) {
   const label = side === "O" ? "Over" : "Under";
+  const priceClass = compact
+    ? "min-w-[3.5ch] text-[13px] font-black tracking-tight tabular-nums"
+    : "min-w-[3.5ch] text-[15px] font-black tracking-tight tabular-nums";
+  const labelWidth = compact ? "w-7" : "w-9";
+  const rowGap = compact ? "gap-1.5" : "gap-2";
   if (price === null) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="w-9 text-[10px] font-bold tracking-[0.1em] text-neutral-400 uppercase dark:text-neutral-600">
+      <div className={cn("flex items-center", rowGap)}>
+        <span className={cn(labelWidth, "text-[10px] font-bold tracking-[0.1em] text-neutral-400 uppercase dark:text-neutral-600")}>
           {label}
         </span>
-        <span className="min-w-[3.5ch] text-[15px] font-black tracking-tight text-neutral-300 tabular-nums dark:text-neutral-700">
+        <span className={cn(priceClass, "text-neutral-300 dark:text-neutral-700")}>
           —
         </span>
       </div>
@@ -269,13 +290,13 @@ function OddsRow({
   const sb = book ? getSportsbookById(book) : null;
   const logo = sb?.image?.light ?? null;
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-9 text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase dark:text-neutral-400">
+    <div className={cn("flex items-center", rowGap)}>
+      <span className={cn(labelWidth, "text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase dark:text-neutral-400")}>
         {label}
       </span>
       <span
         className={cn(
-          "min-w-[3.5ch] text-[15px] font-black tracking-tight tabular-nums",
+          priceClass,
           price > 0
             ? "text-emerald-600 dark:text-emerald-400"
             : "text-neutral-900 dark:text-white",

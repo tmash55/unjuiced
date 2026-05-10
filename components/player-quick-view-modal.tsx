@@ -4747,6 +4747,7 @@ export function PlayerQuickViewModal({
                     onLineChange={handleLineChange}
                     onLineReset={handleLineReset}
                     odds={activeHitRateOdds ?? null}
+                    compact
                   />
                   {/* Close button — pinned top-right inside the DrilldownHeader row. */}
                   <button
