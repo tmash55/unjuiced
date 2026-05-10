@@ -2747,10 +2747,19 @@ export function PlayerQuickViewModal({
     enabled: open && needsLookup,
   });
 
-  // Use direct ID if provided, otherwise use looked up ID
+  // Use direct ID if provided, otherwise use looked up ID. WNBA's lookup row
+  // ships TWO ids: wnba_player_id (the routing id used for hit-rates / box
+  // scores / RPCs) and nba_player_id (the cdn.nba.com headshot id). Keep
+  // them separate — using the headshot id for routing returns no profile
+  // and the modal renders "Player Not Found".
   const nba_player_id = directNbaPlayerId || lookupData?.player?.nba_player_id || undefined;
+  const wnba_player_id = lookupData?.player?.wnba_player_id || undefined;
   const mlb_player_id = directMlbPlayerId || lookupData?.player?.mlb_player_id || undefined;
-  const resolvedPlayerId = isMlb ? mlb_player_id : nba_player_id;
+  const resolvedPlayerId = isMlb
+    ? mlb_player_id
+    : isWnba
+      ? wnba_player_id
+      : nba_player_id;
   const playerInfo = lookupData?.player;
   const oddsPlayerIdForLookup = odds_player_id || playerInfo?.odds_player_id || null;
 
@@ -2764,12 +2773,12 @@ export function PlayerQuickViewModal({
     limit: 20, // Reduced from 50 - we only need current markets
   });
 
-  // Limit box scores to last 25 games for faster loading. Hook supports sport so
-  // WNBA hits /api/wnba/player-box-scores using the same nba.com player_id.
+  // Limit box scores to last 25 games for faster loading. The WNBA endpoint
+  // expects wnba_player_id; using the headshot nba_player_id returns nothing.
   const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
-    playerId: nba_player_id || null,
+    playerId: resolvedPlayerId || null,
     sport: isMlb ? undefined : (sport as "nba" | "wnba"),
-    enabled: !isMlb && open && !!nba_player_id,
+    enabled: !isMlb && open && !!resolvedPlayerId,
     limit: 25,
   });
 
