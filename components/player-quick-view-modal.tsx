@@ -19,6 +19,8 @@ import { DefensiveAnalysis } from "@/components/hit-rates/defensive-analysis";
 import { PlayTypeAnalysis } from "@/components/hit-rates/play-type-analysis";
 import { ShootingZones } from "@/components/hit-rates/shooting-zones";
 import { PlayerCorrelations } from "@/components/hit-rates/player-correlations";
+import { HitRateSummaryStrip } from "@/components/hit-rates/drilldown-v2/hero/hit-rate-summary-strip";
+import { Tile } from "@/components/hit-rates/drilldown-v2/shared/tile";
 import {
   MlbSprayChart,
   MLB_EV_THRESHOLD_OPTIONS,
@@ -4213,7 +4215,7 @@ export function PlayerQuickViewModal({
                   <main className="min-w-0 lg:min-h-0">
                     <MlbGlassPanel className="overflow-visible lg:flex lg:h-full lg:min-h-0 lg:flex-col">
                       <div className="sticky top-0 z-20 flex flex-col gap-2 rounded-t-lg border-b border-border bg-card px-3 py-2 sm:gap-3 sm:px-3 sm:py-2.5 lg:static lg:z-auto xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex min-w-0 gap-4 overflow-x-auto scrollbar-hide sm:gap-7">
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
                           {modalTabs.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -4225,18 +4227,17 @@ export function PlayerQuickViewModal({
                                 disabled={isDisabled}
                                 onClick={() => !isDisabled && setActiveTab(tab.id)}
                                 className={cn(
-                                  "relative flex h-12 shrink-0 items-center gap-1.5 text-xs font-semibold transition sm:h-11 sm:gap-2 sm:text-sm",
+                                  "relative flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all active:scale-[0.98] sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm",
                                   isDisabled
-                                    ? "cursor-not-allowed text-muted-foreground/50"
+                                    ? "cursor-not-allowed border-neutral-200/60 bg-neutral-100/60 text-neutral-400 dark:border-neutral-800/60 dark:bg-neutral-800/40 dark:text-neutral-600"
                                     : isActive
-                                      ? "text-foreground"
-                                      : "text-muted-foreground hover:text-foreground"
+                                      ? "border-brand/45 bg-brand/10 text-brand shadow-sm"
+                                      : "border-neutral-200/70 bg-neutral-50/70 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-100 dark:border-neutral-800/70 dark:bg-neutral-950/35 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-900",
                                 )}
                               >
-                                <Icon className="h-4 w-4 sm:h-4 sm:w-4" />
+                                <Icon className={cn("h-4 w-4", isActive ? "text-brand" : "")} />
                                 <span>{tab.id === "matchup" ? "Pitcher" : tab.id === "playstyle" ? "Batted Ball" : tab.label.replace("Game ", "")}</span>
                                 {"soon" in tab && tab.soon && <span className="rounded bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">SOON</span>}
-                                {isActive && <span className="absolute bottom-[-9px] left-0 h-0.5 w-full rounded-full bg-brand sm:bottom-[-11px]" />}
                               </button>
                             );
                           })}
@@ -5098,19 +5099,19 @@ export function PlayerQuickViewModal({
                         if (!isDisabled) setActiveTab(tab.id);
                       }}
                       className={cn(
-                        "relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap",
+                        "group relative flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap active:scale-[0.98] sm:px-4",
                         isDisabled
-                          ? "cursor-not-allowed text-neutral-400 dark:text-neutral-600 bg-neutral-100/60 dark:bg-neutral-800/40"
+                          ? "cursor-not-allowed border-neutral-200/60 bg-neutral-100/60 text-neutral-400 dark:border-neutral-800/60 dark:bg-neutral-800/40 dark:text-neutral-600"
                           : isActive
-                          ? "bg-white dark:bg-neutral-800 text-emerald-700 dark:text-emerald-400 shadow-md ring-1 ring-emerald-200/50 dark:ring-emerald-700/30"
-                          : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/60 dark:hover:bg-neutral-800/60 active:scale-95"
+                            ? "border-brand/45 bg-brand/10 text-brand shadow-sm"
+                            : "border-neutral-200/70 bg-neutral-50/70 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-100 dark:border-neutral-800/70 dark:bg-neutral-950/35 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-900",
                       )}
                     >
                       <Icon className={cn(
                         "h-4 w-4 transition-colors",
                         isDisabled
                           ? "text-neutral-400 dark:text-neutral-600"
-                          : isActive ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400 dark:text-neutral-500"
+                          : isActive ? "text-brand" : "text-neutral-400 dark:text-neutral-500"
                       )} />
                       <span className="hidden sm:inline">{tab.label}</span>
                       <span className="sm:hidden">{tab.mobileLabel}</span>
@@ -5148,56 +5149,51 @@ export function PlayerQuickViewModal({
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "gamelog" && (
                 <>
-                  {/* Chart Section - Premium Card */}
-                  <div className="rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5 w-full max-w-full relative z-0">
-                    <div className="relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-emerald-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-emerald-900/10" />
-                      <div className="relative px-4 sm:px-6 py-4 sm:py-5 border-b border-neutral-200/60 dark:border-neutral-700/60">
-                        <div className="flex items-center justify-between flex-wrap gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30" />
-                            <div>
-                              <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">Game Log</h2>
-                              <p className="text-[10px] sm:text-xs text-neutral-500 dark:text-neutral-400 font-medium">Performance history</p>
-                            </div>
-                          </div>
-                          
-                          {/* Chart Stats - Premium */}
-                          <div className="flex items-center gap-1.5 sm:gap-3">
-                            <div className="flex flex-col items-center px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
-                              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-neutral-400">Avg</span>
-                              <span className={cn(
-                                "text-base sm:text-xl font-bold tabular-nums tracking-tight",
-                                chartStats.avg && chartStats.avg > activeLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                              )}>
-                                {chartStats.avg?.toFixed(1) ?? "—"}
-                              </span>
-                            </div>
-                            <div className={cn(
-                              "flex flex-col items-center px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl ring-1 shadow-sm",
-                              chartStats.hitRate !== null && chartStats.hitRate >= 70 
-                                ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 ring-emerald-200/60 dark:ring-emerald-700/40"
-                                : chartStats.hitRate !== null && chartStats.hitRate >= 50 
-                                  ? "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 ring-amber-200/60 dark:ring-amber-700/40"
-                                  : chartStats.hitRate !== null
-                                    ? "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 ring-red-200/60 dark:ring-red-700/40"
-                                    : "bg-neutral-50 dark:bg-neutral-700/30 ring-neutral-200/50 dark:ring-neutral-700/50"
-                            )}>
-                              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-neutral-400">Hit Rate</span>
-                              <span className={cn("text-base sm:text-xl font-bold tabular-nums tracking-tight", getPctColor(chartStats.hitRate))}>
-                                {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
-                              </span>
-                            </div>
-                            <div className="hidden sm:flex flex-col items-center text-xs text-neutral-500">
-                              <span className="font-bold text-neutral-700 dark:text-neutral-300">{chartStats.hits}/{chartStats.total}</span>
-                              <span className="text-[9px]">games</span>
-                            </div>
-                          </div>
+                  {/* v2-style Tile chrome around the chart. Header label sits in
+                      the strip; right-side carries the at-a-glance Avg + Hit Rate
+                      badges users expect from the modal. The full L5/L10/L20/SZN/H2H
+                      strip lives just below so all five buckets read at once. */}
+                  <Tile
+                    label="Game Log"
+                    headerRight={
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <div className="flex items-baseline gap-1 rounded-md bg-white/70 px-2 py-1 ring-1 ring-neutral-200/70 dark:bg-neutral-900/60 dark:ring-neutral-700/60">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400">Avg</span>
+                          <span className={cn(
+                            "text-xs font-black tabular-nums",
+                            chartStats.avg && chartStats.avg > activeLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
+                          )}>
+                            {chartStats.avg?.toFixed(1) ?? "—"}
+                          </span>
+                        </div>
+                        <div className={cn(
+                          "flex items-baseline gap-1 rounded-md px-2 py-1 ring-1",
+                          chartStats.hitRate !== null && chartStats.hitRate >= 70
+                            ? "bg-emerald-50 ring-emerald-500/20 dark:bg-emerald-500/15 dark:ring-emerald-400/20"
+                            : chartStats.hitRate !== null && chartStats.hitRate >= 50
+                              ? "bg-amber-50 ring-amber-500/20 dark:bg-amber-500/15 dark:ring-amber-400/20"
+                              : chartStats.hitRate !== null
+                                ? "bg-red-50 ring-red-500/20 dark:bg-red-500/15 dark:ring-red-400/20"
+                                : "bg-neutral-50 ring-neutral-200/60 dark:bg-neutral-900/60 dark:ring-neutral-700/60"
+                        )}>
+                          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-neutral-400">Hit Rate</span>
+                          <span className={cn("text-xs font-black tabular-nums", getPctColor(chartStats.hitRate))}>
+                            {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Chart */}
+                    }
+                    padded={false}
+                    className="w-full max-w-full overflow-visible"
+                  >
+                    {profile && !isMlb && (
+                      <div className="border-b border-neutral-200/60 px-4 py-3 dark:border-neutral-800/60">
+                        <HitRateSummaryStrip
+                          profile={profile as any}
+                          sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
+                        />
+                      </div>
+                    )}
                     <div className="p-3 sm:p-4">
                       {filteredGames.length > 0 ? (
                         <GameLogChart
@@ -5213,20 +5209,22 @@ export function PlayerQuickViewModal({
                         <div className="py-12 text-center text-sm text-neutral-500">No game data available</div>
                       )}
                     </div>
-                  </div>
+                  </Tile>
 
                   {/* Box Score Table */}
                   {fullProfilePlayerId && (
-                    <div className="overflow-x-auto">
-                      <BoxScoreTable
-                        sport={sport}
-                        playerId={fullProfilePlayerId}
-                        market={currentMarket}
-                        currentLine={activeLine}
-                        prefetchedGames={isMlb ? mlbSeasonGames : undefined}
-                        variant="modal"
-                      />
-                    </div>
+                    <Tile label="Box Score" padded={false} className="w-full overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <BoxScoreTable
+                          sport={sport}
+                          playerId={fullProfilePlayerId}
+                          market={currentMarket}
+                          currentLine={activeLine}
+                          prefetchedGames={isMlb ? mlbSeasonGames : undefined}
+                          variant="modal"
+                        />
+                      </div>
+                    </Tile>
                   )}
                 </>
               )}
