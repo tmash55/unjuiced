@@ -462,6 +462,22 @@ export function HitRateChart({
   const hasAnyPotential =
     !hidePotential && supportsPotential && potentials.some((p) => p != null && p > 0);
 
+  // Minutes overlay scaling — values mapped against the player's own
+  // visible-game range (with a small floor so a single short outing
+  // doesn't scale all other bars to 100%). Padding the bottom by 4px so
+  // the shortest minute bar is still visible above the baseline.
+  const showMinutesOverlay = !!metricOverlays?.has("minutes");
+  const minutesValues = chartGames.map((g) => g.minutes ?? 0);
+  const minutesContext = (() => {
+    if (!showMinutesOverlay) return null;
+    const valid = minutesValues.filter((m) => m > 0);
+    if (valid.length === 0) return null;
+    const min = Math.max(0, Math.floor(Math.min(...valid) - 4));
+    const max = Math.ceil(Math.max(...valid) + 2);
+    const span = Math.max(1, max - min);
+    return { min, max, span };
+  })();
+
   // Y-axis cap: enough headroom that even the tallest bar leaves room for its
   // value label above the bar top. When potential bars exist they're often
   // taller than actuals — include them in the max so ghosts don't get clipped.
@@ -916,8 +932,7 @@ export function HitRateChart({
                     without burying the bar values. Both share a single SVG
                     layer for one paint. */}
                 {(chartSettings.showDvpOverlay ||
-                  chartSettings.showPaceOverlay ||
-                  metricOverlays?.has("minutes")) &&
+                  chartSettings.showPaceOverlay) &&
                   chartGames.length > 0 && (
                     // viewBox uses REAL pixel dimensions (matches the chart's
                     // actual width × CHART_HEIGHT) so circles stay round and
@@ -966,23 +981,6 @@ export function HitRateChart({
                           dashed
                         />
                       )}
-                      {metricOverlays?.has("minutes") && (
-                        <MetricLineOverlay
-                          games={chartGames}
-                          getValue={(g) => g.minutes}
-                          label="Minutes"
-                          stroke="rgb(168 85 247 / 0.95)"
-                          dotFill="rgb(168 85 247)"
-                          barWidth={barWidth}
-                          gapPx={gapPx}
-                          chartHeight={CHART_HEIGHT}
-                          // Cap minutes axis at game length-ish so Q1
-                          // markets don't squash full-game minutes into
-                          // the bottom of the chart.
-                          valueMin={0}
-                          valueMax={sport === "wnba" ? 40 : 48}
-                        />
-                      )}
                     </svg>
                   )}
 
@@ -991,25 +989,40 @@ export function HitRateChart({
                   className="absolute inset-0 flex items-end justify-start"
                   style={{ gap: gapPx }}
                 >
-                  {chartGames.map((game, idx) => (
-                    <BarColumn
-                      key={`${game.gameId}-${idx}`}
-                      value={values[idx]}
-                      potential={potentials[idx]}
-                      line={line}
-                      maxValue={maxValue}
-                      chartHeight={CHART_HEIGHT}
-                      barWidth={barWidth}
-                      hasAnyPotential={hasAnyPotential}
-                      animationDelay={idx * 12}
-                      showValueLabel={range !== "szn"}
-                      onMouseEnter={() => {
-                        cancelHoverClear();
-                        setHoveredIndex(idx);
-                      }}
-                      onMouseLeave={() => scheduleHoverClear(idx)}
-                    />
-                  ))}
+                  {chartGames.map((game, idx) => {
+                    const minutesValue = minutesValues[idx];
+                    const minutesHeightPx =
+                      minutesContext && minutesValue > 0
+                        ? Math.max(
+                            4,
+                            ((Math.min(minutesContext.max, minutesValue) -
+                              minutesContext.min) /
+                              minutesContext.span) *
+                              CHART_HEIGHT,
+                          )
+                        : 0;
+                    return (
+                      <BarColumn
+                        key={`${game.gameId}-${idx}`}
+                        value={values[idx]}
+                        potential={potentials[idx]}
+                        line={line}
+                        maxValue={maxValue}
+                        chartHeight={CHART_HEIGHT}
+                        barWidth={barWidth}
+                        hasAnyPotential={hasAnyPotential}
+                        animationDelay={idx * 12}
+                        showValueLabel={range !== "szn"}
+                        minutesValue={showMinutesOverlay ? minutesValue : null}
+                        minutesHeightPx={minutesHeightPx}
+                        onMouseEnter={() => {
+                          cancelHoverClear();
+                          setHoveredIndex(idx);
+                        }}
+                        onMouseLeave={() => scheduleHoverClear(idx)}
+                      />
+                    );
+                  })}
 
                   {/* Upcoming game placeholder — dotted bar with question mark */}
                   {upcomingSlot && (
@@ -1509,6 +1522,12 @@ interface BarColumnProps {
   // Hide the per-bar numeric label. Season view stuffs 30+ bars into the same
   // strip and the labels become illegible noise; tooltip still shows the value.
   showValueLabel?: boolean;
+  // Optional minutes overlay — renders a translucent purple ghost bar
+  // BEHIND everything else on the column when toggled. Scaled against the
+  // player's own min/max minutes so the bar stays meaningful across short
+  // (1Q) markets without dwarfing the prop bars.
+  minutesValue?: number | null;
+  minutesHeightPx?: number;
 }
 
 function BarColumn({
@@ -1523,11 +1542,18 @@ function BarColumn({
   onMouseEnter,
   onMouseLeave,
   showValueLabel = true,
+  minutesValue,
+  minutesHeightPx,
 }: BarColumnProps) {
   const isHit = value >= line;
   const heightPx = Math.max(4, (value / maxValue) * chartHeight);
   const showGhost = hasAnyPotential && potential != null && potential > 0;
   const ghostHeightPx = showGhost ? Math.max(4, (potential! / maxValue) * chartHeight) : 0;
+  const showMinutes =
+    typeof minutesValue === "number" &&
+    minutesValue > 0 &&
+    typeof minutesHeightPx === "number" &&
+    minutesHeightPx > 0;
   // Slim the actual bar whenever the chart is in "potential mode" — keeps bar
   // widths consistent across all columns even when a game is missing potential.
   // Wider ratio (0.78) so the colored bar reads as the primary value with the
@@ -1546,6 +1572,26 @@ function BarColumn({
       className="group/bar relative h-full shrink-0"
       style={{ width: barWidth }}
     >
+      {/* Minutes overlay — translucent purple bar BEHIND the potential
+          ghost and the actual prop bar. Slightly wider than barWidth so
+          a sliver peeks out either side as a clear visual signal that
+          this is a *secondary* metric, not the prop being charted. */}
+      {showMinutes && (
+        <div
+          className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-purple-400/35 ring-1 ring-inset ring-purple-400/30 dark:bg-purple-500/25 dark:ring-purple-400/25"
+          style={{ width: barWidth, height: minutesHeightPx, animation }}
+          aria-hidden
+        >
+          {showValueLabel && (
+            <span
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-bold tabular-nums leading-none text-purple-600 dark:text-purple-300"
+              style={{ marginBottom: 2 }}
+            >
+              {Math.round(minutesValue!)}m
+            </span>
+          )}
+        </div>
+      )}
       {/* Ghost (potential) — anchored center, sits behind the actual bar.
           Its label is a CHILD positioned at bottom-full, so the label rides
           the ghost's height animation instead of jumping in pre-positioned.
@@ -2244,85 +2290,3 @@ function RankLineOverlay({
   );
 }
 
-// Generic per-game value overlay — extractor + axis bounds + styling.
-// Used for stat-context overlays (Minutes today; FGA / 3PA / etc. as the
-// user adds more). Visually mirrors RankLineOverlay (same draw-in
-// animation, same dot rendering) so all chart overlays read as one
-// product family.
-function MetricLineOverlay({
-  games,
-  getValue,
-  label,
-  stroke,
-  dotFill,
-  barWidth,
-  gapPx,
-  chartHeight,
-  valueMin,
-  valueMax,
-}: {
-  games: BoxScoreGame[];
-  getValue: (game: BoxScoreGame) => number | null | undefined;
-  label: string;
-  stroke: string;
-  dotFill: string;
-  barWidth: number;
-  gapPx: number;
-  chartHeight: number;
-  valueMin: number;
-  valueMax: number;
-}) {
-  const yMargin = 10;
-  const yRange = Math.max(1, chartHeight - yMargin * 2);
-  const span = Math.max(1, valueMax - valueMin);
-  const points: Array<{ x: number; y: number; value: number }> = [];
-  games.forEach((game, idx) => {
-    const raw = getValue(game);
-    if (raw == null || !Number.isFinite(raw)) return;
-    const clamped = Math.max(valueMin, Math.min(valueMax, raw));
-    const x = idx * (barWidth + gapPx) + barWidth / 2;
-    // High value sits at top of chart (matches "high = good" reading).
-    const t = (clamped - valueMin) / span;
-    const y = yMargin + (1 - t) * yRange;
-    points.push({ x, y, value: raw });
-  });
-  if (points.length === 0) return null;
-  const path = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-    .join(" ");
-  return (
-    <g aria-label={`${label} trend`}>
-      <path
-        d={path}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        pathLength={1}
-        vectorEffect="non-scaling-stroke"
-        style={{
-          strokeDashoffset: 1,
-          animation:
-            "rankline-draw 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 80ms forwards",
-        }}
-      />
-      {points.map((p) => (
-        <circle
-          key={`${p.x}-${p.y}`}
-          cx={p.x}
-          cy={p.y}
-          r={3}
-          fill={dotFill}
-          stroke="white"
-          strokeWidth={1}
-          style={{
-            opacity: 0,
-            animation:
-              "rankline-fade 480ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 220ms forwards",
-          }}
-        />
-      ))}
-    </g>
-  );
-}

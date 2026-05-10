@@ -334,37 +334,34 @@ function RangeBody({
         </div>
       </div>
 
-      {/* Chart overlay toggle — only shown for metrics that have an
-          overlay implementation (Minutes today). When on, this metric
-          renders as a per-game line on the chart so the user can spot
-          when prop performance correlates with e.g. minutes played. */}
+      {/* Chart overlay toggle — quiet inline row (no card, no border) so
+          it sits as a fourth control alongside the slider/inputs/labels
+          rather than a separate panel. */}
       {overlaySupported && onOverlayToggle && (
-        <div className="flex items-center justify-between rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-2.5 py-2 dark:border-neutral-800/70 dark:bg-neutral-950/40">
-          <div className="min-w-0">
-            <div className="text-[11px] font-black text-neutral-800 dark:text-neutral-100">
-              Show on chart
-            </div>
-            <div className="text-[10px] font-medium text-neutral-500 dark:text-neutral-500">
-              Overlay this metric as a line on each game
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onOverlayToggle}
-            aria-pressed={overlayActive}
+        <button
+          type="button"
+          onClick={onOverlayToggle}
+          aria-pressed={overlayActive}
+          className="-mx-1 flex items-center justify-between gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40"
+        >
+          <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+            Show on chart
+          </span>
+          <span
             className={cn(
-              "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+              "relative h-4 w-7 shrink-0 rounded-full transition-colors",
               overlayActive ? "bg-brand" : "bg-neutral-300 dark:bg-neutral-700",
             )}
+            aria-hidden
           >
             <span
               className={cn(
-                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-                overlayActive ? "translate-x-4" : "translate-x-0.5",
+                "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
+                overlayActive ? "translate-x-3.5" : "translate-x-0.5",
               )}
             />
-          </button>
-        </div>
+          </span>
+        </button>
       )}
 
       {/* Range-input thumb styling — the wrapper input is pointer-events:none
