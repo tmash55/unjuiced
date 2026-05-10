@@ -3540,29 +3540,24 @@ export function PlayerQuickViewModal({
       ? chartBaseGames.filter((g) => g.opponentAbbr === profile.opponentTeamAbbr).length
       : 0;
 
-    // Find the most recent season's start year to mirror v2 chart's SZN logic.
-    const sortedAsc = [...chartBaseGames].sort((a, b) =>
-      (a.date ?? "").localeCompare(b.date ?? "")
-    );
-    const latestDate = sortedAsc[sortedAsc.length - 1]?.date ?? "";
-    const latestYear = parseInt(latestDate.slice(0, 4), 10);
-    const latestMonth = parseInt(latestDate.slice(5, 7), 10);
-    const seasonStartYear = !Number.isFinite(latestYear)
-      ? null
-      : isWnba
-        ? latestYear
-        : latestMonth >= 8
-          ? latestYear
-          : latestYear - 1;
-    const seasonGames = seasonStartYear === null
-      ? chartBaseGames
-      : chartBaseGames.filter((g) => {
-          const y = parseInt((g.date ?? "").slice(0, 4), 10);
-          const m = parseInt((g.date ?? "").slice(5, 7), 10);
-          if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
-          if (isWnba) return y === seasonStartYear;
-          return (m >= 8 ? y : y - 1) === seasonStartYear;
-        });
+    // SZN locks onto the *current* real-world season so the chip stays in
+    // sync with the chart's SZN button. WNBA uses today's calendar year;
+    // NBA uses today's season (Aug-Dec → year, Jan-Jul → year-1).
+    const today = new Date();
+    const todayYear = today.getUTCFullYear();
+    const todayMonth = today.getUTCMonth() + 1;
+    const seasonStartYear = isWnba
+      ? todayYear
+      : todayMonth >= 8
+        ? todayYear
+        : todayYear - 1;
+    const seasonGames = chartBaseGames.filter((g) => {
+      const y = parseInt((g.date ?? "").slice(0, 4), 10);
+      const m = parseInt((g.date ?? "").slice(5, 7), 10);
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+      if (isWnba) return y === seasonStartYear;
+      return (m >= 8 ? y : y - 1) === seasonStartYear;
+    });
     const seasonStats = seasonGames.map((g) => getMarketStat(g, currentMarket));
     const seasonHits = seasonStats.filter((s) => s >= activeLine).length;
     const seasonPct = seasonStats.length > 0
@@ -3661,23 +3656,20 @@ export function PlayerQuickViewModal({
     const fmt = (v: number | null | undefined) =>
       typeof v === "number" && Number.isFinite(v) ? v.toFixed(1) : "—";
 
-    // Compute averages from the most recent season's games rather than the
-    // RPC's aggregate, so the strip stays in sync with the SZN range button
-    // (WNBA → 2026, NBA → current season). Falls back to the RPC summary
-    // when we don't have games loaded yet.
+    // Compute averages from the *current* real-world season's games so the
+    // strip stays in sync with the SZN range button (WNBA → today's year,
+    // NBA → today's season). Falls back to the RPC summary when there are
+    // no games in the current season yet (e.g. preseason).
     if (boxScoreGames.length > 0) {
-      const sortedByDate = [...boxScoreGames].sort((a, b) =>
-        (a.date ?? "").localeCompare(b.date ?? "")
-      );
-      const latestDate = sortedByDate[sortedByDate.length - 1].date ?? "";
-      const latestYear = parseInt(latestDate.slice(0, 4), 10);
-      const latestMonth = parseInt(latestDate.slice(5, 7), 10);
+      const today = new Date();
+      const todayYear = today.getUTCFullYear();
+      const todayMonth = today.getUTCMonth() + 1;
       const latestSeasonStartYear = isWnba
-        ? latestYear
-        : latestMonth >= 8
-          ? latestYear
-          : latestYear - 1;
-      const inSeason = sortedByDate.filter((g) => {
+        ? todayYear
+        : todayMonth >= 8
+          ? todayYear
+          : todayYear - 1;
+      const inSeason = boxScoreGames.filter((g) => {
         const y = parseInt((g.date ?? "").slice(0, 4), 10);
         const m = parseInt((g.date ?? "").slice(5, 7), 10);
         if (!Number.isFinite(y) || !Number.isFinite(m)) return false;

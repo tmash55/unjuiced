@@ -475,16 +475,19 @@ export function HitRateChart({
     const sorted = [...filtered].sort((a, b) =>
       (a.date ?? "").localeCompare(b.date ?? "")
     );
-    // SZN scopes to the player's *current* season — for WNBA that's 2026,
-    // for NBA it's 25-26 — by reading the season of the most recent game
-    // and dropping anything from earlier seasons. Without this, SZN took
-    // the last 200 games, which for WNBA's 40-game seasons is 5 years.
+    // SZN scopes to the *current real-world* season — WNBA → today's calendar
+    // year, NBA → today's season (Aug-Dec → year, Jan-Jul → year-1). We
+    // intentionally do NOT lock onto the latest game's season; otherwise an
+    // off-season click locks SZN to last year forever, even though the user
+    // just wants "this season's" games (which may be empty until tip-off).
     if (range === "szn" && sorted.length > 0) {
-      const latest = sorted[sorted.length - 1];
-      const currentSeason = getSeasonInfo(latest.date, sport)?.id ?? null;
-      if (currentSeason) {
-        return sorted.filter((g) => getSeasonInfo(g.date, sport)?.id === currentSeason);
-      }
+      const today = new Date();
+      const todayYear = today.getUTCFullYear();
+      const todayMonth = today.getUTCMonth() + 1;
+      const targetSeasonId = sport === "wnba"
+        ? String(todayYear)
+        : String(todayMonth >= 8 ? todayYear : todayYear - 1);
+      return sorted.filter((g) => getSeasonInfo(g.date, sport)?.id === targetSeasonId);
     }
     return sorted.slice(-RANGE_SLICE[range]);
   }, [games, split, range, opponentTeamId, teammateFilters, gameInjuriesByGameId, activeQuickFilters, sport]);
