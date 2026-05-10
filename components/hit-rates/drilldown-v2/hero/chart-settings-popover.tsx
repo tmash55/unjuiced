@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover } from "@/components/popover";
 import {
@@ -9,13 +9,40 @@ import {
   type ChartSettings,
 } from "@/hooks/use-chart-preferences";
 
+// Active per-metric chart overlay (Min / FGA / 3PA / Passes). Lives
+// outside chart_settings since the toggles get flipped from the
+// per-metric popovers, but surfaced here so the user has one place to
+// see what's on and clear it without hunting through chips.
+export interface ChartMetricOverlay {
+  key: string;
+  label: string;
+  dotClass: string;
+}
+
+interface ChartSettingsPopoverProps {
+  metricOverlays?: ChartMetricOverlay[];
+  onMetricOverlayClear?: (key: string) => void;
+  onMetricOverlayClearAll?: () => void;
+}
+
 // Gear-icon button + popover for the player drilldown chart's overlay
 // toggles. Persists to user_preferences.chart_settings on every flip.
-export function ChartSettingsPopover() {
+// Stat overlays (passed in from the parent since their state lives
+// outside user prefs) get a dedicated section so the user can disable
+// them without opening each metric popover individually.
+export function ChartSettingsPopover({
+  metricOverlays = [],
+  onMetricOverlayClear,
+  onMetricOverlayClearAll,
+}: ChartSettingsPopoverProps) {
   const [open, setOpen] = useState(false);
   const { settings, setSetting, resetSettings } = useChartPreferences();
 
-  const activeCount = activeOverlayCount(settings);
+  const activeCount = activeOverlayCount(settings) + metricOverlays.length;
+  const handleResetAll = () => {
+    resetSettings();
+    onMetricOverlayClearAll?.();
+  };
   const content = (
     <div className="flex w-[300px] flex-col">
       {/* HEADER — title + active-count chip + reset link. Compact since the
@@ -35,7 +62,7 @@ export function ChartSettingsPopover() {
         {activeCount > 0 && (
           <button
             type="button"
-            onClick={resetSettings}
+            onClick={handleResetAll}
             className="text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase transition-colors hover:text-brand dark:text-neutral-400"
           >
             Reset
@@ -83,6 +110,38 @@ export function ChartSettingsPopover() {
           swatch={<LineSwatch color="rgb(59 130 246)" dashed />}
         />
       </div>
+      {/* Stat Overlays — only renders when at least one is active. Each
+          row shows the metric name + a per-overlay ✕ to disable. The
+          top Reset button also clears these. Toggling them ON happens
+          inside each metric's range popover (MIN / FGA / etc.). */}
+      {metricOverlays.length > 0 && (
+        <>
+          <SectionHeader>Stat Overlays</SectionHeader>
+          <div className="space-y-1 px-1.5 pb-2">
+            {metricOverlays.map((ov) => (
+              <div
+                key={ov.key}
+                className="group/ov flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", ov.dotClass)} aria-hidden />
+                  <span className="text-[12px] font-bold text-neutral-800 dark:text-neutral-200">
+                    {ov.label}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMetricOverlayClear?.(ov.key)}
+                  aria-label={`Disable ${ov.label} overlay`}
+                  className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 

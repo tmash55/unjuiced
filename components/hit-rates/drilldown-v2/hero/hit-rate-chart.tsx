@@ -50,10 +50,13 @@ const OVERLAY_SUPPORTED_KEYS = new Set<string>([
   "passes",
 ]);
 
+// Overlay-bar pill format: `{value} {SHORT}`. Uppercase short label so
+// the pill scans as a stat code, not a typo (e.g., "5 FGA" reads cleaner
+// than "5fga"). Single space separator keeps the pill compact.
 const OVERLAY_STYLES: Record<
   string,
   {
-    label: string;
+    short: string;
     tickClass: string;
     pillClass: string;
     ringClass: string;
@@ -61,33 +64,50 @@ const OVERLAY_STYLES: Record<
   }
 > = {
   minutes: {
-    label: "m",
+    short: "MIN",
     tickClass: "bg-sky-500 dark:bg-sky-400",
     pillClass: "text-sky-700 dark:text-sky-300",
     ringClass: "ring-sky-500/40 dark:ring-sky-400/40",
     fillClass: "bg-sky-400/12 dark:bg-sky-500/10",
   },
   fga: {
-    label: "fga",
+    short: "FGA",
     tickClass: "bg-amber-500 dark:bg-amber-400",
     pillClass: "text-amber-700 dark:text-amber-300",
     ringClass: "ring-amber-500/40 dark:ring-amber-400/40",
     fillClass: "bg-amber-400/12 dark:bg-amber-500/10",
   },
   fg3a: {
-    label: "3pa",
+    short: "3PA",
     tickClass: "bg-violet-500 dark:bg-violet-400",
     pillClass: "text-violet-700 dark:text-violet-300",
     ringClass: "ring-violet-500/40 dark:ring-violet-400/40",
     fillClass: "bg-violet-400/12 dark:bg-violet-500/10",
   },
   passes: {
-    label: "pass",
+    short: "PASS",
     tickClass: "bg-rose-500 dark:bg-rose-400",
     pillClass: "text-rose-700 dark:text-rose-300",
     ringClass: "ring-rose-500/40 dark:ring-rose-400/40",
     fillClass: "bg-rose-400/12 dark:bg-rose-500/10",
   },
+};
+
+// Long-form labels for the chart settings popover's "Stat Overlays"
+// section. Separate map so the per-bar pill stays compact while the
+// settings list reads naturally.
+const OVERLAY_LABELS: Record<string, string> = {
+  minutes: "Minutes",
+  fga: "FGA",
+  fg3a: "3PA",
+  passes: "Passes",
+};
+
+const OVERLAY_DOT_CLASSES: Record<string, string> = {
+  minutes: "bg-sky-500 dark:bg-sky-400",
+  fga: "bg-amber-500 dark:bg-amber-400",
+  fg3a: "bg-violet-500 dark:bg-violet-400",
+  passes: "bg-rose-500 dark:bg-rose-400",
 };
 
 const OVERLAY_VALUE_GETTERS: Record<string, (g: BoxScoreGame) => number | null | undefined> = {
@@ -1070,7 +1090,7 @@ export function HitRateChart({
                           key,
                           value: v,
                           heightPx,
-                          labelText: `${Math.round(v)}${style.label}`,
+                          labelText: `${Math.round(v)} ${style.short}`,
                           tickClass: style.tickClass,
                           pillClass: style.pillClass,
                           ringClass: style.ringClass,
@@ -1437,7 +1457,20 @@ export function HitRateChart({
               here puts both "modify the chart's display" controls in the
               same spot. */}
           <div className="ml-auto inline-flex items-center gap-1.5">
-            <ChartSettingsPopover />
+            <ChartSettingsPopover
+              metricOverlays={Array.from(metricOverlays ?? []).map((key) => ({
+                key,
+                label: OVERLAY_LABELS[key] ?? key,
+                dotClass: OVERLAY_DOT_CLASSES[key] ?? "bg-neutral-400",
+              }))}
+              onMetricOverlayClear={(key) => onMetricOverlayToggle?.(key)}
+              onMetricOverlayClearAll={() => {
+                if (!metricOverlays || !onMetricOverlayToggle) return;
+                for (const key of Array.from(metricOverlays)) {
+                  onMetricOverlayToggle(key);
+                }
+              }}
+            />
             <FiltersDrawer
             market={market}
             upcomingHomeAway={upcomingHomeAway}
