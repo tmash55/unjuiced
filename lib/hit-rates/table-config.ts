@@ -26,10 +26,10 @@ const HIT_RATE_TABLE_CONFIG: Record<HitRateSport, HitRateTableConfig> = {
     columnWidths: [250, 124, 100, 230, 55, 92, 92, 92, 96, 92, 82, 68, 80, 80],
   },
   wnba: {
-    seasonAvgLabel: "25 Avg",
-    seasonPctLabel: "25 SZN",
+    seasonAvgLabel: "26 Avg",
+    seasonPctLabel: "26 SZN",
     showPreviousSeasonAvg: false,
-    previousSeasonLabel: "24 SZN",
+    previousSeasonLabel: "25 SZN",
     // player, matchup, prop, recent, str, l5, l10, l20, season, h2h, defrank, pace, over, under
     columnWidths: [250, 124, 100, 230, 55, 92, 92, 92, 96, 92, 82, 68, 80, 80],
   },

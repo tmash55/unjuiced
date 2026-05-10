@@ -467,10 +467,22 @@ export function HitRateChart({
       }
       return true;
     });
-    return [...filtered]
-      .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
-      .slice(-RANGE_SLICE[range]);
-  }, [games, split, range, opponentTeamId, teammateFilters, gameInjuriesByGameId, activeQuickFilters]);
+    const sorted = [...filtered].sort((a, b) =>
+      (a.date ?? "").localeCompare(b.date ?? "")
+    );
+    // SZN scopes to the player's *current* season — for WNBA that's 2026,
+    // for NBA it's 25-26 — by reading the season of the most recent game
+    // and dropping anything from earlier seasons. Without this, SZN took
+    // the last 200 games, which for WNBA's 40-game seasons is 5 years.
+    if (range === "szn" && sorted.length > 0) {
+      const latest = sorted[sorted.length - 1];
+      const currentSeason = getSeasonInfo(latest.date, sport)?.id ?? null;
+      if (currentSeason) {
+        return sorted.filter((g) => getSeasonInfo(g.date, sport)?.id === currentSeason);
+      }
+    }
+    return sorted.slice(-RANGE_SLICE[range]);
+  }, [games, split, range, opponentTeamId, teammateFilters, gameInjuriesByGameId, activeQuickFilters, sport]);
 
   // Detect a real upcoming game beyond the last historical game.
   const upcomingSlot = useMemo(() => {
