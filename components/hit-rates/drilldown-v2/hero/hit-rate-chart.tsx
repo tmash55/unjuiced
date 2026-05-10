@@ -109,6 +109,11 @@ interface HitRateChartProps {
   /** Opp team_id → pace rank (lower = faster). Powers the per-game pace
    *  overlay tier dots when the user enables that chart setting. */
   paceRankByOpponent?: Map<number, number>;
+  /** Set of metric keys (e.g., "minutes") the user has toggled on as
+   *  per-game line overlays via the metric range popovers. Each metric
+   *  renders as a distinct color line + dot trail across the chart. */
+  metricOverlays?: Set<string>;
+  onMetricOverlayToggle?: (metricKey: string) => void;
   /** NBA play-type defense ranks by opponent. Powers v1-style play-type
    *  defense filters inside the v2 drawer. */
   playTypeDefenseFilters?: PlayTypeDefenseQuickFilter[];
@@ -264,6 +269,8 @@ export function HitRateChart({
   dvpRankByOpponent,
   dvpTotalTeams,
   paceRankByOpponent,
+  metricOverlays,
+  onMetricOverlayToggle,
   playTypeDefenseFilters,
   tonightDate,
   tonightSpread,
@@ -908,7 +915,9 @@ export function HitRateChart({
                     below threshold at z-[20]) so it reads as a true overlay
                     without burying the bar values. Both share a single SVG
                     layer for one paint. */}
-                {(chartSettings.showDvpOverlay || chartSettings.showPaceOverlay) &&
+                {(chartSettings.showDvpOverlay ||
+                  chartSettings.showPaceOverlay ||
+                  metricOverlays?.has("minutes")) &&
                   chartGames.length > 0 && (
                     // viewBox uses REAL pixel dimensions (matches the chart's
                     // actual width × CHART_HEIGHT) so circles stay round and
@@ -955,6 +964,23 @@ export function HitRateChart({
                           dotFill="rgb(59 130 246)"
                           label="Pace"
                           dashed
+                        />
+                      )}
+                      {metricOverlays?.has("minutes") && (
+                        <MetricLineOverlay
+                          games={chartGames}
+                          getValue={(g) => g.minutes}
+                          label="Minutes"
+                          stroke="rgb(168 85 247 / 0.95)"
+                          dotFill="rgb(168 85 247)"
+                          barWidth={barWidth}
+                          gapPx={gapPx}
+                          chartHeight={CHART_HEIGHT}
+                          // Cap minutes axis at game length-ish so Q1
+                          // markets don't squash full-game minutes into
+                          // the bottom of the chart.
+                          valueMin={0}
+                          valueMax={sport === "wnba" ? 40 : 48}
                         />
                       )}
                     </svg>
@@ -1261,6 +1287,9 @@ export function HitRateChart({
                   recentGames={games}
                   activeRange={activeRange}
                   active={isActive}
+                  overlayActive={metricOverlays?.has(metricConfig.key) ?? false}
+                  overlaySupported={metricConfig.key === "minutes"}
+                  onOverlayToggle={() => onMetricOverlayToggle?.(metricConfig.key)}
                   onChange={(range) => {
                     // Replace any existing chip for this metric (legacy or
                     // metric:* form) with the new range. Reuse the same
@@ -2208,6 +2237,89 @@ function RankLineOverlay({
             opacity: 0,
             animation:
               "rankline-fade 360ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 200ms forwards",
+          }}
+        />
+      ))}
+    </g>
+  );
+}
+
+// Generic per-game value overlay — extractor + axis bounds + styling.
+// Used for stat-context overlays (Minutes today; FGA / 3PA / etc. as the
+// user adds more). Visually mirrors RankLineOverlay (same draw-in
+// animation, same dot rendering) so all chart overlays read as one
+// product family.
+function MetricLineOverlay({
+  games,
+  getValue,
+  label,
+  stroke,
+  dotFill,
+  barWidth,
+  gapPx,
+  chartHeight,
+  valueMin,
+  valueMax,
+}: {
+  games: BoxScoreGame[];
+  getValue: (game: BoxScoreGame) => number | null | undefined;
+  label: string;
+  stroke: string;
+  dotFill: string;
+  barWidth: number;
+  gapPx: number;
+  chartHeight: number;
+  valueMin: number;
+  valueMax: number;
+}) {
+  const yMargin = 10;
+  const yRange = Math.max(1, chartHeight - yMargin * 2);
+  const span = Math.max(1, valueMax - valueMin);
+  const points: Array<{ x: number; y: number; value: number }> = [];
+  games.forEach((game, idx) => {
+    const raw = getValue(game);
+    if (raw == null || !Number.isFinite(raw)) return;
+    const clamped = Math.max(valueMin, Math.min(valueMax, raw));
+    const x = idx * (barWidth + gapPx) + barWidth / 2;
+    // High value sits at top of chart (matches "high = good" reading).
+    const t = (clamped - valueMin) / span;
+    const y = yMargin + (1 - t) * yRange;
+    points.push({ x, y, value: raw });
+  });
+  if (points.length === 0) return null;
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+    .join(" ");
+  return (
+    <g aria-label={`${label} trend`}>
+      <path
+        d={path}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength={1}
+        vectorEffect="non-scaling-stroke"
+        style={{
+          strokeDashoffset: 1,
+          animation:
+            "rankline-draw 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 80ms forwards",
+        }}
+      />
+      {points.map((p) => (
+        <circle
+          key={`${p.x}-${p.y}`}
+          cx={p.x}
+          cy={p.y}
+          r={3}
+          fill={dotFill}
+          stroke="white"
+          strokeWidth={1}
+          style={{
+            opacity: 0,
+            animation:
+              "rankline-fade 480ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 220ms forwards",
           }}
         />
       ))}

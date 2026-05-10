@@ -151,6 +151,10 @@ export function PlayerDrilldownV2({
   // Market-aware quick-filter chip ids the user has toggled on. Cleared on
   // market change since chip ids are scoped per market.
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
+  // Stat overlays the user has toggled on for the chart (Minutes today;
+  // FGA / 3PA / etc. once they ship visualizations). Distinct from chart
+  // settings (DvP / Pace lines) since these come from per-metric popovers.
+  const [metricOverlays, setMetricOverlays] = useState<Set<string>>(new Set());
 
   const defaultLine = profile.line ?? 0;
   // Custom lines are scoped to the market they were selected on. This avoids a
@@ -1004,6 +1008,15 @@ export function PlayerDrilldownV2({
             dvpRankByOpponent={dvpRankByOpponent}
             dvpTotalTeams={dvpTotalTeams}
             paceRankByOpponent={paceRankByOpponent}
+            metricOverlays={metricOverlays}
+            onMetricOverlayToggle={(key) => {
+              setMetricOverlays((prev) => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+              });
+            }}
             playTypeDefenseFilters={playTypeDefenseFilters}
             tonightDate={oddsContextProfile.gameDate}
             tonightSpread={oddsContextProfile.spread}

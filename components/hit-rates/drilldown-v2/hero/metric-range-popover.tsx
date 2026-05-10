@@ -22,6 +22,9 @@ export function MetricRangePopover({
   minOverride,
   maxOverride,
   labelOverride,
+  overlayActive = false,
+  overlaySupported = false,
+  onOverlayToggle,
 }: {
   config: MetricFilterConfig;
   recentGames: BoxScoreGame[];
@@ -38,6 +41,13 @@ export function MetricRangePopover({
   // Override the popover header title — useful when the label needs the
   // active market baked in (e.g., "Opp Defense Rank vs Assists").
   labelOverride?: string;
+  // Whether this metric is currently rendered as a per-game overlay on
+  // the chart, and a toggle to flip it. Only shown when overlaySupported
+  // is true (we ship overlays per-metric as we add them — Minutes is
+  // first; FGA / 3PA / etc. wired in as the visualizations land).
+  overlayActive?: boolean;
+  overlaySupported?: boolean;
+  onOverlayToggle?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -109,6 +119,9 @@ export function MetricRangePopover({
           activeRange={activeRange}
           quickThresholds={quickThresholds}
           display={display}
+          overlayActive={overlayActive}
+          overlaySupported={overlaySupported}
+          onOverlayToggle={onOverlayToggle}
           onApply={(range) => {
             onChange(range);
             // Stay open after applying; user can keep nudging.
@@ -160,6 +173,9 @@ function RangeBody({
   display,
   onApply,
   onClear,
+  overlayActive = false,
+  overlaySupported = false,
+  onOverlayToggle,
 }: {
   config: MetricFilterConfig;
   labelOverride?: string;
@@ -171,6 +187,9 @@ function RangeBody({
   display: (n: number) => string;
   onApply: (range: { min: number; max: number }) => void;
   onClear: () => void;
+  overlayActive?: boolean;
+  overlaySupported?: boolean;
+  onOverlayToggle?: () => void;
 }) {
   const clamp = (value: number) => Math.min(max, Math.max(min, value));
   const draftMin = clamp(activeRange?.min ?? min);
@@ -314,6 +333,39 @@ function RangeBody({
           <span>{display(max)}</span>
         </div>
       </div>
+
+      {/* Chart overlay toggle — only shown for metrics that have an
+          overlay implementation (Minutes today). When on, this metric
+          renders as a per-game line on the chart so the user can spot
+          when prop performance correlates with e.g. minutes played. */}
+      {overlaySupported && onOverlayToggle && (
+        <div className="flex items-center justify-between rounded-lg border border-neutral-200/70 bg-neutral-50/70 px-2.5 py-2 dark:border-neutral-800/70 dark:bg-neutral-950/40">
+          <div className="min-w-0">
+            <div className="text-[11px] font-black text-neutral-800 dark:text-neutral-100">
+              Show on chart
+            </div>
+            <div className="text-[10px] font-medium text-neutral-500 dark:text-neutral-500">
+              Overlay this metric as a line on each game
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOverlayToggle}
+            aria-pressed={overlayActive}
+            className={cn(
+              "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+              overlayActive ? "bg-brand" : "bg-neutral-300 dark:bg-neutral-700",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                overlayActive ? "translate-x-4" : "translate-x-0.5",
+              )}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Range-input thumb styling — the wrapper input is pointer-events:none
           so both stacked thumbs can coexist; pointer-events:auto on the thumb
