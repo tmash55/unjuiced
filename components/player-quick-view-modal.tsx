@@ -3618,13 +3618,17 @@ export function PlayerQuickViewModal({
   const headerSeasonSummary = useMemo(() => {
     if (isMlb) return mlbSeasonSummary;
     if (!seasonSummary) return null;
+    // Defensive — WNBA season summaries can ship null for any individual avg
+    // when the player has no qualifying games yet (e.g. injured all season).
+    const fmt = (v: number | null | undefined) =>
+      typeof v === "number" && Number.isFinite(v) ? v.toFixed(1) : "—";
     return {
       label: "Season Averages",
       stats: [
-        { label: "PTS", value: seasonSummary.avgPoints.toFixed(1), highlight: true },
-        { label: "REB", value: seasonSummary.avgRebounds.toFixed(1) },
-        { label: "AST", value: seasonSummary.avgAssists.toFixed(1) },
-        { label: "FG%", value: seasonSummary.fgPct.toFixed(1) },
+        { label: "PTS", value: fmt(seasonSummary.avgPoints), highlight: true },
+        { label: "REB", value: fmt(seasonSummary.avgRebounds) },
+        { label: "AST", value: fmt(seasonSummary.avgAssists) },
+        { label: "FG%", value: fmt(seasonSummary.fgPct) },
       ],
     };
   }, [isMlb, mlbSeasonSummary, seasonSummary]);
