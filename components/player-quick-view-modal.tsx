@@ -2774,14 +2774,14 @@ export function PlayerQuickViewModal({
     limit: 20, // Reduced from 50 - we only need current markets
   });
 
-  // Pull last 50 games for the modal so the chart's L20 + SZN ranges have
-  // enough room to draw real history. WNBA endpoint expects wnba_player_id;
-  // using the headshot nba_player_id returns nothing.
+  // Pull the same 100-game window the v2 drilldown uses so SZN has the
+  // full season available (NBA regular season is 82 games + playoffs).
+  // WNBA endpoint expects wnba_player_id; using the headshot nba_player_id
+  // returns nothing.
   const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
     playerId: resolvedPlayerId || null,
     sport: isMlb ? undefined : (sport as "nba" | "wnba"),
     enabled: !isMlb && open && !!resolvedPlayerId,
-    limit: 50,
   });
 
   // Profile & market selection
@@ -3060,6 +3060,30 @@ export function PlayerQuickViewModal({
   const [chartSplit, setChartSplit] = useState<ChartSplit>("all");
   const [chartRange, setChartRange] = useState<ChartRange>("l20");
   const isCustomLineActive = customLine !== null && Math.abs(customLine - defaultLine) > 1e-6;
+
+  // Box-score season selector. WNBA defaults to the current calendar year
+  // so opening the modal in May 2026 lands on the active season; users
+  // can pop back to prior years from the chip row above the table.
+  const todayYear = new Date().getUTCFullYear();
+  const todayMonth = new Date().getUTCMonth() + 1;
+  const defaultBoxScoreSeason = isWnba
+    ? String(todayYear)
+    : todayMonth >= 8
+      ? `${todayYear}-${String((todayYear + 1) % 100).padStart(2, "0")}`
+      : `${todayYear - 1}-${String(todayYear % 100).padStart(2, "0")}`;
+  const [boxScoreSeason, setBoxScoreSeason] = useState<string>(defaultBoxScoreSeason);
+  // Available seasons — for WNBA, today's year + 4 prior; NBA equivalent.
+  const boxScoreSeasonOptions = useMemo(() => {
+    if (isMlb) return [];
+    if (isWnba) {
+      return Array.from({ length: 5 }, (_, i) => String(todayYear - i));
+    }
+    const startYear = todayMonth >= 8 ? todayYear : todayYear - 1;
+    return Array.from({ length: 5 }, (_, i) => {
+      const y = startYear - i;
+      return `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
+    });
+  }, [isMlb, isWnba, todayYear, todayMonth]);
 	  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   const activeHitRateLine = useMemo(() => {
     if (!activeHitRateOdds?.allLines?.length) return null;
@@ -5036,13 +5060,39 @@ export function PlayerQuickViewModal({
 
                   {/* Box Score Table */}
                   {fullProfilePlayerId && (
-                    <Tile label="Box Score" padded={false} className="w-full overflow-hidden">
+                    <Tile
+                      label="Box Score"
+                      headerRight={
+                        !isMlb && boxScoreSeasonOptions.length > 0 ? (
+                          <div className="flex items-center gap-0.5 rounded-md bg-neutral-100/80 p-0.5 dark:bg-neutral-800/60">
+                            {boxScoreSeasonOptions.map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setBoxScoreSeason(opt)}
+                                className={cn(
+                                  "rounded-sm px-2 py-0.5 text-[10px] font-black tabular-nums tracking-[0.08em] transition-all",
+                                  boxScoreSeason === opt
+                                    ? "bg-brand text-neutral-950"
+                                    : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white",
+                                )}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        ) : undefined
+                      }
+                      padded={false}
+                      className="w-full overflow-hidden"
+                    >
                       <div className="overflow-x-auto">
                         <BoxScoreTable
                           sport={sport}
                           playerId={fullProfilePlayerId}
                           market={currentMarket}
                           currentLine={activeLine}
+                          season={isMlb ? undefined : boxScoreSeason}
                           prefetchedGames={isMlb ? mlbSeasonGames : undefined}
                           variant="modal"
                         />
