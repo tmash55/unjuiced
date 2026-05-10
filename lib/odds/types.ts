@@ -286,6 +286,12 @@ export interface SSEEvent {
 /**
  * Individual selection (player/line/side) from Redis
  */
+export interface OrderbookLevel {
+  price: number;
+  contracts?: number;
+  liquidity?: number;
+}
+
 export interface SSESelection {
   odd_id?: string;
   player: string;
@@ -304,6 +310,7 @@ export interface SSESelection {
   mobile_link?: string | null;  // Deep link for mobile apps (e.g., fanduelsportsbook://...)
   sgp: string | null;
   limits: { max: number } | null;  // Betting limits (max wager) when available
+  orderbook?: OrderbookLevel[] | null;  // Exchange/orderbook depth when available
   raw_market: string;
   updated: string;
 }
