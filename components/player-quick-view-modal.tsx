@@ -2763,11 +2763,16 @@ export function PlayerQuickViewModal({
       ? profiles
           .map((p) => p.market)
           .filter((market) => !isMlb || isMlbPitcherMarketKey(market) === isMlbPitcherProfile)
-      : fallbackMarkets;
+      : [];
+    const marketCandidates = isMlb
+      ? [...fallbackMarkets, ...profileMarkets]
+      : profileMarkets.length > 0
+        ? profileMarkets
+        : fallbackMarkets;
     const safeInitialMarket = initial_market && (!isMlb || isMlbPitcherMarketKey(initial_market) === isMlbPitcherProfile)
       ? initial_market
       : null;
-    const uniqueMarkets = Array.from(new Set([safeInitialMarket, ...profileMarkets].filter(Boolean) as string[]));
+    const uniqueMarkets = Array.from(new Set([safeInitialMarket, ...marketCandidates].filter(Boolean) as string[]));
     // Sort by FALLBACK_MARKETS order (preferred display order)
     return uniqueMarkets.sort((a, b) => {
       const indexA = fallbackMarkets.indexOf(a);
