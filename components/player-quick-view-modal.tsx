@@ -3533,18 +3533,50 @@ export function PlayerQuickViewModal({
 
   // Sample counts mirror what dynamicHitRates filtered against — the v2 chart's
   // segments need both pct + sample for the X/Y readout in each header chip.
+  // SZN scopes to the current season so the % matches the bars the chart
+  // renders when the user picks the SZN range button.
   const chartHitRateSegments: ChartHitRateSegment[] = useMemo(() => {
     const h2hSample = profile?.opponentTeamAbbr
       ? chartBaseGames.filter((g) => g.opponentAbbr === profile.opponentTeamAbbr).length
       : 0;
+
+    // Find the most recent season's start year to mirror v2 chart's SZN logic.
+    const sortedAsc = [...chartBaseGames].sort((a, b) =>
+      (a.date ?? "").localeCompare(b.date ?? "")
+    );
+    const latestDate = sortedAsc[sortedAsc.length - 1]?.date ?? "";
+    const latestYear = parseInt(latestDate.slice(0, 4), 10);
+    const latestMonth = parseInt(latestDate.slice(5, 7), 10);
+    const seasonStartYear = !Number.isFinite(latestYear)
+      ? null
+      : isWnba
+        ? latestYear
+        : latestMonth >= 8
+          ? latestYear
+          : latestYear - 1;
+    const seasonGames = seasonStartYear === null
+      ? chartBaseGames
+      : chartBaseGames.filter((g) => {
+          const y = parseInt((g.date ?? "").slice(0, 4), 10);
+          const m = parseInt((g.date ?? "").slice(5, 7), 10);
+          if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+          if (isWnba) return y === seasonStartYear;
+          return (m >= 8 ? y : y - 1) === seasonStartYear;
+        });
+    const seasonStats = seasonGames.map((g) => getMarketStat(g, currentMarket));
+    const seasonHits = seasonStats.filter((s) => s >= activeLine).length;
+    const seasonPct = seasonStats.length > 0
+      ? Math.round((seasonHits / seasonStats.length) * 100)
+      : null;
+
     return [
       { range: "l5", label: "L5", pct: dynamicHitRates.l5, sample: Math.min(5, chartBaseGames.length) },
       { range: "l10", label: "L10", pct: dynamicHitRates.l10, sample: Math.min(10, chartBaseGames.length) },
       { range: "l20", label: "L20", pct: dynamicHitRates.l20, sample: Math.min(20, chartBaseGames.length) },
-      { range: "szn", label: "SZN", pct: dynamicHitRates.season, sample: chartBaseGames.length },
+      { range: "szn", label: "SZN", pct: seasonPct, sample: seasonGames.length },
       { range: "h2h", label: "H2H", pct: dynamicHitRates.h2h, sample: h2hSample },
     ];
-  }, [dynamicHitRates, chartBaseGames, profile?.opponentTeamAbbr]);
+  }, [dynamicHitRates, chartBaseGames, profile?.opponentTeamAbbr, isWnba, currentMarket, activeLine]);
 
   // Chart stats
   const chartStats = useMemo(() => {
