@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings, X } from "lucide-react";
+import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover } from "@/components/popover";
 import {
@@ -9,39 +9,61 @@ import {
   type ChartSettings,
 } from "@/hooks/use-chart-preferences";
 
-// Active per-metric chart overlay (Min / FGA / 3PA / Passes). Lives
-// outside chart_settings since the toggles get flipped from the
-// per-metric popovers, but surfaced here so the user has one place to
-// see what's on and clear it without hunting through chips.
-export interface ChartMetricOverlay {
+// Stat-overlay metadata for the popover. Kept in sync with hit-rate-chart's
+// OVERLAY_STYLES — duplicating here lets the popover render the toggle list
+// without importing from the chart (which would create a circular dep since
+// the chart imports this popover).
+const METRIC_OVERLAY_OPTIONS: Array<{
   key: string;
   label: string;
+  description: string;
   dotClass: string;
-}
-
-interface ChartSettingsPopoverProps {
-  metricOverlays?: ChartMetricOverlay[];
-  onMetricOverlayClear?: (key: string) => void;
-  onMetricOverlayClearAll?: () => void;
-}
+}> = [
+  {
+    key: "minutes",
+    label: "Minutes Bars",
+    description: "Faint sky bar showing minutes per game",
+    dotClass: "bg-sky-500 dark:bg-sky-400",
+  },
+  {
+    key: "fga",
+    label: "FGA Bars",
+    description: "Field-goal attempts as an amber overlay",
+    dotClass: "bg-amber-500 dark:bg-amber-400",
+  },
+  {
+    key: "fg3a",
+    label: "3PA Bars",
+    description: "Three-point attempts as a violet overlay",
+    dotClass: "bg-violet-500 dark:bg-violet-400",
+  },
+  {
+    key: "passes",
+    label: "Passes Bars",
+    description: "Passes thrown as a rose overlay (assists market)",
+    dotClass: "bg-rose-500 dark:bg-rose-400",
+  },
+];
 
 // Gear-icon button + popover for the player drilldown chart's overlay
 // toggles. Persists to user_preferences.chart_settings on every flip.
-// Stat overlays (passed in from the parent since their state lives
-// outside user prefs) get a dedicated section so the user can disable
-// them without opening each metric popover individually.
-export function ChartSettingsPopover({
-  metricOverlays = [],
-  onMetricOverlayClear,
-  onMetricOverlayClearAll,
-}: ChartSettingsPopoverProps) {
+// Stat overlays render here as togglable rows AND inside each metric's
+// range popover — both surfaces write to the same persisted set.
+export function ChartSettingsPopover() {
   const [open, setOpen] = useState(false);
-  const { settings, setSetting, resetSettings } = useChartPreferences();
+  const {
+    settings,
+    setSetting,
+    resetSettings,
+    toggleMetricOverlay,
+  } = useChartPreferences();
 
-  const activeCount = activeOverlayCount(settings) + metricOverlays.length;
+  const overlayCount = settings.metricOverlays.length;
+  const activeCount = activeOverlayCount(settings) + overlayCount;
   const handleResetAll = () => {
+    // resetSettings rewrites the whole chart_settings row to defaults,
+    // including metricOverlays: [], so a single call clears everything.
     resetSettings();
-    onMetricOverlayClearAll?.();
   };
   const content = (
     <div className="flex w-[300px] flex-col">
@@ -110,38 +132,23 @@ export function ChartSettingsPopover({
           swatch={<LineSwatch color="rgb(59 130 246)" dashed />}
         />
       </div>
-      {/* Stat Overlays — only renders when at least one is active. Each
-          row shows the metric name + a per-overlay ✕ to disable. The
-          top Reset button also clears these. Toggling them ON happens
-          inside each metric's range popover (MIN / FGA / etc.). */}
-      {metricOverlays.length > 0 && (
-        <>
-          <SectionHeader>Stat Overlays</SectionHeader>
-          <div className="space-y-1 px-1.5 pb-2">
-            {metricOverlays.map((ov) => (
-              <div
-                key={ov.key}
-                className="group/ov flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className={cn("h-2 w-2 shrink-0 rounded-full", ov.dotClass)} aria-hidden />
-                  <span className="text-[12px] font-bold text-neutral-800 dark:text-neutral-200">
-                    {ov.label}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onMetricOverlayClear?.(ov.key)}
-                  aria-label={`Disable ${ov.label} overlay`}
-                  className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {/* Stat Overlays — same row format as the toggles above. Mirrors
+          the per-metric range popover toggles (MIN / FGA / 3PA / Passes
+          chips) so the user can flip overlays from either surface. Both
+          paths persist to user_preferences.chart_settings.metricOverlays. */}
+      <SectionHeader>Stat Overlays</SectionHeader>
+      <div className="px-1.5 pb-2">
+        {METRIC_OVERLAY_OPTIONS.map((ov) => (
+          <ToggleRow
+            key={ov.key}
+            label={ov.label}
+            description={ov.description}
+            active={settings.metricOverlays.includes(ov.key)}
+            onToggle={() => toggleMetricOverlay(ov.key)}
+            swatch={<OverlayDotSwatch dotClass={ov.dotClass} />}
+          />
+        ))}
+      </div>
     </div>
   );
 
@@ -160,13 +167,24 @@ export function ChartSettingsPopover({
         onClick={() => setOpen((v) => !v)}
         aria-label="Chart overlay settings"
         className={cn(
-          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
-          activeOverlayCount(settings) > 0
+          "relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+          activeCount > 0
             ? "border-brand/45 bg-brand/15 text-brand hover:bg-brand/25"
             : "border-neutral-200 text-neutral-500 hover:border-brand/40 hover:text-brand dark:border-neutral-700 dark:text-neutral-400",
         )}
       >
         <Settings className="h-3.5 w-3.5" />
+        {/* Numeric badge — only when something is active. Sits at the
+            top-right corner of the gear so users notice that overlays
+            are on without needing to open the popover. */}
+        {activeCount > 0 && (
+          <span
+            className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-brand px-1 text-[8px] font-black tabular-nums leading-none text-neutral-950 ring-1 ring-white dark:ring-neutral-900"
+            aria-hidden
+          >
+            {activeCount}
+          </span>
+        )}
       </button>
     </Popover>
   );
@@ -298,6 +316,26 @@ function BandSwatch() {
       <rect x="14" y="9" width="4" height="11" rx="1" className="fill-emerald-500/70" />
       <rect x="25" y="5" width="4" height="15" rx="1" className="fill-emerald-500/70" />
     </svg>
+  );
+}
+
+// Stat overlay swatch — small bar with a colored top edge, matches the
+// "translucent fill + colored tick" look of the real overlay on the chart.
+function OverlayDotSwatch({ dotClass }: { dotClass: string }) {
+  // Pull the chromatic class for the fill version (e.g. "bg-sky-500" →
+  // "bg-sky-500/30"). We append /30 so it always renders translucent
+  // regardless of which color the caller passes.
+  const fillClass = dotClass
+    .split(" ")
+    .map((c) => `${c}/25`)
+    .join(" ");
+  return (
+    <span className="grid place-items-center">
+      <span className="relative inline-block h-4 w-4 overflow-hidden rounded-sm bg-neutral-200/60 dark:bg-neutral-700/60">
+        <span className={cn("absolute inset-x-0 bottom-0 h-3", fillClass)} />
+        <span className={cn("absolute inset-x-0 top-1 h-px", dotClass)} />
+      </span>
+    </span>
   );
 }
 

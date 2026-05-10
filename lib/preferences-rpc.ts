@@ -105,6 +105,9 @@ export interface UserPreferences {
     showPaceOverlay?: boolean;
     showPotential?: boolean;
     showAverage?: boolean;
+    // Per-game stat overlay metric keys the user has toggled on
+    // ("minutes" / "fga" / "fg3a" / "passes" today).
+    metricOverlays?: string[];
   } | null;
 
   // Sharp Signals preferences

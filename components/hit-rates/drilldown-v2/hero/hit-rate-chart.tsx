@@ -93,22 +93,6 @@ const OVERLAY_STYLES: Record<
   },
 };
 
-// Long-form labels for the chart settings popover's "Stat Overlays"
-// section. Separate map so the per-bar pill stays compact while the
-// settings list reads naturally.
-const OVERLAY_LABELS: Record<string, string> = {
-  minutes: "Minutes",
-  fga: "FGA",
-  fg3a: "3PA",
-  passes: "Passes",
-};
-
-const OVERLAY_DOT_CLASSES: Record<string, string> = {
-  minutes: "bg-sky-500 dark:bg-sky-400",
-  fga: "bg-amber-500 dark:bg-amber-400",
-  fg3a: "bg-violet-500 dark:bg-violet-400",
-  passes: "bg-rose-500 dark:bg-rose-400",
-};
 
 const OVERLAY_VALUE_GETTERS: Record<string, (g: BoxScoreGame) => number | null | undefined> = {
   minutes: (g) => g.minutes,
@@ -1457,20 +1441,7 @@ export function HitRateChart({
               here puts both "modify the chart's display" controls in the
               same spot. */}
           <div className="ml-auto inline-flex items-center gap-1.5">
-            <ChartSettingsPopover
-              metricOverlays={Array.from(metricOverlays ?? []).map((key) => ({
-                key,
-                label: OVERLAY_LABELS[key] ?? key,
-                dotClass: OVERLAY_DOT_CLASSES[key] ?? "bg-neutral-400",
-              }))}
-              onMetricOverlayClear={(key) => onMetricOverlayToggle?.(key)}
-              onMetricOverlayClearAll={() => {
-                if (!metricOverlays || !onMetricOverlayToggle) return;
-                for (const key of Array.from(metricOverlays)) {
-                  onMetricOverlayToggle(key);
-                }
-              }}
-            />
+            <ChartSettingsPopover />
             <FiltersDrawer
             market={market}
             upcomingHomeAway={upcomingHomeAway}

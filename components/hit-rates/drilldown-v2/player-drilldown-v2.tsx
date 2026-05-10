@@ -56,6 +56,7 @@ import {
 import { MatchupContextPanel } from "./hero/matchup-context-panel";
 import { DrilldownTabs } from "./tabs/drilldown-tabs";
 import { computeHitRates } from "./shared/hit-rate-utils";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 
 interface PlayerDrilldownV2Props {
   profile: HitRateProfile;
@@ -151,10 +152,16 @@ export function PlayerDrilldownV2({
   // Market-aware quick-filter chip ids the user has toggled on. Cleared on
   // market change since chip ids are scoped per market.
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
-  // Stat overlays the user has toggled on for the chart (Minutes today;
-  // FGA / 3PA / etc. once they ship visualizations). Distinct from chart
-  // settings (DvP / Pace lines) since these come from per-metric popovers.
-  const [metricOverlays, setMetricOverlays] = useState<Set<string>>(new Set());
+  // Stat overlays (Minutes / FGA / 3PA / Passes today) live on the user
+  // preferences row so the user's preferred chart layout follows them
+  // across sessions and devices. Toggled from either the per-metric
+  // popovers in the chart's quick-filter row or from the chart settings
+  // gear popover — both write to the same persisted set.
+  const chartPrefs = useChartPreferences();
+  const metricOverlays = useMemo(
+    () => new Set(chartPrefs.settings.metricOverlays),
+    [chartPrefs.settings.metricOverlays],
+  );
 
   const defaultLine = profile.line ?? 0;
   // Custom lines are scoped to the market they were selected on. This avoids a
@@ -1009,14 +1016,7 @@ export function PlayerDrilldownV2({
             dvpTotalTeams={dvpTotalTeams}
             paceRankByOpponent={paceRankByOpponent}
             metricOverlays={metricOverlays}
-            onMetricOverlayToggle={(key) => {
-              setMetricOverlays((prev) => {
-                const next = new Set(prev);
-                if (next.has(key)) next.delete(key);
-                else next.add(key);
-                return next;
-              });
-            }}
+            onMetricOverlayToggle={(key) => chartPrefs.toggleMetricOverlay(key)}
             playTypeDefenseFilters={playTypeDefenseFilters}
             tonightDate={oddsContextProfile.gameDate}
             tonightSpread={oddsContextProfile.spread}
