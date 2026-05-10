@@ -168,6 +168,17 @@ function getWnbaTeamIdFromAbbr(abbr?: string | null): number | null {
   return WNBA_TEAM_IDS_BY_ABBR[abbr.toUpperCase()] ?? null;
 }
 
+function getWnbaSeasonFromDate(gameDate?: string | null): string {
+  const year = Number(String(gameDate ?? "").slice(0, 4));
+  return Number.isFinite(year) ? String(year) : "2026";
+}
+
+function getWnbaDvpSeasonCandidates(gameDate?: string | null): string[] {
+  const season = getWnbaSeasonFromDate(gameDate);
+  const year = Number(season);
+  return Number.isFinite(year) ? [String(year), String(year - 1)] : [season];
+}
+
 function normalizeWnbaPosition(position?: string | null): string | null {
   if (!position) return null;
   const upper = position.toUpperCase();
@@ -357,7 +368,9 @@ async function fetchWnbaDvpRankMap(
   const { data, error } = await supabase
     .from("wnba_team_defense_by_position")
     .select("*")
-    .eq("season", "2025")
+    .in("season", [
+      ...new Set(profiles.flatMap((profile) => getWnbaDvpSeasonCandidates(profile.game_date))),
+    ])
     .in("team_id", opponentTeamIds);
 
   if (error) {
@@ -366,10 +379,11 @@ async function fetchWnbaDvpRankMap(
   }
 
   for (const row of data || []) {
+    const season = String(row.season);
     const teamId = Number(row.team_id);
     const position = normalizeWnbaPosition(row.position);
     if (!teamId || !position) continue;
-    result.set(`${teamId}:${position}`, row[fields.rank] ?? null);
+    result.set(`${season}:${teamId}:${position}`, row[fields.rank] ?? null);
   }
 
   return result;
@@ -758,8 +772,13 @@ export async function POST(req: NextRequest) {
       }
 
       const opponentTeamId = profile.opponent_team_id ?? getWnbaTeamIdFromAbbr(profile.opponent_team_abbr);
+      const dvpSeason = getWnbaDvpSeasonCandidates(profile.game_date).find((season) =>
+        opponentTeamId && position ? dvpRankMap.has(`${season}:${opponentTeamId}:${position}`) : false,
+      );
       const dvpRank = profile.dvp_rank ?? (
-        opponentTeamId && position ? dvpRankMap.get(`${opponentTeamId}:${position}`) ?? null : null
+        opponentTeamId && position && dvpSeason
+          ? dvpRankMap.get(`${dvpSeason}:${opponentTeamId}:${position}`) ?? null
+          : null
       );
       const dvpQuality = getDvpQuality(dvpRank);
 

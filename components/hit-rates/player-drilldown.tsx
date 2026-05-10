@@ -851,6 +851,8 @@ export function PlayerDrilldown({
   // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
   const { teams: dvpTeams } = useDvpRankings({
     position: profile.position || "PG",
+    sport,
+    season: sport === "wnba" ? "2026" : undefined,
     enabled: !!profile.position,
   });
 

@@ -441,6 +441,7 @@ export function PlayerDrilldownV2({
   const dvpQuery = useDvpRankings({
     position: profile.position ?? "",
     sport,
+    season: sport === "wnba" ? "2026" : undefined,
     enabled: !!profile.position,
   });
   const dvpRankByOpponent = useMemo(() => {
