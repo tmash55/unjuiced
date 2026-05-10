@@ -112,10 +112,12 @@ export function ChartSettingsPopover({ market }: ChartSettingsPopoverProps = {})
   const primaryOverlays = METRIC_OVERLAY_OPTIONS.filter((ov) => primaryKeys.has(ov.key));
   const moreOverlays = METRIC_OVERLAY_OPTIONS.filter((ov) => !primaryKeys.has(ov.key));
   const content = (
-    <div className="flex w-[300px] flex-col">
+    <div className="flex max-h-[min(80vh,560px)] w-[300px] flex-col overflow-y-auto overscroll-contain [scrollbar-width:thin]">
       {/* HEADER — title + active-count chip + reset link. Compact since the
-          rows below carry the bulk of the visual weight. */}
-      <div className="flex items-center justify-between gap-2 border-b border-neutral-200/60 px-3 py-2 dark:border-neutral-800/60">
+          rows below carry the bulk of the visual weight. Sticky so it
+          stays visible if the user expands "Show more" and the body
+          scrolls inside the popover. */}
+      <div className="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-neutral-200/60 bg-white/95 px-3 py-2 backdrop-blur dark:border-neutral-800/60 dark:bg-neutral-900/95">
         <div className="flex items-center gap-2">
           <Settings className="h-3.5 w-3.5 text-brand" />
           <span className="text-[12px] font-black text-neutral-900 dark:text-white">
