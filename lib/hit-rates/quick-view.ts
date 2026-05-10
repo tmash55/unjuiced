@@ -1,4 +1,4 @@
-export type QuickViewSport = "nba" | "mlb";
+export type QuickViewSport = "nba" | "wnba" | "mlb";
 
 export interface QuickViewGameContext {
   gameId?: number | string | null;
@@ -11,7 +11,17 @@ export interface QuickViewGameContext {
   opposingPitcherId?: number | string | null;
 }
 
-const SUPPORTED_QUICK_VIEW_SPORTS = new Set(["nba", "mlb"]);
+const SUPPORTED_QUICK_VIEW_SPORTS = new Set(["nba", "wnba", "mlb"]);
+
+// Sport keys ship in different shapes depending on where they originate. The
+// EV / odds APIs use the long basketball_nba / basketball_wnba / baseball_mlb
+// form; the hit-rate APIs and our own UI prefer the short nba / wnba / mlb.
+// Map both to the short form before checking support.
+const SPORT_KEY_ALIASES: Record<string, QuickViewSport> = {
+  basketball_nba: "nba",
+  basketball_wnba: "wnba",
+  baseball_mlb: "mlb",
+};
 
 const MLB_QUICK_VIEW_MARKET_ALIASES: Record<string, string> = {
   player_runs: "player_runs_scored",
@@ -40,12 +50,15 @@ const MLB_QUICK_VIEW_MARKET_ALIASES: Record<string, string> = {
 
 export function getQuickViewSport(sport?: string | null): QuickViewSport | null {
   const normalized = sport?.toLowerCase();
-  return normalized && SUPPORTED_QUICK_VIEW_SPORTS.has(normalized)
+  if (!normalized) return null;
+  if (SPORT_KEY_ALIASES[normalized]) return SPORT_KEY_ALIASES[normalized];
+  return SUPPORTED_QUICK_VIEW_SPORTS.has(normalized)
     ? (normalized as QuickViewSport)
     : null;
 }
 
 export function normalizeQuickViewMarket(sport: QuickViewSport, market?: string | null): string {
+  // WNBA shares the NBA market vocabulary (player_points, player_rebounds, …).
   const normalized = market || (sport === "mlb" ? "player_hits" : "player_points");
   if (sport !== "mlb") return normalized;
   return MLB_QUICK_VIEW_MARKET_ALIASES[normalized] || normalized;

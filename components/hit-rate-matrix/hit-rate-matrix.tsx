@@ -747,6 +747,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
       {/* Player Quick View Modal */}
       {selectedPlayer && (
         <PlayerQuickViewModal
+          sport={matrixSport}
           nba_player_id={selectedPlayer.nba_player_id}
           player_name={selectedPlayer.player_name}
           initial_market={selectedPlayer.market}
