@@ -4,7 +4,7 @@ import { z } from "zod";
 
 // Request validation - accept either odds_player_id or player_name
 const RequestSchema = z.object({
-  sport: z.enum(["nba", "mlb"]).default("nba"),
+  sport: z.enum(["nba", "wnba", "mlb"]).default("nba"),
   odds_player_id: z.string().min(1).optional(),
   player_name: z.string().optional(),
 }).refine(
@@ -14,6 +14,7 @@ const RequestSchema = z.object({
 
 export interface PlayerLookupResult {
   nba_player_id?: number | null;
+  wnba_player_id?: number | null;
   mlb_player_id?: number | null;
   odds_player_id: string;
   name: string;
@@ -60,42 +61,68 @@ export async function POST(req: NextRequest) {
     const { sport, odds_player_id, player_name } = parsed.data;
     const supabase = createServerSupabaseClient();
 
-    // Build query based on what was provided
-    let query =
-      sport === "mlb"
-        ? supabase
-            .from("mlb_players_hr")
-            .select(`
-              mlb_player_id,
-              odds_player_id,
-              name,
-              team_id,
-              odds_team_name,
-              odds_team_abbr,
-              position,
-              pos_abbr
-            `)
-        : supabase
-            .from("nba_players_hr")
-            .select(`
-              nba_player_id,
-              odds_player_id,
-              name,
-              first_name,
-              last_name,
-              team_id,
-              odds_team_name,
-              odds_team_abbr,
-              position,
-              depth_chart_pos,
-              jersey_number,
-              injury_status,
-              injury_notes,
-              height_feet,
-              height_inches,
-              weight_pounds,
-              birthdate
-            `);
+    // Build query based on what was provided. WNBA uses its own players table
+    // but its rows carry the nba.com player_id for headshot CDN compatibility.
+    let query;
+    if (sport === "mlb") {
+      query = supabase
+        .from("mlb_players_hr")
+        .select(`
+          mlb_player_id,
+          odds_player_id,
+          name,
+          team_id,
+          odds_team_name,
+          odds_team_abbr,
+          position,
+          pos_abbr
+        `);
+    } else if (sport === "wnba") {
+      query = supabase
+        .from("wnba_players_hr")
+        .select(`
+          wnba_player_id,
+          nba_player_id,
+          odds_player_id,
+          name,
+          first_name,
+          last_name,
+          team_id,
+          odds_team_name,
+          odds_team_abbr,
+          position,
+          depth_chart_pos,
+          jersey_number,
+          injury_status,
+          injury_notes,
+          height_feet,
+          height_inches,
+          weight_pounds,
+          birthdate
+        `);
+    } else {
+      query = supabase
+        .from("nba_players_hr")
+        .select(`
+          nba_player_id,
+          odds_player_id,
+          name,
+          first_name,
+          last_name,
+          team_id,
+          odds_team_name,
+          odds_team_abbr,
+          position,
+          depth_chart_pos,
+          jersey_number,
+          injury_status,
+          injury_notes,
+          height_feet,
+          height_inches,
+          weight_pounds,
+          birthdate
+        `);
+    }
 
     // Filter by odds_player_id if provided, otherwise by name
     if (odds_player_id) {
@@ -132,6 +159,7 @@ export async function POST(req: NextRequest) {
     // Transform response to match interface
     const playerResult: PlayerLookupResult = {
       nba_player_id: row.nba_player_id ?? null,
+      wnba_player_id: row.wnba_player_id ?? null,
       mlb_player_id: row.mlb_player_id ?? null,
       odds_player_id: row.odds_player_id,
       name: row.name,

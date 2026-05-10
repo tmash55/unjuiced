@@ -137,7 +137,7 @@ interface MlbBookOffer {
 interface PlayerQuickViewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sport?: "nba" | "mlb";
+  sport?: "nba" | "wnba" | "mlb";
   odds_player_id?: string;
   player_name?: string;
   /** Direct NBA player ID - when provided, skips the lookup API call */
@@ -2703,6 +2703,7 @@ export function PlayerQuickViewModal({
   const queryClient = useQueryClient();
   const { toggleFavorite, isFavorited, isLoggedIn, isToggling } = useFavorites();
   const isMlb = sport === "mlb";
+  const isWnba = sport === "wnba";
   const [lineHistoryDialogOpen, setLineHistoryDialogOpen] = useState(false);
   const [lineHistorySide, setLineHistorySide] = useState<MlbLineHistorySide>("over");
   const [battedBallFilters, setBattedBallFilters] = useState<MlbSprayChartFilterState>(() => getDefaultMlbSprayChartFilters());
@@ -2749,11 +2750,13 @@ export function PlayerQuickViewModal({
     limit: 20, // Reduced from 50 - we only need current markets
   });
 
-  // Limit box scores to last 25 games for faster loading
+  // Limit box scores to last 25 games for faster loading. Hook supports sport so
+  // WNBA hits /api/wnba/player-box-scores using the same nba.com player_id.
   const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
     playerId: nba_player_id || null,
+    sport: isMlb ? undefined : (sport as "nba" | "wnba"),
     enabled: !isMlb && open && !!nba_player_id,
-    limit: 25, // Only fetch last 25 games for modal (full drilldown can load more)
+    limit: 25,
   });
 
   // Profile & market selection
@@ -3405,7 +3408,10 @@ export function PlayerQuickViewModal({
     if (isMlb && (activeTab === "correlation" || activeTab === "matchup")) {
       setActiveTab("gamelog");
     }
-  }, [activeTab, isMlb]);
+    if (isWnba && (activeTab === "correlation" || activeTab === "playstyle")) {
+      setActiveTab("gamelog");
+    }
+  }, [activeTab, isMlb, isWnba]);
 
   // Reset modal-local state when the user switches markets *within* the modal.
   // Skip the initial mount — otherwise it would wipe customLine that was just
@@ -3597,7 +3603,7 @@ export function PlayerQuickViewModal({
   const displayName = profile?.playerName || playerInfo?.name || player_name || "Unknown Player";
   const displayPosition = profile?.position || playerInfo?.depth_chart_pos || playerInfo?.position || "";
   const displayJersey = profile?.jerseyNumber || playerInfo?.jersey_number;
-  const teamLogoSport = isMlb ? "mlb" : "nba";
+  const teamLogoSport = isMlb ? "mlb" : isWnba ? "wnba" : "nba";
   const fullProfilePlayerId = profile?.playerId || resolvedPlayerId;
   const fullProfileHref = fullHitRateHref;
   const { games: mlbScheduleGames } = useMlbGames(isMlb && open);
@@ -4084,12 +4090,17 @@ export function PlayerQuickViewModal({
         { id: "splits" as const, label: "Splits", mobileLabel: "Splits", icon: Users, proOnly: false, disabled: true, soon: true },
         { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true, disabled: true, soon: true },
       ]
-    : [
-        { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
-        { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
-        { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
-        { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
-      ];
+    : isWnba
+      ? [
+          { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
+          { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
+        ]
+      : [
+          { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
+          { id: "matchup" as const, label: "Matchup", mobileLabel: "Match", icon: Target, proOnly: true },
+          { id: "playstyle" as const, label: "Play Style", mobileLabel: "Style", icon: Zap, proOnly: true },
+          { id: "correlation" as const, label: "Correlation", mobileLabel: "Corr", icon: Users, proOnly: true },
+        ];
 
 	  const handleLineEdit = () => {
 	    const val = parseFloat(editValue);
@@ -4667,7 +4678,7 @@ export function PlayerQuickViewModal({
                           {displayTeam && (
                             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50">
                               <img
-                                src={teamLogoSport === "mlb" ? getTeamLogoUrl(displayTeam, "mlb") : `/team-logos/nba/${displayTeam.toUpperCase()}.svg`}
+                                src={getTeamLogoUrl(displayTeam, teamLogoSport)}
                                 alt={displayTeam}
                                 className="h-4 w-4 object-contain"
                                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -4695,7 +4706,7 @@ export function PlayerQuickViewModal({
                               )}
                               {nextGame.opponentTeamAbbr && (
                                 <img
-                                  src={teamLogoSport === "mlb" ? getTeamLogoUrl(nextGame.opponentTeamAbbr, "mlb") : `/team-logos/nba/${nextGame.opponentTeamAbbr.toUpperCase()}.svg`}
+                                  src={getTeamLogoUrl(nextGame.opponentTeamAbbr, teamLogoSport)}
                                   alt={nextGame.opponentTeamAbbr}
                                   className="h-3.5 w-3.5 object-contain"
                                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -5267,8 +5278,9 @@ export function PlayerQuickViewModal({
                       opponentTeamId={profileOpponentTeamId}
                       opponentTeamAbbr={profileOpponentTeamAbbr}
                       position={profilePosition}
+                      sport={isWnba ? "wnba" : "nba"}
                     />
-                    
+
                     {/* Position vs Team Game Log */}
                     <PositionVsTeam
                       position={profilePosition}
@@ -5276,6 +5288,7 @@ export function PlayerQuickViewModal({
                       opponentTeamAbbr={profileOpponentTeamAbbr}
                       market={currentMarket}
                       currentLine={activeLine}
+                      sport={isWnba ? "wnba" : "nba"}
                     />
                   </div>
                 </div>

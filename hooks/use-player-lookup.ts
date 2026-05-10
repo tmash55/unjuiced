@@ -2,14 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import type { PlayerLookupResponse } from '@/app/api/players/lookup/route';
 
 interface UsePlayerLookupOptions {
-  sport?: 'nba' | 'mlb';
+  sport?: 'nba' | 'wnba' | 'mlb';
   odds_player_id?: string;
   player_name?: string;
   enabled?: boolean;
 }
 
 async function fetchPlayerLookup(
-  sport: 'nba' | 'mlb' = 'nba',
+  sport: 'nba' | 'wnba' | 'mlb' = 'nba',
   odds_player_id?: string,
   player_name?: string
 ): Promise<PlayerLookupResponse> {
@@ -43,11 +43,11 @@ async function fetchPlayerLookup(
  * - Automatic deduplication
  * - Returns null gracefully if player not found
  */
-export function usePlayerLookup({ 
+export function usePlayerLookup({
   sport = 'nba',
-  odds_player_id, 
-  player_name, 
-  enabled = true 
+  odds_player_id,
+  player_name,
+  enabled = true
 }: UsePlayerLookupOptions) {
   return useQuery({
     queryKey: ['player-lookup', sport, odds_player_id, player_name],
