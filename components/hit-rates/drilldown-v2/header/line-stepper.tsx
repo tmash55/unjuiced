@@ -92,14 +92,14 @@ export function LineStepper({
   }
 
   return (
-    <div className="inline-flex items-center gap-1.5">
+    <div className="inline-flex items-center gap-1">
       <button
         type="button"
         onClick={() => onChange(Math.max(min, value - step))}
         aria-label="Decrease line"
         className={cn(
           "hover:border-brand/40 hover:text-brand dark:hover:text-brand inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400",
-          "h-8 w-8",
+          "h-7 w-7",
         )}
       >
         <Minus className="h-3 w-3" />
@@ -107,8 +107,8 @@ export function LineStepper({
 
       <div
         className={cn(
-          "inline-flex items-baseline gap-1.5 rounded-lg transition-all duration-200",
-          "px-3 py-1",
+          "inline-flex items-baseline gap-1 rounded-lg transition-all duration-200",
+          "px-2 py-0.5",
           isCustom
             ? "bg-brand/10 ring-brand/30 dark:bg-brand/15 ring-1"
             : "bg-transparent ring-1 ring-transparent hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40",
@@ -120,12 +120,12 @@ export function LineStepper({
           step={step}
           onChange={onChange}
           textClassName={cn(
-            "text-xl leading-none font-black tabular-nums lg:text-2xl",
+            "text-base leading-none font-black tabular-nums lg:text-lg",
             isCustom ? "text-brand" : "text-neutral-900 dark:text-white",
           )}
           inline
         />
-        <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
+        <span className="text-[9px] font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
           Line
         </span>
       </div>
@@ -136,7 +136,7 @@ export function LineStepper({
         aria-label="Increase line"
         className={cn(
           "hover:border-brand/40 hover:text-brand dark:hover:text-brand inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-200/80 bg-white text-neutral-500 shadow-sm transition-all active:scale-95 dark:border-neutral-700/80 dark:bg-neutral-900 dark:text-neutral-400",
-          "h-8 w-8",
+          "h-7 w-7",
         )}
       >
         <Plus className="h-3 w-3" />

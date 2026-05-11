@@ -97,7 +97,10 @@ export function DrilldownHeader({
         <PlayerAvatar profile={profile} sport={sport} />
         <div className="min-w-0 shrink">
           <div className="flex items-center gap-1.5">
-            <h1 className="truncate text-base font-black tracking-tight text-neutral-900 lg:text-lg dark:text-white">
+            <h1 className={cn(
+              "truncate font-black tracking-tight text-neutral-900 dark:text-white",
+              compact ? "text-sm lg:text-base" : "text-base lg:text-lg",
+            )}>
               {profile.playerName}
             </h1>
             {hasInjury && (
@@ -170,7 +173,7 @@ export function DrilldownHeader({
         // mobile too (no md: hidden) so users still see the matchup context.
         // O/U hides below sm to keep the row compact on phones.
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-shrink-0">
-          <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
+          <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} compact={compact} />
           <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
             @
           </span>
@@ -178,14 +181,15 @@ export function DrilldownHeader({
             abbr={homeAbbr ?? opponent}
             sport={sport}
             spread={homeSpread}
+            compact
           />
-          <span className="ml-0.5 text-[11px] font-black tabular-nums text-neutral-500 sm:ml-1 dark:text-neutral-400">
+          <span className="ml-0.5 text-[10px] font-bold tabular-nums text-neutral-500 sm:ml-1 dark:text-neutral-400">
             {gameTime}
           </span>
           {profile.total !== null && (
             <>
               <span className="hidden text-neutral-300 sm:inline dark:text-neutral-700">·</span>
-              <span className="hidden text-[11px] font-black tabular-nums text-neutral-500 sm:inline dark:text-neutral-400">
+              <span className="hidden text-[10px] font-bold tabular-nums text-neutral-500 sm:inline dark:text-neutral-400">
                 O/U {formatTotal(profile.total)}
               </span>
             </>
@@ -195,7 +199,7 @@ export function DrilldownHeader({
         <div className="hidden min-w-[330px] flex-col gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
-              <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} />
+              <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} compact={compact} />
               <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
                 @
               </span>
@@ -358,10 +362,12 @@ function TeamGlyph({
   abbr,
   sport,
   spread,
+  compact,
 }: {
   abbr: string | null | undefined;
   sport: "nba" | "wnba";
   spread: number | null;
+  compact?: boolean;
 }) {
   if (!abbr) return null;
   const isFavored = spread !== null && spread < 0;
@@ -371,15 +377,19 @@ function TeamGlyph({
       <img
         src={getTeamLogoUrl(abbr, sport)}
         alt={abbr}
-        className="h-4 w-4 shrink-0 object-contain"
+        className={cn("shrink-0 object-contain", compact ? "h-3.5 w-3.5" : "h-4 w-4")}
       />
-      <span className="text-[15px] font-black tracking-tight text-neutral-900 tabular-nums dark:text-white">
+      <span className={cn(
+        "font-black tracking-tight text-neutral-900 tabular-nums dark:text-white",
+        compact ? "text-[13px]" : "text-[15px]",
+      )}>
         {abbr}
       </span>
       {spread !== null && !isPickEm && (
         <span
           className={cn(
-            "ml-0.5 inline-flex items-center rounded px-1.5 py-px text-[10px] font-black tracking-tight tabular-nums",
+            "ml-0.5 inline-flex items-center rounded font-black tracking-tight tabular-nums",
+            compact ? "px-1 py-px text-[9px]" : "px-1.5 py-px text-[10px]",
             isFavored
               ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-950"
               : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800/70 dark:text-neutral-400",
