@@ -1312,10 +1312,11 @@ function PitcherProfileCard({
               ))}
             </div>
           </div>
-          {/* Mobile: compact table layout */}
+          {/* Mobile: compact table layout — horizontal scroll keeps the BB%
+              column in reach without crushing every cell into illegibility. */}
           <div className="sm:hidden">
-            <div className="rounded-lg border border-neutral-200/50 dark:border-neutral-700/20 overflow-hidden">
-              <table className="w-full text-[11px] tabular-nums">
+            <div className="rounded-lg border border-neutral-200/50 dark:border-neutral-700/20 overflow-x-auto scrollbar-hide">
+              <table className="w-full min-w-[420px] text-[11px] tabular-nums">
                 <thead>
                   <tr className="bg-neutral-100/50 dark:bg-neutral-800/50 border-b border-neutral-200/50 dark:border-neutral-700/20">
                     <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wide font-semibold text-neutral-400">Pitch</th>
