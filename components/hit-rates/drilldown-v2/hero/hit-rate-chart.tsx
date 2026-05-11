@@ -770,9 +770,11 @@ export function HitRateChart({
       padded={false}
       topSlot={topSlot}
       label={
-        <span className="inline-flex items-center gap-2">
+        // Mobile: hide entirely so the range chips have full width to breathe.
+        // Desktop: full label + meta secondary line.
+        <span className="hidden items-center gap-2 sm:inline-flex">
           <span>Recent Performance</span>
-          <span className="hidden text-[10px] font-medium normal-case tracking-normal text-neutral-400 sm:inline dark:text-neutral-500">
+          <span className="text-[10px] font-medium normal-case tracking-normal text-neutral-400 dark:text-neutral-500">
             Last {chartGames.length} · {formatMarketLabel(market)}
           </span>
         </span>
