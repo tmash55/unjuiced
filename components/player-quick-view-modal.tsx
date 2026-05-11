@@ -34,6 +34,7 @@ import {
   PlayTypePanel as PlayTypePanelV2,
   OddsPanel as OddsPanelV2,
 } from "@/components/hit-rates/drilldown-v2/tabs/drilldown-tabs";
+import { useEnrichedLineOdds } from "@/hooks/use-enriched-line-odds";
 import {
   MlbSprayChart,
   MLB_EV_THRESHOLD_OPTIONS,
@@ -3086,7 +3087,21 @@ export function PlayerQuickViewModal({
       `${startYear - 1}-${String(startYear % 100).padStart(2, "0")}`,
     ];
   }, [isMlb, isWnba, todayYear, todayMonth]);
-	  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
+	  const baseHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
+  // Enrich with the v2 alternates fetch so the DrilldownHeader and OddsPanel
+  // both read the same per-line best book + price. Without this, the header
+  // would fall back to profile.bestOdds (a single legacy value at any line)
+  // while the OddsPanel showed accurate per-line values from the v2 fetch —
+  // making OVER/UNDER disagree across the two surfaces.
+  const enrichedOdds = useEnrichedLineOdds({
+    baseOdds: baseHitRateOdds ?? null,
+    sport: !isMlb ? (sport as "nba" | "wnba") : "nba",
+    eventId: profile?.eventId ?? null,
+    market: currentMarket,
+    playerName: profile?.playerName ?? player_name ?? null,
+    enabled: !isMlb && open,
+  });
+  const activeHitRateOdds = !isMlb ? enrichedOdds : baseHitRateOdds;
   const activeHitRateLine = useMemo(() => {
     if (!activeHitRateOdds?.allLines?.length) return null;
     const getLineValue = (line: number) => isMlb ? normalizeMlbOddsLine(line) ?? line : line;
