@@ -3082,20 +3082,16 @@ export function PlayerQuickViewModal({
       ? `${todayYear}-${String((todayYear + 1) % 100).padStart(2, "0")}`
       : `${todayYear - 1}-${String(todayYear % 100).padStart(2, "0")}`;
   const [boxScoreSeason, setBoxScoreSeason] = useState<string>(defaultBoxScoreSeason);
-  // Available seasons — current + previous only. The RPC only carries the
-  // last ~1 season of box-score history, so older chips returned empty
-  // tables and confused users.
+  // Available seasons. WNBA carries current + prior calendar year; NBA's
+  // RPC only has the active season's box scores so we hide the chip row
+  // entirely (a single chip with no alternate is just clutter).
   const boxScoreSeasonOptions = useMemo(() => {
     if (isMlb) return [];
     if (isWnba) {
       return [String(todayYear), String(todayYear - 1)];
     }
-    const startYear = todayMonth >= 8 ? todayYear : todayYear - 1;
-    return [
-      `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`,
-      `${startYear - 1}-${String(startYear % 100).padStart(2, "0")}`,
-    ];
-  }, [isMlb, isWnba, todayYear, todayMonth]);
+    return [];
+  }, [isMlb, isWnba, todayYear]);
 	  const baseHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   // Enrich with the v2 alternates fetch so the DrilldownHeader and OddsPanel
   // both read the same per-line best book + price. Without this, the header
