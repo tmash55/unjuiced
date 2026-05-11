@@ -1055,6 +1055,9 @@ export function HitRateChart({
                           // at the bottom. Reads as "high = good matchup"
                           // matching how bars work.
                           inverted
+                          upcomingOpponentTeamId={
+                            upcomingSlot ? tonightOpponentTeamId ?? null : null
+                          }
                         />
                       )}
                       {chartSettings.showPaceOverlay && paceRankByOpponent && (
@@ -1069,6 +1072,9 @@ export function HitRateChart({
                           dotFill="rgb(59 130 246)"
                           label="Pace"
                           dashed
+                          upcomingOpponentTeamId={
+                            upcomingSlot ? tonightOpponentTeamId ?? null : null
+                          }
                         />
                       )}
                     </svg>
@@ -2328,6 +2334,7 @@ function RankLineOverlay({
   label,
   dashed,
   inverted,
+  upcomingOpponentTeamId,
 }: {
   games: Array<{ gameId: string | number; opponentTeamId?: number | null }>;
   rankMap: Map<number, number>;
@@ -2344,12 +2351,15 @@ function RankLineOverlay({
   // chart, matching the bars' "high = good" convention. Pace stays default
   // (rank #1 = fastest at the top, since fast = favorable too).
   inverted?: boolean;
+  // When provided, append an extra dot at the upcoming-game column so users
+  // see exactly where tonight's opponent ranks against the historical line.
+  upcomingOpponentTeamId?: number | null;
 }) {
   // Map rank → y in chart pixels. With margins so dots don't collide with
   // the bar tops or baseline labels.
   const yMargin = 10;
   const yRange = Math.max(1, chartHeight - yMargin * 2);
-  const points: Array<{ x: number; y: number; rank: number }> = [];
+  const points: Array<{ x: number; y: number; rank: number; isUpcoming?: boolean }> = [];
   games.forEach((game, idx) => {
     if (game.opponentTeamId == null) return;
     const rank = rankMap.get(game.opponentTeamId);
@@ -2362,6 +2372,18 @@ function RankLineOverlay({
       : yMargin + t * yRange; // rank 1 → top, rank N → bottom
     points.push({ x, y, rank });
   });
+  // Extend the trend through the upcoming-game column when we know the
+  // opponent's rank. Lets users read "where does tonight's matchup sit"
+  // off the same line they're already reading the season trend from.
+  if (upcomingOpponentTeamId != null) {
+    const upcomingRank = rankMap.get(upcomingOpponentTeamId);
+    if (upcomingRank != null) {
+      const x = games.length * (barWidth + gapPx) + barWidth / 2;
+      const t = (upcomingRank - 1) / Math.max(1, totalTeams - 1);
+      const y = inverted ? yMargin + (1 - t) * yRange : yMargin + t * yRange;
+      points.push({ x, y, rank: upcomingRank, isUpcoming: true });
+    }
+  }
   if (points.length === 0) return null;
   const path = points
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
@@ -2401,21 +2423,41 @@ function RankLineOverlay({
           overlay and the per-dot stagger looked busy on the dashed pace
           line in particular. */}
       {points.map((p) => (
-        <circle
-          key={`${label}-${p.x}`}
-          cx={p.x}
-          cy={p.y}
-          r={3.5}
-          fill={dotFill}
-          stroke="rgb(15 17 21)"
-          strokeWidth={1.5}
-          vectorEffect="non-scaling-stroke"
-          style={{
-            opacity: 0,
-            animation:
-              "rankline-fade 360ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 200ms forwards",
-          }}
-        />
+        <g key={`${label}-${p.x}`}>
+          {/* Upcoming dot wears a halo ring so users can read it as the
+              "tonight" anchor against the season trend behind it. */}
+          {p.isUpcoming && (
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={6.5}
+              fill="none"
+              stroke={dotFill}
+              strokeWidth={1.5}
+              strokeOpacity={0.5}
+              vectorEffect="non-scaling-stroke"
+              style={{
+                opacity: 0,
+                animation:
+                  "rankline-fade 360ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 240ms forwards",
+              }}
+            />
+          )}
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r={p.isUpcoming ? 4.5 : 3.5}
+            fill={dotFill}
+            stroke="rgb(15 17 21)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+            style={{
+              opacity: 0,
+              animation:
+                "rankline-fade 360ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 200ms forwards",
+            }}
+          />
+        </g>
       ))}
     </g>
   );
