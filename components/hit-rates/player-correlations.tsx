@@ -1452,29 +1452,34 @@ export function PlayerCorrelations({
         <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-emerald-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-emerald-900/10" />
         <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
           {/* Main Header Row */}
-          <div className="flex items-start justify-between gap-6">
+          <div className="flex items-start justify-between gap-3 sm:gap-6">
             {/* LEFT ZONE - Color bar + Context & Target Info */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
               {/* Color bar - premium emerald gradient */}
-              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30 shrink-0" />
+              <div className="h-8 w-1 sm:h-10 sm:w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30 shrink-0" />
               <div className="flex-1 min-w-0">
-                {/* BIG Headline - Focal Point (now first) */}
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-                  When {playerName} hits{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400">{line}+ {formatMarketLabel(market || "")}</span>
+                {/* Headline. Tighter on mobile so the player name + line+market
+                    fit on one line instead of wrapping awkwardly. */}
+                <h2 className="text-sm sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight leading-snug">
+                  <span className="block sm:inline">When {playerName} hits</span>{" "}
+                  <span className="text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{line}+ {formatMarketLabel(market || "")}</span>
                 </h2>
-                
-                {/* Subheading - Teammate Correlations (now second) */}
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-                  Teammate Correlations
+
+                {/* Subheading. Stack pieces vertically on mobile so the
+                    "Teammate Correlations" label + the hit rate readout
+                    don't fight for the same horizontal line. */}
+                <div className="text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span>Teammate Correlations</span>
                   {anchorPerformance && (
-                    <span className="ml-2">
-                      · <span className={cn("font-bold", getHitRateColor(anchorPerformance.hitRate))}>
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <span className={cn("font-bold", getHitRateColor(anchorPerformance.hitRate))}>
                         {anchorPerformance.hitRate ?? 0}%
-                      </span> hit rate · {anchorPerformance.display}
+                      </span>
+                      <span className="opacity-80">hit rate</span>
+                      <span className="opacity-60">· {anchorPerformance.display}</span>
                     </span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
 
@@ -1482,7 +1487,7 @@ export function PlayerCorrelations({
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
+              className="shrink-0 p-1.5 sm:p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
             >
               <ChevronDown className={cn(
                 "h-4 w-4 text-neutral-500 transition-transform",
@@ -1490,10 +1495,12 @@ export function PlayerCorrelations({
               )} />
             </button>
           </div>
-          
-          {/* Game Filter Row - Below header when expanded */}
+
+          {/* Game Filter Row - Below header when expanded. Wraps on mobile so
+              the Season toggle and home/away splits stack instead of
+              overflowing. */}
           {!collapsed && anchorPerformance && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-200/50 dark:border-neutral-700/50">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mt-3 pt-3 border-t border-neutral-200/50 dark:border-neutral-700/50">
               <div className="flex items-center gap-2">
                 {/* Game Filter Toggle */}
                 <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
@@ -1547,15 +1554,16 @@ export function PlayerCorrelations({
           {/* ═══════════════════════════════════════════════════════════════════
               STAT SELECTOR NAV - Elevated Pill Design
           ═══════════════════════════════════════════════════════════════════ */}
-          <div className="px-5 py-2.5 bg-white dark:bg-neutral-900 flex items-center justify-between gap-4">
-            {/* Stat Pills - Show all markets with wrap */}
-            <div className="flex items-center gap-1 flex-wrap bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 pl-1.5">
+          <div className="px-3 sm:px-5 py-2.5 bg-white dark:bg-neutral-900 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            {/* Stat Pills — horizontal scroll on mobile so 8 stats stay on one
+                line you can swipe through; flex-wrap on desktop. */}
+            <div className="flex items-center gap-1 flex-nowrap overflow-x-auto scrollbar-hide bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 pl-1.5 sm:flex-wrap">
               {TEAMMATE_MARKETS.map(({ key, abbr }) => (
                 <button
                   key={key}
                   onClick={() => setSelectedMarket(key)}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all",
+                    "shrink-0 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all whitespace-nowrap",
                     selectedMarket === key
                       ? key === "all"
                         ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 ring-1 ring-purple-500"
