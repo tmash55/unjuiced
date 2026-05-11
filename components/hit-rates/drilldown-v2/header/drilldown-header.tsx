@@ -167,28 +167,32 @@ export function DrilldownHeader({
           like a sportsbook ticker: instant team + price context, no mental
           inversion required. */}
       {compact ? (
-        // Compact: 2-row matchup card. Away team on top, home on bottom.
-        // The favorite (negative spread) carries the spread badge; the dog
-        // shows the game total instead. That avoids duplicating the spread
-        // (one team's +X is the other's -X) and surfaces the two unique
-        // numbers — spread + total — without an extra info row.
-        <div className="flex min-w-0 flex-col gap-0.5 lg:flex-shrink-0">
-          <MatchupRow
-            abbr={awayAbbr}
-            sport={sport}
-            spread={awaySpread}
-            total={profile.total}
-            isFavorite={awaySpread !== null && awaySpread < 0}
-            tipOff={null}
-          />
-          <MatchupRow
-            abbr={homeAbbr ?? opponent}
-            sport={sport}
-            spread={homeSpread}
-            total={profile.total}
-            isFavorite={homeSpread !== null && homeSpread < 0}
-            tipOff={gameTime}
-          />
+        // Compact: 2-row matchup ticker with tip-off centered vertically
+        // between the rows on the right (mirrors the full drilldown layout
+        // so both surfaces read identically). Favorite carries the spread,
+        // dog shows the O/U total in the same slot.
+        <div className="flex min-w-0 items-center gap-2 lg:flex-shrink-0">
+          <div className="flex flex-col gap-0.5">
+            <MatchupRow
+              abbr={awayAbbr}
+              sport={sport}
+              spread={awaySpread}
+              total={profile.total}
+              isFavorite={awaySpread !== null && awaySpread < 0}
+              tipOff={null}
+            />
+            <MatchupRow
+              abbr={homeAbbr ?? opponent}
+              sport={sport}
+              spread={homeSpread}
+              total={profile.total}
+              isFavorite={homeSpread !== null && homeSpread < 0}
+              tipOff={null}
+            />
+          </div>
+          <span className="text-[10px] font-bold tabular-nums text-neutral-500 dark:text-neutral-400">
+            {gameTime}
+          </span>
         </div>
       ) : (
         // Full drilldown: 2-row matchup with the tip-off centered vertically
