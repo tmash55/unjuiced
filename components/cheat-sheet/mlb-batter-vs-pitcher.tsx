@@ -1901,8 +1901,8 @@ function BatterRow({
                 <span className="text-neutral-500">wOBA <span className={cn("font-semibold", wobaTextColor(ds.woba) || "text-neutral-900 dark:text-white")}>{fmtAvg(ds.woba)}</span></span>
                 <span className="text-neutral-500">HR <span className="font-semibold text-neutral-900 dark:text-white">{ds.hr}</span></span>
                 <span className="text-neutral-500">EV <span className={cn("font-semibold", evTextColor(ds.ev) || "text-neutral-900 dark:text-white")}>{ds.ev != null ? ds.ev.toFixed(1) : "-"}</span></span>
-                {batter.k_pct != null && <span className="text-neutral-500">K% <span className={cn("font-semibold", statText(batter.k_pct, { elite: 15, good: 20, poor: 27, bad: 32 }, false) || "text-neutral-700 dark:text-neutral-300")}>{batter.k_pct.toFixed(1)}%</span></span>}
-                {batter.bb_pct != null && <span className="text-neutral-500">BB% <span className={cn("font-semibold", statText(batter.bb_pct, { elite: 12, good: 9, poor: 5, bad: 3 }) || "text-neutral-700 dark:text-neutral-300")}>{batter.bb_pct.toFixed(1)}%</span></span>}
+                <span className="text-neutral-500">K% <span className={cn("font-semibold", statText(ds.k_pct ?? null, { elite: 15, good: 20, poor: 27, bad: 32 }, false) || "text-neutral-700 dark:text-neutral-300")}>{ds.k_pct != null ? `${ds.k_pct.toFixed(1)}%` : "-"}</span></span>
+                <span className="text-neutral-500">BB% <span className={cn("font-semibold", statText(ds.bb_pct ?? null, { elite: 12, good: 9, poor: 5, bad: 3 }) || "text-neutral-700 dark:text-neutral-300")}>{ds.bb_pct != null ? `${ds.bb_pct.toFixed(1)}%` : "-"}</span></span>
               </div>
             </div>
             <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", badge.text, badge.bg)}>
