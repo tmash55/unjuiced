@@ -110,6 +110,17 @@ function getWnbaTeamIdFromAbbr(abbr?: string | null): number | null {
   return WNBA_TEAM_IDS_BY_ABBR[abbr.toUpperCase()] ?? null;
 }
 
+function getWnbaSeasonFromDate(gameDate?: string | null): string {
+  const year = Number(String(gameDate ?? "").slice(0, 4));
+  return Number.isFinite(year) ? String(year) : "2026";
+}
+
+function getWnbaDvpSeasonCandidates(gameDate?: string | null): string[] {
+  const season = getWnbaSeasonFromDate(gameDate);
+  const year = Number(season);
+  return Number.isFinite(year) ? [String(year), String(year - 1)] : [season];
+}
+
 // =============================================================================
 // REDIS BEST ODDS HELPERS
 // =============================================================================
@@ -528,6 +539,7 @@ async function fetchDvpRanksForRows(
     player_depth_chart_pos?: string | null;
     market?: string | null;
     player_id?: number;
+    game_date?: string | null;
   }>,
   playerMetadataMap: Map<number, WnbaPlayerMetadata>,
 ): Promise<Map<string, WnbaDvpRank>> {
@@ -548,35 +560,40 @@ async function fetchDvpRanksForRows(
     return result;
   }
 
-  const teamRankRows = await Promise.all(
-    opponentIds.map(async (teamId) => {
-      const { data, error } = await supabase
-        .from("wnba_team_defense_by_position")
-        .select("*")
-        .eq("team_id", teamId)
-        .eq("season", "2025");
+  const seasonsToFetch = [
+    ...new Set(rows.flatMap((row) => getWnbaDvpSeasonCandidates(row.game_date))),
+  ];
 
-      if (error) {
-        console.error(
-          "[Hit Rates v2 WNBA] DvP rank fetch error:",
-          teamId,
-          error.message,
-        );
-        return [] as any[];
-      }
+  const { data: teamRankRows, error } = await supabase
+    .from("wnba_team_defense_by_position")
+    .select("*")
+    .in("team_id", opponentIds)
+    .in("season", seasonsToFetch);
 
-      return data || [];
-    }),
-  );
+  if (error) {
+    console.error("[Hit Rates v2 WNBA] DvP rank fetch error:", error.message);
+    return result;
+  }
+
+  const teamIdsBySeason = new Map<string, Set<number>>();
+  for (const data of teamRankRows || []) {
+    const season = String(data.season);
+    const teamId = Number(data.team_id);
+    if (!teamId) continue;
+    const teamIds = teamIdsBySeason.get(season) ?? new Set<number>();
+    teamIds.add(teamId);
+    teamIdsBySeason.set(season, teamIds);
+  }
 
   const defenseByTeamPosition = new Map<string, any>();
-  for (const data of teamRankRows.flat()) {
+  for (const data of teamRankRows || []) {
+    const season = String(data.season);
     const teamId = Number(data.team_id);
     const position = data.position;
     if (!teamId || !position) continue;
-    defenseByTeamPosition.set(`${teamId}:${position}`, {
+    defenseByTeamPosition.set(`${season}:${teamId}:${position}`, {
       ...data,
-      total_teams: 13,
+      total_teams: teamIdsBySeason.get(season)?.size ?? 13,
     });
   }
 
@@ -596,7 +613,12 @@ async function fetchDvpRanksForRows(
 
     if (!opponentTeamId || !position || !fields) continue;
 
-    const defense = defenseByTeamPosition.get(`${opponentTeamId}:${position}`);
+    const seasonUsed = getWnbaDvpSeasonCandidates(row.game_date).find((season) =>
+      defenseByTeamPosition.has(`${season}:${opponentTeamId}:${position}`),
+    );
+    if (!seasonUsed) continue;
+
+    const defense = defenseByTeamPosition.get(`${seasonUsed}:${opponentTeamId}:${position}`);
     if (!defense) continue;
 
     result.set(`${opponentTeamId}:${position}:${row.market}`, {

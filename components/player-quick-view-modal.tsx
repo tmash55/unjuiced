@@ -38,6 +38,7 @@ import { useEnrichedLineOdds } from "@/hooks/use-enriched-line-odds";
 import {
   MlbSprayChart,
   MLB_EV_THRESHOLD_OPTIONS,
+  MLB_GAME_SAMPLE_OPTIONS,
   MLB_HIT_FILTER_OPTIONS,
   MLB_PITCHER_HAND_OPTIONS,
   MLB_PITCH_TYPE_LABELS,
@@ -50,6 +51,7 @@ import {
   getMlbEvThresholdMph,
   getMlbSampleBatterHand,
   type MlbEvThreshold,
+  type MlbBattedBallGameSample,
   type MlbHitFilter,
   type MlbPitcherHandFilter,
   type MlbSprayChartFilterState,
@@ -1210,20 +1212,20 @@ function MlbBattedBallFilterSelect<T extends string>({
         <button
           type="button"
           className={cn(
-            "group flex min-h-[48px] w-full min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left shadow-sm transition active:scale-[0.99]",
+            "group flex min-h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left shadow-sm transition active:scale-[0.99]",
             "border-border bg-neutral-50 dark:bg-neutral-800/40 hover:border-brand/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/60",
             accent && "border-brand/50 bg-brand/8 hover:bg-brand/12 dark:bg-brand/12"
           )}
         >
           <span className="min-w-0">
-            <span className="block font-mono text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="block font-mono text-[8px] font-black uppercase tracking-[0.13em] text-muted-foreground">
               {label}
             </span>
-            <span className="mt-0.5 block truncate text-sm font-black text-foreground">
+            <span className="mt-0.5 block truncate text-[13px] font-black leading-tight text-foreground">
               {triggerLabel ? triggerLabel(selected) : selected?.label ?? value}
             </span>
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition group-data-[state=open]:rotate-180" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition group-data-[state=open]:rotate-180" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -1330,13 +1332,20 @@ function MlbBattedBallFiltersPanel({
 
   return (
     <MlbGlassPanel className="overflow-visible">
-      <div className="grid gap-2 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+      <div className="flex items-start gap-2 px-3 py-2.5 sm:px-4">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
           <MlbBattedBallFilterSelect
             label="Season"
             value={filters.seasonFilter}
             options={MLB_SEASON_OPTIONS}
             onChange={(value) => updateFilters({ seasonFilter: value })}
+          />
+          <MlbBattedBallFilterSelect<MlbBattedBallGameSample>
+            label="Games"
+            value={filters.gameSampleFilter}
+            options={MLB_GAME_SAMPLE_OPTIONS}
+            onChange={(value) => updateFilters({ gameSampleFilter: value })}
+            accent={filters.gameSampleFilter !== "all"}
           />
           <MlbBattedBallFilterSelect<MlbTrajectoryFilter>
             label="Trajectory"
@@ -1390,7 +1399,7 @@ function MlbBattedBallFiltersPanel({
             type="button"
             onClick={onReset}
             aria-label="Reset batted ball filters"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 text-foreground/70 shadow-sm transition hover:border-brand/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground active:scale-[0.98]"
+            className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-neutral-50 dark:bg-neutral-800/40 text-foreground/70 shadow-sm transition hover:border-brand/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-foreground active:scale-[0.98]"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -4196,7 +4205,11 @@ export function PlayerQuickViewModal({
     const pct = (count: number) => total > 0 ? Math.round((count / total) * 100) : null;
     const bucketPct = (count: number) => evEvents.length > 0 ? Math.round((count / evEvents.length) * 100) : 0;
     const launchPct = (count: number) => laEvents.length > 0 ? Math.round((count / laEvents.length) * 100) : 0;
-    const sampleLabel = battedBallFilters.seasonFilter === "all" ? "2023-2026 sample" : `${battedBallFilters.seasonFilter} sample`;
+    const seasonLabel = battedBallFilters.seasonFilter === "all" ? "2023-2026" : battedBallFilters.seasonFilter;
+    const gameSampleLabel = battedBallFilters.gameSampleFilter === "all"
+      ? null
+      : `last ${battedBallFilters.gameSampleFilter} games`;
+    const sampleLabel = gameSampleLabel ? `${seasonLabel}, ${gameSampleLabel}` : `${seasonLabel} sample`;
     const sampleBatterHand = getMlbSampleBatterHand(events, profile?.battingHand);
     const zoneOrder = isMlbPitcher
       ? MLB_MODAL_ZONE_ORDER_FIELD
@@ -4254,7 +4267,7 @@ export function PlayerQuickViewModal({
         }));
       })(),
     };
-  }, [battedBallFilters.seasonFilter, filteredBattedBallEvents, isMlbPitcher, mlbSprayData?.zone_summary, profile?.battingHand]);
+  }, [battedBallFilters.gameSampleFilter, battedBallFilters.seasonFilter, filteredBattedBallEvents, isMlbPitcher, mlbSprayData?.zone_summary, profile?.battingHand]);
   const modalTabs = isMlb
     ? [
         { id: "gamelog" as const, label: "Game Log", mobileLabel: "Log", icon: IconChartHistogram, proOnly: false },
@@ -4634,7 +4647,7 @@ export function PlayerQuickViewModal({
                             playerId={fullProfilePlayerId}
                             market={currentMarket}
                             currentLine={activeLine}
-                            prefetchedGames={filteredGames}
+                            prefetchedGames={mlbSeasonGames}
                             variant="modal"
                           />
                         )}

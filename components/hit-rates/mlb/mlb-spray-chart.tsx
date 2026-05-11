@@ -133,9 +133,11 @@ export type MlbZoneDisplay = "off" | "show" | "only";
 export type MlbEvThreshold = "off" | "90" | "95" | "100" | "105";
 export type MlbPitcherHandFilter = "all" | "L" | "R";
 export type MlbSprayChartPlayerType = "batter" | "pitcher";
+export type MlbBattedBallGameSample = "all" | "5" | "10" | "20" | "30";
 
 export interface MlbSprayChartFilterState {
   seasonFilter: string;
+  gameSampleFilter: MlbBattedBallGameSample;
   trajectoryFilter: MlbTrajectoryFilter;
   pitchTypeFilter: string;
   pitcherHandFilter: MlbPitcherHandFilter;
@@ -184,6 +186,14 @@ export const MLB_SEASON_OPTIONS = [
   { value: "2024", label: "2024" },
   { value: "2023", label: "2023" },
   { value: "all", label: "2023-2026" },
+];
+
+export const MLB_GAME_SAMPLE_OPTIONS: Array<{ value: MlbBattedBallGameSample; label: string }> = [
+  { value: "all", label: "All Games" },
+  { value: "5", label: "Last 5" },
+  { value: "10", label: "Last 10" },
+  { value: "20", label: "Last 20" },
+  { value: "30", label: "Last 30" },
 ];
 
 const ZONE_ORDER_RHB = ["oppo", "oppo_center", "center", "pull_center", "pull"];
@@ -425,6 +435,7 @@ export const MLB_EV_THRESHOLD_OPTIONS: Array<{ value: MlbEvThreshold; label: str
 
 export const getDefaultMlbSprayChartFilters = (): MlbSprayChartFilterState => ({
   seasonFilter: String(getCurrentSeasonYear()),
+  gameSampleFilter: "all",
   trajectoryFilter: "all",
   pitchTypeFilter: "all",
   pitcherHandFilter: "all",
@@ -439,7 +450,7 @@ export const getMlbEvThresholdMph = (value: MlbEvThreshold): number | undefined 
 
 export function filterMlbBattedBallEvents(
   events: BattedBallEvent[],
-  filters: Pick<MlbSprayChartFilterState, "seasonFilter" | "trajectoryFilter" | "pitchTypeFilter" | "pitcherHandFilter" | "hitFilter" | "evThreshold">,
+  filters: Pick<MlbSprayChartFilterState, "seasonFilter" | "gameSampleFilter" | "trajectoryFilter" | "pitchTypeFilter" | "pitcherHandFilter" | "hitFilter" | "evThreshold">,
   playerType: MlbSprayChartPlayerType = "batter"
 ) {
   const minExitVelo = getMlbEvThresholdMph(filters.evThreshold);
@@ -451,6 +462,24 @@ export function filterMlbBattedBallEvents(
     const season = Number(filters.seasonFilter);
     if (Number.isFinite(season)) {
       filtered = filtered.filter((event) => event.season === season);
+    }
+  }
+
+  if (filters.gameSampleFilter !== "all") {
+    const gameLimit = Number(filters.gameSampleFilter);
+    if (Number.isFinite(gameLimit) && gameLimit > 0) {
+      const gameKeys = new Set<string>();
+      [...filtered]
+        .sort((a, b) => {
+          const dateDelta = new Date(b.game_date ?? 0).getTime() - new Date(a.game_date ?? 0).getTime();
+          if (dateDelta !== 0) return dateDelta;
+          return Number(b.game_id ?? 0) - Number(a.game_id ?? 0);
+        })
+        .forEach((event) => {
+          if (gameKeys.size >= gameLimit) return;
+          gameKeys.add(String(event.game_id ?? event.game_date ?? ""));
+        });
+      filtered = filtered.filter((event) => gameKeys.has(String(event.game_id ?? event.game_date ?? "")));
     }
   }
 
