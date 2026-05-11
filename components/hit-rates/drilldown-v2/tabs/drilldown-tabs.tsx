@@ -9,6 +9,7 @@ import {
   Handshake,
   Info,
   ListOrdered,
+  Lock,
   Shield,
   Users,
 } from "lucide-react";
@@ -3593,6 +3594,7 @@ export function MatchupPanel({
   sport,
   activeLine,
   stacked = false,
+  gateSimilarPlayers = false,
 }: {
   profile: HitRateProfile;
   sport: "nba" | "wnba";
@@ -3601,6 +3603,11 @@ export function MatchupPanel({
    *  one above the other instead of side-by-side. Used by the quick-view modal
    *  where the dialog isn't wide enough for the dual-column layout. */
   stacked?: boolean;
+  /** When true, blur the Similar Players card with its own pro upsell overlay.
+   *  Defense vs Position stays free. Used by the WNBA quick-view modal where
+   *  Defense vs Position is the free-tier carrot and Similar Players is the
+   *  pro-tier reward. */
+  gateSimilarPlayers?: boolean;
 }) {
   const [wnbaSeason, setWnbaSeason] = useState<"2025" | "2026">("2025");
   const [gameLimit, setGameLimit] = useState(20);
@@ -3694,30 +3701,52 @@ export function MatchupPanel({
             tone: paceTier,
           }}
         />
-        <div className="min-w-0">
-          <SimilarPositionPanel
-            players={positionQuery.players}
-            isLoading={positionQuery.isLoading}
-            isFetching={positionQuery.isFetching}
-            position={normalizedPosition}
-            opponentTeamAbbr={profile.opponentTeamAbbr}
-            market={profile.market}
-            line={line}
-            sport={sport}
-            gameLimit={gameLimit}
-            minMinutes={minMinutes}
-            onGameLimitChange={setGameLimit}
-            onMinMinutesChange={setMinMinutes}
-            avgStat={positionQuery.avgStat}
-            overHitRate={positionQuery.overHitRate}
-            totalGames={positionQuery.totalGames}
-            playerCount={positionQuery.playerCount}
-            hasExpansionEmptyState={
-              sport === "wnba" &&
-              wnbaSeason === "2025" &&
-              positionQuery.players.length === 0
-            }
-          />
+        <div className="relative min-w-0">
+          {gateSimilarPlayers && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/85 p-6 text-center backdrop-blur-md dark:bg-neutral-950/85">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+                <Lock className="h-6 w-6 text-white" />
+              </div>
+              <h3 className="mt-3 text-base font-bold text-neutral-900 dark:text-white">
+                Recent Players vs {profile.opponentTeamAbbr ?? "Opponent"}
+              </h3>
+              <p className="mt-1 max-w-xs text-xs text-neutral-600 dark:text-neutral-400">
+                See every player at this position who hit the same prop against this defense.
+              </p>
+              <a
+                href="/pricing"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-bold text-white shadow-md transition-shadow hover:shadow-lg"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Upgrade for full matchup
+              </a>
+            </div>
+          )}
+          <div className={cn(gateSimilarPlayers && "pointer-events-none select-none blur-[2px]")}>
+            <SimilarPositionPanel
+              players={positionQuery.players}
+              isLoading={positionQuery.isLoading}
+              isFetching={positionQuery.isFetching}
+              position={normalizedPosition}
+              opponentTeamAbbr={profile.opponentTeamAbbr}
+              market={profile.market}
+              line={line}
+              sport={sport}
+              gameLimit={gameLimit}
+              minMinutes={minMinutes}
+              onGameLimitChange={setGameLimit}
+              onMinMinutesChange={setMinMinutes}
+              avgStat={positionQuery.avgStat}
+              overHitRate={positionQuery.overHitRate}
+              totalGames={positionQuery.totalGames}
+              playerCount={positionQuery.playerCount}
+              hasExpansionEmptyState={
+                sport === "wnba" &&
+                wnbaSeason === "2025" &&
+                positionQuery.players.length === 0
+              }
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -5176,7 +5176,10 @@ export function PlayerQuickViewModal({
 
               {activeTab === "matchup" && !isMlb && (
                 <div className="relative">
-                  {!hasAdvancedAccess && (
+                  {/* WNBA exception: Defense vs Position is the free-tier
+                      carrot, only Similar Players gets the pro lock. NBA keeps
+                      the full-tab gate. */}
+                  {!isWnba && !hasAdvancedAccess && (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md rounded-xl">
                       <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
                         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
@@ -5201,13 +5204,14 @@ export function PlayerQuickViewModal({
                     </div>
                   )}
 
-                  <div className={cn(!hasAdvancedAccess && "pointer-events-none select-none")}>
+                  <div className={cn(!isWnba && !hasAdvancedAccess && "pointer-events-none select-none")}>
                     {profile && (
                       <MatchupPanelV2
                         profile={profile as any}
                         sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
                         activeLine={activeLine}
                         stacked
+                        gateSimilarPlayers={isWnba && !hasAdvancedAccess}
                       />
                     )}
                   </div>
@@ -5308,19 +5312,21 @@ export function PlayerQuickViewModal({
                     </div>
                   )}
                   
-                  <div className={cn(!hasAdvancedAccess && "pointer-events-none select-none")}>
-                    <PlayerCorrelations
-                      playerId={profilePlayerId ?? null}
-                      market={currentMarket}
-                      line={activeLine}
-                      gameId={profile?.gameId}
-                      gameDate={profile?.gameDate}
-                      homeTeamName={profile?.homeTeamName}
-                      awayTeamName={profile?.awayTeamName}
-                      startTime={profile?.startTime}
-                      anchorTeam={profile?.teamAbbr || profile?.teamName}
-                      playerName={profilePlayerName}
-                    />
+                  <div className={cn("overflow-x-auto", !hasAdvancedAccess && "pointer-events-none select-none")}>
+                    <div className="min-w-[640px] sm:min-w-0">
+                      <PlayerCorrelations
+                        playerId={profilePlayerId ?? null}
+                        market={currentMarket}
+                        line={activeLine}
+                        gameId={profile?.gameId}
+                        gameDate={profile?.gameDate}
+                        homeTeamName={profile?.homeTeamName}
+                        awayTeamName={profile?.awayTeamName}
+                        startTime={profile?.startTime}
+                        anchorTeam={profile?.teamAbbr || profile?.teamName}
+                        playerName={profilePlayerName}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
