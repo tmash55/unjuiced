@@ -3581,16 +3581,53 @@ export function PlayerQuickViewModal({
 
   // Sample counts mirror what dynamicHitRates filtered against — the v2 chart's
   // segments need both pct + sample for the X/Y readout in each header chip.
-  // SZN scopes to the current season so the % matches the bars the chart
-  // renders when the user picks the SZN range button.
+  // The chips read the active SPLIT (Home/Away/Win/Loss/Reg/Playoffs/...) too,
+  // so flipping a split also recomputes L5/L10/L20/SZN/H2H against the filtered
+  // sample. SZN locks onto the current real-world season so the chip stays in
+  // sync with the chart's SZN button.
   const chartHitRateSegments: ChartHitRateSegment[] = useMemo(() => {
-    const h2hSample = profile?.opponentTeamAbbr
-      ? chartBaseGames.filter((g) => g.opponentAbbr === profile.opponentTeamAbbr).length
-      : 0;
+    // Inline split predicates — keep them local so we don't have to export
+    // the chart's internal helpers. Match the chart's own split rules.
+    const isPlayoffSeason = (st: string | null | undefined) => {
+      if (!st) return false;
+      const l = st.toLowerCase();
+      return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(l);
+    };
+    const isRegularSeason = (st: string | null | undefined) => {
+      if (!st) return false;
+      const l = st.toLowerCase();
+      if (isPlayoffSeason(st)) return false;
+      if (l === "preseason") return false;
+      return true;
+    };
+    const matchesSplit = (g: typeof chartBaseGames[number]) => {
+      switch (chartSplit) {
+        case "all": return true;
+        case "home": return g.homeAway === "H";
+        case "away": return g.homeAway === "A";
+        case "win": return g.result === "W";
+        case "loss": return g.result === "L";
+        case "winBy10": return g.result === "W" && (g.margin ?? 0) >= 10;
+        case "lossBy10": return g.result === "L" && (g.margin ?? 0) <= -10;
+        case "reg": return isRegularSeason(g.seasonType);
+        case "playoffs": return isPlayoffSeason(g.seasonType);
+        default: return true;
+      }
+    };
+    const splitGames = chartBaseGames.filter(matchesSplit);
 
-    // SZN locks onto the *current* real-world season so the chip stays in
-    // sync with the chart's SZN button. WNBA uses today's calendar year;
-    // NBA uses today's season (Aug-Dec → year, Jan-Jul → year-1).
+    const calc = (games: typeof chartBaseGames) => {
+      if (games.length === 0) return null;
+      const stats = games.map((g) => getMarketStat(g, currentMarket));
+      const hits = stats.filter((s) => s >= activeLine).length;
+      return Math.round((hits / stats.length) * 100);
+    };
+
+    const h2hSplitGames = profile?.opponentTeamAbbr
+      ? splitGames.filter((g) => g.opponentAbbr === profile.opponentTeamAbbr)
+      : [];
+
+    // SZN: latest real-world season ∩ split.
     const today = new Date();
     const todayYear = today.getUTCFullYear();
     const todayMonth = today.getUTCMonth() + 1;
@@ -3599,27 +3636,22 @@ export function PlayerQuickViewModal({
       : todayMonth >= 8
         ? todayYear
         : todayYear - 1;
-    const seasonGames = chartBaseGames.filter((g) => {
+    const seasonGames = splitGames.filter((g) => {
       const y = parseInt((g.date ?? "").slice(0, 4), 10);
       const m = parseInt((g.date ?? "").slice(5, 7), 10);
       if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
       if (isWnba) return y === seasonStartYear;
       return (m >= 8 ? y : y - 1) === seasonStartYear;
     });
-    const seasonStats = seasonGames.map((g) => getMarketStat(g, currentMarket));
-    const seasonHits = seasonStats.filter((s) => s >= activeLine).length;
-    const seasonPct = seasonStats.length > 0
-      ? Math.round((seasonHits / seasonStats.length) * 100)
-      : null;
 
     return [
-      { range: "l5", label: "L5", pct: dynamicHitRates.l5, sample: Math.min(5, chartBaseGames.length) },
-      { range: "l10", label: "L10", pct: dynamicHitRates.l10, sample: Math.min(10, chartBaseGames.length) },
-      { range: "l20", label: "L20", pct: dynamicHitRates.l20, sample: Math.min(20, chartBaseGames.length) },
-      { range: "szn", label: "SZN", pct: seasonPct, sample: seasonGames.length },
-      { range: "h2h", label: "H2H", pct: dynamicHitRates.h2h, sample: h2hSample },
+      { range: "l5", label: "L5", pct: calc(splitGames.slice(0, 5)), sample: Math.min(5, splitGames.length) },
+      { range: "l10", label: "L10", pct: calc(splitGames.slice(0, 10)), sample: Math.min(10, splitGames.length) },
+      { range: "l20", label: "L20", pct: calc(splitGames.slice(0, 20)), sample: Math.min(20, splitGames.length) },
+      { range: "szn", label: "SZN", pct: calc(seasonGames), sample: seasonGames.length },
+      { range: "h2h", label: "H2H", pct: calc(h2hSplitGames), sample: h2hSplitGames.length },
     ];
-  }, [dynamicHitRates, chartBaseGames, profile?.opponentTeamAbbr, isWnba, currentMarket, activeLine]);
+  }, [chartBaseGames, chartSplit, profile?.opponentTeamAbbr, isWnba, currentMarket, activeLine]);
 
   // Chart stats
   const chartStats = useMemo(() => {
