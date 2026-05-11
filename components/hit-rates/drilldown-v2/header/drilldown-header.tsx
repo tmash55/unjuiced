@@ -191,29 +191,28 @@ export function DrilldownHeader({
           />
         </div>
       ) : (
-        <div className="hidden min-w-[330px] flex-col gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} compact={compact} />
-              <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
-                @
-              </span>
-              <TeamGlyph
-                abbr={homeAbbr ?? opponent}
-                sport={sport}
-                spread={homeSpread}
-              />
-            </div>
-            <span className="shrink-0 rounded-md bg-white/70 px-2 py-1 text-[11px] font-black tabular-nums text-neutral-700 ring-1 ring-neutral-200/70 dark:bg-neutral-900/70 dark:text-neutral-200 dark:ring-neutral-800/70">
-              {gameTime}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 pl-0.5">
-            <LineBadge label="Spread" value={formatGameSpread(playerSpread)} />
-            {profile.total !== null && (
-              <LineBadge label="Total" value={formatTotal(profile.total)} />
-            )}
-          </div>
+        // Full drilldown: same 2-row layout as the modal — favorite carries
+        // the spread badge, dog shows the game total in the same slot — but
+        // wrapped in the bordered glass card chrome that defines the desktop
+        // matchup tile. Avoids spread duplication and reads like a sportsbook
+        // ticker.
+        <div className="hidden min-w-[260px] flex-col gap-1 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
+          <MatchupRow
+            abbr={awayAbbr}
+            sport={sport}
+            spread={awaySpread}
+            total={profile.total}
+            isFavorite={awaySpread !== null && awaySpread < 0}
+            tipOff={null}
+          />
+          <MatchupRow
+            abbr={homeAbbr ?? opponent}
+            sport={sport}
+            spread={homeSpread}
+            total={profile.total}
+            isFavorite={homeSpread !== null && homeSpread < 0}
+            tipOff={gameTime}
+          />
         </div>
       )}
 
