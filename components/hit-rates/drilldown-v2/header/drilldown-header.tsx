@@ -167,33 +167,28 @@ export function DrilldownHeader({
           like a sportsbook ticker: instant team + price context, no mental
           inversion required. */}
       {compact ? (
-        // Compact: single-line ESPN-style ticker — team chips already carry
-        // each team's spread, so we drop the second SPREAD/TOTAL row entirely
-        // and inline only what's missing (tip-off + total). Renders on
-        // mobile too (no md: hidden) so users still see the matchup context.
-        // O/U hides below sm to keep the row compact on phones.
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-shrink-0">
-          <TeamGlyph abbr={awayAbbr} sport={sport} spread={awaySpread} compact={compact} />
-          <span className="text-[10px] font-bold tracking-[0.18em] text-neutral-300 uppercase dark:text-neutral-600">
-            @
-          </span>
-          <TeamGlyph
+        // Compact: 2-row matchup card. Away team on top, home on bottom.
+        // The favorite (negative spread) carries the spread badge; the dog
+        // shows the game total instead. That avoids duplicating the spread
+        // (one team's +X is the other's -X) and surfaces the two unique
+        // numbers — spread + total — without an extra info row.
+        <div className="flex min-w-0 flex-col gap-0.5 lg:flex-shrink-0">
+          <MatchupRow
+            abbr={awayAbbr}
+            sport={sport}
+            spread={awaySpread}
+            total={profile.total}
+            isFavorite={awaySpread !== null && awaySpread < 0}
+            tipOff={null}
+          />
+          <MatchupRow
             abbr={homeAbbr ?? opponent}
             sport={sport}
             spread={homeSpread}
-            compact
+            total={profile.total}
+            isFavorite={homeSpread !== null && homeSpread < 0}
+            tipOff={gameTime}
           />
-          <span className="ml-0.5 text-[10px] font-bold tabular-nums text-neutral-500 sm:ml-1 dark:text-neutral-400">
-            {gameTime}
-          </span>
-          {profile.total !== null && (
-            <>
-              <span className="hidden text-neutral-300 sm:inline dark:text-neutral-700">·</span>
-              <span className="hidden text-[10px] font-bold tabular-nums text-neutral-500 sm:inline dark:text-neutral-400">
-                O/U {formatTotal(profile.total)}
-              </span>
-            </>
-          )}
         </div>
       ) : (
         <div className="hidden min-w-[330px] flex-col gap-1.5 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
@@ -358,6 +353,54 @@ function OddsRow({
 // TeamGlyph — logo + abbreviation + inline spread pill. Favored team gets the
 // filled high-contrast pill; underdog gets a subdued one. Both pills always
 // render so the eye doesn't have to invert the spread.
+// Per-team row used by the compact 2-row matchup ticker. Favorite gets the
+// spread; dog gets the game total in the same slot so the user reads the
+// two unique price points (spread + total) without redundancy.
+function MatchupRow({
+  abbr,
+  sport,
+  spread,
+  total,
+  isFavorite,
+  tipOff,
+}: {
+  abbr: string | null | undefined;
+  sport: "nba" | "wnba";
+  spread: number | null;
+  total: number | null;
+  isFavorite: boolean;
+  tipOff: string | null;
+}) {
+  if (!abbr) return null;
+  return (
+    <div className="flex items-center gap-1.5">
+      <img
+        src={getTeamLogoUrl(abbr, sport)}
+        alt={abbr}
+        className="h-3.5 w-3.5 shrink-0 object-contain"
+      />
+      <span className="text-[13px] font-black tracking-tight text-neutral-900 tabular-nums dark:text-white">
+        {abbr}
+      </span>
+      {isFavorite && spread !== null ? (
+        <span className="ml-0.5 inline-flex items-center rounded bg-neutral-900 px-1 py-px text-[9px] font-black tracking-tight tabular-nums text-white dark:bg-white dark:text-neutral-950">
+          {formatSpread(spread)}
+        </span>
+      ) : total !== null ? (
+        <span className="ml-0.5 inline-flex items-baseline gap-0.5 rounded bg-neutral-100 px-1 py-px text-[9px] font-black tabular-nums text-neutral-500 dark:bg-neutral-800/70 dark:text-neutral-400">
+          <span className="opacity-60">O/U</span>
+          <span>{formatTotal(total)}</span>
+        </span>
+      ) : null}
+      {tipOff && (
+        <span className="ml-1 text-[10px] font-bold tabular-nums text-neutral-500 dark:text-neutral-400">
+          {tipOff}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TeamGlyph({
   abbr,
   sport,
