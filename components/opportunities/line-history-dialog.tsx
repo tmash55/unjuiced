@@ -90,12 +90,14 @@ interface LineHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   context: LineHistoryContext | null;
+  sideContexts?: Partial<Record<"over" | "under", LineHistoryContext | null>>;
 }
 
-export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDialogProps) {
+export function LineHistoryDialog({ open, onOpenChange, context, sideContexts }: LineHistoryDialogProps) {
   const isMobile = useIsMobile();
   const chartRef = useRef<HTMLDivElement>(null);
   const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
+  const [activeSide, setActiveSide] = useState<"over" | "under">(context?.side === "under" ? "under" : "over");
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
   const [bookDataById, setBookDataById] = useState<Record<string, LineHistoryBookData>>({});
   const [loadingBookIds, setLoadingBookIds] = useState<Set<string>>(new Set());
@@ -106,6 +108,17 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   const canViewLineHistory = !isLoadingEntitlements && !!entitlements?.authenticated && hasLineHistoryAccess(entitlements?.plan);
   const accessKnown = !isLoadingEntitlements;
   const showLockedState = open && accessKnown && !canViewLineHistory;
+  const availableSideContexts = useMemo(
+    () => ({
+      over: sideContexts?.over || null,
+      under: sideContexts?.under || null,
+    }),
+    [sideContexts]
+  );
+  const hasSideSwitcher = !!availableSideContexts.over && !!availableSideContexts.under;
+  const activeContext = hasSideSwitcher
+    ? availableSideContexts[activeSide] || availableSideContexts.over || availableSideContexts.under || context
+    : context;
   const lockedStateCopy = entitlements?.authenticated
     ? {
         title: "Line movement is a Sharp tool",
@@ -128,25 +141,25 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   );
 
   const allBookIds = useMemo(() => {
-    if (!context) return [];
+    if (!activeContext) return [];
     const seed = [
-      ...(context.allBookIds || []),
-      ...(context.bestBookId ? [context.bestBookId] : []),
-      ...(context.compareBookIds || []),
+      ...(activeContext.allBookIds || []),
+      ...(activeContext.bestBookId ? [activeContext.bestBookId] : []),
+      ...(activeContext.compareBookIds || []),
     ];
     return Array.from(new Set(seed.filter(Boolean)));
-  }, [context]);
+  }, [activeContext]);
 
   const priorityBookIds = useMemo(() => {
-    if (!context) return [];
+    if (!activeContext) return [];
     return Array.from(
       new Set(
-        [context.bestBookId, ...(context.compareBookIds || [])]
+        [activeContext.bestBookId, ...(activeContext.compareBookIds || [])]
           .filter(Boolean)
           .filter((bookId): bookId is string => !!bookId)
       )
     );
-  }, [context]);
+  }, [activeContext]);
 
   const addableBooks = useMemo(
     () => allBookIds.filter((bookId) => !selectedBookIds.includes(bookId)),
@@ -182,7 +195,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   /* ── EV overlay hook ──────────────────────────────────────────────── */
 
   const { evTimeline, showEV, isLoadingOpposite, canShowEV, toggleEV } = useEVTimeline({
-    context,
+    context: activeContext,
     bookDataById,
   });
 
@@ -190,7 +203,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
 
   const fetchBooks = useCallback(
     async (books: string[], options?: { addToSelected?: boolean; silent?: boolean }) => {
-      if (!context || books.length === 0 || !canViewLineHistory) return;
+      if (!activeContext || books.length === 0 || !canViewLineHistory) return;
 
       const targetBooks = Array.from(new Set(books.filter(Boolean)));
       if (targetBooks.length === 0) return;
@@ -203,7 +216,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
       if (!options?.silent) setErrorMessage(null);
 
       try {
-        const payload: LineHistoryApiRequest = { context, books: targetBooks };
+        const payload: LineHistoryApiRequest = { context: activeContext, books: targetBooks };
         const response = await fetch("/api/v2/odds/line-history", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -246,13 +259,13 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
         });
       }
     },
-    [canViewLineHistory, context]
+    [canViewLineHistory, activeContext]
   );
 
   /* ── Smarter initial selection ────────────────────────────────────── */
 
   useEffect(() => {
-    if (!open || !context) return;
+    if (!open || !activeContext) return;
 
     setBookDataById({});
     setErrorMessage(null);
@@ -274,8 +287,8 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
 
     // Determine which books to show on chart initially (bestBook + first sharp)
     const initialVisible = new Set<string>();
-    if (context.bestBookId) initialVisible.add(context.bestBookId);
-    const firstSharp = (context.compareBookIds || []).find((id) => SHARP_BOOK_IDS.includes(id));
+    if (activeContext.bestBookId) initialVisible.add(activeContext.bestBookId);
+    const firstSharp = (activeContext.compareBookIds || []).find((id) => SHARP_BOOK_IDS.includes(id));
     if (firstSharp) initialVisible.add(firstSharp);
     // If no specific best/sharp, show all priority books
     if (initialVisible.size === 0) {
@@ -293,7 +306,12 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
       }, 250);
       return () => window.clearTimeout(timer);
     }
-  }, [open, context, canViewLineHistory, priorityBookIds, allBookIds, fetchBooks]);
+  }, [open, activeContext, canViewLineHistory, priorityBookIds, allBookIds, fetchBooks]);
+
+  useEffect(() => {
+    if (!open || !context?.side) return;
+    setActiveSide(context.side === "under" ? "under" : "over");
+  }, [open, context?.side]);
 
   /* ── Legend toggle handlers ───────────────────────────────────────── */
 
@@ -317,29 +335,29 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   /* ── Title ────────────────────────────────────────────────────────── */
 
   const selectionTitle = useMemo(() => {
-    if (!context) return "Line History";
+    if (!activeContext) return "Line History";
     const selection =
-      context.selectionName ||
-      context.playerName ||
-      context.team ||
-      `${context.awayTeam || ""} @ ${context.homeTeam || ""}`.trim();
-    const rawMarket = context.marketDisplay || context.market;
+      activeContext.selectionName ||
+      activeContext.playerName ||
+      activeContext.team ||
+      `${activeContext.awayTeam || ""} @ ${activeContext.homeTeam || ""}`.trim();
+    const rawMarket = activeContext.marketDisplay || activeContext.market;
     const market = rawMarket && rawMarket.includes("_") ? formatMarketLabel(rawMarket) : rawMarket;
     return selection ? `${selection} · ${market}` : market;
-  }, [context]);
+  }, [activeContext]);
 
-  const bestBookData = context?.bestBookId ? bookDataById[context.bestBookId] : undefined;
-  const bestBookName = context?.bestBookId ? getSportsbookById(context.bestBookId)?.name || context.bestBookId : null;
+  const bestBookData = activeContext?.bestBookId ? bookDataById[activeContext.bestBookId] : undefined;
+  const bestBookName = activeContext?.bestBookId ? getSportsbookById(activeContext.bestBookId)?.name || activeContext.bestBookId : null;
   const visibleCount = visibleBookIds.length;
   const totalCount = selectedBookIds.length;
   const sourceLabel =
-    context?.source === "positive_ev"
+    activeContext?.source === "positive_ev"
       ? "EV Tool"
-      : context?.source === "edge"
+      : activeContext?.source === "edge"
         ? "Edge Finder"
-      : context?.source === "betslip"
+      : activeContext?.source === "betslip"
         ? "My Betslip"
-        : context?.source === "prop_center"
+        : activeContext?.source === "prop_center"
           ? "Prop Center"
           : null;
   const sectionClass = "rounded-[20px] border border-neutral-200/80 dark:border-neutral-800/80 bg-white/85 dark:bg-neutral-950/65 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.55)] backdrop-blur-sm";
@@ -375,6 +393,30 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                 <DialogDescription className="text-[11px] sm:text-sm text-neutral-500 truncate max-w-[760px]">
                   {showLockedState ? "Sharp and Elite plan feature" : selectionTitle || "Selection history"}
                 </DialogDescription>
+                {hasSideSwitcher && (
+                  <div className="mt-2 inline-flex max-w-full rounded-xl border border-neutral-200 bg-neutral-100/80 p-1 dark:border-neutral-800 dark:bg-white/[0.04]">
+                    {(["over", "under"] as const).map((side) => {
+                      const sideContext = availableSideContexts[side];
+                      const label = sideContext?.selectionName || sideContext?.team || (side === "over" ? "Away / Over" : "Home / Under");
+                      const active = activeSide === side;
+                      return (
+                        <button
+                          key={side}
+                          type="button"
+                          onClick={() => setActiveSide(side)}
+                          className={cn(
+                            "max-w-[180px] truncate rounded-lg px-3 py-1.5 text-xs font-black transition-colors",
+                            active
+                              ? "bg-white text-neutral-950 shadow-sm dark:bg-sky-500/20 dark:text-sky-100"
+                              : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:justify-end">
                 {!showLockedState && canShowEV && (
@@ -518,7 +560,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                 <CLVTracker
                   bestBookData={bestBookData}
                   bookDataById={bookDataById}
-                  compareBookIds={context?.compareBookIds || []}
+                  compareBookIds={activeContext?.compareBookIds || []}
                   isMobile={isMobile}
                 />
               </section>

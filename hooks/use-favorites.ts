@@ -228,6 +228,71 @@ export function useFavorites() {
     staleTime: 15 * 1000, // 15 seconds - faster detection of expired favorites
     refetchInterval: 60 * 1000, // Poll every 60 seconds to detect expirations
   });
+
+  const enrichSgpTokensInBackground = useCallback(
+    async (favoriteId: string | undefined, params: AddFavoriteParams) => {
+      if (!favoriteId || !user?.id || !params.books_snapshot) return;
+      if (params.source !== "positive_ev" && params.source !== "positive_ev_mobile") return;
+
+      const booksMissingSgp = Object.entries(params.books_snapshot)
+        .filter(([, book]) => !book.sgp)
+        .map(([bookId]) => bookId);
+      if (booksMissingSgp.length === 0) return;
+
+      try {
+        const response = await fetch("/api/v2/favorites/enrich-sgp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sport: params.sport,
+            event_id: params.event_id,
+            odds_key: params.odds_key,
+            player_id: params.player_id,
+            market: params.market,
+            player_name: params.player_name || "",
+            line: params.line ?? null,
+            side: params.side,
+            books: booksMissingSgp,
+          }),
+        });
+
+        if (!response.ok) return;
+
+        const data = (await response.json()) as { sgp_tokens?: Record<string, string> };
+        if (!data.sgp_tokens || Object.keys(data.sgp_tokens).length === 0) return;
+
+        const enrichedSnapshot = { ...params.books_snapshot };
+        for (const [bookId, token] of Object.entries(data.sgp_tokens)) {
+          if (enrichedSnapshot[bookId]) {
+            enrichedSnapshot[bookId] = {
+              ...enrichedSnapshot[bookId],
+              sgp: token,
+            };
+          }
+        }
+
+        const { error: updateError } = await supabase
+          .from("user_favorites")
+          .update({ books_snapshot: enrichedSnapshot })
+          .eq("id", favoriteId)
+          .eq("user_id", user.id);
+
+        if (updateError) return;
+
+        queryClient.setQueryData<Favorite[]>(
+          ["favorites", user.id],
+          (old) => old?.map((favorite) =>
+            favorite.id === favoriteId
+              ? { ...favorite, books_snapshot: enrichedSnapshot }
+              : favorite
+          ) ?? old
+        );
+      } catch {
+        // SGP enrichment is best-effort; saving the favorite should stay fast.
+      }
+    },
+    [queryClient, supabase, user?.id]
+  );
   
   // ─────────────────────────────────────────────────────────────────────────
   // EFFECT: Track favorite IDs for cache management
@@ -523,6 +588,11 @@ export function useFavorites() {
       }
     },
     // Always refetch after error or success to sync with server
+    onSuccess: (result) => {
+      if (result.action === "added") {
+        void enrichSgpTokensInBackground(result.favorite.id, result.params);
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
     },

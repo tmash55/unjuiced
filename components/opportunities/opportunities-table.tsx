@@ -47,6 +47,7 @@ import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
 import { useFavorites } from "@/hooks/use-favorites";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex.replace("#", "");
@@ -84,6 +85,23 @@ const EDGE_LOADING_MESSAGES = [
   "Comparing to sharp books...",
   "Analyzing market odds...",
 ];
+
+const COMPACT_DESKTOP_HIDDEN_COLUMNS = new Set(["league", "time", "reference", "filter"]);
+
+const EDGE_TABLE_COLUMN_WIDTHS: Record<string, number> = {
+  edge: 100,
+  league: 112,
+  time: 100,
+  selection: 200,
+  line: 80,
+  market: 140,
+  "best-book": 150,
+  reference: 100,
+  fair: 100,
+  stake: 85,
+  filter: 130,
+  action: 212,
+};
 
 /**
  * Format selection display name
@@ -587,6 +605,13 @@ export function OpportunitiesTable({
       return true;
     });
   }, [localColumnOrder, comparisonMode, showStakeColumn, isCustomMode]);
+
+  const isCompactDesktopTable = useMediaQuery("(max-width: 1535px)");
+  const visibleColumnOrder = useMemo(() => {
+    if (!isCompactDesktopTable) return filteredColumnOrder;
+
+    return filteredColumnOrder.filter((col) => !COMPACT_DESKTOP_HIDDEN_COLUMNS.has(col));
+  }, [filteredColumnOrder, isCompactDesktopTable]);
   
   // Setup drag sensors
   const sensors = useSensors(
@@ -616,21 +641,10 @@ export function OpportunitiesTable({
     }
   };
   
-  // Column width configuration
-  const columnWidths: Record<string, number> = {
-    'edge': 100,
-    'league': 112,
-    'time': 100,
-    'selection': 200,
-    'line': 80,
-    'market': 140,
-    'best-book': 150,
-    'reference': 100,
-    'fair': 100,
-    'stake': 85,
-    'filter': 130,
-    'action': 90,
-  };
+  const tableMinWidth = useMemo(() => {
+    const totalWidth = visibleColumnOrder.reduce((total, colId) => total + (EDGE_TABLE_COLUMN_WIDTHS[colId] || 100), 0);
+    return Math.max(totalWidth, 760);
+  }, [visibleColumnOrder]);
   
   // Helper function to render column header
   const renderColumnHeader = (colId: string) => {
@@ -1395,7 +1409,7 @@ export function OpportunitiesTable({
       case 'action':
         return (
           <td key="action" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
-            <div className="relative flex items-center justify-center gap-1 lg:gap-2">
+            <div className="relative flex min-w-[176px] items-center justify-center gap-1 lg:gap-2">
               {isPro ? (
                 <>
                 {bestBooksWithPrice.length > 0 && (
@@ -2021,7 +2035,7 @@ export function OpportunitiesTable({
   // Skeleton row component for reuse
   const SkeletonRow = ({ index }: { index: number }) => (
     <tr className={index % 2 === 0 ? "table-row-even" : "table-row-odd"}>
-      {filteredColumnOrder.map((colId) => renderSkeletonCell(colId))}
+      {visibleColumnOrder.map((colId) => renderSkeletonCell(colId))}
     </tr>
   );
 
@@ -2038,23 +2052,23 @@ export function OpportunitiesTable({
     >
       <div
         ref={tableRef}
-        className="relative overflow-y-auto overflow-x-hidden max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
+        className="relative overflow-auto overscroll-x-contain max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600"
       >
         {/* Subtle refresh indicator - shows when fetching with existing data */}
         {isFetching && sortedOpportunities.length > 0 && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-brand to-transparent animate-pulse z-10" />
         )}
-        <table className="min-w-full text-sm table-fixed">
+        <table className="w-full text-sm table-fixed" style={{ minWidth: tableMinWidth }}>
         {/* Dynamic column widths based on column order */}
         <colgroup>
-          {filteredColumnOrder.map(colId => (
-            <col key={colId} style={{ width: columnWidths[colId] || 100 }} />
+          {visibleColumnOrder.map(colId => (
+            <col key={colId} style={{ width: EDGE_TABLE_COLUMN_WIDTHS[colId] || 100 }} />
           ))}
         </colgroup>
         <thead className="sticky top-0 z-[5]">
-          <SortableContext items={filteredColumnOrder} strategy={horizontalListSortingStrategy}>
+          <SortableContext items={visibleColumnOrder} strategy={horizontalListSortingStrategy}>
           <tr className="bg-neutral-50 dark:bg-neutral-900">
-            {filteredColumnOrder.map(colId => renderColumnHeader(colId))}
+            {visibleColumnOrder.map(colId => renderColumnHeader(colId))}
           </tr>
           </SortableContext>
         </thead>
@@ -2062,7 +2076,7 @@ export function OpportunitiesTable({
           {/* Loading State - Clean and Premium (matches Positive EV) */}
           {showLoadingState && (
             <tr>
-              <td colSpan={filteredColumnOrder.length} className="p-0">
+              <td colSpan={visibleColumnOrder.length} className="p-0">
                 <motion.div 
                   className="flex flex-col items-center justify-center py-24"
                   initial={{ opacity: 0 }}
@@ -2136,7 +2150,7 @@ export function OpportunitiesTable({
           {/* Empty State */}
           {showEmptyState && (
             <tr>
-              <td colSpan={filteredColumnOrder.length}>
+              <td colSpan={visibleColumnOrder.length}>
                 <div className="flex flex-col items-center justify-center py-20 px-4">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
                     <TrendingUp className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
@@ -2232,7 +2246,7 @@ export function OpportunitiesTable({
                     hasChange && change?.edge === "down" && "ring-1 ring-red-400/40 ring-inset"
                   )}
                 >
-                  {filteredColumnOrder.map(colId => 
+                  {visibleColumnOrder.map(colId =>
                     renderColumnCell(colId, opp, {
                       isExpanded,
                       showLogos,
@@ -2330,7 +2344,7 @@ export function OpportunitiesTable({
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.25, ease: "easeOut" }}
                       >
-                        <td colSpan={filteredColumnOrder.length} className="p-0 max-w-0 overflow-hidden">
+                        <td colSpan={visibleColumnOrder.length} className="p-0 max-w-0 overflow-hidden">
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}

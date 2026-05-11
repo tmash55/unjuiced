@@ -54,6 +54,7 @@ import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { useStateLink } from "@/hooks/use-state-link";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
+import { getPositiveEVFavoriteType } from "@/lib/ev/favorites";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -65,7 +66,6 @@ import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 
 // Favorites
 import { useFavorites } from "@/hooks/use-favorites";
-import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-books";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -1116,6 +1116,7 @@ export default function PositiveEVPage() {
     
     try {
       const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
+      const favoriteType = getPositiveEVFavoriteType(opp);
       
       // Build books snapshot from allBooks
       const booksSnapshot: Record<string, { price: number; u: string | null; m: string | null; sgp: string | null }> = {};
@@ -1128,18 +1129,8 @@ export default function PositiveEVPage() {
         };
       });
 
-      const hydratedBooksSnapshot = await hydrateBooksSnapshotWithLiveSgp({
-        sport: opp.sport,
-        eventId: opp.eventId,
-        market: opp.market,
-        playerName: opp.playerName,
-        line: opp.line,
-        side: opp.side,
-        booksSnapshot,
-      });
-
       await toggleFavorite({
-        type: opp.playerId ? "player" : "game",
+        type: favoriteType,
         sport: opp.sport,
         event_id: opp.eventId,
         game_date: opp.startTime ? new Date(opp.startTime).toISOString().split("T")[0] : undefined,
@@ -1155,7 +1146,7 @@ export default function PositiveEVPage() {
         side: opp.side,
         odds_key: oddsKey,
         odds_selection_id: opp.id,
-        books_snapshot: hydratedBooksSnapshot,
+        books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
         best_price_at_save: opp.book.price,
         best_book_at_save: opp.book.bookId,
         source: "positive_ev",
@@ -1932,7 +1923,7 @@ export default function PositiveEVPage() {
               // Is this favorited?
               const isFav = isFavorited({
                 event_id: opp.eventId,
-                type: opp.playerId ? "player" : "game",
+                type: getPositiveEVFavoriteType(opp),
                 player_id: opp.playerId,
                 market: opp.market,
                 line: opp.line,

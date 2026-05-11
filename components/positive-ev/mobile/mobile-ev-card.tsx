@@ -14,10 +14,10 @@ import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 import { useFavorites } from "@/hooks/use-favorites";
-import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-books";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
 import { getPrimaryEVCalculation, impliedProbToAmerican } from "@/lib/ev/devig";
+import { getPositiveEVFavoriteType } from "@/lib/ev/favorites";
 import { useStateLink } from "@/hooks/use-state-link";
 
 const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
@@ -149,7 +149,7 @@ export function MobileEVCard({
   // Check if this opportunity is favorited
   const isFav = isFavorited({
     event_id: opp.eventId,
-    type: opp.playerName ? 'player' : 'game',
+    type: getPositiveEVFavoriteType(opp),
     player_id: opp.playerId || null,
     market: opp.market,
     line: opp.line ?? null,
@@ -173,22 +173,12 @@ export function MobileEVCard({
           sgp: book.sgp ?? null,
         };
       }
-
-      const hydratedBooksSnapshot = await hydrateBooksSnapshotWithLiveSgp({
-        sport: opp.sport,
-        eventId: opp.eventId,
-        market: opp.market,
-        playerName: opp.playerName,
-        line: opp.line ?? null,
-        side: opp.side,
-        booksSnapshot,
-      });
       
       // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
       const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
       
       await toggleFavorite({
-        type: opp.playerName ? 'player' : 'game',
+        type: getPositiveEVFavoriteType(opp),
         sport: opp.sport,
         event_id: opp.eventId,
         game_date: opp.gameDate || null,
@@ -204,7 +194,7 @@ export function MobileEVCard({
         side: opp.side,
         odds_key: oddsKey,
         odds_selection_id: opp.id,
-        books_snapshot: Object.keys(hydratedBooksSnapshot).length > 0 ? hydratedBooksSnapshot : null,
+        books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
         best_price_at_save: opp.book.price,
         best_book_at_save: opp.book.bookId || null,
         source: 'positive_ev_mobile',
