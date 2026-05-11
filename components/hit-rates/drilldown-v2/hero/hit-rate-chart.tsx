@@ -1219,11 +1219,13 @@ export function HitRateChart({
 
               {/* Overlay legend — only shown when at least one context
                   overlay is enabled. Tells the user what the lines mean
-                  without forcing them to remember the popover swatches. */}
+                  without forcing them to remember the popover swatches.
+                  Hidden on mobile because the legend wraps and steals
+                  vertical space the chart needs. */}
               {(chartSettings.showConfidenceBand ||
                 chartSettings.showDvpOverlay ||
                 chartSettings.showPaceOverlay) && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                <div className="mt-2 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-neutral-500 sm:flex dark:text-neutral-400">
                   {chartSettings.showConfidenceBand && (
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2.5 w-3.5 rounded-sm bg-brand/30 ring-1 ring-brand/50" />
