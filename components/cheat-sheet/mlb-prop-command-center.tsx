@@ -719,12 +719,60 @@ function LineupBadge({ status }: { status: string | null }) {
   }
 }
 
+type GameStatusAlert = {
+  label: string;
+  className: string;
+};
+
+function getGameStatusAlert(status: string | null | undefined): GameStatusAlert | null {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (normalized.includes("postponed")) {
+    return {
+      label: "Postponed",
+      className: "bg-red-500/15 text-red-400",
+    };
+  }
+
+  if (normalized.includes("cancelled") || normalized.includes("canceled")) {
+    return {
+      label: "Cancelled",
+      className: "bg-red-500/15 text-red-400",
+    };
+  }
+
+  if (normalized.includes("suspended")) {
+    return {
+      label: "Suspended",
+      className: "bg-red-500/15 text-red-400",
+    };
+  }
+
+  if (normalized.includes("delayed") || normalized.includes("delay")) {
+    return {
+      label: "Delayed",
+      className: "bg-amber-500/15 text-amber-400",
+    };
+  }
+
+  return null;
+}
+
+function GameStatusBadge({ alert }: { alert: GameStatusAlert }) {
+  return (
+    <span className={cn("text-[8px] font-bold px-1 py-0.5 rounded leading-none shrink-0", alert.className)}>
+      {alert.label}
+    </span>
+  );
+}
+
 function getGameState(status: string | null, live?: any): "upcoming" | "live" | "final" {
   if (!status) return live ? "live" : "upcoming";
   const s = status.toLowerCase();
   if (s.includes("final")) return "final";
   if (s.includes("progress") || s.includes("challenge") || s.includes("review") ||
-      s.includes("warmup") || s.includes("delayed") ||
+      s.includes("warmup") ||
       s.includes("top") || s.includes("bot") || s.includes("mid") || s.includes("end")) return "live";
   // Fallback: if live state data exists, game is live
   if (live?.current_inning != null) return "live";
@@ -2979,6 +3027,7 @@ export function MlbPropCommandCenter() {
                       const rank = rankMap.get(player.player_id) ?? idx + 1;
                       const game = gameMap.get(player.game_id);
                       const gameState = getGameState(game?.game_status ?? null, game?.live);
+                      const gameStatusAlert = getGameStatusAlert(game?.game_status);
                       const isStarted = gameState !== "upcoming";
                       const isOnHomeTeam = game ? player.team_abbr.toUpperCase() === game.home_team_tricode.toUpperCase() : false;
                       const opposingPitcher = game ? (isOnHomeTeam ? game.away_probable_pitcher : game.home_probable_pitcher) : null;
@@ -3048,7 +3097,11 @@ export function MlbPropCommandCenter() {
                                         </span>
                                       </Tooltip>
                                     )}
-                                    <LineupBadge status={player.lineup_status} />
+                                    {gameStatusAlert ? (
+                                      <GameStatusBadge alert={gameStatusAlert} />
+                                    ) : (
+                                      <LineupBadge status={player.lineup_status} />
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     {displayLine != null && (
