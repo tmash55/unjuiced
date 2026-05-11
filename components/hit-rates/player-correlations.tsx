@@ -727,15 +727,13 @@ const TeammateCard = ({
 
       {/* Hit Rate Section */}
       <div className="px-3 pb-2">
-        <div className="flex items-center gap-2">
-          <span className={cn("text-3xl font-black tabular-nums", getHitRateColor(hitPct))}>
+        <div className="flex items-baseline gap-2">
+          <span className={cn("text-2xl font-black tabular-nums sm:text-3xl", getHitRateColor(hitPct))}>
             {hitPct !== null ? `${hitPct}%` : "—"}
           </span>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-neutral-500 dark:text-neutral-400">
-              hit {effectiveLine}+ {marketLabel}
-            </span>
-          </div>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400 sm:text-sm">
+            hit {effectiveLine}+ {marketLabel}
+          </span>
         </div>
         <div className="text-[11px] text-neutral-400 mt-0.5">
           {timesHit}/{games} games when {anchorPlayerName?.split(' ').slice(-1)[0]} hits
@@ -757,10 +755,11 @@ const TeammateCard = ({
         )}
       </div>
 
-      {/* Stats Row - Stripe-like pill design */}
-      <div className="px-3 py-2.5 border-t border-neutral-100/80 dark:border-neutral-800/30 flex items-center gap-2 flex-wrap">
+      {/* Stats Row — horizontal scroll on mobile so AVG / SEASON / SAMPLE
+          stay one row even on the narrowest phone widths. */}
+      <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 border-t border-neutral-100/80 scrollbar-hide dark:border-neutral-800/30 sm:flex-wrap sm:py-2.5">
         {/* Avg When Hit Pill */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
+        <div className="inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
           <span className="text-[10px] font-medium text-neutral-400 uppercase">Avg</span>
           <span className="text-xs font-bold text-neutral-900 dark:text-white tabular-nums">
             {statData.avgWhenHit?.toFixed(1) ?? "—"}
@@ -776,7 +775,7 @@ const TeammateCard = ({
         </div>
 
         {/* Season Avg Pill */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
+        <div className="inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
           <span className="text-[10px] font-medium text-neutral-400 uppercase">Season</span>
           <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 tabular-nums">
             {statData.avgOverall?.toFixed(1) ?? "—"}
@@ -784,7 +783,7 @@ const TeammateCard = ({
         </div>
 
         {/* Sample Pill */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
+        <div className="inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60">
           <span className="text-[10px] font-medium text-neutral-400 uppercase">Sample</span>
           <span className={cn(
             "text-xs font-bold tabular-nums",

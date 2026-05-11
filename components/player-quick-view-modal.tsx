@@ -5312,21 +5312,19 @@ export function PlayerQuickViewModal({
                     </div>
                   )}
                   
-                  <div className={cn("overflow-x-auto", !hasAdvancedAccess && "pointer-events-none select-none")}>
-                    <div className="min-w-[640px] sm:min-w-0">
-                      <PlayerCorrelations
-                        playerId={profilePlayerId ?? null}
-                        market={currentMarket}
-                        line={activeLine}
-                        gameId={profile?.gameId}
-                        gameDate={profile?.gameDate}
-                        homeTeamName={profile?.homeTeamName}
-                        awayTeamName={profile?.awayTeamName}
-                        startTime={profile?.startTime}
-                        anchorTeam={profile?.teamAbbr || profile?.teamName}
-                        playerName={profilePlayerName}
-                      />
-                    </div>
+                  <div className={cn(!hasAdvancedAccess && "pointer-events-none select-none")}>
+                    <PlayerCorrelations
+                      playerId={profilePlayerId ?? null}
+                      market={currentMarket}
+                      line={activeLine}
+                      gameId={profile?.gameId}
+                      gameDate={profile?.gameDate}
+                      homeTeamName={profile?.homeTeamName}
+                      awayTeamName={profile?.awayTeamName}
+                      startTime={profile?.startTime}
+                      anchorTeam={profile?.teamAbbr || profile?.teamName}
+                      playerName={profilePlayerName}
+                    />
                   </div>
                 </div>
               )}

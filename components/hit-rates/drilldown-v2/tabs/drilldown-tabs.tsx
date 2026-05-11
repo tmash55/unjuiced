@@ -2015,18 +2015,18 @@ export function OddsPanel({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-4">
+      <div className="mt-3 flex flex-col gap-3 sm:mt-4 sm:gap-4">
         {/* Best Current — compact horizontal banner. Was a sidebar card, now
             a single-row strip so the table below gets the full width. */}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200/70 bg-gradient-to-br from-neutral-50 via-white/50 to-neutral-50/70 px-3 py-2.5 shadow-sm ring-1 ring-black/[0.02] dark:border-neutral-800/70 dark:from-neutral-950/50 dark:via-neutral-900/40 dark:to-neutral-950/60 dark:ring-white/[0.03]">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200/70 bg-gradient-to-br from-neutral-50 via-white/50 to-neutral-50/70 px-2.5 py-2 shadow-sm ring-1 ring-black/[0.02] sm:gap-3 sm:px-3 sm:py-2.5 dark:border-neutral-800/70 dark:from-neutral-950/50 dark:via-neutral-900/40 dark:to-neutral-950/60 dark:ring-white/[0.03]">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-500">
+            <span className="hidden text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase sm:inline dark:text-neutral-500">
               Best at
             </span>
             <span className="text-sm font-black text-neutral-950 dark:text-white">
               {formatDecimal(activeLine)}+ {MARKET_LABELS[profile.market] ?? "Line"}
             </span>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-emerald-600 uppercase dark:text-emerald-400">
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-black tracking-[0.14em] text-emerald-600 uppercase sm:px-2 dark:text-emerald-400">
               Live
             </span>
           </div>
@@ -4973,8 +4973,10 @@ function BookOddsRow({
 }
 
 function PreviewHeader({ title, kicker }: { title: string; kicker: string }) {
+  // Hidden on mobile (the tab nav already tells users which view they're on
+  // and the kicker/title pair eats vertical space the data needs).
   return (
-    <div>
+    <div className="hidden sm:block">
       <div className="text-[10px] font-bold tracking-[0.18em] text-neutral-500 uppercase dark:text-neutral-500">
         {kicker}
       </div>
