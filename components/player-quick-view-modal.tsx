@@ -4793,7 +4793,7 @@ export function PlayerQuickViewModal({
             <div className="sticky top-0 z-50 bg-gradient-to-b from-white to-white/95 dark:from-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl border-b border-neutral-200/50 dark:border-neutral-800/80">
               {/* Row 1 — v2 DrilldownHeader (NBA/WNBA only). */}
               {!isMlb && profile && (
-                <div className="relative px-4 sm:px-6 pt-3 pb-2 pr-14 sm:pr-16 border-b border-neutral-200/50 dark:border-neutral-800/60">
+                <div className="relative px-3 sm:px-6 pt-2 pb-1.5 sm:pt-3 sm:pb-2 pr-12 sm:pr-16 border-b border-neutral-200/50 dark:border-neutral-800/60">
                   <DrilldownHeader
                     profile={profile as any}
                     sport={(isWnba ? "wnba" : "nba") as "nba" | "wnba"}
@@ -4813,9 +4813,11 @@ export function PlayerQuickViewModal({
                 </div>
               )}
 
-              {/* Row 2 — market dropdown + season averages. */}
-              <div className="relative px-4 sm:px-6 py-2.5 sm:py-3">
-                <div className={cn("flex items-center gap-2 sm:gap-3", isMlb && "pr-10")}>
+              {/* Row 2 — market dropdown + season averages. On mobile this row
+                  also carries the line stepper + best-price quick-glance since
+                  the DrilldownHeader's line/odds column hides below sm. */}
+              <div className="relative px-3 sm:px-6 py-2 sm:py-3">
+                <div className={cn("flex items-center gap-1.5 sm:gap-3", isMlb && "pr-10")}>
                   {/* Market Dropdown - selects which prop the chart + tabs render. */}
                   <div className="relative shrink-0" ref={marketDropdownRef}>
                     <button
@@ -4853,7 +4855,63 @@ export function PlayerQuickViewModal({
                     )}
                   </div>
 
-                  {/* Season averages — compact horizontal pill row. */}
+                  {/* Mobile-only inline line stepper + best price. Sits next to
+                      the market dropdown so the active prop, the active line,
+                      and the best price all live on one tight row. */}
+                  {!isMlb && (
+                    <div className="flex sm:hidden flex-1 items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleLineChange(Math.max(0.5, activeLine - 0.5))}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                        aria-label="Decrease line"
+                      >
+                        <span className="text-base font-black leading-none">−</span>
+                      </button>
+                      <span className={cn(
+                        "min-w-[2.75rem] rounded-md px-1.5 py-1 text-center text-sm font-black tabular-nums leading-none",
+                        isCustomLineActive
+                          ? "bg-brand/10 text-brand ring-1 ring-brand/30"
+                          : "text-neutral-900 dark:text-white"
+                      )}>
+                        {activeLine}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleLineChange(activeLine + 0.5)}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                        aria-label="Increase line"
+                      >
+                        <span className="text-base font-black leading-none">+</span>
+                      </button>
+                      {(activeHitRateOdds?.bestOver || activeHitRateOdds?.bestUnder) && (
+                        <div className="ml-1 flex items-center gap-1 border-l border-neutral-200/60 pl-2 dark:border-neutral-700/60">
+                          {activeHitRateOdds?.bestOver && (
+                            <span className={cn(
+                              "text-[11px] font-black tabular-nums",
+                              activeHitRateOdds.bestOver.price > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-neutral-900 dark:text-white"
+                            )}>
+                              O {activeHitRateOdds.bestOver.price > 0 ? "+" : ""}{activeHitRateOdds.bestOver.price}
+                            </span>
+                          )}
+                          {activeHitRateOdds?.bestUnder && (
+                            <span className={cn(
+                              "text-[11px] font-black tabular-nums",
+                              activeHitRateOdds.bestUnder.price > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-neutral-700 dark:text-neutral-300"
+                            )}>
+                              U {activeHitRateOdds.bestUnder.price > 0 ? "+" : ""}{activeHitRateOdds.bestUnder.price}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Season averages — compact horizontal pill row (desktop). */}
                   {headerSeasonSummary && (
                     <div className="hidden sm:flex flex-1 min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
                       {headerSeasonSummary.stats.map((stat) => (
@@ -4996,7 +5054,7 @@ export function PlayerQuickViewModal({
             {/* ═══════════════════════════════════════════════════════════════════
                 SCROLLABLE CONTENT
                 ═══════════════════════════════════════════════════════════════════ */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-5 py-4 space-y-5 min-w-0 relative z-0 min-h-[400px]">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-5 py-3 sm:py-4 space-y-3 sm:space-y-5 min-w-0 relative z-0 min-h-[400px]">
               {/* Notice for future games */}
               {!hasUpcomingProfile && !nextGame && activeTab === "gamelog" && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">

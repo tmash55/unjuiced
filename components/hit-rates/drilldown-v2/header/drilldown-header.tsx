@@ -87,7 +87,10 @@ export function DrilldownHeader({
   const homeSpread = isHome ? playerSpread : opponentSpread;
 
   return (
-    <div className={cn("flex flex-col gap-3 lg:flex-row lg:items-center", compact ? "lg:gap-3" : "lg:gap-5")}>
+    <div className={cn(
+      "flex flex-col lg:flex-row lg:items-center",
+      compact ? "gap-1.5 lg:gap-3" : "gap-3 lg:gap-5",
+    )}>
       {/* LEFT — identity. flex-1 so the matchup sits visually centered between
           the left and right groups when they share the leftover space evenly. */}
       <div className="flex min-w-0 items-center gap-3 lg:flex-1">
@@ -217,8 +220,14 @@ export function DrilldownHeader({
 
       {/* RIGHT — line + odds, grouped together. Mirrors the left group's
           flex-1 so the matchup centers between them, and keeps the actionable
-          bet info (the line you're researching + where to take it) co-located. */}
-      <div className={cn("flex items-center lg:flex-1 lg:justify-end", compact ? "gap-3" : "gap-5")}>
+          bet info (the line you're researching + where to take it) co-located.
+          In compact mode (modal) the right group hides on mobile because the
+          modal renders a slimmer line + odds row inline with the market
+          dropdown above the chart. */}
+      <div className={cn(
+        "flex items-center lg:flex-1 lg:justify-end",
+        compact ? "hidden gap-3 sm:flex" : "gap-5",
+      )}>
         <div className="lg:flex-shrink-0">
           <LineStepper
             value={effectiveLine}

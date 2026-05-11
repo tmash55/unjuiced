@@ -1164,9 +1164,10 @@ export function HitRateChart({
               </div>
 
               {/* X-axis: text-only opponent + date (props.cash style).
-                  Format: "@OKC" for road games, "OKC" (no prefix) for home.
-                  Sparsified at high counts; first + last always visible. */}
-              <div className="mt-1.5 flex items-start" style={{ gap: gapPx }}>
+                  Hidden on mobile because the labels collide unreadably at
+                  phone widths — bar tooltips on tap still surface the
+                  opponent + date for users who want it. */}
+              <div className="mt-1.5 hidden items-start sm:flex" style={{ gap: gapPx }}>
                 {chartGames.map((game, idx) => {
                   const showLabel =
                     idx === 0 ||
