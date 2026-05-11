@@ -48,6 +48,10 @@ interface PlayerCorrelationsProps {
   anchorTeam?: string | null;
   playerName?: string;
   className?: string;
+  /** Hide the per-stat Filters dropdown trigger. Used by the quick-view
+   *  modal where the popover overflows the dialog edge — users can still
+   *  filter from the full hit-rate tool. */
+  hideFiltersControl?: boolean;
 }
 
 // All available teammate markets
@@ -1132,6 +1136,7 @@ export function PlayerCorrelations({
   playerName,
   className,
   sport = "nba",
+  hideFiltersControl = false,
 }: PlayerCorrelationsProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState<TeammateMarket>("points");
@@ -1577,7 +1582,9 @@ export function PlayerCorrelations({
 
             {/* Right Controls */}
             <div className="flex items-center gap-3 shrink-0">
-              {/* Filter Button - Always show */}
+              {/* Filter Button — hidden in modal context (popover overflows
+                  the dialog edge). Full hit-rate tool keeps it. */}
+              {!hideFiltersControl && (
               <div className={cn("relative", showFilters && "z-[60]")} ref={filterRef}>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
@@ -1681,6 +1688,7 @@ export function PlayerCorrelations({
                   </div>
                 )}
               </div>
+              )}
 
               {/* View Toggle - only show when not in "all" mode */}
               {selectedMarket !== "all" && (

@@ -5324,6 +5324,7 @@ export function PlayerQuickViewModal({
                       startTime={profile?.startTime}
                       anchorTeam={profile?.teamAbbr || profile?.teamName}
                       playerName={profilePlayerName}
+                      hideFiltersControl
                     />
                   </div>
                 </div>
