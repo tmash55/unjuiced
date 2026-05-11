@@ -3840,23 +3840,23 @@ function SimilarPositionPanel({
               </span>
             </div>
           )}
-          <table className="w-full min-w-[780px] border-collapse text-xs">
+          <table className="w-full min-w-0 border-collapse text-[11px] sm:min-w-[780px] sm:text-xs">
             <thead className="sticky top-0 z-[1] bg-neutral-100/95 text-[10px] font-black tracking-[0.14em] text-neutral-500 uppercase backdrop-blur dark:bg-neutral-950/95 dark:text-neutral-500">
               <tr>
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">Score</th>
-                <th className="px-3 py-2 text-left">Player</th>
-                <th className="px-3 py-2 text-center">Min</th>
-                <th className="px-3 py-2 text-center">Line</th>
+                <th className="px-1.5 py-2 text-left sm:px-3">Date</th>
+                <th className="hidden px-1.5 py-2 text-left sm:table-cell sm:px-3">Score</th>
+                <th className="px-1.5 py-2 text-left sm:px-3">Player</th>
+                <th className="hidden px-1.5 py-2 text-center sm:table-cell sm:px-3">Min</th>
+                <th className="px-1.5 py-2 text-center sm:px-3">Line</th>
                 {/* Only show the standalone stat column when the active market
                     can't piggyback on PTS/REB/AST (e.g., 3PM, STL, BLK, PRA).
                     Avoids the "Points + PTS" duplicate the user flagged. */}
                 {!nativeStatField && (
-                  <th className="px-3 py-2 text-center">{statLabel}</th>
+                  <th className="px-1.5 py-2 text-center sm:px-3">{statLabel}</th>
                 )}
                 <th
                   className={cn(
-                    "px-3 py-2 text-center",
+                    "px-1.5 py-2 text-center sm:px-3",
                     nativeStatField === "pts" && "text-brand",
                   )}
                 >
@@ -3864,7 +3864,7 @@ function SimilarPositionPanel({
                 </th>
                 <th
                   className={cn(
-                    "px-3 py-2 text-center",
+                    "hidden px-1.5 py-2 text-center sm:table-cell sm:px-3",
                     nativeStatField === "reb" && "text-brand",
                   )}
                 >
@@ -3872,7 +3872,7 @@ function SimilarPositionPanel({
                 </th>
                 <th
                   className={cn(
-                    "px-3 py-2 text-center",
+                    "hidden px-1.5 py-2 text-center sm:table-cell sm:px-3",
                     nativeStatField === "ast" && "text-brand",
                   )}
                 >
@@ -3945,13 +3945,13 @@ function SimilarPlayerRow({
 
   return (
     <tr className="bg-white/40 dark:bg-neutral-900/20">
-      <td className="px-3 py-2 font-bold text-neutral-500 tabular-nums dark:text-neutral-500">
+      <td className="px-1.5 py-2 font-bold text-neutral-500 tabular-nums sm:px-3 dark:text-neutral-500">
         {formatWeekdayDate(player.gameDate)}
       </td>
-      <td className="px-3 py-2">
+      <td className="hidden px-1.5 py-2 sm:table-cell sm:px-3">
         <GameScoreCell player={player} />
       </td>
-      <td className="px-3 py-2">
+      <td className="px-1.5 py-2 sm:px-3">
         <div className="flex min-w-0 items-center gap-2">
           {player.teamAbbr && (
             <img
@@ -3970,22 +3970,22 @@ function SimilarPlayerRow({
           </div>
         </div>
       </td>
-      <td className="px-3 py-2 text-center font-black text-neutral-700 tabular-nums dark:text-neutral-300">
+      <td className="hidden px-1.5 py-2 text-center font-black text-neutral-700 tabular-nums sm:table-cell sm:px-3 dark:text-neutral-300">
         {Math.floor(player.minutes)}
       </td>
-      <td className="px-3 py-2 text-center font-black text-neutral-500 tabular-nums dark:text-neutral-500">
+      <td className="px-1.5 py-2 text-center font-black text-neutral-500 tabular-nums sm:px-3 dark:text-neutral-500">
         {formatDecimal(player.closingLine)}
       </td>
       {!nativeStatField && (
-        <td className="px-3 py-2 text-center">{renderRichCell()}</td>
+        <td className="px-1.5 py-2 text-center sm:px-3">{renderRichCell()}</td>
       )}
-      <td className="px-3 py-2 text-center">
+      <td className="px-1.5 py-2 text-center sm:px-3">
         {nativeStatField === "pts" ? renderRichCell() : plainCell(player.pts)}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="hidden px-1.5 py-2 text-center sm:table-cell sm:px-3">
         {nativeStatField === "reb" ? renderRichCell() : plainCell(player.reb)}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="hidden px-1.5 py-2 text-center sm:table-cell sm:px-3">
         {nativeStatField === "ast" ? renderRichCell() : plainCell(player.ast)}
       </td>
     </tr>
@@ -4129,15 +4129,15 @@ function DefenseGridPanel({
               </span>
             </div>
           )}
-          <table className="w-full min-w-[560px] border-collapse text-xs">
+          <table className="w-full min-w-0 border-collapse text-[11px] sm:min-w-[560px] sm:text-xs">
             <thead className="sticky top-0 z-[1] bg-neutral-100/95 text-[10px] font-black tracking-[0.14em] text-neutral-500 uppercase backdrop-blur dark:bg-neutral-950/95 dark:text-neutral-500">
               <tr>
-                <th className="px-3 py-2 text-left">Stat</th>
+                <th className="px-1.5 py-2 text-left sm:px-3">Stat</th>
                 {positionsToShow.map((position) => (
                   <th
                     key={position}
                     className={cn(
-                      "px-3 py-2 text-center",
+                      "px-1.5 py-2 text-center sm:px-3",
                       position === currentPosition && "text-brand",
                     )}
                   >
@@ -4156,7 +4156,7 @@ function DefenseGridPanel({
                       "bg-brand/[0.07] dark:bg-brand/[0.09]",
                   )}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-1.5 py-2 sm:px-3">
                     <div className="font-black text-neutral-950 dark:text-white">
                       {MARKET_LABELS[market] ?? market}
                     </div>
@@ -4171,7 +4171,7 @@ function DefenseGridPanel({
                       <td
                         key={position}
                         className={cn(
-                          "px-3 py-2 text-center",
+                          "px-1.5 py-2 text-center sm:px-3",
                           position === currentPosition && "bg-brand/[0.08]",
                         )}
                       >
