@@ -308,7 +308,9 @@ function OddsRow({
   const priceClass = compact
     ? "min-w-[3.5ch] text-[13px] font-black tracking-tight tabular-nums"
     : "min-w-[3.5ch] text-[15px] font-black tracking-tight tabular-nums";
-  const labelWidth = compact ? "w-7" : "w-9";
+  // UNDER is 5 chars + tracking; needs ~36px to avoid bleeding into the price
+  // column. OVER is shorter but using the same width keeps the prices aligned.
+  const labelWidth = compact ? "w-9" : "w-9";
   const rowGap = compact ? "gap-1.5" : "gap-2";
   if (price === null) {
     return (
