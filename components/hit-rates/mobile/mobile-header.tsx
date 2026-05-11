@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import {
   ChevronDown, 
   ChevronUp,
@@ -697,22 +698,44 @@ export function MobileHeader({
                   {SPORT_OPTIONS.map((sportOption) => {
                     const isSelected = sport === sportOption.value;
                     const isEnabled = sportOption.enabled;
-                    return (
-                      <div
-                        key={sportOption.value}
-                        className={cn(
-                          "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
-                          isEnabled
-                            ? isSelected
-                              ? "text-brand"
-                              : "text-neutral-500 dark:text-neutral-400"
-                            : "text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
-                        )}
-                      >
+                    const className = cn(
+                      "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
+                      isEnabled
+                        ? isSelected
+                          ? "text-brand"
+                          : "text-neutral-500 dark:text-neutral-400 active:scale-[0.97]"
+                        : "text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
+                    );
+
+                    const content = (
+                      <>
                         {sportOption.label}
                         {isSelected && (
                           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
                         )}
+                      </>
+                    );
+
+                    if (isEnabled) {
+                      return (
+                        <Link
+                          key={sportOption.value}
+                          href={`/hit-rates/${sportOption.value}`}
+                          aria-current={isSelected ? "page" : undefined}
+                          className={className}
+                        >
+                          {content}
+                        </Link>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={sportOption.value}
+                        aria-disabled="true"
+                        className={className}
+                      >
+                        {content}
                       </div>
                     );
                   })}
