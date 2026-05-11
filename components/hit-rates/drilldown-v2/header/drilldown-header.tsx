@@ -191,28 +191,31 @@ export function DrilldownHeader({
           />
         </div>
       ) : (
-        // Full drilldown: same 2-row layout as the modal — favorite carries
-        // the spread badge, dog shows the game total in the same slot — but
-        // wrapped in the bordered glass card chrome that defines the desktop
-        // matchup tile. Avoids spread duplication and reads like a sportsbook
-        // ticker.
-        <div className="hidden min-w-[260px] flex-col gap-1 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 shadow-sm md:flex lg:flex-shrink-0 dark:border-neutral-800/70 dark:bg-neutral-950/35">
-          <MatchupRow
-            abbr={awayAbbr}
-            sport={sport}
-            spread={awaySpread}
-            total={profile.total}
-            isFavorite={awaySpread !== null && awaySpread < 0}
-            tipOff={null}
-          />
-          <MatchupRow
-            abbr={homeAbbr ?? opponent}
-            sport={sport}
-            spread={homeSpread}
-            total={profile.total}
-            isFavorite={homeSpread !== null && homeSpread < 0}
-            tipOff={gameTime}
-          />
+        // Full drilldown: 2-row matchup with the tip-off centered vertically
+        // between the rows on the right. No border / bg — reads as inline
+        // ESPN-style content, not a contained card.
+        <div className="hidden items-center gap-3 md:flex lg:flex-shrink-0">
+          <div className="flex flex-col gap-1">
+            <MatchupRow
+              abbr={awayAbbr}
+              sport={sport}
+              spread={awaySpread}
+              total={profile.total}
+              isFavorite={awaySpread !== null && awaySpread < 0}
+              tipOff={null}
+            />
+            <MatchupRow
+              abbr={homeAbbr ?? opponent}
+              sport={sport}
+              spread={homeSpread}
+              total={profile.total}
+              isFavorite={homeSpread !== null && homeSpread < 0}
+              tipOff={null}
+            />
+          </div>
+          <span className="text-[11px] font-black tabular-nums text-neutral-500 dark:text-neutral-400">
+            {gameTime}
+          </span>
         </div>
       )}
 
