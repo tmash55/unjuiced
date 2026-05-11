@@ -842,14 +842,15 @@ export function HitRateChart({
           )}
         </div>
       )}
-      {/* Chart area */}
-      <div className="relative pl-8 pr-2 pt-7 sm:pl-9 sm:pr-3">
+      {/* Chart area — tighter horizontal padding on mobile gives bars more
+          breathing room before they trip overflow. */}
+      <div className="relative pl-7 pr-1 pt-7 sm:pl-9 sm:pr-3">
         {/* Grid background — y-axis ticks + horizontal grid lines. Sits BEHIND
             the bars (z-[1]) so the rules read as a backdrop, not slicing
             across the columns. */}
         {chartGames.length > 0 && (
           <div
-            className="pointer-events-none absolute left-8 right-2 top-7 z-[1] sm:left-9 sm:right-3"
+            className="pointer-events-none absolute left-7 right-1 top-7 z-[1] sm:left-9 sm:right-3"
             style={{ height: CHART_HEIGHT }}
           >
             {yTicks.map((t) => (
@@ -1264,9 +1265,9 @@ export function HitRateChart({
         )}
       </div>
 
-      {/* Splits chips */}
-      <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-neutral-200/50 px-3 py-2 dark:border-neutral-800/50 sm:px-4">
-        <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+      {/* Splits chips — horizontal scroll on mobile so the row never wraps. */}
+      <div className="mt-2 flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-neutral-200/50 px-3 py-2 scrollbar-hide dark:border-neutral-800/50 sm:flex-wrap sm:px-4">
+        <span className="mr-1 shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
           Splits
         </span>
         {SPLIT_OPTIONS.map((opt) => {
@@ -1278,7 +1279,7 @@ export function HitRateChart({
               onClick={() => onSplitChange(active ? "all" : opt.value)}
               aria-pressed={active}
               className={cn(
-                "rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150",
+                "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150 whitespace-nowrap",
                 active
                   ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
                   : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100"
