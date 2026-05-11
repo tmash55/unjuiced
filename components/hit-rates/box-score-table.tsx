@@ -239,12 +239,13 @@ export function BoxScoreTable({
     <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
   );
 
-  // Only fetch if we don't have prefetched data
+  // Only fetch if we don't have prefetched data. Pull a full season window
+  // (NBA regular season is 82 games + playoffs ~28); the RPC max is 150.
   const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
     playerId,
     sport: sport === "wnba" ? "wnba" : "nba",
     season,
-    limit: 50,
+    limit: 150,
     enabled: (sport === "nba" || sport === "wnba") && !!playerId && !prefetchedGames,
   });
 

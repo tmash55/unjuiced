@@ -1197,17 +1197,16 @@ export function HitRateChart({
                   );
                 })}
                 {upcomingSlot && (
+                  // Upcoming label is intentionally just "NEXT" (no opp abbr)
+                  // because the most recent bar's @SAS / SAS label sits directly
+                  // adjacent and the two labels were colliding at the chart's
+                  // right edge. The dotted bar tooltip carries the opponent
+                  // for users who hover.
                   <div
-                    className="flex shrink-0 flex-col items-center"
+                    className="flex shrink-0 flex-col items-center overflow-visible"
                     style={{ width: barWidth }}
                   >
-                    <span className="text-[10px] font-bold leading-none text-brand">
-                      <span className="text-brand/70">
-                        {upcomingSlot.homeAway === "A" ? "@" : ""}
-                      </span>
-                      {upcomingSlot.opponentAbbr ?? "OPP"}
-                    </span>
-                    <span className="mt-0.5 text-[9px] font-bold tabular-nums leading-none text-brand">
+                    <span className="rounded-sm bg-brand/10 px-1 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-brand ring-1 ring-brand/25">
                       Next
                     </span>
                   </div>

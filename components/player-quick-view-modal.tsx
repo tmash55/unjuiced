@@ -3072,17 +3072,19 @@ export function PlayerQuickViewModal({
       ? `${todayYear}-${String((todayYear + 1) % 100).padStart(2, "0")}`
       : `${todayYear - 1}-${String(todayYear % 100).padStart(2, "0")}`;
   const [boxScoreSeason, setBoxScoreSeason] = useState<string>(defaultBoxScoreSeason);
-  // Available seasons — for WNBA, today's year + 4 prior; NBA equivalent.
+  // Available seasons — current + previous only. The RPC only carries the
+  // last ~1 season of box-score history, so older chips returned empty
+  // tables and confused users.
   const boxScoreSeasonOptions = useMemo(() => {
     if (isMlb) return [];
     if (isWnba) {
-      return Array.from({ length: 5 }, (_, i) => String(todayYear - i));
+      return [String(todayYear), String(todayYear - 1)];
     }
     const startYear = todayMonth >= 8 ? todayYear : todayYear - 1;
-    return Array.from({ length: 5 }, (_, i) => {
-      const y = startYear - i;
-      return `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
-    });
+    return [
+      `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`,
+      `${startYear - 1}-${String(startYear % 100).padStart(2, "0")}`,
+    ];
   }, [isMlb, isWnba, todayYear, todayMonth]);
 	  const activeHitRateOdds = getHitRateOdds(currentMarketProfile?.selKey || currentMarketProfile?.oddsSelectionId || null);
   const activeHitRateLine = useMemo(() => {
