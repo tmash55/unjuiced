@@ -195,6 +195,38 @@ interface RefreshedFavoriteOdds {
   allBooks: Record<string, { price: number; link: string | null; sgp: string | null; oddId?: string | null }>;
 }
 
+function BetslipLegAvatar({ favorite }: { favorite: Favorite }) {
+  const [headshotFailed, setHeadshotFailed] = useState(false);
+  const teamCode = favorite.player_team || (favorite.side === "over" ? favorite.away_team : favorite.home_team);
+  const teamLogo = teamCode ? `/team-logos/${favorite.sport}/${teamCode.toUpperCase()}.svg` : null;
+  const showHeadshot = !!favorite.player_id && favorite.sport === "mlb" && !headshotFailed;
+
+  return (
+    <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200/70 dark:bg-neutral-800 dark:ring-neutral-700/60">
+      {showHeadshot ? (
+        <Image
+          src={getMlbHeadshotUrl(Number(favorite.player_id), "tiny")}
+          alt=""
+          width={28}
+          height={28}
+          className="h-full w-full object-cover"
+          unoptimized
+          onError={() => setHeadshotFailed(true)}
+        />
+      ) : teamLogo ? (
+        <img
+          src={teamLogo}
+          alt=""
+          className="h-4 w-4 object-contain"
+          onError={(event) => {
+            event.currentTarget.style.visibility = "hidden";
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 // ── Panel Props ──────────────────────────────────────────────────────────────
 
 interface BetslipPanelProps {
@@ -521,42 +553,7 @@ export function BetslipPanel({ open, onOpenChange }: BetslipPanelProps) {
                           {isSelected && <Check className="w-3 h-3" />}
                         </button>
 
-                        {/* Player headshot or team logo */}
-                        {fav.player_id && fav.sport === "mlb" ? (
-                          <div className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 shrink-0 overflow-hidden flex items-center justify-center">
-                            <Image
-                              src={getMlbHeadshotUrl(Number(fav.player_id), "tiny")}
-                              alt=""
-                              width={28}
-                              height={28}
-                              className="object-cover"
-                              unoptimized
-                              onError={(e) => { e.currentTarget.style.display = "none"; }}
-                            />
-                            {/* Team logo fallback behind headshot */}
-                            {fav.player_team && (
-                              <img
-                                src={`/team-logos/${fav.sport}/${fav.player_team.toUpperCase()}.svg`}
-                                alt=""
-                                className="absolute w-4 h-4 object-contain opacity-40"
-                              />
-                            )}
-                          </div>
-                        ) : (
-                          /* Game-type or non-MLB: show team logo */
-                          <div className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 shrink-0 flex items-center justify-center">
-                            {(() => {
-                              const teamCode = fav.player_team || (fav.side === "over" ? fav.away_team : fav.home_team);
-                              return teamCode ? (
-                                <img
-                                  src={`/team-logos/${fav.sport}/${teamCode.toUpperCase()}.svg`}
-                                  alt=""
-                                  className="w-4 h-4 object-contain"
-                                />
-                              ) : null;
-                            })()}
-                          </div>
-                        )}
+                        <BetslipLegAvatar favorite={fav} />
 
                         {/* Play info */}
                         <div className="flex-1 min-w-0">

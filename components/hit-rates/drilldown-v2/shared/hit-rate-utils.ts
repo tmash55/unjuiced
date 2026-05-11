@@ -29,15 +29,26 @@ export function getMarketStatValue(game: BoxScoreGame, market: string): number {
     case "player_blocks_steals":
       return game.bs;
     case "player_double_double":
+    case "double_double":
       return countDoubleDigitCategories(game) >= 2 ? 1 : 0;
     case "player_triple_double":
+    case "triple_double":
       return countDoubleDigitCategories(game) >= 3 ? 1 : 0;
     case "1st_quarter_player_points":
-      return game.q1Pts ?? game.pts;
+    case "1q_player_points":
+      return game.q1Pts ?? 0;
     case "1st_quarter_player_rebounds":
-      return game.q1Reb ?? game.reb;
+    case "1q_player_rebounds":
+      return game.q1Reb ?? 0;
     case "1st_quarter_player_assists":
-      return game.q1Ast ?? game.ast;
+    case "1q_player_assists":
+      return game.q1Ast ?? 0;
+    case "1st_quarter_player_threes_made":
+      return game.q1Fg3m ?? 0;
+    case "1st_quarter_player_steals":
+      return game.q1Stl ?? 0;
+    case "1st_quarter_player_blocks":
+      return game.q1Blk ?? 0;
     default:
       return 0;
   }

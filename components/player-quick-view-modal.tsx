@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import { usePlayerBoxScores, BoxScoreGame } from "@/hooks/use-player-box-scores";
+import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { GameLogChart } from "@/components/hit-rates/game-log-chart";
 import { BoxScoreTable } from "@/components/hit-rates/box-score-table";
 import { PositionVsTeam } from "@/components/hit-rates/position-vs-team";
@@ -193,12 +194,45 @@ const getPctBgColor = (value: number | null) => {
   return "bg-red-50 dark:bg-red-900/20";
 };
 
+const normalizeGameIdForLookup = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return "";
+  return String(id).replace(/^0+/, "") || "0";
+};
+
+const isFirstQuarterPlayerMarket = (market: string | null | undefined): boolean => {
+  return !!market && (market.startsWith("1st_quarter_player_") || market.startsWith("1q_player_"));
+};
+
+const isDoubleTripleDoubleMarket = (market: string | null | undefined): boolean => {
+  return market === "player_double_double" || market === "double_double" ||
+    market === "player_triple_double" || market === "triple_double";
+};
+
+const countDoubleDigitCategories = (game: BoxScoreGame): number => {
+  let count = 0;
+  if ((game.pts ?? 0) >= 10) count += 1;
+  if ((game.reb ?? 0) >= 10) count += 1;
+  if ((game.ast ?? 0) >= 10) count += 1;
+  if ((game.stl ?? 0) >= 10) count += 1;
+  if ((game.blk ?? 0) >= 10) count += 1;
+  return count;
+};
+
 // Get market stat from box score
 const getMarketStat = (game: BoxScoreGame, market: string): number => {
   switch (market) {
     case "player_points": return game.pts;
     case "player_rebounds": return game.reb;
     case "player_assists": return game.ast;
+    case "1st_quarter_player_points":
+    case "1q_player_points": return game.q1Pts ?? 0;
+    case "1st_quarter_player_rebounds":
+    case "1q_player_rebounds": return game.q1Reb ?? 0;
+    case "1st_quarter_player_assists":
+    case "1q_player_assists": return game.q1Ast ?? 0;
+    case "1st_quarter_player_threes_made": return game.q1Fg3m ?? 0;
+    case "1st_quarter_player_steals": return game.q1Stl ?? 0;
+    case "1st_quarter_player_blocks": return game.q1Blk ?? 0;
     case "player_threes_made": return game.fg3m;
     case "player_steals": return game.stl;
     case "player_blocks": return game.blk;
@@ -208,6 +242,10 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    case "player_double_double":
+    case "double_double": return countDoubleDigitCategories(game) >= 2 ? 1 : 0;
+    case "player_triple_double":
+    case "triple_double": return countDoubleDigitCategories(game) >= 3 ? 1 : 0;
     case "player_hits": return game.mlbHits ?? 0;
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs":
@@ -348,6 +386,21 @@ const FALLBACK_MARKETS = [
   "player_blocks", 
   "player_blocks_steals", 
   "player_turnovers",
+];
+
+const BASKETBALL_MARKET_ORDER = [
+  ...FALLBACK_MARKETS,
+  "1st_quarter_player_points",
+  "1q_player_points",
+  "1st_quarter_player_rebounds",
+  "1q_player_rebounds",
+  "1st_quarter_player_assists",
+  "1q_player_assists",
+  "1st_quarter_player_threes_made",
+  "player_double_double",
+  "double_double",
+  "player_triple_double",
+  "triple_double",
 ];
 
 const MLB_FALLBACK_MARKETS = [
@@ -2788,7 +2841,7 @@ export function PlayerQuickViewModal({
   // full season available (NBA regular season is 82 games + playoffs).
   // WNBA endpoint expects wnba_player_id; using the headshot nba_player_id
   // returns nothing.
-  const { games: boxScoreGames, seasonSummary, isLoading: isLoadingBoxScores } = usePlayerBoxScores({
+  const { games: rawBoxScoreGames, seasonSummary, isLoading: isLoadingFullBoxScores } = usePlayerBoxScores({
     playerId: resolvedPlayerId || null,
     sport: isMlb ? undefined : (sport as "nba" | "wnba"),
     enabled: !isMlb && open && !!resolvedPlayerId,
@@ -2825,9 +2878,12 @@ export function PlayerQuickViewModal({
     const uniqueMarkets = Array.from(new Set([safeInitialMarket, ...marketCandidates].filter(Boolean) as string[]));
     // Sort by FALLBACK_MARKETS order (preferred display order)
     return uniqueMarkets.sort((a, b) => {
-      const indexA = fallbackMarkets.indexOf(a);
-      const indexB = fallbackMarkets.indexOf(b);
-      // If not in FALLBACK_MARKETS, put at end
+      const sortOrder = isMlb ? fallbackMarkets : BASKETBALL_MARKET_ORDER;
+      const indexA = sortOrder.indexOf(a);
+      const indexB = sortOrder.indexOf(b);
+      if (indexA === -1 && indexB === -1) {
+        return formatMarketLabel(a).localeCompare(formatMarketLabel(b));
+      }
       if (indexA === -1) return 1;
       if (indexB === -1) return -1;
       return indexA - indexB;
@@ -2863,6 +2919,45 @@ export function PlayerQuickViewModal({
 
   const currentMarket = selectedMarket || availableMarkets[0] || (isMlb ? (isMlbPitcherProfile ? "pitcher_strikeouts" : "player_hits") : "player_points");
   const currentMarketProfile = profiles.find((p) => p.market === currentMarket) || null;
+  const isCurrentFirstQuarterMarket = isFirstQuarterPlayerMarket(currentMarket);
+  const {
+    games: firstQuarterBoxScoreGames,
+    isLoading: isLoadingFirstQuarterBoxScores,
+  } = usePlayerPeriodBoxScores({
+    playerId: resolvedPlayerId || null,
+    sport: isWnba ? "wnba" : "nba",
+    period: 1,
+    limit: 150,
+    enabled: !isMlb && open && !!resolvedPlayerId && isCurrentFirstQuarterMarket,
+  });
+  const firstQuarterStatsByGameId = useMemo(() => {
+    const map = new Map<string, BoxScoreGame>();
+    for (const game of firstQuarterBoxScoreGames) {
+      map.set(normalizeGameIdForLookup(game.gameId), game);
+    }
+    return map;
+  }, [firstQuarterBoxScoreGames]);
+  const boxScoreGames = useMemo(() => {
+    if (!isCurrentFirstQuarterMarket) return rawBoxScoreGames;
+
+    return rawBoxScoreGames.map((game) => {
+      const firstQuarter = firstQuarterStatsByGameId.get(normalizeGameIdForLookup(game.gameId));
+      return {
+        ...game,
+        q1Pts: firstQuarter?.pts ?? 0,
+        q1Reb: firstQuarter?.reb ?? 0,
+        q1Ast: firstQuarter?.ast ?? 0,
+        q1Minutes: firstQuarter?.minutes ?? 0,
+        q1Stl: firstQuarter?.stl ?? 0,
+        q1Blk: firstQuarter?.blk ?? 0,
+        q1Fgm: firstQuarter?.fgm ?? 0,
+        q1Fga: firstQuarter?.fga ?? 0,
+        q1Fg3m: firstQuarter?.fg3m ?? 0,
+        q1Fg3a: firstQuarter?.fg3a ?? 0,
+      };
+    });
+  }, [firstQuarterStatsByGameId, isCurrentFirstQuarterMarket, rawBoxScoreGames]);
+  const isLoadingBoxScores = isLoadingFullBoxScores || (isCurrentFirstQuarterMarket && isLoadingFirstQuarterBoxScores);
   const profile = currentMarketProfile || profiles[0];
   const oddsLookupRows = useMemo(() => {
     return profiles
@@ -3035,6 +3130,7 @@ export function PlayerQuickViewModal({
     if (currentMarketProfile?.line) rawLine = currentMarketProfile.line;
     else if (canUseExternalOdds && odds?.over?.line) rawLine = odds.over.line;
     else if (canUseExternalOdds && odds?.under?.line) rawLine = odds.under.line;
+    else if (isDoubleTripleDoubleMarket(currentMarket)) rawLine = 0.5;
     else if (alternateLines.length > 0) {
       const deepestLine = [...alternateLines].sort((a, b) => {
         const bookDelta = getAlternateLineBookCount(b) - getAlternateLineBookCount(a);

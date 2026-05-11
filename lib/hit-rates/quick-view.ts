@@ -48,6 +48,14 @@ const MLB_QUICK_VIEW_MARKET_ALIASES: Record<string, string> = {
   pitcher_walks_allowed: "pitcher_walks",
 };
 
+const BASKETBALL_QUICK_VIEW_MARKET_ALIASES: Record<string, string> = {
+  double_double: "player_double_double",
+  triple_double: "player_triple_double",
+  "1q_player_points": "1st_quarter_player_points",
+  "1q_player_rebounds": "1st_quarter_player_rebounds",
+  "1q_player_assists": "1st_quarter_player_assists",
+};
+
 export function getQuickViewSport(sport?: string | null): QuickViewSport | null {
   const normalized = sport?.toLowerCase();
   if (!normalized) return null;
@@ -60,7 +68,7 @@ export function getQuickViewSport(sport?: string | null): QuickViewSport | null 
 export function normalizeQuickViewMarket(sport: QuickViewSport, market?: string | null): string {
   // WNBA shares the NBA market vocabulary (player_points, player_rebounds, …).
   const normalized = market || (sport === "mlb" ? "player_hits" : "player_points");
-  if (sport !== "mlb") return normalized;
+  if (sport !== "mlb") return BASKETBALL_QUICK_VIEW_MARKET_ALIASES[normalized] || normalized;
   return MLB_QUICK_VIEW_MARKET_ALIASES[normalized] || normalized;
 }
 

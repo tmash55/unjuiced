@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayerBoxScores, BoxScoreGame, SeasonSummary } from "@/hooks/use-player-box-scores";
+import { usePlayerPeriodBoxScores } from "@/hooks/use-player-period-box-scores";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
@@ -52,6 +53,25 @@ type SortField =
   | "whip";
 type SortDirection = "asc" | "desc";
 
+const normalizeGameIdForLookup = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return "";
+  return String(id).replace(/^0+/, "") || "0";
+};
+
+const isFirstQuarterPlayerMarket = (market: string | null | undefined): boolean => {
+  return !!market && (market.startsWith("1st_quarter_player_") || market.startsWith("1q_player_"));
+};
+
+const countDoubleDigitCategories = (game: BoxScoreGame): number => {
+  let count = 0;
+  if ((game.pts ?? 0) >= 10) count += 1;
+  if ((game.reb ?? 0) >= 10) count += 1;
+  if ((game.ast ?? 0) >= 10) count += 1;
+  if ((game.stl ?? 0) >= 10) count += 1;
+  if ((game.blk ?? 0) >= 10) count += 1;
+  return count;
+};
+
 // Get the stat value based on market
 const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): number => {
   if (!market) return game.pts;
@@ -60,14 +80,28 @@ const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): n
     case "player_points": return game.pts;
     case "player_rebounds": return game.reb;
     case "player_assists": return game.ast;
+    case "1st_quarter_player_points":
+    case "1q_player_points": return game.q1Pts ?? 0;
+    case "1st_quarter_player_rebounds":
+    case "1q_player_rebounds": return game.q1Reb ?? 0;
+    case "1st_quarter_player_assists":
+    case "1q_player_assists": return game.q1Ast ?? 0;
+    case "1st_quarter_player_threes_made": return game.q1Fg3m ?? 0;
+    case "1st_quarter_player_steals": return game.q1Stl ?? 0;
+    case "1st_quarter_player_blocks": return game.q1Blk ?? 0;
     case "player_threes_made": return game.fg3m;
     case "player_steals": return game.stl;
     case "player_blocks": return game.blk;
+    case "player_turnovers": return game.tov;
     case "player_points_rebounds_assists": return game.pra;
     case "player_points_rebounds": return game.pr;
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    case "player_double_double":
+    case "double_double": return countDoubleDigitCategories(game) >= 2 ? 1 : 0;
+    case "player_triple_double":
+    case "triple_double": return countDoubleDigitCategories(game) >= 3 ? 1 : 0;
     case "player_hits": return game.mlbHits ?? 0;
     case "player_home_runs": return game.mlbHomeRuns ?? 0;
     case "player_runs_scored": return game.mlbRunsScored ?? 0;
@@ -248,10 +282,50 @@ export function BoxScoreTable({
     limit: 150,
     enabled: (sport === "nba" || sport === "wnba") && !!playerId && !prefetchedGames,
   });
+  const shouldFetchFirstQuarter = !isMlb && isFirstQuarterPlayerMarket(market);
+  const {
+    games: fetchedFirstQuarterGames,
+    isLoading: isLoadingFirstQuarterGames,
+  } = usePlayerPeriodBoxScores({
+    playerId,
+    sport: sport === "wnba" ? "wnba" : "nba",
+    period: 1,
+    season,
+    limit: 150,
+    enabled: shouldFetchFirstQuarter && !!playerId && !prefetchedGames,
+  });
+  const firstQuarterStatsByGameId = useMemo(() => {
+    const map = new Map<string, BoxScoreGame>();
+    for (const game of fetchedFirstQuarterGames) {
+      map.set(normalizeGameIdForLookup(game.gameId), game);
+    }
+    return map;
+  }, [fetchedFirstQuarterGames]);
 
   // Use prefetched data if available, otherwise use fetched data
-  const games = prefetchedGames ?? fetchedGames;
+  const games = useMemo(() => {
+    const sourceGames = prefetchedGames ?? fetchedGames;
+    if (!shouldFetchFirstQuarter) return sourceGames;
+
+    return sourceGames.map((game) => {
+      const firstQuarter = firstQuarterStatsByGameId.get(normalizeGameIdForLookup(game.gameId));
+      return {
+        ...game,
+        q1Pts: firstQuarter?.pts ?? game.q1Pts ?? 0,
+        q1Reb: firstQuarter?.reb ?? game.q1Reb ?? 0,
+        q1Ast: firstQuarter?.ast ?? game.q1Ast ?? 0,
+        q1Minutes: firstQuarter?.minutes ?? game.q1Minutes ?? 0,
+        q1Stl: firstQuarter?.stl ?? game.q1Stl ?? 0,
+        q1Blk: firstQuarter?.blk ?? game.q1Blk ?? 0,
+        q1Fgm: firstQuarter?.fgm ?? game.q1Fgm ?? 0,
+        q1Fga: firstQuarter?.fga ?? game.q1Fga ?? 0,
+        q1Fg3m: firstQuarter?.fg3m ?? game.q1Fg3m ?? 0,
+        q1Fg3a: firstQuarter?.fg3a ?? game.q1Fg3a ?? 0,
+      };
+    });
+  }, [fetchedGames, firstQuarterStatsByGameId, prefetchedGames, shouldFetchFirstQuarter]);
   const seasonSummary = prefetchedSeasonSummary !== undefined ? prefetchedSeasonSummary : fetchedSeasonSummary;
+  const isLoadingGames = isLoading || (shouldFetchFirstQuarter && isLoadingFirstQuarterGames);
 
   // Sort games
   const sortedGames = useMemo(() => {
@@ -528,7 +602,7 @@ export function BoxScoreTable({
       : <ChevronDown className="h-3 w-3" />;
   };
 
-  if (isLoading) {
+  if (isLoadingGames) {
     return (
       <div className={cn(wrapperClass, className)}>
         <div className="flex items-center justify-center h-48">
