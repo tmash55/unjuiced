@@ -20,6 +20,7 @@ import {
   METRIC_FILTERS,
   DVP_RANK_CONFIG,
   MARGIN_CONFIG,
+  PACE_RANK_CONFIG,
   getQuickFilters,
   metricFilterId,
   parseMetricFilterId,
@@ -104,6 +105,7 @@ interface FiltersDrawerProps {
   upcomingHomeAway: string | null | undefined;
   recentGames: BoxScoreGame[];
   dvpRankByOpponent?: Map<number, number>;
+  paceRankByOpponent?: Map<number, number>;
   totalTeams?: number;
   playTypeDefenseFilters?: PlayTypeDefenseQuickFilter[];
   active: Set<string>;
@@ -126,9 +128,16 @@ interface SmartPreset {
 // drop any existing filter whose group is being overwritten by the preset.
 // Returns null for filter ids that can stack freely.
 function conflictGroup(id: string): string | null {
+  const metric = parseMetricFilterId(id);
+  if (metric?.key === "dvpRank") return "dvp";
+  if (metric?.key === "paceRank") return "pace";
+  if (metric?.key === "margin") return "gameflow";
+  if (metric) return metric.key;
   if (id.startsWith("venue")) return "venue";
   if (id.startsWith("dvp")) return "dvp";
-  if (id === "closeGame" || id === "wonBy15" || id === "lostBy15") return "gameflow";
+  if (id.startsWith("pace")) return "pace";
+  if (id === "closeGame" || id === "wonBy15" || id === "lostBy15")
+    return "gameflow";
   if (id === "b2b" || id === "rest2plus" || id === "rest3plus") return "rest";
   if (id.startsWith("dow")) return "dow";
   // Threshold filters — id format is `<stat><N>`. Each stat allows only one
@@ -174,7 +183,8 @@ function mergeWithPreset(
 }
 
 function buildPresets(filters: QuickFilter[]): SmartPreset[] {
-  const byPrefix = (prefix: string) => filters.find((f) => f.id.startsWith(prefix))?.id;
+  const byPrefix = (prefix: string) =>
+    filters.find((f) => f.id.startsWith(prefix))?.id;
 
   const minutes = byPrefix("minutes");
   const fga = byPrefix("fga");
@@ -186,6 +196,7 @@ function buildPresets(filters: QuickFilter[]): SmartPreset[] {
   const dvpTough = byPrefix("dvpTough");
   const dvpWeak = byPrefix("dvpWeak");
   const dvpAvg = byPrefix("dvpAvg");
+  const paceFast = byPrefix("paceFast");
   const restAdv = filters.find((f) => f.id === "rest2plus")?.id;
   const closeGame = filters.find((f) => f.id === "closeGame")?.id;
   const blowout = filters.find((f) => f.id === "blowout")?.id;
@@ -264,6 +275,15 @@ function buildPresets(filters: QuickFilter[]): SmartPreset[] {
     });
   }
 
+  if (paceFast) {
+    presets.push({
+      id: "fast-pace",
+      label: "Fast Pace",
+      description: "Opponent pace in the fastest tier",
+      build: () => new Set([paceFast]),
+    });
+  }
+
   if (blowout) {
     presets.push({
       id: "blowoutPreset",
@@ -281,6 +301,7 @@ export function FiltersDrawer({
   upcomingHomeAway,
   recentGames,
   dvpRankByOpponent,
+  paceRankByOpponent,
   totalTeams,
   playTypeDefenseFilters,
   active,
@@ -298,6 +319,7 @@ export function FiltersDrawer({
         upcomingHomeAway,
         recentGames,
         dvpRankByOpponent,
+        paceRankByOpponent,
         totalTeams,
         playTypeDefenseFilters,
       }),
@@ -306,9 +328,10 @@ export function FiltersDrawer({
       upcomingHomeAway,
       recentGames,
       dvpRankByOpponent,
+      paceRankByOpponent,
       totalTeams,
       playTypeDefenseFilters,
-    ]
+    ],
   );
 
   const presets = useMemo(() => buildPresets(filters), [filters]);
@@ -319,16 +342,19 @@ export function FiltersDrawer({
         const values = recentGames
           .map((game) => config.getValue(game))
           .filter((value): value is number => {
-            return value !== null && value !== undefined && Number.isFinite(value);
+            return (
+              value !== null && value !== undefined && Number.isFinite(value)
+            );
           });
         if (values.length === 0) return null;
         const min = Math.floor(Math.min(...values));
         const max = Math.ceil(Math.max(...values));
         if (max <= 0 || max <= min) return null;
-        const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+        const avg =
+          values.reduce((sum, value) => sum + value, 0) / values.length;
         return { config, min, max, avg, games: values.length };
       }).filter((row): row is NonNullable<typeof row> => row !== null),
-    [recentGames]
+    [recentGames],
   );
 
   const metricRowsByCategory = useMemo(() => {
@@ -342,7 +368,7 @@ export function FiltersDrawer({
   }, [metricRows]);
 
   const activeMetricRange = (
-    key: string
+    key: string,
   ): { min: number; max: number | null } | null => {
     for (const id of active) {
       const parsed = parseMetricFilterId(id);
@@ -353,17 +379,19 @@ export function FiltersDrawer({
 
   const setMetricRange = (
     key: string,
-    range: { min: number; max: number } | null
+    range: { min: number; max: number } | null,
   ) => {
     const next = new Set(
-      [...active].filter((id) => parseMetricFilterId(id)?.key !== key)
+      [...active].filter((id) => parseMetricFilterId(id)?.key !== key),
     );
     if (range !== null) next.add(metricFilterId(key, range.min, range.max));
     onApplyPreset(next);
   };
 
   const setExclusivePrefixFilter = (prefix: string, id: string) => {
-    const next = new Set([...active].filter((activeId) => !activeId.startsWith(prefix)));
+    const next = new Set(
+      [...active].filter((activeId) => !activeId.startsWith(prefix)),
+    );
     if (!active.has(id)) next.add(id);
     onApplyPreset(next);
   };
@@ -405,7 +433,8 @@ export function FiltersDrawer({
       } else if (
         f.id === "closeGame" ||
         f.id === "wonBy15" ||
-        f.id === "lostBy15"
+        f.id === "lostBy15" ||
+        f.id.startsWith("pace")
       ) {
         buckets.gameflow.push(f);
       } else if (
@@ -432,8 +461,13 @@ export function FiltersDrawer({
       schedule: 0,
     };
     for (const id of active) {
-      if (parseMetricFilterId(id)) {
-        counts.ranges++;
+      const metric = parseMetricFilterId(id);
+      if (metric) {
+        if (metric.key === "dvpRank") counts.defense++;
+        else if (metric.key === "margin" || metric.key === "paceRank")
+          counts.gameflow++;
+        else if (VOLUME_METRIC_KEYS.includes(metric.key)) counts.volume++;
+        else counts.ranges++;
         continue;
       }
       if (id.startsWith("dvp") || id.startsWith("playType:")) {
@@ -447,7 +481,12 @@ export function FiltersDrawer({
         id.startsWith("minutes")
       ) {
         counts.volume++;
-      } else if (id === "closeGame" || id === "wonBy15" || id === "lostBy15") {
+      } else if (
+        id === "closeGame" ||
+        id === "wonBy15" ||
+        id === "lostBy15" ||
+        id.startsWith("pace")
+      ) {
         counts.gameflow++;
       } else if (
         id.startsWith("venue") ||
@@ -507,7 +546,7 @@ export function FiltersDrawer({
           className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-200 dark:placeholder:text-neutral-500"
         />
         {active.size > 0 && (
-          <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-black tabular-nums text-neutral-950">
+          <span className="bg-brand rounded-full px-2 py-0.5 text-[10px] font-black text-neutral-950 tabular-nums">
             {active.size}
           </span>
         )}
@@ -553,7 +592,10 @@ export function FiltersDrawer({
                       </div>
                       <ul className="mt-1.5 space-y-1 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                         {appliedLabels.map((label, i) => (
-                          <li key={`${ids[i]}-${i}`} className="flex items-baseline gap-1.5">
+                          <li
+                            key={`${ids[i]}-${i}`}
+                            className="flex items-baseline gap-1.5"
+                          >
                             <span className="text-brand">·</span>
                             <span>{label}</span>
                           </li>
@@ -565,9 +607,11 @@ export function FiltersDrawer({
                   <button
                     type="button"
                     onClick={() =>
-                      onApplyPreset(mergeWithPreset(active, preset.build(filters)))
+                      onApplyPreset(
+                        mergeWithPreset(active, preset.build(filters)),
+                      )
                     }
-                    className="rounded-md border border-neutral-200/70 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 transition-colors hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-neutral-800/70 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-brand/40 dark:hover:bg-brand/10"
+                    className="hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:hover:border-brand/40 dark:hover:bg-brand/10 rounded-md border border-neutral-200/70 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 transition-colors dark:border-neutral-800/70 dark:bg-neutral-900 dark:text-neutral-200"
                   >
                     {preset.label}
                   </button>
@@ -581,7 +625,7 @@ export function FiltersDrawer({
       {/* TWO-PANE BODY — left rail nav (180px) + right content pane (1fr).
           When search is active we hide the rail and stretch results to full
           width since results may span multiple categories. */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1">
         {!normalizedQuery && (
           <nav className="w-[200px] shrink-0 overflow-y-auto border-r border-neutral-200/60 bg-neutral-50/50 py-1.5 dark:border-neutral-800/60 dark:bg-neutral-950/40">
             {CATEGORIES.map((cat) => {
@@ -621,80 +665,450 @@ export function FiltersDrawer({
         )}
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
-        {/* Search results — flat chip list across all categories. Replaces
+          {/* Search results — flat chip list across all categories. Replaces
             the per-category panels when there's a search query. */}
-        {normalizedQuery && (
-          <section>
-            <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-              {visibleChips.length} match{visibleChips.length === 1 ? "" : "es"}
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {visibleChips.map((f) => (
-                <FilterChip
-                  key={f.id}
-                  label={f.label}
-                  isActive={active.has(f.id)}
-                  onClick={() => onToggle(f.id)}
-                />
-              ))}
-            </div>
-            {visibleChips.length === 0 && visiblePresets.length === 0 && (
-              <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
-                No filters match "{searchQuery}".
+          {normalizedQuery && (
+            <section>
+              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                {visibleChips.length} match
+                {visibleChips.length === 1 ? "" : "es"}
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {visibleChips.map((f) => (
+                  <FilterChip
+                    key={f.id}
+                    label={f.label}
+                    isActive={active.has(f.id)}
+                    onClick={() => onToggle(f.id)}
+                  />
+                ))}
               </div>
-            )}
-          </section>
-        )}
+              {visibleChips.length === 0 && visiblePresets.length === 0 && (
+                <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+                  No filters match "{searchQuery}".
+                </div>
+              )}
+            </section>
+          )}
 
-        {/* DEFENSE — DvP chips + Defense vs Play Type segmented controls */}
-        {!normalizedQuery && activeCategory === "defense" && (
-          <div className="space-y-4">
-            {dvpRankByOpponent && dvpRankByOpponent.size > 0 && (
+          {/* DEFENSE — DvP chips + Defense vs Play Type segmented controls */}
+          {!normalizedQuery && activeCategory === "defense" && (
+            <div className="space-y-4">
+              {dvpRankByOpponent && dvpRankByOpponent.size > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    Defense vs Position
+                  </h3>
+                  {(() => {
+                    // DvP rank slider — collapsed in place of the old tier
+                    // chips. Bounds are 1..totalTeams (fixed by league size);
+                    // avg is the mean rank across the player's recent
+                    // opponents, useful as a "you've played a tough/soft
+                    // schedule" reference.
+                    const total = totalTeams ?? 30;
+                    const ranks = recentGames
+                      .map(
+                        (g) => dvpRankByOpponent.get(g.opponentTeamId) ?? null,
+                      )
+                      .filter((r): r is number => r != null);
+                    const avg =
+                      ranks.length > 0
+                        ? ranks.reduce((a, b) => a + b, 0) / ranks.length
+                        : total / 2;
+                    return (
+                      <MetricSliderRow
+                        config={{
+                          ...DVP_RANK_CONFIG,
+                          label: `Opp Defense Rank vs ${formatMarketLabel(market)}`,
+                        }}
+                        min={1}
+                        max={total}
+                        avg={avg}
+                        games={ranks.length}
+                        activeRange={activeMetricRange("dvpRank")}
+                        onChange={(range) => {
+                          const next = new Set(active);
+                          // Clear any existing dvp tier chip OR existing
+                          // dvpRank range so a fresh selection doesn't
+                          // double-count.
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed?.key === "dvpRank") next.delete(id);
+                            if (
+                              id.startsWith("dvp") &&
+                              !id.startsWith("metric:")
+                            )
+                              next.delete(id);
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId("dvpRank", range.min, range.max),
+                            );
+                          }
+                          onApplyPreset(next);
+                        }}
+                      />
+                    );
+                  })()}
+                </section>
+              )}
+              {playTypeGroups.length > 0 && (
+                <section>
+                  <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    <Shield className="text-brand h-3 w-3" />
+                    Defense vs Play Type
+                  </h3>
+                  <div className="space-y-1.5">
+                    {playTypeGroups.map((group) => (
+                      <div
+                        key={group.source.playType}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50/50 px-2.5 py-2 dark:border-neutral-800/70 dark:bg-neutral-950/30"
+                      >
+                        <span className="min-w-0 truncate text-[11px] font-black text-neutral-700 dark:text-neutral-200">
+                          {group.source.label}
+                        </span>
+                        <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-200/70 dark:border-neutral-800/70">
+                          {group.items.map((item) => {
+                            const isActive = active.has(item.id);
+                            const tier = item.id.endsWith(":tough")
+                              ? "1-10"
+                              : item.id.endsWith(":favorable")
+                                ? "21-30"
+                                : "11-20";
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() =>
+                                  setExclusivePrefixFilter(
+                                    group.prefix,
+                                    item.id,
+                                  )
+                                }
+                                className={cn(
+                                  "px-2 py-1 text-[9px] font-black tracking-[0.08em] uppercase transition-colors",
+                                  isActive
+                                    ? "bg-brand text-neutral-950"
+                                    : "bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100",
+                                )}
+                              >
+                                {tier}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+              {filtersByCategory.defense.length === 0 &&
+                playTypeGroups.length === 0 && (
+                  <EmptyHint>
+                    No defense filters available for this market.
+                  </EmptyHint>
+                )}
+            </div>
+          )}
+
+          {/* VOLUME — sliders for Min / FGA / 3PA / Pot AST / Reb Chances.
+            Each slider's bounds come from the player's actual recent games
+            so the user can pick e.g. "32-44 minutes" or "8-12 FGA" with
+            real grain instead of toggling fixed thresholds. */}
+          {!normalizedQuery && activeCategory === "volume" && (
+            <div className="space-y-4">
               <section>
                 <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                  Defense vs Position
+                  Volume Sliders
                 </h3>
+                <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
+                  Drag either side or type an exact range. Bounds reflect this
+                  player's recent extents — not a league constant.
+                </p>
                 {(() => {
-                  // DvP rank slider — collapsed in place of the old tier
-                  // chips. Bounds are 1..totalTeams (fixed by league size);
-                  // avg is the mean rank across the player's recent
-                  // opponents, useful as a "you've played a tough/soft
-                  // schedule" reference.
-                  const total = totalTeams ?? 30;
-                  const ranks = recentGames
-                    .map((g) => dvpRankByOpponent.get(g.opponentTeamId) ?? null)
-                    .filter((r): r is number => r != null);
+                  const volumeRows = metricRows.filter((row) =>
+                    VOLUME_METRIC_KEYS.includes(row.config.key),
+                  );
+                  if (volumeRows.length === 0) {
+                    return (
+                      <EmptyHint>
+                        No volume metrics available for this player yet.
+                      </EmptyHint>
+                    );
+                  }
+                  return (
+                    <div className="space-y-1.5">
+                      {volumeRows.map((row) => (
+                        <MetricSliderRow
+                          key={row.config.key}
+                          config={row.config}
+                          min={row.min}
+                          max={row.max}
+                          avg={row.avg}
+                          games={row.games}
+                          activeRange={activeMetricRange(row.config.key)}
+                          onChange={(range) => {
+                            const next = new Set(active);
+                            // Clear any existing range filter for this metric
+                            // and any legacy short-form chip (e.g. minutes32,
+                            // fga15) for the same metric — both forms could
+                            // be present from saved filter sets.
+                            const legacyPrefix =
+                              METRIC_KEY_TO_LEGACY_PREFIX[row.config.key];
+                            for (const id of [...next]) {
+                              const parsed = parseMetricFilterId(id);
+                              if (parsed?.key === row.config.key)
+                                next.delete(id);
+                              if (legacyPrefix) {
+                                const m = id.match(
+                                  /^([a-zA-Z]+)\d+(?:\.\d+)?$/,
+                                );
+                                if (m && m[1] === legacyPrefix) next.delete(id);
+                              }
+                            }
+                            if (range) {
+                              next.add(
+                                metricFilterId(
+                                  row.config.key,
+                                  range.min,
+                                  range.max,
+                                ),
+                              );
+                            }
+                            onApplyPreset(next);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </section>
+            </div>
+          )}
+
+          {/* STAT RANGES — sliders grouped by sub-category */}
+          {!normalizedQuery && activeCategory === "ranges" && (
+            <section>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                  Stat Ranges
+                </h3>
+                <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
+                  Drag either side or type an exact range
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    ["opportunity", "Opportunity"],
+                    ["shooting", "Shooting"],
+                    ["rebounding", "Rebounding"],
+                    ["scoring", "Scoring"],
+                    ["discipline", "Discipline"],
+                  ] as Array<[MetricFilterCategory, string]>
+                ).map(([category, label]) => {
+                  const rows = metricRowsByCategory.get(category) ?? [];
+                  if (rows.length === 0) return null;
+                  return (
+                    <div
+                      key={category}
+                      className="rounded-xl border border-neutral-200/70 bg-neutral-50/50 p-2 dark:border-neutral-800/70 dark:bg-neutral-950/30"
+                    >
+                      <div className="mb-1.5 flex items-center justify-between px-1">
+                        <span className="text-[9px] font-black tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
+                          {label}
+                        </span>
+                        <span className="text-[9px] font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
+                          {rows.length}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {rows.map((row) => (
+                          <MetricSliderRow
+                            key={row.config.key}
+                            config={row.config}
+                            min={row.min}
+                            max={row.max}
+                            avg={row.avg}
+                            games={row.games}
+                            activeRange={activeMetricRange(row.config.key)}
+                            onChange={(range) =>
+                              setMetricRange(row.config.key, range)
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg border border-dashed border-neutral-200/80 px-3 py-2 dark:border-neutral-800/80">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-black text-neutral-500 dark:text-neutral-400">
+                        Points in Paint
+                      </div>
+                      <div className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
+                        Not in the per-game box-score payload yet
+                      </div>
+                    </div>
+                    <span className="rounded-md bg-neutral-100 px-2 py-1 text-[9px] font-black tracking-[0.12em] text-neutral-400 uppercase dark:bg-neutral-800/70 dark:text-neutral-500">
+                      Data needed
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* GAME FLOW — Close / Won by 15+ / Lost by 15+ chips + a margin
+            slider for arbitrary win/loss ranges (e.g. "lose by 5-15"). */}
+          {!normalizedQuery && activeCategory === "gameflow" && (
+            <div className="space-y-4">
+              <section>
+                <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                  Quick Picks
+                </h3>
+                {filtersByCategory.gameflow.filter(
+                  (f) =>
+                    f.id === "closeGame" ||
+                    f.id === "wonBy15" ||
+                    f.id === "lostBy15",
+                ).length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {filtersByCategory.gameflow
+                      .filter(
+                        (f) =>
+                          f.id === "closeGame" ||
+                          f.id === "wonBy15" ||
+                          f.id === "lostBy15",
+                      )
+                      .map((f) => (
+                        <FilterChip
+                          key={f.id}
+                          label={f.label}
+                          isActive={active.has(f.id)}
+                          onClick={() => onToggle(f.id)}
+                        />
+                      ))}
+                  </div>
+                ) : (
+                  <EmptyHint>No game flow chips available.</EmptyHint>
+                )}
+              </section>
+              {paceRankByOpponent && paceRankByOpponent.size > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    Opponent Pace
+                  </h3>
+                  <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
+                    Rank is league-relative: #1 is fastest. WNBA ranges use 1-
+                    {totalTeams ?? 13}; NBA ranges use 1-{totalTeams ?? 30}.
+                  </p>
+                  {filtersByCategory.gameflow.filter((f) =>
+                    f.id.startsWith("pace"),
+                  ).length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {filtersByCategory.gameflow
+                        .filter((f) => f.id.startsWith("pace"))
+                        .map((f) => (
+                          <FilterChip
+                            key={f.id}
+                            label={f.label}
+                            isActive={active.has(f.id)}
+                            onClick={() => {
+                              const next = new Set(active);
+                              for (const id of [...next]) {
+                                const parsed = parseMetricFilterId(id);
+                                if (parsed?.key === "paceRank") next.delete(id);
+                                if (id.startsWith("pace")) next.delete(id);
+                              }
+                              if (!active.has(f.id)) next.add(f.id);
+                              onApplyPreset(next);
+                            }}
+                          />
+                        ))}
+                    </div>
+                  )}
+                  {(() => {
+                    const total = totalTeams ?? 30;
+                    const ranks = recentGames
+                      .map(
+                        (g) => paceRankByOpponent.get(g.opponentTeamId) ?? null,
+                      )
+                      .filter((r): r is number => r != null);
+                    const avg =
+                      ranks.length > 0
+                        ? ranks.reduce((a, b) => a + b, 0) / ranks.length
+                        : total / 2;
+                    return (
+                      <MetricSliderRow
+                        config={PACE_RANK_CONFIG}
+                        min={1}
+                        max={total}
+                        avg={avg}
+                        games={ranks.length}
+                        activeRange={activeMetricRange("paceRank")}
+                        onChange={(range) => {
+                          const next = new Set(active);
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed?.key === "paceRank") next.delete(id);
+                            if (id.startsWith("pace")) next.delete(id);
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId("paceRank", range.min, range.max),
+                            );
+                          }
+                          onApplyPreset(next);
+                        }}
+                      />
+                    );
+                  })()}
+                </section>
+              )}
+              <section>
+                <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                  Margin Range
+                </h3>
+                <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
+                  Negative = loss by N, positive = win by N. Pick a band like
+                  "−5 to +5" for tight games or "−40 to −15" for blowout losses.
+                </p>
+                {(() => {
+                  const margins = recentGames
+                    .map((g) => g.margin)
+                    .filter(
+                      (m): m is number =>
+                        typeof m === "number" && Number.isFinite(m),
+                    );
+                  if (margins.length === 0) {
+                    return (
+                      <EmptyHint>No game margins available yet.</EmptyHint>
+                    );
+                  }
+                  const lo = Math.floor(Math.min(...margins) / 5) * 5;
+                  const hi = Math.ceil(Math.max(...margins) / 5) * 5;
                   const avg =
-                    ranks.length > 0
-                      ? ranks.reduce((a, b) => a + b, 0) / ranks.length
-                      : total / 2;
+                    margins.reduce((a, b) => a + b, 0) / margins.length;
                   return (
                     <MetricSliderRow
-                      config={{
-                        ...DVP_RANK_CONFIG,
-                        label: `Opp Defense Rank vs ${formatMarketLabel(market)}`,
-                      }}
-                      min={1}
-                      max={total}
+                      config={MARGIN_CONFIG}
+                      min={lo}
+                      max={hi}
                       avg={avg}
-                      games={ranks.length}
-                      activeRange={activeMetricRange("dvpRank")}
+                      games={margins.length}
+                      activeRange={activeMetricRange("margin")}
                       onChange={(range) => {
                         const next = new Set(active);
-                        // Clear any existing dvp tier chip OR existing
-                        // dvpRank range so a fresh selection doesn't
-                        // double-count.
                         for (const id of [...next]) {
-                          const parsed = parseMetricFilterId(id);
-                          if (parsed?.key === "dvpRank") next.delete(id);
-                          if (
-                            id.startsWith("dvp") &&
-                            !id.startsWith("metric:")
-                          )
+                          if (parseMetricFilterId(id)?.key === "margin")
                             next.delete(id);
                         }
                         if (range) {
-                          next.add(metricFilterId("dvpRank", range.min, range.max));
+                          next.add(
+                            metricFilterId("margin", range.min, range.max),
+                          );
                         }
                         onApplyPreset(next);
                       }}
@@ -702,341 +1116,87 @@ export function FiltersDrawer({
                   );
                 })()}
               </section>
-            )}
-            {playTypeGroups.length > 0 && (
-              <section>
-                <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                  <Shield className="h-3 w-3 text-brand" />
-                  Defense vs Play Type
-                </h3>
-                <div className="space-y-1.5">
-                  {playTypeGroups.map((group) => (
-                    <div
-                      key={group.source.playType}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50/50 px-2.5 py-2 dark:border-neutral-800/70 dark:bg-neutral-950/30"
-                    >
-                      <span className="min-w-0 truncate text-[11px] font-black text-neutral-700 dark:text-neutral-200">
-                        {group.source.label}
-                      </span>
-                      <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-200/70 dark:border-neutral-800/70">
-                        {group.items.map((item) => {
-                          const isActive = active.has(item.id);
-                          const tier = item.id.endsWith(":tough")
-                            ? "1-10"
-                            : item.id.endsWith(":favorable")
-                              ? "21-30"
-                              : "11-20";
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setExclusivePrefixFilter(group.prefix, item.id)}
-                              className={cn(
-                                "px-2 py-1 text-[9px] font-black tracking-[0.08em] uppercase transition-colors",
-                                isActive
-                                  ? "bg-brand text-neutral-950"
-                                  : "bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100",
-                              )}
-                            >
-                              {tier}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            {filtersByCategory.defense.length === 0 && playTypeGroups.length === 0 && (
-              <EmptyHint>No defense filters available for this market.</EmptyHint>
-            )}
-          </div>
-        )}
-
-        {/* VOLUME — sliders for Min / FGA / 3PA / Pot AST / Reb Chances.
-            Each slider's bounds come from the player's actual recent games
-            so the user can pick e.g. "32-44 minutes" or "8-12 FGA" with
-            real grain instead of toggling fixed thresholds. */}
-        {!normalizedQuery && activeCategory === "volume" && (
-          <div className="space-y-4">
-            <section>
-              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                Volume Sliders
-              </h3>
-              <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
-                Drag either side or type an exact range. Bounds reflect this
-                player's recent extents — not a league constant.
-              </p>
-              {(() => {
-                const volumeRows = metricRows.filter((row) =>
-                  VOLUME_METRIC_KEYS.includes(row.config.key),
-                );
-                if (volumeRows.length === 0) {
-                  return (
-                    <EmptyHint>
-                      No volume metrics available for this player yet.
-                    </EmptyHint>
-                  );
-                }
-                return (
-                  <div className="space-y-1.5">
-                    {volumeRows.map((row) => (
-                      <MetricSliderRow
-                        key={row.config.key}
-                        config={row.config}
-                        min={row.min}
-                        max={row.max}
-                        avg={row.avg}
-                        games={row.games}
-                        activeRange={activeMetricRange(row.config.key)}
-                        onChange={(range) => {
-                          const next = new Set(active);
-                          // Clear any existing range filter for this metric
-                          // and any legacy short-form chip (e.g. minutes32,
-                          // fga15) for the same metric — both forms could
-                          // be present from saved filter sets.
-                          const legacyPrefix =
-                            METRIC_KEY_TO_LEGACY_PREFIX[row.config.key];
-                          for (const id of [...next]) {
-                            const parsed = parseMetricFilterId(id);
-                            if (parsed?.key === row.config.key) next.delete(id);
-                            if (legacyPrefix) {
-                              const m = id.match(/^([a-zA-Z]+)\d+(?:\.\d+)?$/);
-                              if (m && m[1] === legacyPrefix) next.delete(id);
-                            }
-                          }
-                          if (range) {
-                            next.add(
-                              metricFilterId(row.config.key, range.min, range.max),
-                            );
-                          }
-                          onApplyPreset(next);
-                        }}
-                      />
-                    ))}
-                  </div>
-                );
-              })()}
-            </section>
-          </div>
-        )}
-
-        {/* STAT RANGES — sliders grouped by sub-category */}
-        {!normalizedQuery && activeCategory === "ranges" && (
-          <section>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                Stat Ranges
-              </h3>
-              <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
-                Drag either side or type an exact range
-              </span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(
-                [
-                  ["opportunity", "Opportunity"],
-                  ["shooting", "Shooting"],
-                  ["rebounding", "Rebounding"],
-                  ["scoring", "Scoring"],
-                  ["discipline", "Discipline"],
-                ] as Array<[MetricFilterCategory, string]>
-              ).map(([category, label]) => {
-                const rows = metricRowsByCategory.get(category) ?? [];
-                if (rows.length === 0) return null;
-                return (
-                  <div
-                    key={category}
-                    className="rounded-xl border border-neutral-200/70 bg-neutral-50/50 p-2 dark:border-neutral-800/70 dark:bg-neutral-950/30"
-                  >
-                    <div className="mb-1.5 flex items-center justify-between px-1">
-                      <span className="text-[9px] font-black tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
-                        {label}
-                      </span>
-                      <span className="text-[9px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
-                        {rows.length}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {rows.map((row) => (
-                        <MetricSliderRow
-                          key={row.config.key}
-                          config={row.config}
-                          min={row.min}
-                          max={row.max}
-                          avg={row.avg}
-                        games={row.games}
-                        activeRange={activeMetricRange(row.config.key)}
-                        onChange={(range) =>
-                          setMetricRange(row.config.key, range)
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            <div className="rounded-lg border border-dashed border-neutral-200/80 px-3 py-2 dark:border-neutral-800/80">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-[11px] font-black text-neutral-500 dark:text-neutral-400">
-                    Points in Paint
-                  </div>
-                  <div className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
-                    Not in the per-game box-score payload yet
-                  </div>
-                </div>
-                <span className="rounded-md bg-neutral-100 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-neutral-400 dark:bg-neutral-800/70 dark:text-neutral-500">
-                  Data needed
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-        )}
+          )}
 
-        {/* GAME FLOW — Close / Won by 15+ / Lost by 15+ chips + a margin
-            slider for arbitrary win/loss ranges (e.g. "lose by 5-15"). */}
-        {!normalizedQuery && activeCategory === "gameflow" && (
-          <div className="space-y-4">
-            <section>
-              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                Quick Picks
-              </h3>
-              {filtersByCategory.gameflow.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.gameflow.map((f) => (
-                    <FilterChip
-                      key={f.id}
-                      label={f.label}
-                      isActive={active.has(f.id)}
-                      onClick={() => onToggle(f.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyHint>No game flow chips available.</EmptyHint>
+          {/* SCHEDULE — Venue + Rest + Day of Week, grouped subsections */}
+          {!normalizedQuery && activeCategory === "schedule" && (
+            <div className="space-y-4">
+              {filtersByCategory.schedule.filter((f) =>
+                f.id.startsWith("venue"),
+              ).length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    Venue
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filtersByCategory.schedule
+                      .filter((f) => f.id.startsWith("venue"))
+                      .map((f) => (
+                        <FilterChip
+                          key={f.id}
+                          label={f.label}
+                          isActive={active.has(f.id)}
+                          onClick={() => onToggle(f.id)}
+                        />
+                      ))}
+                  </div>
+                </section>
               )}
-            </section>
-            <section>
-              <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                Margin Range
-              </h3>
-              <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
-                Negative = loss by N, positive = win by N. Pick a band like
-                "−5 to +5" for tight games or "−40 to −15" for blowout
-                losses.
-              </p>
-              {(() => {
-                const margins = recentGames
-                  .map((g) => g.margin)
-                  .filter((m): m is number => typeof m === "number" && Number.isFinite(m));
-                if (margins.length === 0) {
-                  return (
-                    <EmptyHint>No game margins available yet.</EmptyHint>
-                  );
-                }
-                const lo = Math.floor(Math.min(...margins) / 5) * 5;
-                const hi = Math.ceil(Math.max(...margins) / 5) * 5;
-                const avg =
-                  margins.reduce((a, b) => a + b, 0) / margins.length;
-                return (
-                  <MetricSliderRow
-                    config={MARGIN_CONFIG}
-                    min={lo}
-                    max={hi}
-                    avg={avg}
-                    games={margins.length}
-                    activeRange={activeMetricRange("margin")}
-                    onChange={(range) => {
-                      const next = new Set(active);
-                      for (const id of [...next]) {
-                        if (parseMetricFilterId(id)?.key === "margin")
-                          next.delete(id);
-                      }
-                      if (range) {
-                        next.add(metricFilterId("margin", range.min, range.max));
-                      }
-                      onApplyPreset(next);
-                    }}
-                  />
-                );
-              })()}
-            </section>
-          </div>
-        )}
-
-        {/* SCHEDULE — Venue + Rest + Day of Week, grouped subsections */}
-        {!normalizedQuery && activeCategory === "schedule" && (
-          <div className="space-y-4">
-            {filtersByCategory.schedule.filter((f) => f.id.startsWith("venue")).length > 0 && (
-              <section>
-                <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                  Venue
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.schedule
-                    .filter((f) => f.id.startsWith("venue"))
-                    .map((f) => (
-                      <FilterChip
-                        key={f.id}
-                        label={f.label}
-                        isActive={active.has(f.id)}
-                        onClick={() => onToggle(f.id)}
-                      />
-                    ))}
-                </div>
-              </section>
-            )}
-            {filtersByCategory.schedule.filter(
-              (f) => f.id === "b2b" || f.id === "rest2plus" || f.id === "rest3plus",
-            ).length > 0 && (
-              <section>
-                <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                  Rest
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.schedule
-                    .filter(
-                      (f) =>
-                        f.id === "b2b" || f.id === "rest2plus" || f.id === "rest3plus",
-                    )
-                    .map((f) => (
-                      <FilterChip
-                        key={f.id}
-                        label={f.label}
-                        isActive={active.has(f.id)}
-                        onClick={() => onToggle(f.id)}
-                      />
-                    ))}
-                </div>
-              </section>
-            )}
-            {filtersByCategory.schedule.filter((f) => f.id.startsWith("dow")).length > 0 && (
-              <section>
-                <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
-                  Day of Week
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {filtersByCategory.schedule
-                    .filter((f) => f.id.startsWith("dow"))
-                    .map((f) => (
-                      <FilterChip
-                        key={f.id}
-                        label={f.label}
-                        isActive={active.has(f.id)}
-                        onClick={() => onToggle(f.id)}
-                      />
-                    ))}
-                </div>
-              </section>
-            )}
-            {filtersByCategory.schedule.length === 0 && (
-              <EmptyHint>No schedule filters available.</EmptyHint>
-            )}
-          </div>
-        )}
+              {filtersByCategory.schedule.filter(
+                (f) =>
+                  f.id === "b2b" ||
+                  f.id === "rest2plus" ||
+                  f.id === "rest3plus",
+              ).length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    Rest
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filtersByCategory.schedule
+                      .filter(
+                        (f) =>
+                          f.id === "b2b" ||
+                          f.id === "rest2plus" ||
+                          f.id === "rest3plus",
+                      )
+                      .map((f) => (
+                        <FilterChip
+                          key={f.id}
+                          label={f.label}
+                          isActive={active.has(f.id)}
+                          onClick={() => onToggle(f.id)}
+                        />
+                      ))}
+                  </div>
+                </section>
+              )}
+              {filtersByCategory.schedule.filter((f) => f.id.startsWith("dow"))
+                .length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
+                    Day of Week
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filtersByCategory.schedule
+                      .filter((f) => f.id.startsWith("dow"))
+                      .map((f) => (
+                        <FilterChip
+                          key={f.id}
+                          label={f.label}
+                          isActive={active.has(f.id)}
+                          onClick={() => onToggle(f.id)}
+                        />
+                      ))}
+                  </div>
+                </section>
+              )}
+              {filtersByCategory.schedule.length === 0 && (
+                <EmptyHint>No schedule filters available.</EmptyHint>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1059,7 +1219,7 @@ export function FiltersDrawer({
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="rounded-md bg-brand px-3 py-1.5 text-[11px] font-black text-neutral-950 transition-colors hover:bg-brand/90"
+          className="bg-brand hover:bg-brand/90 rounded-md px-3 py-1.5 text-[11px] font-black text-neutral-950 transition-colors"
         >
           {active.size > 0 ? `Done · ${active.size}` : "Done"}
         </button>
@@ -1130,7 +1290,7 @@ function FilterChip({
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition-colors",
         isActive
-          ? "border-brand/45 bg-brand text-neutral-950 shadow-sm shadow-brand/25"
+          ? "border-brand/45 bg-brand shadow-brand/25 text-neutral-950 shadow-sm"
           : "border-neutral-200/70 bg-neutral-50/60 text-neutral-700 hover:border-neutral-300 dark:border-neutral-800/70 dark:bg-neutral-900/40 dark:text-neutral-200 dark:hover:border-neutral-700",
       )}
     >
@@ -1170,7 +1330,8 @@ function MetricSliderRow({
   const clamp = (value: number) => Math.min(max, Math.max(min, value));
   const selectedMin = clamp(activeRange?.min ?? min);
   const selectedMax = clamp(activeRange?.max ?? max);
-  const isActive = activeRange !== null && (selectedMin > min || selectedMax < max);
+  const isActive =
+    activeRange !== null && (selectedMin > min || selectedMax < max);
   const span = Math.max(config.step, max - min);
   const leftPct = ((selectedMin - min) / span) * 100;
   const rightPct = ((selectedMax - min) / span) * 100;
@@ -1197,7 +1358,7 @@ function MetricSliderRow({
         "rounded-lg border px-2.5 py-2 transition-colors",
         isActive
           ? "border-brand/45 bg-brand/10"
-          : "border-neutral-200/70 bg-white dark:border-neutral-800/70 dark:bg-neutral-900/50"
+          : "border-neutral-200/70 bg-white dark:border-neutral-800/70 dark:bg-neutral-900/50",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -1215,7 +1376,7 @@ function MetricSliderRow({
               "rounded-md px-1.5 py-0.5 text-[10px] font-black tabular-nums",
               isActive
                 ? "bg-brand text-neutral-950"
-                : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300"
+                : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300",
             )}
           >
             {display(selectedMin)}-{display(selectedMax)}
@@ -1241,15 +1402,18 @@ function MetricSliderRow({
           step={config.step}
           value={Math.round(selectedMin)}
           onChange={(event) =>
-            commitRange(normalizeInput(event.target.value, selectedMin), selectedMax)
+            commitRange(
+              normalizeInput(event.target.value, selectedMin),
+              selectedMax,
+            )
           }
-          className="h-7 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[10px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+          className="focus:border-brand/60 h-7 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[10px] font-black text-neutral-700 tabular-nums transition-colors outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
           aria-label={`${config.label} minimum input`}
         />
         <div className="relative h-7">
-          <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+          <div className="absolute top-1/2 right-0 left-0 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
           <div
-            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-brand"
+            className="bg-brand absolute top-1/2 h-1 -translate-y-1/2 rounded-full"
             style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
           />
           <input
@@ -1261,7 +1425,7 @@ function MetricSliderRow({
             onChange={(event) =>
               commitRange(
                 Math.min(Number(event.target.value), selectedMax - config.step),
-                selectedMax
+                selectedMax,
               )
             }
             className="range-thumb pointer-events-none absolute inset-0 h-7 w-full cursor-pointer appearance-none bg-transparent"
@@ -1276,7 +1440,7 @@ function MetricSliderRow({
             onChange={(event) =>
               commitRange(
                 selectedMin,
-                Math.max(Number(event.target.value), selectedMin + config.step)
+                Math.max(Number(event.target.value), selectedMin + config.step),
               )
             }
             className="range-thumb pointer-events-none absolute inset-0 h-7 w-full cursor-pointer appearance-none bg-transparent"
@@ -1290,13 +1454,16 @@ function MetricSliderRow({
           step={config.step}
           value={Math.round(selectedMax)}
           onChange={(event) =>
-            commitRange(selectedMin, normalizeInput(event.target.value, selectedMax))
+            commitRange(
+              selectedMin,
+              normalizeInput(event.target.value, selectedMax),
+            )
           }
-          className="h-7 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[10px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+          className="focus:border-brand/60 h-7 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[10px] font-black text-neutral-700 tabular-nums transition-colors outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
           aria-label={`${config.label} maximum input`}
         />
       </div>
-      <div className="mt-0.5 flex justify-between text-[9px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
+      <div className="mt-0.5 flex justify-between text-[9px] font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
         <span>{display(min)}</span>
         <span>{config.shortLabel}</span>
         <span>{display(max)}</span>

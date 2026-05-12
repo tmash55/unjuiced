@@ -53,6 +53,9 @@ export interface QuickFilterContext {
   /** Total teams in the league — used to scale the tier thresholds (NBA = 30,
    *  WNBA = 13). Defaults to 30 if absent. */
   totalTeams?: number;
+  /** Opponent_team_id → pace rank. Lower rank = faster pace (#1 fastest).
+   *  Used for opponent pace quick filters and exact rank ranges. */
+  paceRankByOpponent?: Map<number, number>;
   /** Tonight's game date (YYYY-MM-DD) — drives the day-of-week chip and
    *  the "days rest tonight" tier surfaced inline. */
   tonightDate?: string | null;
@@ -116,7 +119,10 @@ function parseDayOfWeek(date: string | null | undefined): number | null {
   return Number.isNaN(d.getTime()) ? null : d.getUTCDay();
 }
 
-function avg(games: BoxScoreGame[], extract: (g: BoxScoreGame) => number): number {
+function avg(
+  games: BoxScoreGame[],
+  extract: (g: BoxScoreGame) => number,
+): number {
   if (games.length === 0) return 0;
   let sum = 0;
   let count = 0;
@@ -130,8 +136,11 @@ function avg(games: BoxScoreGame[], extract: (g: BoxScoreGame) => number): numbe
   return count > 0 ? sum / count : 0;
 }
 
-function normalizePercentValue(value: number | null | undefined): number | null {
-  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+function normalizePercentValue(
+  value: number | null | undefined,
+): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return null;
   return value <= 1 ? value * 100 : value;
 }
 
@@ -307,6 +316,18 @@ export const MARGIN_CONFIG: MetricFilterConfig = {
   getValue: (g) => g.margin,
 };
 
+// Virtual metric config for opponent pace rank. Rank #1 is the fastest team,
+// so lower ranges mean more possessions. Used by the Game Flow pace slider.
+export const PACE_RANK_CONFIG: MetricFilterConfig = {
+  key: "paceRank",
+  label: "Opponent Pace Rank",
+  shortLabel: "PACE",
+  category: "opportunity",
+  description: "Opponent pace rank (1 = fastest)",
+  step: 1,
+  getValue: () => null,
+};
+
 function formatMetricIdValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -320,9 +341,10 @@ export function metricFilterId(key: string, min: number, max?: number): string {
 }
 
 export function parseMetricFilterId(
-  id: string
+  id: string,
 ): { key: string; min: number; max: number | null } | null {
-  const range = /^metric:([^:]+):range:(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(id);
+  const range =
+    /^metric:([^:]+):range:(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(id);
   if (range) {
     const min = Number(range[2]);
     const max = Number(range[3]);
@@ -338,7 +360,7 @@ export function parseMetricFilterId(
 
 export function buildMetricQuickFilter(
   config: MetricFilterConfig,
-  range: { min: number; max: number | null }
+  range: { min: number; max: number | null },
 ): QuickFilter {
   const format = (value: number) =>
     config.isPercentage ? `${Math.round(value)}%` : formatMetricIdValue(value);
@@ -354,7 +376,8 @@ export function buildMetricQuickFilter(
     label: `${config.shortLabel} ${valueLabel}`,
     predicate: (game) => {
       const value = config.getValue(game);
-      if (value === null || value === undefined || !Number.isFinite(value)) return false;
+      if (value === null || value === undefined || !Number.isFinite(value))
+        return false;
       if (range.max === null) return value >= range.min;
       return value >= range.min && value <= range.max;
     },
@@ -364,7 +387,7 @@ export function buildMetricQuickFilter(
 export function resolveQuickFilter(
   id: string,
   filters: QuickFilter[],
-  ctx?: QuickFilterContext
+  ctx?: QuickFilterContext,
 ): QuickFilter | null {
   const existing = filters.find((f) => f.id === id);
   if (existing) return existing;
@@ -394,6 +417,27 @@ export function resolveQuickFilter(
         },
       };
     }
+    // Special-case opponent pace rank. Like DvP, this is looked up by the
+    // historical opponent team id rather than read from the player's stat row.
+    if (metric.key === "paceRank" && ctx?.paceRankByOpponent) {
+      const ranks = ctx.paceRankByOpponent;
+      const min = metric.min;
+      const max = metric.max;
+      const label =
+        max === null
+          ? `Pace #${Math.round(min)}+`
+          : `Pace #${Math.round(min)}-${Math.round(max)}`;
+      return {
+        id,
+        label,
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          if (rank == null) return false;
+          if (max === null) return rank >= min;
+          return rank >= min && rank <= max;
+        },
+      };
+    }
     // Special-case game margin — signed value (negative = loss, positive
     // = win). Generic metric filter would treat it like a positive stat
     // and miss losses entirely.
@@ -401,7 +445,11 @@ export function resolveQuickFilter(
       const minVal = metric.min;
       const maxVal = metric.max;
       const fmt = (n: number) =>
-        n > 0 ? `Won by ${Math.abs(n)}` : n < 0 ? `Lost by ${Math.abs(n)}` : "Even";
+        n > 0
+          ? `Won by ${Math.abs(n)}`
+          : n < 0
+            ? `Lost by ${Math.abs(n)}`
+            : "Even";
       const label =
         maxVal === null ? `${fmt(minVal)}+` : `${fmt(minVal)} → ${fmt(maxVal)}`;
       return {
@@ -421,8 +469,11 @@ export function resolveQuickFilter(
   if (id.startsWith("playType:") && ctx?.playTypeDefenseFilters) {
     const [, encodedPlayType, tier] = id.split(":");
     const playType = decodeURIComponent(encodedPlayType ?? "");
-    const source = ctx.playTypeDefenseFilters.find((f) => f.playType === playType);
-    if (!source || !["tough", "neutral", "favorable"].includes(tier ?? "")) return null;
+    const source = ctx.playTypeDefenseFilters.find(
+      (f) => f.playType === playType,
+    );
+    if (!source || !["tough", "neutral", "favorable"].includes(tier ?? ""))
+      return null;
     const label =
       tier === "tough" ? "1-10" : tier === "favorable" ? "21-30" : "11-20";
     return {
@@ -444,7 +495,10 @@ export function resolveQuickFilter(
 // Pick a "high-side" threshold for a stat from the player's average. The
 // multiplier overshoots by ~25% so the chip captures genuinely above-typical
 // games; rounding keeps the label readable.
-function pickThreshold(playerAvg: number, opts?: { multiplier?: number; min?: number }): number | null {
+function pickThreshold(
+  playerAvg: number,
+  opts?: { multiplier?: number; min?: number },
+): number | null {
   const m = opts?.multiplier ?? 1.25;
   const target = playerAvg * m;
   if (target < (opts?.min ?? 2)) return null;
@@ -620,7 +674,7 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
       id: "lostBy15",
       label: "Lost by 15+",
       predicate: (g) => g.result === "L" && (g.margin ?? 0) <= -15,
-    }
+    },
   );
 
   // Days rest / B2B — precompute date diffs for the recent games so each
@@ -655,14 +709,22 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
           const d = daysRestById.get(g.gameId);
           return d !== undefined && d >= 3;
         },
-      }
+      },
     );
   }
 
   // One chip per specific day of week. The inline-filter picker surfaces
   // ONLY the day matching tonight's game (e.g. "Thursday" if tonight is
   // a Thursday); the rest live in the dropdown.
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
   for (let i = 0; i < 7; i++) {
     filters.push({
       id: `dow${i}`,
@@ -753,9 +815,45 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
             return rank != null && rank >= 21;
           },
-        }
+        },
       );
     }
+  }
+
+  // Opponent pace tiers. Pace rank is inverted relative to defense rank:
+  // #1 is fastest, so top third = more possessions and bottom third = slower.
+  if (ctx.paceRankByOpponent && ctx.paceRankByOpponent.size > 0) {
+    const total = ctx.totalTeams ?? 30;
+    const tierSize = Math.max(3, Math.round(total / 3));
+    const fastCutoff = tierSize;
+    const slowCutoff = total - tierSize + 1;
+    const ranks = ctx.paceRankByOpponent;
+    filters.push(
+      {
+        id: "paceFast",
+        label: `Fast Pace (1-${fastCutoff})`,
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          return rank != null && rank >= 1 && rank <= fastCutoff;
+        },
+      },
+      {
+        id: "paceAvg",
+        label: "Avg Pace",
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          return rank != null && rank > fastCutoff && rank < slowCutoff;
+        },
+      },
+      {
+        id: "paceSlow",
+        label: `Slow Pace (${slowCutoff}-${total})`,
+        predicate: (g) => {
+          const rank = ranks.get(g.opponentTeamId);
+          return rank != null && rank >= slowCutoff;
+        },
+      },
+    );
   }
 
   // Both venue filters are always present so the drawer's Schedule category
@@ -773,7 +871,7 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
 // the popover so the inline row stays focused and not overwhelming.
 export function getInlineQuickFilters(
   filters: QuickFilter[],
-  ctx: QuickFilterContext
+  ctx: QuickFilterContext,
 ): QuickFilter[] {
   const inline: QuickFilter[] = [];
   const seen = new Set<string>();
@@ -817,7 +915,8 @@ export function getInlineQuickFilters(
       ? (ctx.dvpRankByOpponent?.get(ctx.tonightOpponentTeamId) ?? null)
       : null;
   const showTopFive = total >= 20 && oppRank !== null && oppRank <= 5;
-  const showBottomFive = total >= 20 && oppRank !== null && oppRank >= total - 4;
+  const showBottomFive =
+    total >= 20 && oppRank !== null && oppRank >= total - 4;
   for (const f of filters) {
     if (!f.id.startsWith("dvp")) continue;
     // Suppress the broad tier when its sharper sibling is being shown.
@@ -827,6 +926,24 @@ export function getInlineQuickFilters(
     if (f.id === "dvpTopFive" && !showTopFive) continue;
     if (f.id === "dvpBottomFive" && !showBottomFive) continue;
     include(f);
+  }
+
+  // Pace tier — surface the tier that matches tonight's opponent. The drawer
+  // keeps the full trio plus exact rank slider.
+  const paceRank =
+    ctx.tonightOpponentTeamId != null
+      ? (ctx.paceRankByOpponent?.get(ctx.tonightOpponentTeamId) ?? null)
+      : null;
+  if (paceRank !== null) {
+    const total = ctx.totalTeams ?? 30;
+    const tierSize = Math.max(3, Math.round(total / 3));
+    const fastCutoff = tierSize;
+    const slowCutoff = total - tierSize + 1;
+    if (paceRank <= fastCutoff)
+      include(filters.find((f) => f.id === "paceFast"));
+    else if (paceRank >= slowCutoff)
+      include(filters.find((f) => f.id === "paceSlow"));
+    else include(filters.find((f) => f.id === "paceAvg"));
   }
 
   // Day of week — surface only tonight's day.
@@ -839,8 +956,10 @@ export function getInlineQuickFilters(
   const tonightRest = computeTonightDaysRest(ctx.recentGames, ctx.tonightDate);
   if (tonightRest !== null) {
     if (tonightRest === 0) include(filters.find((f) => f.id === "b2b"));
-    else if (tonightRest >= 3) include(filters.find((f) => f.id === "rest3plus"));
-    else if (tonightRest >= 2) include(filters.find((f) => f.id === "rest2plus"));
+    else if (tonightRest >= 3)
+      include(filters.find((f) => f.id === "rest3plus"));
+    else if (tonightRest >= 2)
+      include(filters.find((f) => f.id === "rest2plus"));
   }
 
   // Spread context — books project a Close or Blowout outcome. Blowout chip
@@ -854,7 +973,9 @@ export function getInlineQuickFilters(
       include(filters.find((f) => f.id === "closeGame"));
     } else if (spreadAbs >= 10) {
       const isFavored = spread < 0;
-      include(filters.find((f) => f.id === (isFavored ? "wonBy15" : "lostBy15")));
+      include(
+        filters.find((f) => f.id === (isFavored ? "wonBy15" : "lostBy15")),
+      );
     }
   }
 
@@ -865,7 +986,7 @@ export function getInlineQuickFilters(
 // and tonight's game date, minus 1 (so consecutive days = 0 = B2B).
 function computeTonightDaysRest(
   recentGames: BoxScoreGame[],
-  tonightDate: string | null | undefined
+  tonightDate: string | null | undefined,
 ): number | null {
   if (!tonightDate) return null;
   const sorted = [...recentGames]

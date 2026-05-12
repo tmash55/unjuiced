@@ -83,9 +83,7 @@ const isPlayoffSeasonType = (seasonType: string | null | undefined) => {
   if (!seasonType) return false;
   const lower = seasonType.toLowerCase();
   if (isCupSeasonType(lower)) return false;
-  return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(
-    lower,
-  );
+  return /\b(playoffs?|postseason|round|conf\.?|finals?|play-in)\b/.test(lower);
 };
 
 const isRegularSeasonType = (seasonType: string | null | undefined) => {
@@ -234,7 +232,8 @@ export function PlayerDrilldownV2({
   }, [allPlayerProfiles, profile]);
 
   const redisPlayerKey = useMemo(() => {
-    const rawKey = oddsContextProfile.selKey ?? oddsContextProfile.oddsSelectionId;
+    const rawKey =
+      oddsContextProfile.selKey ?? oddsContextProfile.oddsSelectionId;
     return rawKey ? rawKey.split(":")[0] : null;
   }, [oddsContextProfile.selKey, oddsContextProfile.oddsSelectionId]);
   const oddsLineQuery = useOddsLine({
@@ -244,7 +243,8 @@ export function PlayerDrilldownV2({
     playerId: redisPlayerKey,
     line: effectiveLine,
     includeSgp: true,
-    enabled: !!oddsContextProfile.eventId && !!profile.market && !!redisPlayerKey,
+    enabled:
+      !!oddsContextProfile.eventId && !!profile.market && !!redisPlayerKey,
   });
   const alternateLinesQuery = useAlternateLines({
     sport,
@@ -505,7 +505,7 @@ export function PlayerDrilldownV2({
         playType: playType.playType,
         label: playType.displayName || playType.playType,
         rankByOpponentAbbr: new Map(
-          playType.teams.map((team) => [team.teamAbbr, team.pppRank])
+          playType.teams.map((team) => [team.teamAbbr, team.pppRank]),
         ),
       }));
   }, [sport, teamPlayTypeRanks.playTypes]);
@@ -707,6 +707,7 @@ export function PlayerDrilldownV2({
       upcomingHomeAway: profile.homeAway,
       recentGames: boxScoreGames,
       dvpRankByOpponent,
+      paceRankByOpponent,
       totalTeams: dvpTotalTeams,
       playTypeDefenseFilters,
       tonightDate: profile.gameDate,
@@ -731,6 +732,7 @@ export function PlayerDrilldownV2({
     profile.spread,
     boxScoreGames,
     dvpRankByOpponent,
+    paceRankByOpponent,
     dvpTotalTeams,
     playTypeDefenseFilters,
   ]);
@@ -858,6 +860,7 @@ export function PlayerDrilldownV2({
         upcomingHomeAway: profile.homeAway,
         recentGames: boxScoreGames,
         dvpRankByOpponent,
+        paceRankByOpponent,
         totalTeams: dvpTotalTeams,
         playTypeDefenseFilters,
         tonightOpponentTeamId: profile.opponentTeamId ?? null,
@@ -868,6 +871,7 @@ export function PlayerDrilldownV2({
           upcomingHomeAway: profile.homeAway,
           recentGames: boxScoreGames,
           dvpRankByOpponent,
+          paceRankByOpponent,
           totalTeams: dvpTotalTeams,
           playTypeDefenseFilters,
           tonightOpponentTeamId: profile.opponentTeamId ?? null,
@@ -919,6 +923,7 @@ export function PlayerDrilldownV2({
     profile.homeAway,
     boxScoreGames,
     dvpRankByOpponent,
+    paceRankByOpponent,
     dvpTotalTeams,
     playTypeDefenseFilters,
     teammateFilters,
@@ -1094,8 +1099,12 @@ function buildLiveLineOdds({
   oddsLine: OddsLineResponse | null;
   alternateLines: AlternateLine[];
 }): LineOdds | null {
-  const normalizedAlternateLines = alternateLines.map(mapAlternateLineToLineOdds);
-  const activeLineOdds = oddsLine ? mapOddsLineResponseToLineOdds(oddsLine) : null;
+  const normalizedAlternateLines = alternateLines.map(
+    mapAlternateLineToLineOdds,
+  );
+  const activeLineOdds = oddsLine
+    ? mapOddsLineResponseToLineOdds(oddsLine)
+    : null;
 
   const allLinesByLine = new Map<number, NormalizedLineOdds>();
   for (const line of normalizedAlternateLines) {
@@ -1110,7 +1119,9 @@ function buildLiveLineOdds({
   );
   const exactActiveLine =
     activeLineOdds ??
-    sortedAllLines.find((line) => Math.abs(line.line - effectiveLine) < 0.001) ??
+    sortedAllLines.find(
+      (line) => Math.abs(line.line - effectiveLine) < 0.001,
+    ) ??
     null;
   const isDefaultLine =
     profile.line !== null && Math.abs(profile.line - effectiveLine) < 0.001;

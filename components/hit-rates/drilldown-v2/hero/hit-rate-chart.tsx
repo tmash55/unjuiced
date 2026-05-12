@@ -9,7 +9,10 @@ import { PlayerHeadshot } from "@/components/player-headshot";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
-import type { GameWithInjuries, PlayerOutInfo } from "@/hooks/use-injury-context";
+import type {
+  GameWithInjuries,
+  PlayerOutInfo,
+} from "@/hooks/use-injury-context";
 import { getMarketStatValue } from "../shared/hit-rate-utils";
 import { getGameStatRows } from "../shared/game-tooltip-stats";
 import {
@@ -18,6 +21,7 @@ import {
   resolveQuickFilter,
   METRIC_FILTERS,
   DVP_RANK_CONFIG,
+  PACE_RANK_CONFIG,
   metricFilterId,
   parseMetricFilterId,
   type PlayTypeDefenseQuickFilter,
@@ -93,8 +97,10 @@ const OVERLAY_STYLES: Record<
   },
 };
 
-
-const OVERLAY_VALUE_GETTERS: Record<string, (g: BoxScoreGame) => number | null | undefined> = {
+const OVERLAY_VALUE_GETTERS: Record<
+  string,
+  (g: BoxScoreGame) => number | null | undefined
+> = {
   minutes: (g) => g.minutes,
   fga: (g) => g.fga,
   fg3a: (g) => g.fg3a,
@@ -155,7 +161,11 @@ interface HitRateChartProps {
   /** Roster With/Without filters. Player-team filters read teammates_out;
    *  opponent filters read opponents_out. When active, only games matching
    *  ALL filters render. */
-  teammateFilters?: Array<{ playerId: string; mode: "with" | "without"; isOpponent?: boolean }>;
+  teammateFilters?: Array<{
+    playerId: string;
+    mode: "with" | "without";
+    isOpponent?: boolean;
+  }>;
   /** Active quick-filter chip ids (market-aware). All active chips compose
    *  with AND alongside split + range + teammate filters. */
   quickFilters?: Set<string>;
@@ -192,7 +202,11 @@ interface HitRateChartProps {
   /** Unified list of every active filter (split, quick filters, custom line,
    *  teammate with/without). Rendered as a single removable-chip row under
    *  the chart header so the user can see and clear all filters in one spot. */
-  activeFilterChips?: Array<{ id: string; label: string; onRemove: () => void }>;
+  activeFilterChips?: Array<{
+    id: string;
+    label: string;
+    onRemove: () => void;
+  }>;
   onClearAllFilters?: () => void;
   /** When provided, the threshold dashed line becomes draggable — drag updates
    *  the active line in 0.5 increments. Same callback the LineStepper uses. */
@@ -237,7 +251,9 @@ const RANGE_SLICE: Record<ChartRange, number> = {
   h2h: 200,
 };
 
-const normalizeInjuryGameId = (id: string | number | null | undefined): string => {
+const normalizeInjuryGameId = (
+  id: string | number | null | undefined,
+): string => {
   if (id === null || id === undefined) return "";
   return String(id).replace(/^0+/, "") || "0";
 };
@@ -295,7 +311,7 @@ function pickBarWidth(itemCount: number, containerWidth: number): number {
 // season, months 1–7 are its tail.
 function getSeasonInfo(
   dateStr: string | null | undefined,
-  sport: "nba" | "wnba"
+  sport: "nba" | "wnba",
 ): { id: string; label: string } | null {
   if (!dateStr) return null;
   const year = parseInt(dateStr.slice(0, 4), 10);
@@ -391,10 +407,11 @@ export function HitRateChart({
   // so the Tile's overflow-hidden doesn't clip it. `placement` flips top/
   // bottom based on available room — same idea as Radix collision avoidance.
   const innerTrackRef = useRef<HTMLDivElement>(null);
-  const [hoverAnchor, setHoverAnchor] = useState<
-    | { left: number; top: number; placement: "above" | "below" }
-    | null
-  >(null);
+  const [hoverAnchor, setHoverAnchor] = useState<{
+    left: number;
+    top: number;
+    placement: "above" | "below";
+  } | null>(null);
   // Filter by range + split + roster filters, then take the most recent N
   // (oldest-first for left→right reading). Player-team filters use
   // teammates_out; opponent-team filters use opponents_out.
@@ -404,6 +421,7 @@ export function HitRateChart({
       upcomingHomeAway,
       recentGames: games,
       dvpRankByOpponent,
+      paceRankByOpponent,
       totalTeams: dvpTotalTeams,
       tonightDate,
       tonightSpread,
@@ -415,43 +433,54 @@ export function HitRateChart({
       upcomingHomeAway,
       games,
       dvpRankByOpponent,
+      paceRankByOpponent,
       dvpTotalTeams,
       tonightDate,
       tonightSpread,
       tonightOpponentTeamId,
       playTypeDefenseFilters,
-    ]
+    ],
   );
   const availableQuickFilters = useMemo(
     () => getQuickFilters(quickFilterCtx),
-    [quickFilterCtx]
+    [quickFilterCtx],
   );
   // Inline row shows only the contextual subset; the popover lists all.
   const inlineQuickFilters = useMemo(
     () => getInlineQuickFilters(availableQuickFilters, quickFilterCtx),
-    [availableQuickFilters, quickFilterCtx]
+    [availableQuickFilters, quickFilterCtx],
   );
   const activeQuickFilters = useMemo(
     () =>
       [...(quickFilters ?? new Set<string>())]
-        .map((id) => resolveQuickFilter(id, availableQuickFilters, quickFilterCtx))
+        .map((id) =>
+          resolveQuickFilter(id, availableQuickFilters, quickFilterCtx),
+        )
         .filter((qf): qf is NonNullable<typeof qf> => qf !== null),
-    [availableQuickFilters, quickFilters, quickFilterCtx]
+    [availableQuickFilters, quickFilters, quickFilterCtx],
   );
 
   const chartGames = useMemo(() => {
     const activeFilters = teammateFilters ?? [];
     const filtered = games.filter((g) => {
       if (!g || !g.date) return false;
-      if (range === "h2h" && opponentTeamId != null && g.opponentTeamId !== opponentTeamId) return false;
+      if (
+        range === "h2h" &&
+        opponentTeamId != null &&
+        g.opponentTeamId !== opponentTeamId
+      )
+        return false;
       if (split === "home" && g.homeAway !== "H") return false;
       if (split === "away" && g.homeAway !== "A") return false;
       if (split === "win" && g.result !== "W") return false;
       if (split === "loss" && g.result !== "L") return false;
-      if (split === "winBy10" && (g.result !== "W" || g.margin < 10)) return false;
-      if (split === "lossBy10" && (g.result !== "L" || g.margin > -10)) return false;
+      if (split === "winBy10" && (g.result !== "W" || g.margin < 10))
+        return false;
+      if (split === "lossBy10" && (g.result !== "L" || g.margin > -10))
+        return false;
       if (split === "reg" && !isRegularSeasonType(g.seasonType)) return false;
-      if (split === "playoffs" && !isPlayoffSeasonType(g.seasonType)) return false;
+      if (split === "playoffs" && !isPlayoffSeasonType(g.seasonType))
+        return false;
       // Market-aware quick filters compose with AND.
       for (const qf of activeQuickFilters) {
         if (!qf.predicate(g)) return false;
@@ -473,7 +502,7 @@ export function HitRateChart({
       return true;
     });
     const sorted = [...filtered].sort((a, b) =>
-      (a.date ?? "").localeCompare(b.date ?? "")
+      (a.date ?? "").localeCompare(b.date ?? ""),
     );
     // SZN scopes to the *current real-world* season — WNBA → today's calendar
     // year, NBA → today's season (Aug-Dec → year, Jan-Jul → year-1). We
@@ -484,13 +513,25 @@ export function HitRateChart({
       const today = new Date();
       const todayYear = today.getUTCFullYear();
       const todayMonth = today.getUTCMonth() + 1;
-      const targetSeasonId = sport === "wnba"
-        ? String(todayYear)
-        : String(todayMonth >= 8 ? todayYear : todayYear - 1);
-      return sorted.filter((g) => getSeasonInfo(g.date, sport)?.id === targetSeasonId);
+      const targetSeasonId =
+        sport === "wnba"
+          ? String(todayYear)
+          : String(todayMonth >= 8 ? todayYear : todayYear - 1);
+      return sorted.filter(
+        (g) => getSeasonInfo(g.date, sport)?.id === targetSeasonId,
+      );
     }
     return sorted.slice(-RANGE_SLICE[range]);
-  }, [games, split, range, opponentTeamId, teammateFilters, gameInjuriesByGameId, activeQuickFilters, sport]);
+  }, [
+    games,
+    split,
+    range,
+    opponentTeamId,
+    teammateFilters,
+    gameInjuriesByGameId,
+    activeQuickFilters,
+    sport,
+  ]);
 
   // Detect a real upcoming game beyond the last historical game.
   const upcomingSlot = useMemo(() => {
@@ -517,11 +558,19 @@ export function HitRateChart({
   };
   const seasonRanges: SeasonRange[] = useMemo(() => {
     const ranges: SeasonRange[] = [];
-    const append = (info: { id: string; label: string } | null, index: number) => {
+    const append = (
+      info: { id: string; label: string } | null,
+      index: number,
+    ) => {
       if (!info) return;
       const last = ranges[ranges.length - 1];
       if (!last || last.seasonId !== info.id) {
-        ranges.push({ seasonId: info.id, label: info.label, startIndex: index, endIndex: index });
+        ranges.push({
+          seasonId: info.id,
+          label: info.label,
+          startIndex: index,
+          endIndex: index,
+        });
       } else {
         last.endIndex = index;
       }
@@ -542,7 +591,9 @@ export function HitRateChart({
   const supportsPotential = marketSupportsPotential(market);
   const potentials = chartGames.map((g) => getPotentialValue(g, market));
   const hasAnyPotential =
-    !hidePotential && supportsPotential && potentials.some((p) => p != null && p > 0);
+    !hidePotential &&
+    supportsPotential &&
+    potentials.some((p) => p != null && p > 0);
 
   // Per-overlay scaling — each enabled metric (Minutes / FGA / 3PA /
   // Passes today) gets its own player-relative axis so values stay
@@ -550,7 +601,10 @@ export function HitRateChart({
   // by metric key so BarColumn can render any subset stacked on the
   // same column.
   const overlayContexts = useMemo(() => {
-    const out: Record<string, { min: number; max: number; span: number; values: number[] }> = {};
+    const out: Record<
+      string,
+      { min: number; max: number; span: number; values: number[] }
+    > = {};
     if (!metricOverlays) return out;
     for (const key of metricOverlays) {
       const getter = OVERLAY_VALUE_GETTERS[key];
@@ -583,7 +637,9 @@ export function HitRateChart({
   // and the right-edge "AVG X.X" pill. Skipped when there's no data so we
   // don't render a useless 0-line under empty bars.
   const averageValue =
-    values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : null;
+    values.length > 0
+      ? values.reduce((s, v) => s + v, 0) / values.length
+      : null;
 
   // Confidence band stats — median ± 1σ across visible values, clamped to
   // [0, maxValue]. Used by the band overlay to show "typical range" so the
@@ -611,7 +667,8 @@ export function HitRateChart({
   const itemCount = chartGames.length + (upcomingSlot ? 1 : 0);
   const barWidth = pickBarWidth(itemCount, containerWidth);
   const gapPx = gapForCount(itemCount);
-  const trackWidth = itemCount > 0 ? itemCount * barWidth + (itemCount - 1) * gapPx : 0;
+  const trackWidth =
+    itemCount > 0 ? itemCount * barWidth + (itemCount - 1) * gapPx : 0;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -654,8 +711,12 @@ export function HitRateChart({
       // The card itself stays overflow-visible; the compact tooltip layout is
       // preferable to an internal scrollbar over the chart.
       const roomAbove = Math.max(0, rect.top - EDGE_PAD - GUTTER);
-      const roomBelow = Math.max(0, viewportHeight - rect.bottom - EDGE_PAD - GUTTER);
-      const placement: "above" | "below" = roomAbove >= roomBelow ? "above" : "below";
+      const roomBelow = Math.max(
+        0,
+        viewportHeight - rect.bottom - EDGE_PAD - GUTTER,
+      );
+      const placement: "above" | "below" =
+        roomAbove >= roomBelow ? "above" : "below";
       const top =
         placement === "above"
           ? rect.top + window.scrollY - GUTTER
@@ -664,9 +725,13 @@ export function HitRateChart({
       // Horizontal: anchor at the bar's center, then clamp so the card stays
       // on screen even when hovering a bar near a viewport edge.
       const rawLeft =
-        rect.left + window.scrollX + hoveredIndex * (barWidth + gapPx) + barWidth / 2;
+        rect.left +
+        window.scrollX +
+        hoveredIndex * (barWidth + gapPx) +
+        barWidth / 2;
       const minLeft = CARD_HALF_WIDTH + EDGE_PAD + window.scrollX;
-      const maxLeft = viewportWidth - CARD_HALF_WIDTH - EDGE_PAD + window.scrollX;
+      const maxLeft =
+        viewportWidth - CARD_HALF_WIDTH - EDGE_PAD + window.scrollX;
       const left = Math.max(minLeft, Math.min(maxLeft, rawLeft));
 
       setHoverAnchor({ left, top, placement });
@@ -675,14 +740,22 @@ export function HitRateChart({
     window.addEventListener("scroll", update, { passive: true, capture: true });
     window.addEventListener("resize", update);
     return () => {
-      window.removeEventListener("scroll", update, { capture: true } as EventListenerOptions);
+      window.removeEventListener("scroll", update, {
+        capture: true,
+      } as EventListenerOptions);
       window.removeEventListener("resize", update);
     };
   }, [hoveredIndex, barWidth]);
   // Sparsify x-axis labels at high counts so logos + dates don't crowd. Tuned
   // so we land near ~20 visible labels regardless of total bar count.
   const axisStride =
-    chartGames.length <= 20 ? 1 : chartGames.length <= 40 ? 2 : chartGames.length <= 60 ? 3 : 5;
+    chartGames.length <= 20
+      ? 1
+      : chartGames.length <= 40
+        ? 2
+        : chartGames.length <= 60
+          ? 3
+          : 5;
 
   // 5 evenly-spaced y-axis ticks (0%, 25%, 50%, 75%, 100% of maxValue). Drives
   // both the left-side tick labels and the horizontal grid lines.
@@ -705,7 +778,11 @@ export function HitRateChart({
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target) {
-        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        if (
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable
+        ) {
           return;
         }
       }
@@ -718,7 +795,10 @@ export function HitRateChart({
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         onLineChange(Math.max(0.5, current - big));
-      } else if ((e.key === "r" || e.key === "R" || e.key === "Backspace") && onLineReset) {
+      } else if (
+        (e.key === "r" || e.key === "R" || e.key === "Backspace") &&
+        onLineReset
+      ) {
         e.preventDefault();
         onLineReset();
       }
@@ -774,7 +854,7 @@ export function HitRateChart({
         // Desktop: full label + meta secondary line.
         <span className="hidden items-center gap-2 sm:inline-flex">
           <span>Recent Performance</span>
-          <span className="text-[10px] font-medium normal-case tracking-normal text-neutral-400 dark:text-neutral-500">
+          <span className="text-[10px] font-medium tracking-normal text-neutral-400 normal-case dark:text-neutral-500">
             Last {chartGames.length} · {formatMarketLabel(market)}
           </span>
         </span>
@@ -783,7 +863,7 @@ export function HitRateChart({
         // Range chips need to stay on one line in tight contexts (modal, narrow
         // viewports). Allow horizontal scroll if absolutely necessary, but tune
         // spacing + hide the X/Y readout below sm so they normally fit.
-        <div className="-mr-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto pr-1 scrollbar-hide sm:gap-1">
+        <div className="scrollbar-hide -mr-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto pr-1 sm:gap-1">
           {hitRateSegments.map((seg) => {
             const active = seg.range === range;
             const tone = rangeButtonTone(seg.pct);
@@ -795,11 +875,18 @@ export function HitRateChart({
                 className={cn(
                   "inline-flex shrink-0 items-baseline gap-1 rounded-md border px-1.5 py-1 text-[10px] font-bold tabular-nums transition-all sm:gap-1.5 sm:px-2",
                   active
-                    ? cn("ring-1 ring-brand/40", tone.bgActive, tone.borderActive, tone.textActive)
-                    : cn("border-transparent", tone.text, tone.bgHover)
+                    ? cn(
+                        "ring-brand/40 ring-1",
+                        tone.bgActive,
+                        tone.borderActive,
+                        tone.textActive,
+                      )
+                    : cn("border-transparent", tone.text, tone.bgHover),
                 )}
               >
-                <span className="uppercase tracking-[0.12em] opacity-70 sm:tracking-[0.16em]">{seg.label}</span>
+                <span className="tracking-[0.12em] uppercase opacity-70 sm:tracking-[0.16em]">
+                  {seg.label}
+                </span>
                 <span className="text-[11px] leading-none tracking-tight sm:text-[12px]">
                   {seg.pct != null ? `${Math.round(seg.pct)}%` : "—"}
                 </span>
@@ -818,8 +905,8 @@ export function HitRateChart({
           custom line, with/without teammates) shows here as a removable
           chip so the user can manage them in one spot. */}
       {activeFilterChips && activeFilterChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-200/60 px-3 py-2 dark:border-neutral-800/60 sm:px-4">
-          <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-200/60 px-3 py-2 sm:px-4 dark:border-neutral-800/60">
+          <span className="mr-1 text-[10px] font-bold tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
             Active
           </span>
           {activeFilterChips.map((chip) => (
@@ -827,7 +914,7 @@ export function HitRateChart({
               key={chip.id}
               type="button"
               onClick={chip.onRemove}
-              className="group inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand ring-1 ring-brand/20 transition-colors hover:bg-brand/15"
+              className="group bg-brand/10 text-brand ring-brand/20 hover:bg-brand/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 transition-colors"
             >
               <span>{chip.label}</span>
               <X className="h-3 w-3 opacity-70 group-hover:opacity-100" />
@@ -837,7 +924,7 @@ export function HitRateChart({
             <button
               type="button"
               onClick={onClearAllFilters}
-              className="ml-auto text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400 transition-colors hover:text-brand dark:text-neutral-500"
+              className="hover:text-brand ml-auto text-[10px] font-bold tracking-[0.12em] text-neutral-400 uppercase transition-colors dark:text-neutral-500"
             >
               Clear All
             </button>
@@ -846,13 +933,13 @@ export function HitRateChart({
       )}
       {/* Chart area — tighter horizontal padding on mobile gives bars more
           breathing room before they trip overflow. */}
-      <div className="relative pl-7 pr-1 pt-7 sm:pl-9 sm:pr-3">
+      <div className="relative pt-7 pr-1 pl-7 sm:pr-3 sm:pl-9">
         {/* Grid background — y-axis ticks + horizontal grid lines. Sits BEHIND
             the bars (z-[1]) so the rules read as a backdrop, not slicing
             across the columns. */}
         {chartGames.length > 0 && (
           <div
-            className="pointer-events-none absolute left-7 right-1 top-7 z-[1] sm:left-9 sm:right-3"
+            className="pointer-events-none absolute top-7 right-1 left-7 z-[1] sm:right-3 sm:left-9"
             style={{ height: CHART_HEIGHT }}
           >
             {yTicks.map((t) => (
@@ -862,7 +949,7 @@ export function HitRateChart({
                   "absolute inset-x-0 h-px",
                   t.percent === 0
                     ? "bg-neutral-200/60 dark:bg-neutral-700/60"
-                    : "bg-neutral-200/30 dark:bg-neutral-800/45"
+                    : "bg-neutral-200/30 dark:bg-neutral-800/45",
                 )}
                 style={{ bottom: `${t.percent}%` }}
               />
@@ -870,7 +957,7 @@ export function HitRateChart({
             {yTicks.map((t) => (
               <span
                 key={`tick-${t.percent}`}
-                className="absolute -translate-y-1/2 text-[9px] font-medium tabular-nums text-neutral-400 dark:text-neutral-500"
+                className="absolute -translate-y-1/2 text-[9px] font-medium text-neutral-400 tabular-nums dark:text-neutral-500"
                 style={{ left: -28, bottom: `${t.percent}%` }}
               >
                 {Math.round(t.value)}
@@ -882,34 +969,40 @@ export function HitRateChart({
         {/* Average line — muted neutral dashed rule + right-edge "AVG X.X"
             pill. Sits in the same layer as the threshold but at z-[15] so the
             cyan threshold renders on top when the two are close. */}
-        {chartSettings.showAverage && chartGames.length > 0 && averagePercent !== null && averageValue !== null && (
-          <div
-            className="pointer-events-none absolute left-8 right-2 top-7 z-[15] sm:left-9 sm:right-3"
-            style={{ height: CHART_HEIGHT }}
-          >
+        {chartSettings.showAverage &&
+          chartGames.length > 0 &&
+          averagePercent !== null &&
+          averageValue !== null && (
             <div
-              className="absolute inset-x-0 border-t border-dashed border-neutral-400/55 dark:border-neutral-500/45"
-              style={{ bottom: `${averagePercent}%` }}
+              className="pointer-events-none absolute top-7 right-2 left-8 z-[15] sm:right-3 sm:left-9"
+              style={{ height: CHART_HEIGHT }}
             >
-              <span className="absolute -right-1 -top-[10px] inline-flex items-center rounded-md bg-neutral-200/70 px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums text-neutral-600 ring-1 ring-neutral-300/60 backdrop-blur-sm dark:bg-neutral-700/60 dark:text-neutral-200 dark:ring-neutral-600/60">
-                AVG {Number.isInteger(averageValue) ? averageValue : averageValue.toFixed(1)}
-              </span>
+              <div
+                className="absolute inset-x-0 border-t border-dashed border-neutral-400/55 dark:border-neutral-500/45"
+                style={{ bottom: `${averagePercent}%` }}
+              >
+                <span className="absolute -top-[10px] -right-1 inline-flex items-center rounded-md bg-neutral-200/70 px-1.5 py-0.5 text-[10px] leading-none font-bold text-neutral-600 tabular-nums ring-1 ring-neutral-300/60 backdrop-blur-sm dark:bg-neutral-700/60 dark:text-neutral-200 dark:ring-neutral-600/60">
+                  AVG{" "}
+                  {Number.isInteger(averageValue)
+                    ? averageValue
+                    : averageValue.toFixed(1)}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Threshold layer — IN FRONT of bars (z-[20]) so the dashed line and
             its right-edge pill sit on top. Wider hit area centered on the
             visible line keeps dragging forgiving without thickening the line. */}
         {chartGames.length > 0 && (
           <div
-            className="pointer-events-none absolute left-8 right-2 top-7 z-[20] sm:left-9 sm:right-3"
+            className="pointer-events-none absolute top-7 right-2 left-8 z-[20] sm:right-3 sm:left-9"
             style={{ height: CHART_HEIGHT }}
           >
             <div
               className={cn(
                 "group pointer-events-auto absolute inset-x-0 outline-none",
-                onLineChange ? "cursor-ns-resize" : ""
+                onLineChange ? "cursor-ns-resize" : "",
               )}
               style={{ bottom: `calc(${linePercent}% - 6px)`, height: 12 }}
               onMouseDown={handleThresholdMouseDown}
@@ -922,14 +1015,14 @@ export function HitRateChart({
               }
               aria-valuenow={line}
             >
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-dashed border-brand/70 transition-colors group-hover:border-brand group-focus-visible:border-brand" />
+              <div className="border-brand/70 group-hover:border-brand group-focus-visible:border-brand absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-dashed transition-colors" />
               {onLineChange && (
-                <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-[2px] rounded-full bg-brand/10 px-1.5 py-1 opacity-0 ring-1 ring-brand/30 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-visible:bg-brand/20 group-focus-visible:ring-brand/60">
-                  <span className="block h-[1.5px] w-3 rounded-sm bg-brand/80" />
-                  <span className="block h-[1.5px] w-3 rounded-sm bg-brand/80" />
+                <div className="bg-brand/10 ring-brand/30 group-focus-visible:bg-brand/20 group-focus-visible:ring-brand/60 pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-[2px] rounded-full px-1.5 py-1 opacity-0 ring-1 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <span className="bg-brand/80 block h-[1.5px] w-3 rounded-sm" />
+                  <span className="bg-brand/80 block h-[1.5px] w-3 rounded-sm" />
                 </div>
               )}
-              <span className="pointer-events-none absolute -right-1 top-1/2 inline-flex -translate-y-1/2 items-center rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-black leading-none tabular-nums text-brand ring-1 ring-brand/40 backdrop-blur-sm dark:bg-brand/20">
+              <span className="bg-brand/15 text-brand ring-brand/40 dark:bg-brand/20 pointer-events-none absolute top-1/2 -right-1 inline-flex -translate-y-1/2 items-center rounded-md px-1.5 py-0.5 text-[10px] leading-none font-black tabular-nums ring-1 backdrop-blur-sm">
                 {formatLine(line)}
               </span>
             </div>
@@ -943,341 +1036,359 @@ export function HitRateChart({
         ) : (
           <div
             ref={scrollRef}
-            className="relative z-[10] overflow-x-auto pb-1 scrollbar-thin"
+            className="scrollbar-thin relative z-[10] overflow-x-auto pb-1"
           >
             {/* Outer track grows beyond container only when content overflows.
                 Inner mx-auto centers the bars when there's empty horizontal space. */}
             <div className="w-max min-w-full">
-              <div ref={innerTrackRef} className="relative mx-auto" style={{ width: Math.max(trackWidth, 0) }}>
-              {/* Hover card is portaled to body below — see HoverCardPortal. */}
-              {/* Chart frame */}
-              <div className="relative" style={{ height: CHART_HEIGHT }}>
-                {/* Threshold + y-axis + grid live in the outer background frame
+              <div
+                ref={innerTrackRef}
+                className="relative mx-auto"
+                style={{ width: Math.max(trackWidth, 0) }}
+              >
+                {/* Hover card is portaled to body below — see HoverCardPortal. */}
+                {/* Chart frame */}
+                <div className="relative" style={{ height: CHART_HEIGHT }}>
+                  {/* Threshold + y-axis + grid live in the outer background frame
                     so they span the full chart panel width regardless of how
                     many bars are in view. Bars overlay them via this scroll
                     container. */}
 
-                {/* Season range chips — one centered chip per season, sitting
+                  {/* Season range chips — one centered chip per season, sitting
                     above its bar group. Pills + dividers between adjacent
                     ranges replace the old single-tab-on-divider treatment. */}
-                {seasonRanges.map((r, i) => {
-                  const startX = r.startIndex * (barWidth + gapPx);
-                  const endX = (r.endIndex + 1) * (barWidth + gapPx) - gapPx;
-                  const isFirst = i === 0;
-                  return (
-                    <React.Fragment key={`${r.seasonId}-${r.startIndex}`}>
-                      {!isFirst && (
-                        <div
-                          className="pointer-events-none absolute inset-y-0 z-[5]"
-                          style={{ left: startX - gapPx / 2 }}
-                          aria-hidden
-                        >
-                          <div className="absolute inset-y-0 -left-px w-px bg-neutral-300/60 dark:bg-neutral-600/50" />
-                          <div className="absolute inset-y-0 -left-6 w-12 bg-gradient-to-r from-transparent via-neutral-300/[0.15] to-transparent dark:via-white/[0.06]" />
-                        </div>
-                      )}
-                      {/* Season label — anchored at the START of each range
+                  {seasonRanges.map((r, i) => {
+                    const startX = r.startIndex * (barWidth + gapPx);
+                    const endX = (r.endIndex + 1) * (barWidth + gapPx) - gapPx;
+                    const isFirst = i === 0;
+                    return (
+                      <React.Fragment key={`${r.seasonId}-${r.startIndex}`}>
+                        {!isFirst && (
+                          <div
+                            className="pointer-events-none absolute inset-y-0 z-[5]"
+                            style={{ left: startX - gapPx / 2 }}
+                            aria-hidden
+                          >
+                            <div className="absolute inset-y-0 -left-px w-px bg-neutral-300/60 dark:bg-neutral-600/50" />
+                            <div className="absolute inset-y-0 -left-6 w-12 bg-gradient-to-r from-transparent via-neutral-300/[0.15] to-transparent dark:via-white/[0.06]" />
+                          </div>
+                        )}
+                        {/* Season label — anchored at the START of each range
                           (right next to its leading divider, or to the left
                           edge for the first range) so the chart reads like a
                           timeline. Suppressed when the range is too narrow
                           to host the label cleanly. */}
-                      {endX - startX >= 60 && (
-                        <div
-                          className="pointer-events-none absolute top-1 z-[5] whitespace-nowrap rounded-md border border-neutral-200 bg-white/90 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-neutral-600 shadow-sm backdrop-blur-sm dark:border-neutral-700/80 dark:bg-neutral-900/85 dark:text-neutral-300"
-                          style={{ left: isFirst ? 4 : startX + 6 }}
-                        >
-                          {r.label} Season
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        {endX - startX >= 60 && (
+                          <div
+                            className="pointer-events-none absolute top-1 z-[5] rounded-md border border-neutral-200 bg-white/90 px-1.5 py-0.5 text-[9px] font-black tracking-[0.14em] whitespace-nowrap text-neutral-600 uppercase shadow-sm backdrop-blur-sm dark:border-neutral-700/80 dark:bg-neutral-900/85 dark:text-neutral-300"
+                            style={{ left: isFirst ? 4 : startX + 6 }}
+                          >
+                            {r.label} Season
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
 
-                {/* OVERLAY: Confidence Band — horizontal brand-cyan band
+                  {/* OVERLAY: Confidence Band — horizontal brand-cyan band
                     spanning the chart, vertical bounds are median ± 1σ of
                     visible values. Sits behind the bars (z-[1]) so the bars
                     still pop. Only renders when the user has the toggle on
                     and we have enough samples. */}
-                {chartSettings.showConfidenceBand && confidenceBand && (
-                  <div
-                    className="pointer-events-none absolute inset-x-0 z-[1] bg-brand/15 ring-1 ring-brand/20"
-                    style={{
-                      bottom: `${(confidenceBand.lower / maxValue) * 100}%`,
-                      height: `${
-                        ((confidenceBand.upper - confidenceBand.lower) /
-                          maxValue) *
-                        100
-                      }%`,
-                    }}
-                    aria-hidden
-                  >
-                    <div className="absolute -top-px left-0 right-0 h-px bg-brand/40" />
-                    <div className="absolute -bottom-px left-0 right-0 h-px bg-brand/40" />
-                  </div>
-                )}
+                  {chartSettings.showConfidenceBand && confidenceBand && (
+                    <div
+                      className="bg-brand/15 ring-brand/20 pointer-events-none absolute inset-x-0 z-[1] ring-1"
+                      style={{
+                        bottom: `${(confidenceBand.lower / maxValue) * 100}%`,
+                        height: `${
+                          ((confidenceBand.upper - confidenceBand.lower) /
+                            maxValue) *
+                          100
+                        }%`,
+                      }}
+                      aria-hidden
+                    >
+                      <div className="bg-brand/40 absolute -top-px right-0 left-0 h-px" />
+                      <div className="bg-brand/40 absolute right-0 -bottom-px left-0 h-px" />
+                    </div>
+                  )}
 
-                {/* OVERLAY LINES: DvP + Pace as line charts threaded through
+                  {/* OVERLAY LINES: DvP + Pace as line charts threaded through
                     the bars. Each line sits at z-[14] (above bars at z-0,
                     below threshold at z-[20]) so it reads as a true overlay
                     without burying the bar values. Both share a single SVG
                     layer for one paint. */}
-                {(chartSettings.showDvpOverlay ||
-                  chartSettings.showPaceOverlay) &&
-                  chartGames.length > 0 && (
-                    // viewBox uses REAL pixel dimensions (matches the chart's
-                    // actual width × CHART_HEIGHT) so circles stay round and
-                    // dots land exactly on bar centers. The previous
-                    // preserveAspectRatio="none" + 0..100 viewBox stretched
-                    // the dots into vertical ovals.
-                    <svg
-                      className="pointer-events-none absolute inset-0 z-[14]"
-                      width="100%"
-                      height="100%"
-                      viewBox={`0 0 ${Math.max(1, trackWidth)} ${CHART_HEIGHT}`}
-                      // Default preserveAspectRatio = xMidYMid meet — preserves
-                      // the aspect ratio so circles stay round. The inner
-                      // track explicitly sizes to trackWidth × CHART_HEIGHT
-                      // so the viewBox matches the rendered area; no scaling.
-                    >
-                      {chartSettings.showDvpOverlay && dvpRankByOpponent && (
-                        <RankLineOverlay
-                          games={chartGames}
-                          rankMap={dvpRankByOpponent}
-                          totalTeams={dvpTotalTeams ?? 30}
-                          barWidth={barWidth}
-                          gapPx={gapPx}
-                          chartHeight={CHART_HEIGHT}
-                          stroke="rgb(245 158 11 / 0.95)"
-                          dotFill="rgb(245 158 11)"
-                          label="DvP"
-                          // Invert so soft D (high rank, e.g. #29) sits at
-                          // the TOP of the chart and tough D (low rank, #1)
-                          // at the bottom. Reads as "high = good matchup"
-                          // matching how bars work.
-                          inverted
-                          upcomingOpponentTeamId={
-                            upcomingSlot ? tonightOpponentTeamId ?? null : null
-                          }
-                        />
-                      )}
-                      {chartSettings.showPaceOverlay && paceRankByOpponent && (
-                        <RankLineOverlay
-                          games={chartGames}
-                          rankMap={paceRankByOpponent}
-                          totalTeams={dvpTotalTeams ?? 30}
-                          barWidth={barWidth}
-                          gapPx={gapPx}
-                          chartHeight={CHART_HEIGHT}
-                          stroke="rgb(59 130 246 / 0.95)"
-                          dotFill="rgb(59 130 246)"
-                          label="Pace"
-                          dashed
-                          upcomingOpponentTeamId={
-                            upcomingSlot ? tonightOpponentTeamId ?? null : null
-                          }
-                        />
-                      )}
-                    </svg>
-                  )}
+                  {(chartSettings.showDvpOverlay ||
+                    chartSettings.showPaceOverlay) &&
+                    chartGames.length > 0 && (
+                      // viewBox uses REAL pixel dimensions (matches the chart's
+                      // actual width × CHART_HEIGHT) so circles stay round and
+                      // dots land exactly on bar centers. The previous
+                      // preserveAspectRatio="none" + 0..100 viewBox stretched
+                      // the dots into vertical ovals.
+                      <svg
+                        className="pointer-events-none absolute inset-0 z-[14]"
+                        width="100%"
+                        height="100%"
+                        viewBox={`0 0 ${Math.max(1, trackWidth)} ${CHART_HEIGHT}`}
+                        // Default preserveAspectRatio = xMidYMid meet — preserves
+                        // the aspect ratio so circles stay round. The inner
+                        // track explicitly sizes to trackWidth × CHART_HEIGHT
+                        // so the viewBox matches the rendered area; no scaling.
+                      >
+                        {chartSettings.showDvpOverlay && dvpRankByOpponent && (
+                          <RankLineOverlay
+                            games={chartGames}
+                            rankMap={dvpRankByOpponent}
+                            totalTeams={dvpTotalTeams ?? 30}
+                            barWidth={barWidth}
+                            gapPx={gapPx}
+                            chartHeight={CHART_HEIGHT}
+                            stroke="rgb(245 158 11 / 0.95)"
+                            dotFill="rgb(245 158 11)"
+                            label="DvP"
+                            // Invert so soft D (high rank, e.g. #29) sits at
+                            // the TOP of the chart and tough D (low rank, #1)
+                            // at the bottom. Reads as "high = good matchup"
+                            // matching how bars work.
+                            inverted
+                            upcomingOpponentTeamId={
+                              upcomingSlot
+                                ? (tonightOpponentTeamId ?? null)
+                                : null
+                            }
+                          />
+                        )}
+                        {chartSettings.showPaceOverlay &&
+                          paceRankByOpponent && (
+                            <RankLineOverlay
+                              games={chartGames}
+                              rankMap={paceRankByOpponent}
+                              totalTeams={dvpTotalTeams ?? 30}
+                              barWidth={barWidth}
+                              gapPx={gapPx}
+                              chartHeight={CHART_HEIGHT}
+                              stroke="rgb(59 130 246 / 0.95)"
+                              dotFill="rgb(59 130 246)"
+                              label="Pace"
+                              dashed
+                              upcomingOpponentTeamId={
+                                upcomingSlot
+                                  ? (tonightOpponentTeamId ?? null)
+                                  : null
+                              }
+                            />
+                          )}
+                      </svg>
+                    )}
 
-                {/* Bars track */}
-                <div
-                  className="absolute inset-0 flex items-end justify-start"
-                  style={{ gap: gapPx }}
-                >
-                  {chartGames.map((game, idx) => {
-                    const barOverlays = Object.entries(overlayContexts)
-                      .map(([key, ctx]) => {
-                        const v = ctx.values[idx];
-                        if (!(v > 0)) return null;
-                        const heightPx = Math.max(
-                          4,
-                          ((Math.min(ctx.max, v) - ctx.min) / ctx.span) *
-                            CHART_HEIGHT,
-                        );
-                        const style = OVERLAY_STYLES[key] ?? OVERLAY_STYLES.minutes;
-                        return {
-                          key,
-                          value: v,
-                          heightPx,
-                          labelText: `${Math.round(v)} ${style.short}`,
-                          tickClass: style.tickClass,
-                          pillClass: style.pillClass,
-                          ringClass: style.ringClass,
-                          fillClass: style.fillClass,
-                        };
-                      })
-                      .filter((o): o is NonNullable<typeof o> => !!o);
-                    return (
-                      <BarColumn
-                        key={`${game.gameId}-${idx}`}
-                        value={values[idx]}
-                        potential={potentials[idx]}
-                        line={line}
-                        maxValue={maxValue}
-                        chartHeight={CHART_HEIGHT}
-                        barWidth={barWidth}
-                        hasAnyPotential={hasAnyPotential}
-                        animationDelay={idx * 12}
-                        showValueLabel={range !== "szn"}
-                        overlays={barOverlays}
-                        onMouseEnter={() => {
-                          cancelHoverClear();
-                          setHoveredIndex(idx);
-                        }}
-                        onMouseLeave={() => scheduleHoverClear(idx)}
-                      />
-                    );
-                  })}
+                  {/* Bars track */}
+                  <div
+                    className="absolute inset-0 flex items-end justify-start"
+                    style={{ gap: gapPx }}
+                  >
+                    {chartGames.map((game, idx) => {
+                      const barOverlays = Object.entries(overlayContexts)
+                        .map(([key, ctx]) => {
+                          const v = ctx.values[idx];
+                          if (!(v > 0)) return null;
+                          const heightPx = Math.max(
+                            4,
+                            ((Math.min(ctx.max, v) - ctx.min) / ctx.span) *
+                              CHART_HEIGHT,
+                          );
+                          const style =
+                            OVERLAY_STYLES[key] ?? OVERLAY_STYLES.minutes;
+                          return {
+                            key,
+                            value: v,
+                            heightPx,
+                            labelText: `${Math.round(v)} ${style.short}`,
+                            tickClass: style.tickClass,
+                            pillClass: style.pillClass,
+                            ringClass: style.ringClass,
+                            fillClass: style.fillClass,
+                          };
+                        })
+                        .filter((o): o is NonNullable<typeof o> => !!o);
+                      return (
+                        <BarColumn
+                          key={`${game.gameId}-${idx}`}
+                          value={values[idx]}
+                          potential={potentials[idx]}
+                          line={line}
+                          maxValue={maxValue}
+                          chartHeight={CHART_HEIGHT}
+                          barWidth={barWidth}
+                          hasAnyPotential={hasAnyPotential}
+                          animationDelay={idx * 12}
+                          showValueLabel={range !== "szn"}
+                          overlays={barOverlays}
+                          onMouseEnter={() => {
+                            cancelHoverClear();
+                            setHoveredIndex(idx);
+                          }}
+                          onMouseLeave={() => scheduleHoverClear(idx)}
+                        />
+                      );
+                    })}
 
-                  {/* Upcoming game placeholder — dotted bar with question mark */}
-                  {upcomingSlot && (
-                    <Tooltip
-                      side="top"
-                      content={
-                        <div className="px-3 py-2 text-[11px]">
-                          <div className="font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-                            Upcoming
+                    {/* Upcoming game placeholder — dotted bar with question mark */}
+                    {upcomingSlot && (
+                      <Tooltip
+                        side="top"
+                        content={
+                          <div className="px-3 py-2 text-[11px]">
+                            <div className="font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
+                              Upcoming
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 font-bold text-neutral-700 dark:text-neutral-200">
+                              <span className="tabular-nums">
+                                {upcomingSlot.date.slice(5).replace("-", "/")}
+                              </span>
+                              <span className="text-neutral-400 dark:text-neutral-500">
+                                {upcomingSlot.homeAway === "H" ? "vs" : "@"}
+                              </span>
+                              <span>{upcomingSlot.opponentAbbr ?? "OPP"}</span>
+                            </div>
                           </div>
-                          <div className="mt-1 flex items-center gap-1.5 font-bold text-neutral-700 dark:text-neutral-200">
-                            <span className="tabular-nums">
-                              {upcomingSlot.date.slice(5).replace("-", "/")}
-                            </span>
-                            <span className="text-neutral-400 dark:text-neutral-500">
-                              {upcomingSlot.homeAway === "H" ? "vs" : "@"}
-                            </span>
-                            <span>{upcomingSlot.opponentAbbr ?? "OPP"}</span>
-                          </div>
-                        </div>
-                      }
-                    >
-                      <div
-                        className="flex h-full shrink-0 items-end justify-center"
-                        style={{ width: barWidth }}
+                        }
                       >
                         <div
-                          className="flex w-full flex-col items-center justify-end rounded-t-[3px] border border-dashed border-brand/40 bg-brand/5"
-                          style={{
-                            height: Math.max((line / maxValue) * CHART_HEIGHT, 32),
-                          }}
+                          className="flex h-full shrink-0 items-end justify-center"
+                          style={{ width: barWidth }}
                         >
-                          <HelpCircle
-                            className="h-3.5 w-3.5 text-brand/70"
-                            style={{ marginBottom: 4 }}
-                          />
+                          <div
+                            className="border-brand/40 bg-brand/5 flex w-full flex-col items-center justify-end rounded-t-[3px] border border-dashed"
+                            style={{
+                              height: Math.max(
+                                (line / maxValue) * CHART_HEIGHT,
+                                32,
+                              ),
+                            }}
+                          >
+                            <HelpCircle
+                              className="text-brand/70 h-3.5 w-3.5"
+                              style={{ marginBottom: 4 }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </Tooltip>
-                  )}
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* X-axis: text-only opponent + date (props.cash style).
+                {/* X-axis: text-only opponent + date (props.cash style).
                   Hidden on mobile because the labels collide unreadably at
                   phone widths — bar tooltips on tap still surface the
                   opponent + date for users who want it. */}
-              <div className="mt-1.5 hidden items-start sm:flex" style={{ gap: gapPx }}>
-                {chartGames.map((game, idx) => {
-                  const showLabel =
-                    idx === 0 ||
-                    idx === chartGames.length - 1 ||
-                    idx % axisStride === 0;
-                  const opp = game.opponentAbbr || "OPP";
-                  const venuePrefix = game.homeAway === "A" ? "@" : "";
-                  return (
+                <div
+                  className="mt-1.5 hidden items-start sm:flex"
+                  style={{ gap: gapPx }}
+                >
+                  {chartGames.map((game, idx) => {
+                    const showLabel =
+                      idx === 0 ||
+                      idx === chartGames.length - 1 ||
+                      idx % axisStride === 0;
+                    const opp = game.opponentAbbr || "OPP";
+                    const venuePrefix = game.homeAway === "A" ? "@" : "";
+                    return (
+                      <div
+                        key={`${game.gameId}-axis-${idx}`}
+                        className="flex shrink-0 flex-col items-center"
+                        style={{ width: barWidth }}
+                      >
+                        {showLabel ? (
+                          <>
+                            <span className="text-[10px] leading-none font-bold text-neutral-500 dark:text-neutral-400">
+                              <span className="text-neutral-400 dark:text-neutral-500">
+                                {venuePrefix}
+                              </span>
+                              {opp}
+                            </span>
+                            <span className="mt-0.5 text-[9px] leading-none font-medium text-neutral-400 tabular-nums dark:text-neutral-500">
+                              {formatBarDate(game.date)}
+                            </span>
+                          </>
+                        ) : (
+                          <div className="h-4" aria-hidden />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {upcomingSlot && (
+                    // Upcoming label is intentionally just "NEXT" (no opp abbr)
+                    // because the most recent bar's @SAS / SAS label sits directly
+                    // adjacent and the two labels were colliding at the chart's
+                    // right edge. The dotted bar tooltip carries the opponent
+                    // for users who hover.
                     <div
-                      key={`${game.gameId}-axis-${idx}`}
-                      className="flex shrink-0 flex-col items-center"
+                      className="flex shrink-0 flex-col items-center overflow-visible"
                       style={{ width: barWidth }}
                     >
-                      {showLabel ? (
-                        <>
-                          <span className="text-[10px] font-bold leading-none text-neutral-500 dark:text-neutral-400">
-                            <span className="text-neutral-400 dark:text-neutral-500">{venuePrefix}</span>
-                            {opp}
-                          </span>
-                          <span className="mt-0.5 text-[9px] font-medium tabular-nums leading-none text-neutral-400 dark:text-neutral-500">
-                            {formatBarDate(game.date)}
-                          </span>
-                        </>
-                      ) : (
-                        <div className="h-4" aria-hidden />
-                      )}
+                      <span className="bg-brand/10 text-brand ring-brand/25 rounded-sm px-1 py-0.5 text-[9px] leading-none font-black tracking-[0.14em] uppercase ring-1">
+                        Next
+                      </span>
                     </div>
-                  );
-                })}
-                {upcomingSlot && (
-                  // Upcoming label is intentionally just "NEXT" (no opp abbr)
-                  // because the most recent bar's @SAS / SAS label sits directly
-                  // adjacent and the two labels were colliding at the chart's
-                  // right edge. The dotted bar tooltip carries the opponent
-                  // for users who hover.
-                  <div
-                    className="flex shrink-0 flex-col items-center overflow-visible"
-                    style={{ width: barWidth }}
-                  >
-                    <span className="rounded-sm bg-brand/10 px-1 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-brand ring-1 ring-brand/25">
-                      Next
-                    </span>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {/* Overlay legend — only shown when at least one context
+                {/* Overlay legend — only shown when at least one context
                   overlay is enabled. Tells the user what the lines mean
                   without forcing them to remember the popover swatches.
                   Hidden on mobile because the legend wraps and steals
                   vertical space the chart needs. */}
-              {(chartSettings.showConfidenceBand ||
-                chartSettings.showDvpOverlay ||
-                chartSettings.showPaceOverlay) && (
-                <div className="mt-2 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-neutral-500 sm:flex dark:text-neutral-400">
-                  {chartSettings.showConfidenceBand && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-3.5 rounded-sm bg-brand/30 ring-1 ring-brand/50" />
-                      <span>Confidence band</span>
-                      <span className="text-neutral-400 dark:text-neutral-600">
-                        (median ± 1σ)
+                {(chartSettings.showConfidenceBand ||
+                  chartSettings.showDvpOverlay ||
+                  chartSettings.showPaceOverlay) && (
+                  <div className="mt-2 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-neutral-500 sm:flex dark:text-neutral-400">
+                    {chartSettings.showConfidenceBand && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="bg-brand/30 ring-brand/50 h-2.5 w-3.5 rounded-sm ring-1" />
+                        <span>Confidence band</span>
+                        <span className="text-neutral-400 dark:text-neutral-600">
+                          (median ± 1σ)
+                        </span>
                       </span>
-                    </span>
-                  )}
-                  {chartSettings.showDvpOverlay && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="relative h-0.5 w-5 rounded-full bg-amber-500/90" />
-                      <span>DvP rank</span>
-                      <span className="text-neutral-400 dark:text-neutral-600">
-                        (high = soft D)
+                    )}
+                    {chartSettings.showDvpOverlay && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="relative h-0.5 w-5 rounded-full bg-amber-500/90" />
+                        <span>DvP rank</span>
+                        <span className="text-neutral-400 dark:text-neutral-600">
+                          (high = soft D)
+                        </span>
                       </span>
-                    </span>
-                  )}
-                  {chartSettings.showPaceOverlay && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="relative h-0.5 w-5 rounded-full bg-blue-500/90"
-                        style={{
-                          backgroundImage:
-                            "repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 6px)",
-                          color: "rgb(59 130 246 / 0.9)",
-                          background: "transparent",
-                        }}
-                      />
-                      <span>Pace rank</span>
-                      <span className="text-neutral-400 dark:text-neutral-600">
-                        (#1 fastest)
+                    )}
+                    {chartSettings.showPaceOverlay && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className="relative h-0.5 w-5 rounded-full bg-blue-500/90"
+                          style={{
+                            backgroundImage:
+                              "repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 6px)",
+                            color: "rgb(59 130 246 / 0.9)",
+                            background: "transparent",
+                          }}
+                        />
+                        <span>Pace rank</span>
+                        <span className="text-neutral-400 dark:text-neutral-600">
+                          (#1 fastest)
+                        </span>
                       </span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Splits chips — horizontal scroll on mobile so the row never wraps. */}
-      <div className="mt-2 flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-neutral-200/50 px-3 py-2 scrollbar-hide dark:border-neutral-800/50 sm:flex-wrap sm:px-4">
-        <span className="mr-1 shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+      <div className="scrollbar-hide mt-2 flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-neutral-200/50 px-3 py-2 sm:flex-wrap sm:px-4 dark:border-neutral-800/50">
+        <span className="mr-1 shrink-0 text-[10px] font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
           Splits
         </span>
         {SPLIT_OPTIONS.map((opt) => {
@@ -1289,10 +1400,10 @@ export function HitRateChart({
               onClick={() => onSplitChange(active ? "all" : opt.value)}
               aria-pressed={active}
               className={cn(
-                "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150 whitespace-nowrap",
+                "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold whitespace-nowrap transition-all duration-150",
                 active
-                  ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
-                  : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100"
+                  ? "bg-brand shadow-brand/25 text-neutral-950 shadow-sm"
+                  : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100",
               )}
             >
               {opt.label}
@@ -1305,8 +1416,8 @@ export function HitRateChart({
           venue (Home/Away). Right-aligned "+ Filters" stub for the future
           drawer that hosts the heavier overlay filters. */}
       {!hideQuickFilters && inlineQuickFilters.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 border-t border-neutral-200/50 px-3 py-2 dark:border-neutral-800/50 sm:px-4">
-          <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+        <div className="flex flex-wrap items-center gap-1 border-t border-neutral-200/50 px-3 py-2 sm:px-4 dark:border-neutral-800/50">
+          <span className="mr-1 text-[10px] font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
             Quick
           </span>
           {(() => {
@@ -1314,144 +1425,251 @@ export function HitRateChart({
             // dvpAvg, dvpWeak, dvpBottomFive) into a single "DEF" popover
             // entry. Without this we'd render five chips for what the user
             // can express as a single rank range.
-            const dvpChips: Array<typeof inlineQuickFilters[number]> = [];
+            const dvpChips: Array<(typeof inlineQuickFilters)[number]> = [];
+            const paceChips: Array<(typeof inlineQuickFilters)[number]> = [];
             const remainingChips: typeof inlineQuickFilters = [];
             for (const qf of inlineQuickFilters) {
               if (qf.id.startsWith("dvp")) dvpChips.push(qf);
+              else if (qf.id.startsWith("pace")) paceChips.push(qf);
               else remainingChips.push(qf);
             }
-            const showDvpRange = dvpChips.length > 0 && !!dvpRankByOpponent && dvpRankByOpponent.size > 0;
+            const showDvpRange =
+              dvpChips.length > 0 &&
+              !!dvpRankByOpponent &&
+              dvpRankByOpponent.size > 0;
+            const showPaceRange =
+              paceChips.length > 0 &&
+              !!paceRankByOpponent &&
+              paceRankByOpponent.size > 0;
             return (
               <>
-                {showDvpRange && (() => {
-                  // Active range comes from any `metric:dvpRank:*` chip in
-                  // the current filter set. Legacy dvp tier chip ids
-                  // (dvpTopFive etc.) just dim the trigger to show "active"
-                  // without trying to back-translate cutoffs into a range.
-                  const ids = [...(quickFilters ?? new Set<string>())];
-                  let activeRange: { min: number; max: number | null } | null = null;
-                  let legacyActive = false;
-                  for (const id of ids) {
-                    const parsed = parseMetricFilterId(id);
-                    if (parsed && parsed.key === "dvpRank") {
-                      activeRange = { min: parsed.min, max: parsed.max };
-                      break;
-                    }
-                    if (id.startsWith("dvp")) legacyActive = true;
-                  }
-                  return (
-                    <MetricRangePopover
-                      config={DVP_RANK_CONFIG}
-                      labelOverride={`Opp Defense Rank vs ${formatMarketLabel(market)}`}
-                      recentGames={games}
-                      activeRange={activeRange}
-                      active={activeRange !== null || legacyActive}
-                      getValueOverride={(g) =>
-                        dvpRankByOpponent?.get(g.opponentTeamId) ?? null
-                      }
-                      minOverride={1}
-                      maxOverride={dvpTotalTeams}
-                      onChange={(range) => {
-                        const next = new Set(quickFilters ?? new Set<string>());
-                        // Drop any existing dvp filter — both metric:dvpRank:*
-                        // and the legacy tier chips — so a fresh range
-                        // doesn't double up with old presets.
-                        for (const id of [...next]) {
-                          const parsed = parseMetricFilterId(id);
-                          if (parsed && parsed.key === "dvpRank") next.delete(id);
-                          if (id.startsWith("dvp")) next.delete(id);
-                        }
-                        if (range) {
-                          next.add(metricFilterId("dvpRank", range.min, range.max));
-                        }
-                        onQuickFiltersSet?.(next);
-                      }}
-                    />
-                  );
-                })()}
-                {remainingChips.map((qf) => {
-            // Threshold-style chips (minutes30, fga15, threePtA5, etc.) get
-            // upgraded to a popover trigger with slider + numeric inputs +
-            // quick-pill thresholds. Other chips (venue, gameflow, etc.)
-            // stay as plain toggle buttons since they're already binary.
-            const metricKey = getMetricKeyFromInlineChipId(qf.id);
-            const metricConfig = metricKey
-              ? METRIC_FILTERS.find((c) => c.key === metricKey)
-              : null;
-            if (metricConfig) {
-              // Resolve the active range (if any) for this metric from the
-              // current quickFilters set — could be a `metric:KEY:range:...`
-              // or `metric:KEY:gte:...` id, OR the legacy short-form (e.g.,
-              // `minutes30`). All three cases collapse to {min, max} here.
-              let activeRange: { min: number; max: number | null } | null = null;
-              const ids = [...(quickFilters ?? new Set<string>())];
-              for (const id of ids) {
-                const parsed = parseMetricFilterId(id);
-                if (parsed && parsed.key === metricKey) {
-                  activeRange = { min: parsed.min, max: parsed.max };
-                  break;
-                }
-                const legacy = id.match(/^([a-zA-Z]+)(\d+(?:\.\d+)?)$/);
-                if (
-                  legacy &&
-                  INLINE_CHIP_TO_METRIC_KEY[legacy[1]] === metricKey
-                ) {
-                  activeRange = { min: Number(legacy[2]), max: null };
-                  break;
-                }
-              }
-              const isActive = activeRange !== null;
-              return (
-                <MetricRangePopover
-                  key={qf.id}
-                  config={metricConfig}
-                  recentGames={games}
-                  activeRange={activeRange}
-                  active={isActive}
-                  overlayActive={metricOverlays?.has(metricConfig.key) ?? false}
-                  overlaySupported={OVERLAY_SUPPORTED_KEYS.has(metricConfig.key)}
-                  onOverlayToggle={() => onMetricOverlayToggle?.(metricConfig.key)}
-                  onChange={(range) => {
-                    // Replace any existing chip for this metric (legacy or
-                    // metric:* form) with the new range. Reuse the same
-                    // toggle hook by clearing first then adding.
-                    const next = new Set(quickFilters ?? new Set<string>());
-                    for (const id of [...next]) {
+                {showDvpRange &&
+                  (() => {
+                    // Active range comes from any `metric:dvpRank:*` chip in
+                    // the current filter set. Legacy dvp tier chip ids
+                    // (dvpTopFive etc.) just dim the trigger to show "active"
+                    // without trying to back-translate cutoffs into a range.
+                    const ids = [...(quickFilters ?? new Set<string>())];
+                    let activeRange: {
+                      min: number;
+                      max: number | null;
+                    } | null = null;
+                    let legacyActive = false;
+                    for (const id of ids) {
                       const parsed = parseMetricFilterId(id);
-                      if (parsed && parsed.key === metricKey) next.delete(id);
-                      const legacy = id.match(/^([a-zA-Z]+)\d+(?:\.\d+)?$/);
+                      if (parsed && parsed.key === "dvpRank") {
+                        activeRange = { min: parsed.min, max: parsed.max };
+                        break;
+                      }
+                      if (id.startsWith("dvp")) legacyActive = true;
+                    }
+                    return (
+                      <MetricRangePopover
+                        config={DVP_RANK_CONFIG}
+                        labelOverride={`Opp Defense Rank vs ${formatMarketLabel(market)}`}
+                        recentGames={games}
+                        activeRange={activeRange}
+                        active={activeRange !== null || legacyActive}
+                        getValueOverride={(g) =>
+                          dvpRankByOpponent?.get(g.opponentTeamId) ?? null
+                        }
+                        minOverride={1}
+                        maxOverride={dvpTotalTeams}
+                        onChange={(range) => {
+                          const next = new Set(
+                            quickFilters ?? new Set<string>(),
+                          );
+                          // Drop any existing dvp filter — both metric:dvpRank:*
+                          // and the legacy tier chips — so a fresh range
+                          // doesn't double up with old presets.
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed && parsed.key === "dvpRank")
+                              next.delete(id);
+                            if (id.startsWith("dvp")) next.delete(id);
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId("dvpRank", range.min, range.max),
+                            );
+                          }
+                          onQuickFiltersSet?.(next);
+                        }}
+                      />
+                    );
+                  })()}
+                {showPaceRange &&
+                  (() => {
+                    const ids = [...(quickFilters ?? new Set<string>())];
+                    let activeRange: {
+                      min: number;
+                      max: number | null;
+                    } | null = null;
+                    let legacyActive = false;
+                    for (const id of ids) {
+                      const parsed = parseMetricFilterId(id);
+                      if (parsed && parsed.key === "paceRank") {
+                        activeRange = { min: parsed.min, max: parsed.max };
+                        break;
+                      }
+                      if (id.startsWith("pace")) legacyActive = true;
+                    }
+                    const total = dvpTotalTeams ?? (sport === "wnba" ? 13 : 30);
+                    const tierSize = Math.max(3, Math.round(total / 3));
+                    const fastCutoff = tierSize;
+                    const slowCutoff = total - tierSize + 1;
+                    return (
+                      <MetricRangePopover
+                        config={PACE_RANK_CONFIG}
+                        labelOverride="Opponent Pace Rank"
+                        recentGames={games}
+                        activeRange={activeRange}
+                        active={activeRange !== null || legacyActive}
+                        getValueOverride={(g) =>
+                          paceRankByOpponent?.get(g.opponentTeamId) ?? null
+                        }
+                        minOverride={1}
+                        maxOverride={total}
+                        quickRanges={[
+                          {
+                            label: `Fast 1-${fastCutoff}`,
+                            min: 1,
+                            max: fastCutoff,
+                          },
+                          {
+                            label: `Avg ${fastCutoff + 1}-${slowCutoff - 1}`,
+                            min: fastCutoff + 1,
+                            max: slowCutoff - 1,
+                          },
+                          {
+                            label: `Slow ${slowCutoff}-${total}`,
+                            min: slowCutoff,
+                            max: total,
+                          },
+                        ].filter((range) => range.min <= range.max)}
+                        onChange={(range) => {
+                          const next = new Set(
+                            quickFilters ?? new Set<string>(),
+                          );
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed && parsed.key === "paceRank")
+                              next.delete(id);
+                            if (id.startsWith("pace")) next.delete(id);
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId("paceRank", range.min, range.max),
+                            );
+                          }
+                          onQuickFiltersSet?.(next);
+                        }}
+                      />
+                    );
+                  })()}
+                {remainingChips.map((qf) => {
+                  // Threshold-style chips (minutes30, fga15, threePtA5, etc.) get
+                  // upgraded to a popover trigger with slider + numeric inputs +
+                  // quick-pill thresholds. Other chips (venue, gameflow, etc.)
+                  // stay as plain toggle buttons since they're already binary.
+                  const metricKey = getMetricKeyFromInlineChipId(qf.id);
+                  const metricConfig = metricKey
+                    ? METRIC_FILTERS.find((c) => c.key === metricKey)
+                    : null;
+                  if (metricConfig) {
+                    // Resolve the active range (if any) for this metric from the
+                    // current quickFilters set — could be a `metric:KEY:range:...`
+                    // or `metric:KEY:gte:...` id, OR the legacy short-form (e.g.,
+                    // `minutes30`). All three cases collapse to {min, max} here.
+                    let activeRange: {
+                      min: number;
+                      max: number | null;
+                    } | null = null;
+                    const ids = [...(quickFilters ?? new Set<string>())];
+                    for (const id of ids) {
+                      const parsed = parseMetricFilterId(id);
+                      if (parsed && parsed.key === metricKey) {
+                        activeRange = { min: parsed.min, max: parsed.max };
+                        break;
+                      }
+                      const legacy = id.match(/^([a-zA-Z]+)(\d+(?:\.\d+)?)$/);
                       if (
                         legacy &&
                         INLINE_CHIP_TO_METRIC_KEY[legacy[1]] === metricKey
-                      )
-                        next.delete(id);
+                      ) {
+                        activeRange = { min: Number(legacy[2]), max: null };
+                        break;
+                      }
                     }
-                    if (range) {
-                      next.add(metricFilterId(metricConfig.key, range.min, range.max));
-                    }
-                    onQuickFiltersSet?.(next);
-                  }}
-                />
-              );
-            }
+                    const isActive = activeRange !== null;
+                    return (
+                      <MetricRangePopover
+                        key={qf.id}
+                        config={metricConfig}
+                        recentGames={games}
+                        activeRange={activeRange}
+                        active={isActive}
+                        overlayActive={
+                          metricOverlays?.has(metricConfig.key) ?? false
+                        }
+                        overlaySupported={OVERLAY_SUPPORTED_KEYS.has(
+                          metricConfig.key,
+                        )}
+                        onOverlayToggle={() =>
+                          onMetricOverlayToggle?.(metricConfig.key)
+                        }
+                        onChange={(range) => {
+                          // Replace any existing chip for this metric (legacy or
+                          // metric:* form) with the new range. Reuse the same
+                          // toggle hook by clearing first then adding.
+                          const next = new Set(
+                            quickFilters ?? new Set<string>(),
+                          );
+                          for (const id of [...next]) {
+                            const parsed = parseMetricFilterId(id);
+                            if (parsed && parsed.key === metricKey)
+                              next.delete(id);
+                            const legacy = id.match(
+                              /^([a-zA-Z]+)\d+(?:\.\d+)?$/,
+                            );
+                            if (
+                              legacy &&
+                              INLINE_CHIP_TO_METRIC_KEY[legacy[1]] === metricKey
+                            )
+                              next.delete(id);
+                          }
+                          if (range) {
+                            next.add(
+                              metricFilterId(
+                                metricConfig.key,
+                                range.min,
+                                range.max,
+                              ),
+                            );
+                          }
+                          onQuickFiltersSet?.(next);
+                        }}
+                      />
+                    );
+                  }
 
-            const active = quickFilters?.has(qf.id) ?? false;
-            return (
-              <button
-                key={qf.id}
-                type="button"
-                onClick={() => onQuickFilterToggle?.(qf.id)}
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150",
-                  active
-                    ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
-                    : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100"
-                )}
-              >
-                {qf.label}
-              </button>
-            );
-          })}
+                  const active = quickFilters?.has(qf.id) ?? false;
+                  return (
+                    <button
+                      key={qf.id}
+                      type="button"
+                      onClick={() => onQuickFilterToggle?.(qf.id)}
+                      className={cn(
+                        "rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150",
+                        active
+                          ? "bg-brand shadow-brand/25 text-neutral-950 shadow-sm"
+                          : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100",
+                      )}
+                    >
+                      {qf.label}
+                    </button>
+                  );
+                })}
               </>
             );
           })()}
@@ -1459,7 +1677,7 @@ export function HitRateChart({
             <button
               type="button"
               onClick={onQuickFiltersClear}
-              className="ml-1 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400 transition-colors hover:text-brand dark:text-neutral-500"
+              className="hover:text-brand ml-1 text-[10px] font-bold tracking-[0.12em] text-neutral-400 uppercase transition-colors dark:text-neutral-500"
             >
               Clear
             </button>
@@ -1471,41 +1689,42 @@ export function HitRateChart({
           <div className="ml-auto inline-flex items-center gap-1.5">
             <ChartSettingsPopover market={market} />
             <FiltersDrawer
-            market={market}
-            upcomingHomeAway={upcomingHomeAway}
-            recentGames={games}
-            dvpRankByOpponent={dvpRankByOpponent}
-            totalTeams={dvpTotalTeams}
-            playTypeDefenseFilters={playTypeDefenseFilters}
-            active={quickFilters ?? new Set()}
-            onToggle={(id) => onQuickFilterToggle?.(id)}
-            onClearAll={() => onQuickFiltersClear?.()}
-            onApplyPreset={(ids) => onQuickFiltersSet?.(ids)}
-            trigger={
-              // When filters are active, the trigger flips from a quiet
-              // "+ Filters" outline to a brand-cyan filled chip with the
-              // count baked in — gives users a constant readout of how
-              // many filters are applied without re-opening the panel.
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-colors",
-                  (quickFilters?.size ?? 0) > 0
-                    ? "border-brand/45 bg-brand/15 text-brand hover:bg-brand/25"
-                    : "border-neutral-200 text-neutral-600 hover:border-brand/40 hover:text-brand dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-brand",
-                )}
-              >
-                {(quickFilters?.size ?? 0) > 0 ? (
-                  <>
-                    <SlidersHorizontal className="h-3 w-3" />
-                    Filters · {quickFilters!.size}
-                  </>
-                ) : (
-                  <>+ Filters</>
-                )}
-              </button>
-            }
-          />
+              market={market}
+              upcomingHomeAway={upcomingHomeAway}
+              recentGames={games}
+              dvpRankByOpponent={dvpRankByOpponent}
+              paceRankByOpponent={paceRankByOpponent}
+              totalTeams={dvpTotalTeams}
+              playTypeDefenseFilters={playTypeDefenseFilters}
+              active={quickFilters ?? new Set()}
+              onToggle={(id) => onQuickFilterToggle?.(id)}
+              onClearAll={() => onQuickFiltersClear?.()}
+              onApplyPreset={(ids) => onQuickFiltersSet?.(ids)}
+              trigger={
+                // When filters are active, the trigger flips from a quiet
+                // "+ Filters" outline to a brand-cyan filled chip with the
+                // count baked in — gives users a constant readout of how
+                // many filters are applied without re-opening the panel.
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase transition-colors",
+                    (quickFilters?.size ?? 0) > 0
+                      ? "border-brand/45 bg-brand/15 text-brand hover:bg-brand/25"
+                      : "hover:border-brand/40 hover:text-brand dark:hover:text-brand border-neutral-200 text-neutral-600 dark:border-neutral-700 dark:text-neutral-300",
+                  )}
+                >
+                  {(quickFilters?.size ?? 0) > 0 ? (
+                    <>
+                      <SlidersHorizontal className="h-3 w-3" />
+                      Filters · {quickFilters!.size}
+                    </>
+                  ) : (
+                    <>+ Filters</>
+                  )}
+                </button>
+              }
+            />
           </div>
         </div>
       )}
@@ -1601,7 +1820,7 @@ export function HitRateChart({
               });
             })()}
           </div>,
-          document.body
+          document.body,
         )}
     </Tile>
   );
@@ -1664,7 +1883,9 @@ function BarColumn({
   const isHit = value >= line;
   const heightPx = Math.max(4, (value / maxValue) * chartHeight);
   const showGhost = hasAnyPotential && potential != null && potential > 0;
-  const ghostHeightPx = showGhost ? Math.max(4, (potential! / maxValue) * chartHeight) : 0;
+  const ghostHeightPx = showGhost
+    ? Math.max(4, (potential! / maxValue) * chartHeight)
+    : 0;
   // Slim the actual bar whenever the chart is in "potential mode" — keeps bar
   // widths consistent across all columns even when a game is missing potential.
   // Wider ratio (0.78) so the colored bar reads as the primary value with the
@@ -1718,7 +1939,7 @@ function BarColumn({
           {showValueLabel && (
             <span
               className={cn(
-                "pointer-events-none absolute left-1/2 z-[3] -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/90 px-1 text-[8px] font-bold tabular-nums leading-none ring-1 dark:bg-neutral-900/85",
+                "pointer-events-none absolute left-1/2 z-[3] -translate-x-1/2 rounded-sm bg-white/90 px-1 text-[8px] leading-none font-bold whitespace-nowrap tabular-nums ring-1 dark:bg-neutral-900/85",
                 ov.pillClass,
                 ov.ringClass,
               )}
@@ -1737,13 +1958,13 @@ function BarColumn({
           cursor is actually over a bar — not the empty chart bg above it. */}
       {showGhost && (
         <div
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-neutral-300/45 ring-1 ring-inset ring-neutral-300/30 dark:bg-neutral-700/40 dark:ring-neutral-600/25"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] bg-neutral-300/45 ring-1 ring-neutral-300/30 ring-inset dark:bg-neutral-700/40 dark:ring-neutral-600/25"
           style={{ width: barWidth, height: ghostHeightPx, animation }}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
         >
           <span
-            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-medium tabular-nums leading-none text-neutral-400 dark:text-neutral-500"
+            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 text-[8px] leading-none font-medium whitespace-nowrap text-neutral-400 tabular-nums dark:text-neutral-500"
             style={{ marginBottom: 2 + ghostLabelExtra }}
           >
             {showValueLabel ? potential : null}
@@ -1757,10 +1978,10 @@ function BarColumn({
         className={cn(
           "absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-[3px] transition-all duration-200 ease-out",
           "shadow-[0_-1px_0_rgba(255,255,255,0.22)_inset]",
-          "group-hover/bar:brightness-110 group-hover/bar:-translate-y-0.5",
+          "group-hover/bar:-translate-y-0.5 group-hover/bar:brightness-110",
           isHit
             ? "bg-gradient-to-t from-emerald-600/70 to-emerald-400 dark:from-emerald-500/55 dark:to-emerald-400"
-            : "bg-gradient-to-t from-red-600/70 to-red-400 dark:from-red-500/55 dark:to-red-400"
+            : "bg-gradient-to-t from-red-600/70 to-red-400 dark:from-red-500/55 dark:to-red-400",
         )}
         style={{ width: actualWidth, height: heightPx, animation }}
         onMouseEnter={onMouseEnter}
@@ -1769,17 +1990,17 @@ function BarColumn({
         {showValueLabel && (
           <span
             className={cn(
-              "pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black tabular-nums leading-none",
+              "pointer-events-none absolute left-1/2 -translate-x-1/2 leading-none font-black whitespace-nowrap tabular-nums",
               // Hide when potential overlay is on — the ghost label above
               // already conveys the magnitude and stacking two labels gets noisy.
               // Above the bar in tiny when the bar is too short to host the
               // label inside; otherwise inside-the-bar in white for max contrast.
               heightPx < 22
                 ? "bottom-full mb-0.5 text-[9px] " +
-                  (isHit
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400")
-                : "top-1.5 text-[12px] text-neutral-900 [text-shadow:_0_1px_2px_rgba(255,255,255,0.45)] dark:text-white dark:[text-shadow:_0_1px_2px_rgba(0,0,0,0.35)]"
+                    (isHit
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-red-600 dark:text-red-400")
+                : "top-1.5 text-[12px] text-neutral-900 [text-shadow:_0_1px_2px_rgba(255,255,255,0.45)] dark:text-white dark:[text-shadow:_0_1px_2px_rgba(0,0,0,0.35)]",
             )}
           >
             {Number.isInteger(value) ? value : value.toFixed(1)}
@@ -1835,7 +2056,9 @@ function renderBarTooltip({
   const opponentLabel = game.opponentAbbr || "OPP";
   const showPotential = potential != null && potential > 0;
   const conversionPct =
-    showPotential && potential! > 0 ? Math.round((value / potential!) * 100) : null;
+    showPotential && potential! > 0
+      ? Math.round((value / potential!) * 100)
+      : null;
 
   return (
     <div className="w-[300px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-2xl dark:border-neutral-700/60 dark:bg-neutral-900">
@@ -1858,10 +2081,10 @@ function renderBarTooltip({
         {game.result && (
           <span
             className={cn(
-              "rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider tabular-nums ring-1",
+              "rounded-md px-2 py-0.5 text-[10px] font-black tracking-wider uppercase tabular-nums ring-1",
               game.result === "W"
                 ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/25 dark:text-emerald-400"
-                : "bg-red-500/15 text-red-600 ring-red-500/25 dark:text-red-400"
+                : "bg-red-500/15 text-red-600 ring-red-500/25 dark:text-red-400",
             )}
           >
             {game.result}{" "}
@@ -1877,13 +2100,15 @@ function renderBarTooltip({
         <div className="flex items-baseline gap-1.5">
           <span
             className={cn(
-              "text-2xl font-black leading-none tabular-nums tracking-tight sm:text-3xl",
-              isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+              "text-2xl leading-none font-black tracking-tight tabular-nums sm:text-3xl",
+              isHit
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400",
             )}
           >
             {value}
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+          <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
             {formatMarketLabel(market)}
           </span>
         </div>
@@ -1891,13 +2116,15 @@ function renderBarTooltip({
           <span
             className={cn(
               "text-[11px] font-black tabular-nums",
-              isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+              isHit
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400",
             )}
           >
             {margin >= 0 ? "+" : ""}
             {Number.isInteger(margin) ? margin : margin.toFixed(1)}
           </span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+          <span className="text-[9px] font-bold tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
             vs {formatLine(line)}
           </span>
         </div>
@@ -1909,15 +2136,15 @@ function renderBarTooltip({
         <div className="px-3 pb-1.5">
           <div className="flex items-center justify-between gap-2 rounded-md bg-neutral-50 px-2.5 py-1 dark:bg-neutral-800/60">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-black tabular-nums text-neutral-700 dark:text-neutral-200">
+              <span className="text-sm font-black text-neutral-700 tabular-nums dark:text-neutral-200">
                 {potential}
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+              <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
                 Potential
               </span>
             </div>
             {conversionPct !== null && (
-              <span className="text-[10px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
+              <span className="text-[10px] font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
                 {conversionPct}% converted
               </span>
             )}
@@ -1957,14 +2184,16 @@ function renderBarTooltip({
       {/* Teammates Out — top 3 by season avg for this stat. Avg gets a tier
           color (gold/orange/neutral) so the eye spots the impact rotation
           changes immediately. */}
-      {injuries && injuries.teammates_out && injuries.teammates_out.length > 0 && (
-        <TeammatesOutSection
-          teammates={injuries.teammates_out}
-          market={market}
-          sport={sport}
-          playerAvgsById={playerAvgsById}
-        />
-      )}
+      {injuries &&
+        injuries.teammates_out &&
+        injuries.teammates_out.length > 0 && (
+          <TeammatesOutSection
+            teammates={injuries.teammates_out}
+            market={market}
+            sport={sport}
+            playerAvgsById={playerAvgsById}
+          />
+        )}
     </div>
   );
 }
@@ -1987,7 +2216,9 @@ function TeammatesOutSection({
   // falling back to the season-wide PlayerOutInfo from playersOutForFilter
   // (NBA path doesn't embed avgs per-game). Without this fallback the list
   // sorts alphabetically because every avg ends up null.
-  const pickAvg = (t: GameWithInjuries["teammates_out"][number]): number | null => {
+  const pickAvg = (
+    t: GameWithInjuries["teammates_out"][number],
+  ): number | null => {
     const seasonAvg = playerAvgsById?.get(t.player_id);
     const ptsAvg = t.avg_pts ?? seasonAvg?.avg_pts ?? null;
     const rebAvg = t.avg_reb ?? seasonAvg?.avg_reb ?? null;
@@ -2048,11 +2279,11 @@ function TeammatesOutSection({
   return (
     <div className="border-t border-neutral-200/60 bg-neutral-50/60 px-3 py-2 dark:border-neutral-800/60 dark:bg-neutral-950/40">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
+        <span className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 uppercase dark:text-neutral-400">
           Teammates Out
         </span>
         {more > 0 && (
-          <span className="text-[10px] font-bold tabular-nums text-amber-500 dark:text-amber-400">
+          <span className="text-[10px] font-bold text-amber-500 tabular-nums dark:text-amber-400">
             +{more} more
           </span>
         )}
@@ -2074,7 +2305,12 @@ function TeammatesOutSection({
                 {t.name}
               </span>
               {t._avg !== null && (
-                <span className={cn("text-[11px] font-bold tabular-nums", avgTone(t._avg))}>
+                <span
+                  className={cn(
+                    "text-[11px] font-bold tabular-nums",
+                    avgTone(t._avg),
+                  )}
+                >
                   {t._avg.toFixed(1)}
                 </span>
               )}
@@ -2093,7 +2329,10 @@ function ChartSkeleton() {
       style={{ height: CHART_HEIGHT, gap: 6 }}
     >
       {Array.from({ length: 20 }).map((_, idx) => (
-        <div key={idx} className="flex h-full min-w-0 flex-1 items-end justify-center">
+        <div
+          key={idx}
+          className="flex h-full min-w-0 flex-1 items-end justify-center"
+        >
           <div
             className="w-full max-w-[28px] animate-pulse rounded-t-[3px] bg-neutral-200/70 dark:bg-neutral-800/70"
             style={{ height: 24 + ((idx * 19) % 90) }}
@@ -2239,7 +2478,10 @@ function formatBarDate(date: string | null | undefined): string {
   if (!date) return "—";
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+  return parsed.toLocaleDateString("en-US", {
+    month: "numeric",
+    day: "numeric",
+  });
 }
 
 // Per-game rank line drawn through the chart frame. ViewBox is real pixel
@@ -2308,14 +2550,19 @@ function RankInline({
   return (
     <span className="inline-flex items-baseline gap-1.5">
       <span
-        className={cn("h-1.5 w-1.5 rounded-full self-center", dotClass)}
+        className={cn("h-1.5 w-1.5 self-center rounded-full", dotClass)}
         aria-hidden
       />
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+      <span className="text-[10px] font-bold tracking-[0.14em] text-neutral-500 uppercase dark:text-neutral-400">
         {label}
       </span>
       <span className={cn("font-black tabular-nums", valueClass)}>#{rank}</span>
-      <span className={cn("text-[10px] font-black uppercase tracking-[0.1em]", valueClass)}>
+      <span
+        className={cn(
+          "text-[10px] font-black tracking-[0.1em] uppercase",
+          valueClass,
+        )}
+      >
         {tier}
       </span>
     </span>
@@ -2359,7 +2606,12 @@ function RankLineOverlay({
   // the bar tops or baseline labels.
   const yMargin = 10;
   const yRange = Math.max(1, chartHeight - yMargin * 2);
-  const points: Array<{ x: number; y: number; rank: number; isUpcoming?: boolean }> = [];
+  const points: Array<{
+    x: number;
+    y: number;
+    rank: number;
+    isUpcoming?: boolean;
+  }> = [];
   games.forEach((game, idx) => {
     if (game.opponentTeamId == null) return;
     const rank = rankMap.get(game.opponentTeamId);
@@ -2462,4 +2714,3 @@ function RankLineOverlay({
     </g>
   );
 }
-

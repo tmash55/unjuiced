@@ -22,6 +22,7 @@ export function MetricRangePopover({
   minOverride,
   maxOverride,
   labelOverride,
+  quickRanges,
   overlayActive = false,
   overlaySupported = false,
   onOverlayToggle,
@@ -41,6 +42,9 @@ export function MetricRangePopover({
   // Override the popover header title — useful when the label needs the
   // active market baked in (e.g., "Opp Defense Rank vs Assists").
   labelOverride?: string;
+  // Optional preset ranges for rank-style metrics where "N+" is not the
+  // right mental model. Example: pace rank uses Fast / Avg / Slow bands.
+  quickRanges?: Array<{ label: string; min: number; max: number }>;
   // Whether this metric is currently rendered as a per-game overlay on
   // the chart, and a toggle to flip it. Only shown when overlaySupported
   // is true (we ship overlays per-metric as we add them — Minutes is
@@ -93,10 +97,15 @@ export function MetricRangePopover({
   // typical performance. Gives one-click parity with the old preset chips.
   const quickThresholds = useMemo(() => {
     const span = Math.max(1, max - min);
-    const stepCount = Math.min(4, Math.max(2, Math.round(span / config.step / 4)));
+    const stepCount = Math.min(
+      4,
+      Math.max(2, Math.round(span / config.step / 4)),
+    );
     const pills: number[] = [];
     for (let i = 1; i <= stepCount; i++) {
-      const value = Math.round((min + (span * i) / (stepCount + 1)) / config.step) * config.step;
+      const value =
+        Math.round((min + (span * i) / (stepCount + 1)) / config.step) *
+        config.step;
       if (!pills.includes(value)) pills.push(value);
     }
     return pills;
@@ -117,7 +126,14 @@ export function MetricRangePopover({
           max={max}
           avg={avg}
           activeRange={activeRange}
-          quickThresholds={quickThresholds}
+          quickRanges={
+            quickRanges ??
+            quickThresholds.map((threshold) => ({
+              label: `${display(threshold)}+`,
+              min: threshold,
+              max,
+            }))
+          }
           display={display}
           overlayActive={overlayActive}
           overlaySupported={overlaySupported}
@@ -139,7 +155,7 @@ export function MetricRangePopover({
         className={cn(
           "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all duration-150",
           active
-            ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
+            ? "bg-brand shadow-brand/25 text-neutral-950 shadow-sm"
             : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100",
         )}
       >
@@ -169,7 +185,7 @@ function RangeBody({
   max,
   avg,
   activeRange,
-  quickThresholds,
+  quickRanges,
   display,
   onApply,
   onClear,
@@ -183,7 +199,7 @@ function RangeBody({
   max: number;
   avg: number;
   activeRange: { min: number; max: number | null } | null;
-  quickThresholds: number[];
+  quickRanges: Array<{ label: string; min: number; max: number }>;
   display: (n: number) => string;
   onApply: (range: { min: number; max: number }) => void;
   onClear: () => void;
@@ -221,7 +237,7 @@ function RangeBody({
           <div className="text-[12px] font-black text-neutral-900 dark:text-white">
             {labelOverride ?? config.label}
           </div>
-          <div className="mt-0.5 text-[10px] font-medium leading-snug text-neutral-500 dark:text-neutral-500">
+          <div className="mt-0.5 text-[10px] leading-snug font-medium text-neutral-500 dark:text-neutral-500">
             {config.description} · avg {display(avg)}
           </div>
         </div>
@@ -229,7 +245,7 @@ function RangeBody({
           <button
             type="button"
             onClick={onClear}
-            className="shrink-0 text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase transition-colors hover:text-brand dark:text-neutral-400"
+            className="hover:text-brand shrink-0 text-[10px] font-bold tracking-[0.1em] text-neutral-500 uppercase transition-colors dark:text-neutral-400"
           >
             Clear
           </button>
@@ -241,22 +257,22 @@ function RangeBody({
           flex-1 on each so they evenly divide the popover width and feel
           like a proper control segment instead of left-clustered chips. */}
       <div className="flex items-stretch gap-1.5">
-        {quickThresholds.map((threshold) => {
+        {quickRanges.map((preset) => {
           const isPicked =
-            isActive && draftMin === threshold && draftMax === max;
+            isActive && draftMin === preset.min && draftMax === preset.max;
           return (
             <button
-              key={threshold}
+              key={`${preset.label}-${preset.min}-${preset.max}`}
               type="button"
-              onClick={() => commit(threshold, max)}
+              onClick={() => commit(preset.min, preset.max)}
               className={cn(
                 "flex-1 rounded-full px-3 py-1.5 text-[11px] font-black tabular-nums transition-colors",
                 isPicked
-                  ? "bg-brand text-neutral-950 shadow-sm shadow-brand/25"
+                  ? "bg-brand shadow-brand/25 text-neutral-950 shadow-sm"
                   : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
               )}
             >
-              {display(threshold)}+
+              {preset.label}
             </button>
           );
         })}
@@ -275,13 +291,13 @@ function RangeBody({
             onChange={(event) =>
               commit(normalizeInput(event.target.value, draftMin), draftMax)
             }
-            className="h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+            className="focus:border-brand/60 h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black text-neutral-700 tabular-nums transition-colors outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
             aria-label={`${config.label} minimum`}
           />
           <div className="relative h-8">
-            <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+            <div className="absolute top-1/2 right-0 left-0 h-1 -translate-y-1/2 rounded-full bg-neutral-200 dark:bg-neutral-800" />
             <div
-              className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-brand"
+              className="bg-brand absolute top-1/2 h-1 -translate-y-1/2 rounded-full"
               style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
             />
             <input
@@ -324,11 +340,11 @@ function RangeBody({
             onChange={(event) =>
               commit(draftMin, normalizeInput(event.target.value, draftMax))
             }
-            className="h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black tabular-nums text-neutral-700 outline-none transition-colors focus:border-brand/60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+            className="focus:border-brand/60 h-8 rounded-md border border-neutral-200 bg-white px-1.5 text-center text-[12px] font-black text-neutral-700 tabular-nums transition-colors outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
             aria-label={`${config.label} maximum`}
           />
         </div>
-        <div className="flex justify-between px-1 text-[9px] font-bold tabular-nums text-neutral-400 dark:text-neutral-500">
+        <div className="flex justify-between px-1 text-[9px] font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
           <span>{display(min)}</span>
           <span>{display(max)}</span>
         </div>
