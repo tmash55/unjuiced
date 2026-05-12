@@ -9,7 +9,7 @@ const QuerySchema = z.object({
   season: z
     .string()
     .nullish()
-    .transform((v) => v ?? "2025"),
+    .transform((v) => v ?? "2026"),
   limit: z.coerce
     .number()
     .int()

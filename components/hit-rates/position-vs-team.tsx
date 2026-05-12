@@ -64,7 +64,7 @@ export function PositionVsTeam({
   const [selectedPosition, setSelectedPosition] = useState<string | null>(
     normalizePositionForSport(position, sport)
   );
-  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2025");
+  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2026");
   const [showFilters, setShowFilters] = useState(false);
   const [gameLimit, setGameLimit] = useState(50);
   const [minMinutes, setMinMinutes] = useState(0);

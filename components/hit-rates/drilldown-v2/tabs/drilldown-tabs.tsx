@@ -3609,12 +3609,11 @@ export function MatchupPanel({
    *  pro-tier reward. */
   gateSimilarPlayers?: boolean;
 }) {
-  const [wnbaSeason, setWnbaSeason] = useState<"2025" | "2026">("2025");
+  const [wnbaSeason, setWnbaSeason] = useState<"2025" | "2026">("2026");
   const [gameLimit, setGameLimit] = useState(20);
   const [minMinutes, setMinMinutes] = useState(15);
   const normalizedPosition = normalizePositionForSport(profile.position, sport);
   const selectedSeason = sport === "wnba" ? wnbaSeason : undefined;
-  const line = activeLine ?? profile.line;
 
   const defenseQuery = useTeamDefenseRanks({
     opponentTeamId: profile.opponentTeamId,
@@ -3730,7 +3729,6 @@ export function MatchupPanel({
               position={normalizedPosition}
               opponentTeamAbbr={profile.opponentTeamAbbr}
               market={profile.market}
-              line={line}
               sport={sport}
               gameLimit={gameLimit}
               minMinutes={minMinutes}
@@ -3770,7 +3768,6 @@ function SimilarPositionPanel({
   position,
   opponentTeamAbbr,
   market,
-  line,
   sport,
   gameLimit,
   minMinutes,
@@ -3788,7 +3785,6 @@ function SimilarPositionPanel({
   position: string | null;
   opponentTeamAbbr: string | null;
   market: string;
-  line: number | null;
   sport: "nba" | "wnba";
   gameLimit: number;
   minMinutes: number;
@@ -3914,7 +3910,6 @@ function SimilarPositionPanel({
                 <SimilarPlayerRow
                   key={`${player.gameDate}-${player.playerId}-${index}`}
                   player={player}
-                  line={line}
                   sport={sport}
                   nativeStatField={nativeStatField}
                 />
@@ -3929,26 +3924,32 @@ function SimilarPositionPanel({
 
 function SimilarPlayerRow({
   player,
-  line,
   sport,
   nativeStatField,
 }: {
   player: PositionVsTeamPlayer;
-  line: number | null;
   sport: "nba" | "wnba";
   nativeStatField: "pts" | "reb" | "ast" | null;
 }) {
-  const hitCurrentLine = line !== null ? player.stat >= line : null;
+  const rowLine = player.closingLine;
+  const hitOwnLine =
+    rowLine === null
+      ? null
+      : player.hitOver !== null
+        ? player.hitOver
+        : player.stat === rowLine
+          ? null
+          : player.stat > rowLine;
   // The matching native column (PTS/REB/AST) becomes the rich cell with the
-  // hit-colored stat AND a same-color diff vs the active line so users can
-  // read "by how much" without a misleading bar. When no native column
+  // hit-colored stat AND a same-color diff vs that player's closing line so
+  // users can read "by how much" against the Line column. When no native column
   // matches the active market (3PM, STL, BLK, PRA, etc.), this rich cell
   // lives in the standalone {statLabel} column instead.
-  const diff = line !== null ? player.stat - line : null;
+  const diff = rowLine !== null ? player.stat - rowLine : null;
   const colorClass =
-    hitCurrentLine === null
+    hitOwnLine === null
       ? "text-neutral-950 dark:text-white"
-      : hitCurrentLine
+      : hitOwnLine
         ? "text-emerald-600 dark:text-emerald-400"
         : "text-red-500 dark:text-red-400";
   const renderRichCell = () => (

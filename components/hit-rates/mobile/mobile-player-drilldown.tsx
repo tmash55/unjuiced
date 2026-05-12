@@ -2870,7 +2870,7 @@ function PositionHistorySection({
     opponentTeamId,
     market: selectedMarket,
     sport,
-    season: sport === "wnba" ? "2025" : undefined,
+    season: sport === "wnba" ? "2026" : undefined,
     limit: gameLimit,
     enabled: !!position && !!opponentTeamId && !!selectedMarket,
   });
