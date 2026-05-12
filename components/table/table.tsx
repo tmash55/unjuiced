@@ -1,4 +1,4 @@
-import {deepEqual } from "@/libs/utils/deep-equal";
+import { deepEqual } from "@/libs/utils/deep-equal";
 import {
   Column,
   flexRender,
@@ -14,6 +14,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import {
   CSSProperties,
+  Fragment,
   HTMLAttributes,
   memo,
   useEffect,
@@ -24,7 +25,7 @@ import {
 } from "react";
 import { Button } from "@/components/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {  SortOrder } from "@/icons/sort-oder";
+import { SortOrder } from "@/icons/sort-oder";
 import { SelectionToolbar } from "./selection-toolbar";
 import { TableProps, UseTableProps } from "./types";
 import { LoadingSpinner } from "../icons";
@@ -79,7 +80,7 @@ export function useTable<T extends any>(
   );
 
   const [sorting, setSorting] = useState<SortingState>(
-    props.initialSorting ?? []
+    props.initialSorting ?? [],
   );
 
   const lastSelectedRowId = useRef<string | null>(null);
@@ -326,7 +327,7 @@ const ResizableTableRow = memo(
               ...getCommonPinningStyles(cell.column),
             }}
           >
-            <div className="flex w-full items-center justify-between overflow-hidden truncate">
+            <div className="flex w-full items-center justify-between truncate overflow-hidden">
               <div className="min-w-0 shrink grow truncate">
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </div>
@@ -372,6 +373,7 @@ export function Table<T>({
   onRowSelectionChange,
   selectionControls,
   rowProps,
+  renderSubRow,
   rowCount,
   children,
   enableColumnResizing = false,
@@ -400,7 +402,7 @@ export function Table<T>({
             <SelectionToolbar
               table={table}
               controls={selectionControls}
-              className="absolute left-0 top-0 z-10 rounded-t-[inherit]"
+              className="absolute top-0 left-0 z-10 rounded-t-[inherit]"
             />
           )}
           <div
@@ -442,9 +444,10 @@ export function Table<T>({
                           colSpan={header.colSpan}
                           className={cn(
                             tableCellClassName(header.id),
-                            "text-content-emphasis select-none text-sm font-semibold tracking-wide",
+                            "text-content-emphasis text-sm font-semibold tracking-wide select-none",
                             // Right-align financial columns
-                            ["profit", "bet-size"].includes(header.column.id) && "text-right",
+                            ["profit", "bet-size"].includes(header.column.id) &&
+                              "text-right",
                             getCommonPinningClassNames(
                               header.column,
                               !table.getRowModel().rows.length,
@@ -518,83 +521,95 @@ export function Table<T>({
                     typeof rowProps === "function" ? rowProps(row) : rowProps;
                   const { className, ...rest } = props || {};
 
-                  return enableColumnResizing ? (
-                    <ResizableTableRow
-                      key={`${row.id}-${table
-                        .getVisibleLeafColumns()
-                        .map((col) => col.id)
-                        .join(",")}`}
-                      row={row}
-                      onRowClick={onRowClick}
-                      onRowAuxClick={onRowAuxClick}
-                      rowProps={props}
-                      cellRight={cellRight}
-                      tdClassName={tdClassName}
-                      table={table}
-                    />
-                  ) : (
-                    <tr
-                      key={row.id}
-                      className={cn(
-                        "group/row",
-                        onRowClick && "cursor-pointer select-none",
-                        table.getRowModel().rows.length > 8 &&
-                          row.index === table.getRowModel().rows.length - 1 &&
-                          "[&_td]:border-b-0",
-                        className,
-                      )}
-                      onClick={
-                        onRowClick
-                          ? (e) => {
-                              if (isClickOnInteractiveChild(e)) return;
-                              onRowClick(row, e);
-                            }
-                          : undefined
-                      }
-                      onAuxClick={
-                        onRowAuxClick
-                          ? (e) => {
-                              if (isClickOnInteractiveChild(e)) return;
-                              onRowAuxClick(row, e);
-                            }
-                          : undefined
-                      }
-                      data-selected={row.getIsSelected()}
-                      {...rest}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
+                  return (
+                    <Fragment key={row.id}>
+                      {enableColumnResizing ? (
+                        <ResizableTableRow
+                          key={`${row.id}-${table
+                            .getVisibleLeafColumns()
+                            .map((col) => col.id)
+                            .join(",")}`}
+                          row={row}
+                          onRowClick={onRowClick}
+                          onRowAuxClick={onRowAuxClick}
+                          rowProps={props}
+                          cellRight={cellRight}
+                          tdClassName={tdClassName}
+                          table={table}
+                        />
+                      ) : (
+                        <tr
                           className={cn(
-                            tableCellClassName(cell.column.id, !!onRowClick),
-                            "text-content-default group",
-                            getCommonPinningClassNames(
-                              cell.column,
-                              row.index === table.getRowModel().rows.length - 1,
-                            ),
-                            typeof tdClassName === "function"
-                              ? tdClassName(cell.column.id, row)
-                              : tdClassName,
+                            "group/row",
+                            onRowClick && "cursor-pointer select-none",
+                            table.getRowModel().rows.length > 8 &&
+                              row.index ===
+                                table.getRowModel().rows.length - 1 &&
+                              "[&_td]:border-b-0",
+                            className,
                           )}
-                          style={{
-                            minWidth: cell.column.columnDef.minSize,
-                            maxWidth: cell.column.columnDef.maxSize,
-                            width: cell.column.columnDef.size || "auto",
-                            ...getCommonPinningStyles(cell.column),
-                          }}
+                          onClick={
+                            onRowClick
+                              ? (e) => {
+                                  if (isClickOnInteractiveChild(e)) return;
+                                  onRowClick(row, e);
+                                }
+                              : undefined
+                          }
+                          onAuxClick={
+                            onRowAuxClick
+                              ? (e) => {
+                                  if (isClickOnInteractiveChild(e)) return;
+                                  onRowAuxClick(row, e);
+                                }
+                              : undefined
+                          }
+                          data-selected={row.getIsSelected()}
+                          {...rest}
                         >
-                          <div className="flex w-full items-center justify-between overflow-hidden truncate">
-                            <div className="min-w-0 shrink grow truncate">
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
+                          {row.getVisibleCells().map((cell) => (
+                            <td
+                              key={cell.id}
+                              className={cn(
+                                tableCellClassName(
+                                  cell.column.id,
+                                  !!onRowClick,
+                                ),
+                                "text-content-default group",
+                                getCommonPinningClassNames(
+                                  cell.column,
+                                  row.index ===
+                                    table.getRowModel().rows.length - 1,
+                                ),
+                                typeof tdClassName === "function"
+                                  ? tdClassName(cell.column.id, row)
+                                  : tdClassName,
                               )}
-                            </div>
-                            {cellRight?.(cell)}
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
+                              style={{
+                                minWidth: cell.column.columnDef.minSize,
+                                maxWidth: cell.column.columnDef.maxSize,
+                                width: cell.column.columnDef.size || "auto",
+                                ...getCommonPinningStyles(cell.column),
+                              }}
+                            >
+                              <div className="flex w-full items-center justify-between truncate overflow-hidden">
+                                <div className="min-w-0 shrink grow truncate">
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext(),
+                                  )}
+                                </div>
+                                {cellRight?.(cell)}
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                      {renderSubRow?.(
+                        row,
+                        table.getVisibleLeafColumns().length,
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>

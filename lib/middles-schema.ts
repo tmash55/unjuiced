@@ -1,6 +1,8 @@
-export const ROWS_FORMAT = 1 as const;
+export const MIDDLES_ROWS_FORMAT = 1 as const;
 
-export type ArbLeg = {
+export type MiddleMode = "all" | "live" | "pregame";
+
+export type MiddleLeg = {
   bk: string;
   bt?: "sportsbook" | "prediction" | "exchange" | string;
   name?: string;
@@ -8,27 +10,35 @@ export type ArbLeg = {
   id?: string;
   u?: string;
   m?: string | null;
-  max?: number | null; // Max bet amount for this leg
+  max?: number | null;
   upd?: string | null;
   rg?: boolean;
 };
 
-export type ArbRow = {
+export type MiddleRow = {
   eid: string;
   sp?: string;
   mkt: string;
-  ln: number;
+  lo: number;
+  hi: number;
+  gap: number;
   ent?: string;
-  ent_id?: string;
+  ent_id?: string | null;
   pair?: string;
-  roi_bps: number;
-  true_roi_bps?: number;
-  implied_bps?: number;
+  score_bps: number;
+  middle_bps: number;
+  worst_case_bps: number;
+  low_side_bps?: number;
+  high_side_bps?: number;
+  stake?: {
+    o_bps?: number;
+    u_bps?: number;
+  };
   ts: number;
   fs?: number;
   ls?: number;
   lu?: number;
-  max_bet?: number | null; // Effective max for the arb (min of both legs)
+  max_bet?: number | null;
   book_types?: string[];
   has_regional?: boolean;
   lg?: {
@@ -42,8 +52,8 @@ export type ArbRow = {
     home: { abbr?: string; name?: string };
     away: { abbr?: string; name?: string };
   };
-  o: ArbLeg;
-  u: ArbLeg;
+  o: MiddleLeg;
+  u: MiddleLeg;
   inj?: {
     st: string;
     notes?: string;
@@ -59,5 +69,3 @@ export type ArbRow = {
   };
   risk_flags?: string[];
 };
-
-export type ArbId = string;

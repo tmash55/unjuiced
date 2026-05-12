@@ -7,7 +7,7 @@ export const DOMAINS = {
   // Production domains
   marketing: process.env.NEXT_PUBLIC_MARKETING_URL || 'https://unjuiced.bet',
   app: process.env.NEXT_PUBLIC_APP_URL || 'https://app.unjuiced.bet',
-  
+
   // Cookie domain (with leading dot for cross-subdomain sharing)
   cookieDomain: process.env.NODE_ENV === 'production' ? '.unjuiced.bet' : undefined,
 } as const;
@@ -37,6 +37,7 @@ export function isAppSubdomain(host: string): boolean {
 export const APP_ROUTES = [
   '/today',
   '/arbitrage',
+  '/middles',
   '/odds',
   '/positive-ev',
   '/edge-finder',
@@ -69,23 +70,23 @@ export const AUTH_ROUTES = [
  * Get redirect URL
  */
 export function getRedirectUrl(
-  host: string, 
-  path: string, 
+  host: string,
+  path: string,
   subdomain: 'app' | 'marketing' = 'app'
 ): string {
   const isLocal = host.includes('localhost');
-  
+
   if (isLocal) {
     const protocol = 'http://';
     const port = host.split(':')[1] || '3000';
-    
+
     if (subdomain === 'app') {
       return `${protocol}app.localhost:${port}${path}`;
     } else {
       return `${protocol}localhost:${port}${path}`;
     }
   }
-  
+
   if (subdomain === 'app') {
     return `${DOMAINS.app}${path}`;
   }

@@ -9,17 +9,14 @@ const redis = new Redis({
 import { type ArbRow } from "@/lib/arb-schema";
 import { trackArbs } from "@/lib/metrics/dashboard-metrics";
 import { zrevrangeCompat } from "@/lib/redis-zset";
+import { ARBS_REDIS_KEYS } from "@/lib/arbs-redis-keys";
 
 /**
  * Dashboard Arbitrage API
- * 
+ *
  * Returns top arbitrage opportunities for the Today dashboard.
  * Reads directly from Redis for optimal performance.
  */
-
-const H_ROWS = "arbs:rows";
-const Z_ROI_PREGAME = "arbs:sort:roi:pregame";
-const Z_ROI_ALL = "arbs:sort:roi";
 
 interface BookInfo {
   id: string;
@@ -68,7 +65,9 @@ const MARKET_DISPLAY: Record<string, string> = {
 };
 
 function getMarketDisplay(market: string): string {
-  return MARKET_DISPLAY[market] || market.replace(/_/g, " ").replace(/player /i, "");
+  return (
+    MARKET_DISPLAY[market] || market.replace(/_/g, " ").replace(/player /i, "")
+  );
 }
 
 function formatOdds(odds: number): string {
@@ -96,34 +95,54 @@ function humanizeMarket(mkt?: string): string {
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
-  
+
   try {
     const params = new URL(req.url).searchParams;
     const limit = Math.min(parseInt(params.get("limit") || "5"), 10);
 
     // Fetch top arbs by ROI (prefer pregame, fallback to all)
-    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
-    
+    let ids = await zrevrangeCompat(
+      redis as any,
+      ARBS_REDIS_KEYS.sortRoiPregame,
+      0,
+      limit - 1,
+    );
+
     if (ids.length === 0) {
-      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
+      ids = await zrevrangeCompat(
+        redis as any,
+        ARBS_REDIS_KEYS.sortRoi,
+        0,
+        limit - 1,
+      );
     }
 
     if (ids.length === 0) {
       return NextResponse.json(
         { arbs: [], timestamp: Date.now() },
-        { headers: { "Cache-Control": "public, max-age=15, s-maxage=15, stale-while-revalidate=30" } }
+        {
+          headers: {
+            "Cache-Control":
+              "public, max-age=15, s-maxage=15, stale-while-revalidate=30",
+          },
+        },
       );
     }
 
     // Fetch row data from hash
-    const rawUnknown = (await (redis as any).hmget(H_ROWS, ...ids)) as unknown;
+    const rawUnknown = (await (redis as any).hmget(
+      ARBS_REDIS_KEYS.rows,
+      ...ids,
+    )) as unknown;
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
-    
+
     // Fallback to individual HGET if hmget returns empty
     if (rawArr.length === 0) {
-      rawArr = await Promise.all(ids.map((id) => (redis as any).hget(H_ROWS, id)));
+      rawArr = await Promise.all(
+        ids.map((id) => (redis as any).hget(ARBS_REDIS_KEYS.rows, id)),
+      );
     }
-    
+
     // Parse rows — keep ids and rows aligned
     const pairs: Array<{ id: string; row: ArbRow }> = [];
     for (let i = 0; i < ids.length; i++) {
@@ -144,7 +163,8 @@ export async function GET(req: NextRequest) {
       }
 
       // Extract player name from leg names
-      const player = extractPlayer(row.o?.name) || extractPlayer(row.u?.name);
+      const player =
+        row.ent || extractPlayer(row.o?.name) || extractPlayer(row.u?.name);
 
       // Build book info
       const overBook: BookInfo = {
@@ -168,8 +188,10 @@ export async function GET(req: NextRequest) {
         line: row.ln ?? null,
         overBook,
         underBook,
-        roiPercent: row.roi_bps ? Math.round((row.roi_bps / 100) * 100) / 100 : 0,
-        sport: row.lg?.sport || "unknown",
+        roiPercent: row.roi_bps
+          ? Math.round((row.roi_bps / 100) * 100) / 100
+          : 0,
+        sport: row.sp || row.lg?.sport || "unknown",
         league: row.lg?.name || null,
         startTime: row.ev?.dt || null,
         isLive: row.ev?.live || false,
@@ -178,12 +200,12 @@ export async function GET(req: NextRequest) {
 
     // Track arb metrics for the Market Pulse
     if (arbs.length > 0) {
-      const arbMetrics = arbs.map(arb => ({
+      const arbMetrics = arbs.map((arb) => ({
         id: arb.id,
         roiPercent: arb.roiPercent,
         bookIds: [arb.overBook.id, arb.underBook.id],
       }));
-      
+
       // Fire and forget - don't block response
       trackArbs(arbMetrics).catch(() => {});
     }
@@ -195,14 +217,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result, {
       headers: {
-        "Cache-Control": "public, max-age=15, s-maxage=15, stale-while-revalidate=30",
+        "Cache-Control":
+          "public, max-age=15, s-maxage=15, stale-while-revalidate=30",
         "X-Response-Time": `${Date.now() - startTime}ms`,
       },
     });
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch arbitrage", arbs: [], timestamp: Date.now() },
-      { status: 500, headers: { "X-Response-Time": `${Date.now() - startTime}ms` } }
+      {
+        status: 500,
+        headers: { "X-Response-Time": `${Date.now() - startTime}ms` },
+      },
     );
   }
 }

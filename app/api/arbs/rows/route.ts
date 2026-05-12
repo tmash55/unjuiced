@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
+import { ARBS_REDIS_KEYS } from "@/lib/arbs-redis-keys";
 
-const H_ROWS = "arbs:rows";
 const MAX_IDS = 1000;
 const CHUNK = 500;
 
@@ -13,14 +13,16 @@ export async function POST(req: NextRequest) {
 
     // Basic input guard: strings only, non-empty
     const normalized = (input as unknown[])
-      .map((x: unknown) => (typeof x === "string" || typeof x === "number" ? String(x) : ""))
+      .map((x: unknown) =>
+        typeof x === "string" || typeof x === "number" ? String(x) : "",
+      )
       .map((s: string) => s.trim())
       .filter((s: string) => s.length > 0);
 
     if (!normalized.length) {
       return NextResponse.json(
         { format: ROWS_FORMAT, rows: [], missing: [] },
-        { headers: { "Cache-Control": "no-store" } }
+        { headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -46,7 +48,11 @@ export async function POST(req: NextRequest) {
     const safeParse = (val: any): ArbRow | null => {
       if (!val) return null;
       if (typeof val === "string") {
-        try { return JSON.parse(val) as ArbRow; } catch { return null; }
+        try {
+          return JSON.parse(val) as ArbRow;
+        } catch {
+          return null;
+        }
       }
       if (typeof val === "object") return val as ArbRow;
       return null;
@@ -54,13 +60,18 @@ export async function POST(req: NextRequest) {
 
     for (let offset = 0; offset < capped.length; offset += CHUNK) {
       const chunk = capped.slice(offset, offset + CHUNK);
-      const rawUnknown = (await (redis as any).hmget(H_ROWS, ...chunk)) as unknown;
+      const rawUnknown = (await (redis as any).hmget(
+        ARBS_REDIS_KEYS.rows,
+        ...chunk,
+      )) as unknown;
       let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
 
       if (!Array.isArray(rawUnknown) || rawArr.length === 0) {
         // Fallback: fetch each key individually to ensure compatibility
         usedFallback = true;
-        rawArr = await Promise.all(chunk.map((id) => (redis as any).hget(H_ROWS, id)));
+        rawArr = await Promise.all(
+          chunk.map((id) => (redis as any).hget(ARBS_REDIS_KEYS.rows, id)),
+        );
       }
 
       rawArr.forEach((val, i) => {
@@ -77,12 +88,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { format: ROWS_FORMAT, rows: out, missing },
-      { headers }
+      { headers },
     );
   } catch (error: any) {
     return NextResponse.json(
       { error: "internal_error", message: error?.message || "" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

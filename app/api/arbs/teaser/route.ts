@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
 import { zrevrangeCompat } from "@/lib/redis-zset";
-
-const H_ROWS = "arbs:rows";
-const Z_ROI_ALL = "arbs:sort:roi";
-const Z_ROI_PREGAME = "arbs:sort:roi:pregame";
-const V_VER = "arbs:v";
+import { ARBS_REDIS_KEYS } from "@/lib/arbs-redis-keys";
 
 function parseIntSafe(v: string | null, def: number): number {
   const n = Number(v ?? "");
@@ -18,18 +14,32 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams;
     const limit = Math.max(1, Math.min(2, parseIntSafe(sp.get("limit"), 2)));
 
-    const serverV = (await redis.get<number>(V_VER)) ?? 0;
+    const serverV = (await redis.get<number>(ARBS_REDIS_KEYS.version)) ?? 0;
 
     // Prefer pregame; fall back to all if empty
-    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
+    let ids = await zrevrangeCompat(
+      redis as any,
+      ARBS_REDIS_KEYS.sortRoiPregame,
+      0,
+      limit - 1,
+    );
     if (ids.length === 0) {
-      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
+      ids = await zrevrangeCompat(
+        redis as any,
+        ARBS_REDIS_KEYS.sortRoi,
+        0,
+        limit - 1,
+      );
     }
 
-    const rawUnknown = ids.length ? ((await (redis as any).hmget(H_ROWS, ...ids)) as unknown) : [];
+    const rawUnknown = ids.length
+      ? ((await (redis as any).hmget(ARBS_REDIS_KEYS.rows, ...ids)) as unknown)
+      : [];
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
     if (ids.length && rawArr.length === 0) {
-      rawArr = await Promise.all(ids.map((id) => (redis as any).hget(H_ROWS, id)));
+      rawArr = await Promise.all(
+        ids.map((id) => (redis as any).hget(ARBS_REDIS_KEYS.rows, id)),
+      );
     }
     // Keep ids and rows parallel
     const pairs: Array<{ id: string; row: ArbRow }> = [];
@@ -44,9 +54,16 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       { format: ROWS_FORMAT, v: serverV, ids: finalIds, rows },
-      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60" } }
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60",
+        },
+      },
     );
   } catch (e: any) {
-    return NextResponse.json({ error: "internal_error", message: e?.message || "" }, { status: 500 });
+    return NextResponse.json(
+      { error: "internal_error", message: e?.message || "" },
+      { status: 500 },
+    );
   }
 }

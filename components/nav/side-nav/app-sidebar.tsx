@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import React, { useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { motion, AnimatePresence } from "motion/react"
+import React, { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import {
   IconScale,
   IconPlus,
@@ -23,18 +23,14 @@ import {
   IconSelector,
   IconChevronDown,
   IconZzz,
-  IconHammer,
   IconHistory,
   IconBuildingBank,
   IconTags,
   IconBrandDiscord,
-} from "@tabler/icons-react"
-import { SportIcon } from "@/components/icons/sport-icons"
+} from "@tabler/icons-react";
+import { SportIcon } from "@/components/icons/sport-icons";
 
-import {
-  SidebarBody,
-  useSidebar,
-} from "@/components/ui/sidebar"
+import { SidebarBody, useSidebar } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,36 +39,36 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   TooltipProvider,
-} from "@/components/ui/tooltip"
-import { useAuth } from "@/components/auth/auth-provider"
-import { useEntitlements } from "@/hooks/use-entitlements"
-import { useMediaQuery } from "@/hooks/use-media-query"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/tooltip";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useEntitlements } from "@/hooks/use-entitlements";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 
 // Types for navigation
 interface NavChildItem {
-  label: string
-  href: string
-  disabled?: boolean
-  comingSoon?: boolean  // 🔨 Under construction - being built
-  offSeason?: boolean   // 💤 Sport is in off-season
-  badge?: string
-  sectionLabel?: string // Non-clickable divider label (e.g. "sheets")
+  label: string;
+  href: string;
+  disabled?: boolean;
+  comingSoon?: boolean;
+  offSeason?: boolean;
+  badge?: string;
+  sectionLabel?: string; // Non-clickable divider label (e.g. "sheets")
 }
 
 interface NavItem {
-  label: string
-  href: string
-  icon: React.ElementType
-  children?: NavChildItem[]
-  badge?: string
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  children?: NavChildItem[];
+  badge?: string;
 }
 
 // Sport sub-items for Odds Screen (active first, then disabled/off-season)
@@ -80,6 +76,7 @@ const oddsScreenSports: NavChildItem[] = [
   // Active
   { label: "MLB", href: "/odds/mlb" },
   { label: "NBA", href: "/odds/nba" },
+  { label: "WNBA", href: "/odds/wnba" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
   { label: "NCAA Baseball", href: "/odds/ncaabaseball" },
@@ -100,23 +97,27 @@ const oddsScreenSports: NavChildItem[] = [
   { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
   { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
-  { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
-]
+];
 
 // Navigation links - icons will inherit colors from parent
 
 // Sport icon wrappers for NavItem compatibility
-const NbaIcon = ({ className }: { className?: string }) => <SportIcon sport="nba" className={className} />
-const MlbIcon = ({ className }: { className?: string }) => <SportIcon sport="mlb" className={className} />
+const NbaIcon = ({ className }: { className?: string }) => (
+  <SportIcon sport="nba" className={className} />
+);
+const MlbIcon = ({ className }: { className?: string }) => (
+  <SportIcon sport="mlb" className={className} />
+);
 
 // Edge Tools - Money-making tools (Arbitrage, EV, Edge Finder)
 const edgeToolsLinks: NavItem[] = [
   { label: "Arbitrage", href: "/arbitrage", icon: IconScale },
+  { label: "Middles", href: "/middles", icon: IconSelector },
   { label: "Positive EV", href: "/positive-ev", icon: IconPlus },
   { label: "Edge Finder", href: "/edge-finder", icon: IconRocket },
   { label: "Sharp Intel", href: "/sharp-intel", icon: IconBulb, badge: "NEW" },
-]
+];
 
 // Sport sections — flat list with divider between Hit Rates and sheets
 const nbaLink: NavItem = {
@@ -128,13 +129,13 @@ const nbaLink: NavItem = {
     { label: "sheets", href: "", sectionLabel: "sheets" },
     { label: "Top Props", href: "/cheatsheets/nba/hit-rates" },
     { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
-{ label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+    { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
     { label: "Triple Double", href: "/cheatsheets/nba/triple-double-sheet" },
     { label: "Double Double", href: "/cheatsheets/nba/double-double-sheet" },
     { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     { label: "King of the Court", href: "/stats/nba/king-of-the-court" },
   ],
-}
+};
 
 const mlbLink: NavItem = {
   label: "MLB",
@@ -147,16 +148,21 @@ const mlbLink: NavItem = {
     { label: "NRFI", href: "/cheatsheets/mlb/nrfi" },
     { label: "Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
     { label: "Weather Report", href: "/cheatsheets/mlb/weather-report" },
-    { label: "Hit Rates", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
+    {
+      label: "Hit Rates",
+      href: "/hit-rates/mlb",
+      disabled: true,
+      comingSoon: true,
+    },
   ],
-}
+};
 
 const oddsScreenLink: NavItem = {
   label: "Odds Screen",
   href: "/odds",
   icon: IconTable,
   children: oddsScreenSports,
-}
+};
 
 // Resources - Informational content
 const resourcesLinks: NavItem[] = [
@@ -166,22 +172,22 @@ const resourcesLinks: NavItem[] = [
   { label: "Changelog", href: "/changelog", icon: IconHistory },
   { label: "My Slips", href: "/my-slips", icon: IconHeart },
   { label: "Discord", href: "/discord", icon: IconBrandDiscord },
-]
+];
 
 const accountLinks: NavItem[] = [
   { label: "Settings", href: "/account/settings", icon: IconSettings },
-]
+];
 
 // Shared transition config for smooth animations
 const smoothTransition = {
   duration: 0.2,
   ease: [0.25, 0.1, 0.25, 1] as const,
-}
+};
 
 // Section header component
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  const { open, animate } = useSidebar()
-  
+  const { open, animate } = useSidebar();
+
   return (
     <motion.div
       animate={{
@@ -192,91 +198,96 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       transition={smoothTransition}
       className="overflow-hidden"
     >
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-3 block">
+      <span className="block px-3 text-[10px] font-semibold tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
         {children}
       </span>
     </motion.div>
-  )
+  );
 }
 
 // Custom nav link with active state using brand colors
 interface NavLinkProps {
-  link: NavItem
-  expandedHref: string | null
-  onToggleExpand: (href: string) => void
+  link: NavItem;
+  expandedHref: string | null;
+  onToggleExpand: (href: string) => void;
 }
 
 function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
-  const pathname = usePathname()
-  const { open, setOpen } = useSidebar()
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  
+  const pathname = usePathname();
+  const { open, setOpen } = useSidebar();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   // Close mobile sidebar when navigating
   const closeMobileSidebar = () => {
     // Only close on mobile (under md breakpoint = 768px)
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOpen(false)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
     }
-  }
-  
-  const hasChildren = link.children && link.children.length > 0
-  const isActive = pathname === link.href || pathname?.startsWith(`${link.href}/`)
-  const isChildActive = hasChildren && link.children?.some(child =>
-    !child.sectionLabel && (pathname === child.href || pathname?.startsWith(`${child.href}/`))
-  )
-  const Icon = link.icon
-  
+  };
+
+  const hasChildren = link.children && link.children.length > 0;
+  const isActive =
+    pathname === link.href || pathname?.startsWith(`${link.href}/`);
+  const isChildActive =
+    hasChildren &&
+    link.children?.some(
+      (child) =>
+        !child.sectionLabel &&
+        (pathname === child.href || pathname?.startsWith(`${child.href}/`)),
+    );
+  const Icon = link.icon;
+
   // Check if this item is expanded (controlled by parent)
-  const isExpanded = expandedHref === link.href
-  
+  const isExpanded = expandedHref === link.href;
+
   // For items with children - expandable menu
   if (hasChildren) {
     // Collapsed state button (for dropdown trigger)
     const collapsedButton = (
       <button
         className={cn(
-          "flex items-center justify-center w-11 h-11 rounded-lg transition-all duration-200",
-          isDropdownOpen 
-            ? "border border-[#0EA5E9]/40 dark:border-[#7DD3FC]/40 bg-white dark:bg-neutral-800 shadow-sm" 
+          "flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200",
+          isDropdownOpen
+            ? "border border-[#0EA5E9]/40 bg-white shadow-sm dark:border-[#7DD3FC]/40 dark:bg-neutral-800"
             : "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
-          isActive || isChildActive
-            ? "bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5" 
-            : ""
+          isActive || isChildActive ? "bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5" : "",
         )}
       >
-        <span className={cn(
-          "shrink-0 flex items-center justify-center transition-colors duration-200",
-          isActive || isChildActive || isDropdownOpen
-            ? "text-[#0EA5E9] dark:text-[#7DD3FC]" 
-            : "text-neutral-500 dark:text-neutral-400"
-        )}>
-          <Icon className="w-5 h-5" />
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center transition-colors duration-200",
+            isActive || isChildActive || isDropdownOpen
+              ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
+              : "text-neutral-500 dark:text-neutral-400",
+          )}
+        >
+          <Icon className="h-5 w-5" />
         </span>
       </button>
-    )
-    
+    );
+
     // Expanded state button (inline expand/collapse)
     const expandedButton = (
       <button
         onClick={() => onToggleExpand(link.href)}
         className={cn(
-          "flex items-center w-full group/sidebar rounded-lg transition-all duration-200",
-          "gap-2 py-2 px-2",
-          isExpanded 
-            ? "border border-[#0EA5E9]/30 dark:border-[#7DD3FC]/30 bg-neutral-50/50 dark:bg-neutral-800/30" 
+          "group/sidebar flex w-full items-center rounded-lg transition-all duration-200",
+          "gap-2 px-2 py-2",
+          isExpanded
+            ? "border border-[#0EA5E9]/30 bg-neutral-50/50 dark:border-[#7DD3FC]/30 dark:bg-neutral-800/30"
             : "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
-          isActive || isChildActive
-            ? "bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5" 
-            : ""
+          isActive || isChildActive ? "bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5" : "",
         )}
       >
-        <span className={cn(
-          "shrink-0 flex items-center justify-center transition-colors duration-200",
-          isActive || isChildActive
-            ? "text-[#0EA5E9] dark:text-[#7DD3FC]" 
-            : "text-neutral-500 dark:text-neutral-400 group-hover/sidebar:text-neutral-700 dark:group-hover/sidebar:text-neutral-200"
-        )}>
-          <Icon className="w-5 h-5" />
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center transition-colors duration-200",
+            isActive || isChildActive
+              ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
+              : "text-neutral-500 group-hover/sidebar:text-neutral-700 dark:text-neutral-400 dark:group-hover/sidebar:text-neutral-200",
+          )}
+        >
+          <Icon className="h-5 w-5" />
         </span>
         <motion.span
           initial={{ opacity: 0, width: 0 }}
@@ -284,10 +295,10 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           exit={{ opacity: 0, width: 0 }}
           transition={smoothTransition}
           className={cn(
-            "flex-1 text-sm whitespace-pre overflow-hidden text-left",
+            "flex-1 overflow-hidden text-left text-sm whitespace-pre",
             isActive || isChildActive
-              ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium" 
-              : "text-neutral-600 dark:text-neutral-300"
+              ? "font-medium text-[#0EA5E9] dark:text-[#7DD3FC]"
+              : "text-neutral-600 dark:text-neutral-300",
           )}
         >
           {link.label}
@@ -297,22 +308,27 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           transition={{ duration: 0.2 }}
           className="shrink-0"
         >
-          <IconChevronDown className={cn(
-            "w-4 h-4 transition-colors",
-            isExpanded 
-              ? "text-[#0EA5E9] dark:text-[#7DD3FC]" 
-              : "text-neutral-400"
-          )} />
+          <IconChevronDown
+            className={cn(
+              "h-4 w-4 transition-colors",
+              isExpanded
+                ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
+                : "text-neutral-400",
+            )}
+          />
         </motion.span>
       </button>
-    )
-    
+    );
+
     return (
       <div>
         {!open ? (
           // Collapsed: Use dropdown menu like BeeHiiv with tooltip on hover
           <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-            <Tooltip delayDuration={0} open={isDropdownOpen ? false : undefined}>
+            <Tooltip
+              delayDuration={0}
+              open={isDropdownOpen ? false : undefined}
+            >
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
                   {collapsedButton}
@@ -326,47 +342,50 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
               side="right"
               align="start"
               sideOffset={12}
-              className="min-w-[200px] max-h-[70vh] overflow-y-auto p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
+              className="max-h-[70vh] min-w-[200px] overflow-y-auto rounded-lg border border-neutral-200 p-1.5 shadow-lg dark:border-neutral-700"
             >
               {link.children?.map((child, idx) => {
                 // Section label divider
                 if (child.sectionLabel) {
                   return (
-                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5">
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 px-3 py-1.5"
+                    >
                       <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
-                      <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                      <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
                         {child.sectionLabel}
                       </span>
                       <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
                     </div>
-                  )
+                  );
                 }
 
-                const isChildItemActive = pathname === child.href || pathname?.startsWith(`${child.href}/`)
-                const isDisabled = child.disabled
+                const isChildItemActive =
+                  pathname === child.href ||
+                  pathname?.startsWith(`${child.href}/`);
+                const isDisabled = child.disabled;
 
                 if (isDisabled) {
                   const tooltipText = child.offSeason
                     ? "Off season"
                     : child.comingSoon
-                      ? "Under construction"
-                      : ""
+                      ? "Coming soon"
+                      : "";
 
                   return (
                     <Tooltip key={idx} delayDuration={0}>
                       <TooltipTrigger asChild>
-                        <div
-                          className="flex items-center justify-between w-full px-3 py-2 rounded-md text-sm text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
-                        >
+                        <div className="flex w-full cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-neutral-400 dark:text-neutral-500">
                           <span>{child.label}</span>
                           {child.comingSoon && (
-                            <span className="flex items-center text-amber-500/70 dark:text-amber-400/70 ml-2">
-                              <IconHammer className="w-3.5 h-3.5" />
+                            <span className="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] leading-none font-bold tracking-wide text-amber-600 dark:text-amber-300">
+                              SOON
                             </span>
                           )}
                           {child.offSeason && (
-                            <span className="flex items-center text-neutral-400 dark:text-neutral-500 ml-2">
-                              <IconZzz className="w-3.5 h-3.5" />
+                            <span className="ml-2 flex items-center text-neutral-400 dark:text-neutral-500">
+                              <IconZzz className="h-3.5 w-3.5" />
                             </span>
                           )}
                         </div>
@@ -377,7 +396,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         </TooltipContent>
                       )}
                     </Tooltip>
-                  )
+                  );
                 }
 
                 return (
@@ -386,21 +405,21 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                       href={child.href}
                       onClick={closeMobileSidebar}
                       className={cn(
-                        "flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors cursor-pointer",
+                        "flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
                         isChildItemActive
-                          ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
-                          : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                          ? "bg-[#0EA5E9]/10 font-medium text-[#0EA5E9] dark:bg-[#7DD3FC]/10 dark:text-[#7DD3FC]"
+                          : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800",
                       )}
                     >
                       {child.label}
                       {child.badge && (
-                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] leading-none font-bold text-white">
                           {child.badge}
                         </span>
                       )}
                     </Link>
                   </DropdownMenuItem>
-                )
+                );
               })}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -408,7 +427,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           // Expanded: Show inline expandable menu
           expandedButton
         )}
-        
+
         {/* Child items - only show when sidebar is open */}
         {open && (
           <AnimatePresence>
@@ -420,46 +439,49 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                 transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                 className="overflow-hidden"
               >
-                <div className="ml-4 pl-3 border-l border-neutral-200 dark:border-neutral-700 mt-1 space-y-0.5">
+                <div className="mt-1 ml-4 space-y-0.5 border-l border-neutral-200 pl-3 dark:border-neutral-700">
                   {link.children?.map((child, idx) => {
                     // Section label divider
                     if (child.sectionLabel) {
                       return (
-                        <div key={idx} className="flex items-center gap-2 py-1.5 px-2">
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 px-2 py-1.5"
+                        >
                           <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                          <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
                             {child.sectionLabel}
                           </span>
                           <div className="flex-1 border-t border-neutral-200 dark:border-neutral-700" />
                         </div>
-                      )
+                      );
                     }
 
-                    const isChildItemActive = pathname === child.href || pathname?.startsWith(`${child.href}/`)
-                    const isDisabled = child.disabled
+                    const isChildItemActive =
+                      pathname === child.href ||
+                      pathname?.startsWith(`${child.href}/`);
+                    const isDisabled = child.disabled;
 
                     if (isDisabled) {
                       const tooltipText = child.offSeason
                         ? "Off season"
                         : child.comingSoon
-                          ? "Under construction"
-                          : ""
+                          ? "Coming soon"
+                          : "";
 
                       return (
                         <Tooltip key={idx} delayDuration={0}>
                           <TooltipTrigger asChild>
-                            <div
-                              className="flex items-center justify-between py-1.5 px-2 rounded-md text-sm text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
-                            >
+                            <div className="flex cursor-not-allowed items-center justify-between rounded-md px-2 py-1.5 text-sm text-neutral-400 dark:text-neutral-500">
                               <span>{child.label}</span>
                               {child.comingSoon && (
-                                <span className="flex items-center text-amber-500/70 dark:text-amber-400/70">
-                                  <IconHammer className="w-3.5 h-3.5" />
+                                <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] leading-none font-bold tracking-wide text-amber-600 dark:text-amber-300">
+                                  SOON
                                 </span>
                               )}
                               {child.offSeason && (
                                 <span className="flex items-center text-neutral-400 dark:text-neutral-500">
-                                  <IconZzz className="w-3.5 h-3.5" />
+                                  <IconZzz className="h-3.5 w-3.5" />
                                 </span>
                               )}
                             </div>
@@ -470,7 +492,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                             </TooltipContent>
                           )}
                         </Tooltip>
-                      )
+                      );
                     }
 
                     return (
@@ -479,20 +501,20 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         href={child.href}
                         onClick={closeMobileSidebar}
                         className={cn(
-                          "flex items-center justify-between py-1.5 px-2 rounded-md text-sm transition-all duration-150",
+                          "flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-all duration-150",
                           isChildItemActive
-                            ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
-                            : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-700 dark:hover:text-neutral-200"
+                            ? "bg-[#0EA5E9]/10 font-medium text-[#0EA5E9] dark:bg-[#7DD3FC]/10 dark:text-[#7DD3FC]"
+                            : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/50 dark:hover:text-neutral-200",
                         )}
                       >
                         {child.label}
                         {child.badge && (
-                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] leading-none font-bold text-white">
                             {child.badge}
                           </span>
                         )}
                       </Link>
-                    )
+                    );
                   })}
                 </div>
               </motion.div>
@@ -500,31 +522,31 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
           </AnimatePresence>
         )}
       </div>
-    )
+    );
   }
-  
+
   // Simple link without children
   const linkContent = (
     <Link
       href={link.href}
       onClick={closeMobileSidebar}
       className={cn(
-        "flex items-center group/sidebar rounded-lg transition-all duration-200",
-        open 
-          ? "gap-2 py-2 px-2" 
-          : "w-11 h-11 justify-center self-center",
-        isActive 
-          ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10" 
-          : "hover:bg-neutral-100 dark:hover:bg-neutral-800/50"
+        "group/sidebar flex items-center rounded-lg transition-all duration-200",
+        open ? "gap-2 px-2 py-2" : "h-11 w-11 justify-center self-center",
+        isActive
+          ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10"
+          : "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
       )}
     >
-      <span className={cn(
-        "relative shrink-0 flex items-center justify-center transition-colors duration-200",
-        isActive
-          ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
-          : "text-neutral-500 dark:text-neutral-400 group-hover/sidebar:text-neutral-700 dark:group-hover/sidebar:text-neutral-200"
-      )}>
-        <Icon className="w-5 h-5" />
+      <span
+        className={cn(
+          "relative flex shrink-0 items-center justify-center transition-colors duration-200",
+          isActive
+            ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
+            : "text-neutral-500 group-hover/sidebar:text-neutral-700 dark:text-neutral-400 dark:group-hover/sidebar:text-neutral-200",
+        )}
+      >
+        <Icon className="h-5 w-5" />
       </span>
       {open && (
         <>
@@ -534,89 +556,84 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
             exit={{ opacity: 0, width: 0 }}
             transition={smoothTransition}
             className={cn(
-              "text-sm whitespace-pre overflow-hidden",
+              "overflow-hidden text-sm whitespace-pre",
               isActive
-                ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
-                : "text-neutral-600 dark:text-neutral-300"
+                ? "font-medium text-[#0EA5E9] dark:text-[#7DD3FC]"
+                : "text-neutral-600 dark:text-neutral-300",
             )}
           >
             {link.label}
           </motion.span>
           {link.badge && (
-            <span className="ml-auto text-[9px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 px-1.5 py-0.5 rounded shrink-0">
+            <span className="ml-auto shrink-0 rounded border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold text-sky-600 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-400">
               {link.badge}
             </span>
           )}
         </>
       )}
     </Link>
-  )
-  
+  );
+
   // Show tooltip only when collapsed
   if (!open) {
     return (
       <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          {linkContent}
-        </TooltipTrigger>
+        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
         <TooltipContent side="right" className="font-medium">
           {link.label}
         </TooltipContent>
       </Tooltip>
-    )
+    );
   }
-  
-  return linkContent
+
+  return linkContent;
 }
 
 // Logo component - full version when open
 function Logo() {
-  const { setOpen } = useSidebar()
-  
+  const { setOpen } = useSidebar();
+
   const closeMobileSidebar = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOpen(false)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
     }
-  }
-  
+  };
+
   return (
     <Link
       href="/today"
       onClick={closeMobileSidebar}
-      className="relative z-20 flex items-end gap-2.5 px-1 py-1 text-sm font-normal rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+      className="relative z-20 flex items-end gap-2.5 rounded-lg px-1 py-1 text-sm font-normal transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
     >
       {/* Logo image */}
-      <Image 
-        src="/logo.png" 
-        alt="Unjuiced logo" 
-        width={32} 
+      <Image
+        src="/logo.png"
+        alt="Unjuiced logo"
+        width={32}
         height={32}
         className="h-8 w-8 shrink-0"
       />
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        <span className="font-semibold whitespace-pre text-neutral-900 dark:text-white text-lg tracking-tight leading-none">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <span className="text-lg leading-none font-semibold tracking-tight whitespace-pre text-neutral-900 dark:text-white">
           Unjuiced
         </span>
       </motion.div>
     </Link>
-  )
+  );
 }
 
 // Prominent CTA Button - "Find a Play"
 function FindPlayButton() {
-  const { open, setOpen } = useSidebar()
-  const pathname = usePathname()
-  const isActive = pathname === "/today"
-  
+  const { open, setOpen } = useSidebar();
+  const pathname = usePathname();
+  const isActive = pathname === "/today";
+
   const closeMobileSidebar = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOpen(false)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
     }
-  }
-  
+  };
+
   const buttonContent = (
     <Link
       href="/today"
@@ -625,67 +642,65 @@ function FindPlayButton() {
         "flex items-center rounded-lg transition-all duration-200",
         isActive
           ? "bg-brand hover:bg-brand/90 text-white"
-          : "bg-brand/10 border border-brand/20 hover:bg-brand/15 text-brand dark:bg-white dark:border-white/20 dark:hover:bg-neutral-100 dark:text-neutral-900",
+          : "bg-brand/10 border-brand/20 hover:bg-brand/15 text-brand border dark:border-white/20 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100",
         "shadow-sm hover:shadow-md",
-        open 
-          ? "gap-2 py-2 px-3 w-full justify-center" 
-          : "w-10 h-10 justify-center",
-        isActive && "shadow-md"
+        open
+          ? "w-full justify-center gap-2 px-3 py-2"
+          : "h-10 w-10 justify-center",
+        isActive && "shadow-md",
       )}
     >
-      <IconSearch className="w-4 h-4 shrink-0" />
+      <IconSearch className="h-4 w-4 shrink-0" />
       {open && (
         <motion.span
           initial={{ opacity: 0, width: 0 }}
           animate={{ opacity: 1, width: "auto" }}
           exit={{ opacity: 0, width: 0 }}
           transition={smoothTransition}
-          className="text-xs font-semibold whitespace-pre overflow-hidden"
+          className="overflow-hidden text-xs font-semibold whitespace-pre"
         >
           Find a Play
         </motion.span>
       )}
     </Link>
-  )
-  
+  );
+
   if (!open) {
     return (
       <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          {buttonContent}
-        </TooltipTrigger>
+        <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
         <TooltipContent side="right" className="font-medium">
           Find a Play
         </TooltipContent>
       </Tooltip>
-    )
+    );
   }
-  
-  return buttonContent
+
+  return buttonContent;
 }
 
 // Logo icon only - collapsed version
 function LogoIcon() {
-  const { setOpen } = useSidebar()
-  
+  const { setOpen } = useSidebar();
+
   const closeMobileSidebar = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOpen(false)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
     }
-  }
-  
+  };
+
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
         <Link
           href="/today"
           onClick={closeMobileSidebar}
-          className="relative z-20 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-1"
+          className="relative z-20 flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <Image 
-            src="/logo.png" 
-            alt="Unjuiced logo" 
-            width={32} 
+          <Image
+            src="/logo.png"
+            alt="Unjuiced logo"
+            width={32}
             height={32}
             className="h-8 w-8 shrink-0"
           />
@@ -695,7 +710,7 @@ function LogoIcon() {
         Unjuiced
       </TooltipContent>
     </Tooltip>
-  )
+  );
 }
 
 // Tips for Sharp users
@@ -705,102 +720,113 @@ const PRO_TIPS = [
   "Check hit rates before placing player props",
   "Compare odds across all books for best value",
   "Use Kelly criterion for optimal bet sizing",
-]
+];
 
 // Status card - shows trial info or pro tips
 function StatusCard() {
-  const { open } = useSidebar()
-  const { data: entitlements } = useEntitlements()
-  const [currentTip, setCurrentTip] = React.useState(0)
-  
-  const isTrial = entitlements?.entitlement_source === 'trial'
-  const isPro = entitlements?.entitlement_source === 'subscription' || 
-                entitlements?.entitlement_source === 'grant'
-  const canTrial = entitlements?.trial?.trial_used === false
-  
+  const { open } = useSidebar();
+  const { data: entitlements } = useEntitlements();
+  const [currentTip, setCurrentTip] = React.useState(0);
+
+  const isTrial = entitlements?.entitlement_source === "trial";
+  const isPro =
+    entitlements?.entitlement_source === "subscription" ||
+    entitlements?.entitlement_source === "grant";
+  const canTrial = entitlements?.trial?.trial_used === false;
+
   // Calculate trial days
   const trialDaysRemaining = React.useMemo(() => {
-    if (!isTrial || !entitlements?.trial?.trial_ends_at) return 0
-    const endDate = new Date(entitlements.trial.trial_ends_at)
-    const now = new Date()
-    const diffTime = endDate.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return Math.max(0, diffDays)
-  }, [isTrial, entitlements?.trial?.trial_ends_at])
-  
+    if (!isTrial || !entitlements?.trial?.trial_ends_at) return 0;
+    const endDate = new Date(entitlements.trial.trial_ends_at);
+    const now = new Date();
+    const diffTime = endDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  }, [isTrial, entitlements?.trial?.trial_ends_at]);
+
   const trialTotalDays = React.useMemo(() => {
-    if (!isTrial) return 7
-    if (entitlements?.trial?.trial_started_at && entitlements?.trial?.trial_ends_at) {
-      const start = new Date(entitlements.trial.trial_started_at).getTime()
-      const end = new Date(entitlements.trial.trial_ends_at).getTime()
-      const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
-      return Math.max(1, total)
+    if (!isTrial) return 7;
+    if (
+      entitlements?.trial?.trial_started_at &&
+      entitlements?.trial?.trial_ends_at
+    ) {
+      const start = new Date(entitlements.trial.trial_started_at).getTime();
+      const end = new Date(entitlements.trial.trial_ends_at).getTime();
+      const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      return Math.max(1, total);
     }
-    return 7
-  }, [isTrial, entitlements?.trial?.trial_started_at, entitlements?.trial?.trial_ends_at])
-  const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
-  
+    return 7;
+  }, [
+    isTrial,
+    entitlements?.trial?.trial_started_at,
+    entitlements?.trial?.trial_ends_at,
+  ]);
+  const trialProgress = isTrial
+    ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100
+    : 0;
+
   // Rotate tips for pro users
   React.useEffect(() => {
-    if (!isPro) return
+    if (!isPro) return;
     const interval = setInterval(() => {
-      setCurrentTip(prev => (prev + 1) % PRO_TIPS.length)
-    }, 10000) // Change tip every 10 seconds
-    return () => clearInterval(interval)
-  }, [isPro])
-  
+      setCurrentTip((prev) => (prev + 1) % PRO_TIPS.length);
+    }, 10000); // Change tip every 10 seconds
+    return () => clearInterval(interval);
+  }, [isPro]);
+
   // Don't show when collapsed - must be after all hooks
-  if (!open) return null
-  
+  if (!open) return null;
+
   // Show trial card
   if (isTrial) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-3 mb-3 p-3 rounded-xl bg-gradient-to-br from-[#0EA5E9]/5 to-[#7DD3FC]/10 dark:from-[#0EA5E9]/10 dark:to-[#7DD3FC]/5 border border-[#0EA5E9]/20 dark:border-[#7DD3FC]/20"
+        className="mx-3 mb-3 rounded-xl border border-[#0EA5E9]/20 bg-gradient-to-br from-[#0EA5E9]/5 to-[#7DD3FC]/10 p-3 dark:border-[#7DD3FC]/20 dark:from-[#0EA5E9]/10 dark:to-[#7DD3FC]/5"
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold text-neutral-900 dark:text-white">
             Free Trial
           </span>
-          <Link 
-            href="/plans" 
-            className="text-[10px] font-medium text-[#0EA5E9] dark:text-[#7DD3FC] hover:underline"
+          <Link
+            href="/plans"
+            className="text-[10px] font-medium text-[#0EA5E9] hover:underline dark:text-[#7DD3FC]"
           >
             View plans
           </Link>
         </div>
-        
+
         {/* Progress bar */}
-        <div className="h-1.5 w-full bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden mb-2">
+        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${trialProgress}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="h-full bg-gradient-to-r from-[#0EA5E9] to-[#7DD3FC] rounded-full"
+            className="h-full rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#7DD3FC]"
           />
         </div>
-        
+
         <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-          {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining
+          {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""}{" "}
+          remaining
         </span>
       </motion.div>
-    )
+    );
   }
-  
+
   // Show tips for Sharp users
   if (isPro) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-3 mb-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700"
+        className="mx-3 mb-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/50"
       >
         <div className="flex items-start gap-2">
-          <IconBulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 block mb-1">
+          <IconBulb className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <div className="min-w-0 flex-1">
+            <span className="mb-1 block text-[10px] font-semibold tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
               Sharp Tip
             </span>
             <AnimatePresence mode="wait">
@@ -810,7 +836,7 @@ function StatusCard() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 transition={{ duration: 0.2 }}
-                className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed"
+                className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-300"
               >
                 {PRO_TIPS[currentTip]}
               </motion.p>
@@ -818,50 +844,52 @@ function StatusCard() {
           </div>
         </div>
       </motion.div>
-    )
+    );
   }
-  
+
   // Free users - show upgrade prompt
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mx-3 mb-3 p-3 rounded-xl bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200 dark:border-neutral-700"
+      className="mx-3 mb-3 rounded-xl border border-neutral-200 bg-gradient-to-br from-neutral-50 to-neutral-100 p-3 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-800/50"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <IconSparkles className="w-4 h-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
+      <div className="mb-2 flex items-center gap-2">
+        <IconSparkles className="h-4 w-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
         <span className="text-xs font-semibold text-neutral-900 dark:text-white">
           Explore Plans
         </span>
       </div>
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+      <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
         Choose Scout, Sharp, or Elite based on how you play.
       </p>
-      <Link 
-        href="/plans" 
-        className="inline-flex items-center justify-center w-full py-1.5 px-3 rounded-lg bg-[#0EA5E9] dark:bg-[#7DD3FC] text-white dark:text-neutral-900 text-xs font-semibold hover:opacity-90 transition-opacity"
+      <Link
+        href="/plans"
+        className="inline-flex w-full items-center justify-center rounded-lg bg-[#0EA5E9] px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 dark:bg-[#7DD3FC] dark:text-neutral-900"
       >
         {canTrial ? "Try for free" : "View plans"}
       </Link>
     </motion.div>
-  )
+  );
 }
 
 // User section at bottom with dropdown
 function UserSection() {
-  const { user, signOut } = useAuth()
-  const { open, animate, setOpen } = useSidebar()
-  const { data: entitlements } = useEntitlements()
-  const isMobile = useMediaQuery("(max-width: 767px)")
-  
-  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
-  const email = user?.email || ''
-  const initials = displayName.charAt(0).toUpperCase()
-  const avatarUrl = user?.user_metadata?.avatar_url || ''
-  const isPro = entitlements?.entitlement_source === 'subscription' || 
-                entitlements?.entitlement_source === 'grant'
-  const isTrial = entitlements?.entitlement_source === 'trial'
-  const tier = entitlements?.plan
+  const { user, signOut } = useAuth();
+  const { open, animate, setOpen } = useSidebar();
+  const { data: entitlements } = useEntitlements();
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
+  const displayName =
+    user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const email = user?.email || "";
+  const initials = displayName.charAt(0).toUpperCase();
+  const avatarUrl = user?.user_metadata?.avatar_url || "";
+  const isPro =
+    entitlements?.entitlement_source === "subscription" ||
+    entitlements?.entitlement_source === "grant";
+  const isTrial = entitlements?.entitlement_source === "trial";
+  const tier = entitlements?.plan;
   const tierLabel = isTrial
     ? "Trial"
     : entitlements?.entitlement_source === "grant"
@@ -874,39 +902,41 @@ function UserSection() {
             ? "Sharp"
             : tier === "scout" || tier === "hit_rate"
               ? "Scout"
-              : "Free"
+              : "Free";
   const tierBadgeClass = isTrial
     ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
-    : entitlements?.entitlement_source === "grant" || tier === "elite" || tier === "edge"
+    : entitlements?.entitlement_source === "grant" ||
+        tier === "elite" ||
+        tier === "edge"
       ? "text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20"
       : tier === "sharp" || tier === "pro"
         ? "text-brand bg-brand/10 dark:bg-brand/20"
         : tier === "scout" || tier === "hit_rate"
           ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/20"
-          : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
-  
+          : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800";
+
   const closeMobileSidebar = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOpen(false)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
     }
-  }
-  
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex items-center rounded-lg transition-all duration-200 cursor-pointer text-left",
+            "flex cursor-pointer items-center rounded-lg text-left transition-all duration-200",
             "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
             "data-[state=open]:bg-neutral-100 dark:data-[state=open]:bg-neutral-800/50",
-            open 
-              ? "gap-2 py-2 px-2 w-full" 
-              : "w-11 h-11 justify-center self-center"
+            open
+              ? "w-full gap-2 px-2 py-2"
+              : "h-11 w-11 justify-center self-center",
           )}
         >
           <Avatar className="h-7 w-7 shrink-0 rounded-full">
             <AvatarImage src={avatarUrl} alt={displayName} />
-            <AvatarFallback className="rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white text-xs font-semibold">
+            <AvatarFallback className="rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-semibold text-white">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -916,13 +946,13 @@ function UserSection() {
               animate={{ opacity: 1, width: "auto" }}
               exit={{ opacity: 0, width: 0 }}
               transition={smoothTransition}
-              className="flex flex-1 items-center gap-2 min-w-0 overflow-hidden"
+              className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
             >
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm font-medium text-neutral-900 dark:text-white truncate whitespace-pre">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-medium whitespace-pre text-neutral-900 dark:text-white">
                   {displayName}
                 </span>
-                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate whitespace-pre">
+                <span className="truncate text-[10px] whitespace-pre text-neutral-500 dark:text-neutral-400">
                   {email}
                 </span>
               </div>
@@ -931,7 +961,7 @@ function UserSection() {
           )}
         </button>
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent
         className="min-w-56 rounded-lg"
         side={isMobile ? "top" : "right"}
@@ -944,33 +974,43 @@ function UserSection() {
           <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
             <Avatar className="h-9 w-9 rounded-lg">
               <AvatarImage src={avatarUrl} alt={displayName} />
-              <AvatarFallback className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white text-xs font-semibold">
+              <AvatarFallback className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-semibold text-white">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <div className="flex items-center gap-1.5">
-                <span className="truncate font-medium text-neutral-900 dark:text-white">{displayName}</span>
-                <span className={cn(
-                  "text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                  tierBadgeClass
-                )}>
+                <span className="truncate font-medium text-neutral-900 dark:text-white">
+                  {displayName}
+                </span>
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wide uppercase",
+                    tierBadgeClass,
+                  )}
+                >
                   {tierLabel}
                 </span>
               </div>
-              <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">{email}</span>
+              <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">
+                {email}
+              </span>
             </div>
           </div>
         </DropdownMenuLabel>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Upgrade to Sharp - only show if not pro */}
         {!isPro && (
           <>
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/plans" onClick={closeMobileSidebar} className="cursor-pointer">
+                <Link
+                  href="/plans"
+                  onClick={closeMobileSidebar}
+                  className="cursor-pointer"
+                >
                   <IconSparkles className="h-4 w-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
                   <span>Upgrade to Sharp</span>
                 </Link>
@@ -979,136 +1019,195 @@ function UserSection() {
             <DropdownMenuSeparator />
           </>
         )}
-        
+
         {/* Account actions */}
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/account/settings/general" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link
+              href="/account/settings/general"
+              onClick={closeMobileSidebar}
+              className="cursor-pointer"
+            >
               <IconUser className="h-4 w-4" />
               <span>Account</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/settings/billing" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link
+              href="/account/settings/billing"
+              onClick={closeMobileSidebar}
+              className="cursor-pointer"
+            >
               <IconCreditCard className="h-4 w-4" />
               <span>Billing</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/settings/notifications" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link
+              href="/account/settings/notifications"
+              onClick={closeMobileSidebar}
+              className="cursor-pointer"
+            >
               <IconBell className="h-4 w-4" />
               <span>Notifications</span>
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Logout */}
-        <DropdownMenuItem 
-          onClick={() => { closeMobileSidebar(); signOut() }}
-          className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+        <DropdownMenuItem
+          onClick={() => {
+            closeMobileSidebar();
+            signOut();
+          }}
+          className="cursor-pointer text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
         >
           <IconLogout className="h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }
 
 export function AppSidebar() {
-  const { open } = useSidebar()
-  const pathname = usePathname()
+  const { open } = useSidebar();
+  const pathname = usePathname();
   // Track which nav item is expanded (only one at a time)
-  const [expandedHref, setExpandedHref] = useState<string | null>(null)
-  
+  const [expandedHref, setExpandedHref] = useState<string | null>(null);
+
   // Toggle expand - if clicking the same item, collapse it; otherwise expand the new one
   const handleToggleExpand = (href: string) => {
-    setExpandedHref(prev => prev === href ? null : href)
-  }
-  
+    setExpandedHref((prev) => (prev === href ? null : href));
+  };
+
   // Auto-expand the parent of the active child on initial load only
   React.useEffect(() => {
-    const allExpandableLinks = [nbaLink, mlbLink, oddsScreenLink, ...resourcesLinks]
+    const allExpandableLinks = [
+      nbaLink,
+      mlbLink,
+      oddsScreenLink,
+      ...resourcesLinks,
+    ];
     for (const link of allExpandableLinks) {
-      if (link.children?.some(child => !child.sectionLabel && (pathname === child.href || pathname?.startsWith(`${child.href}/`)))) {
-        setExpandedHref(link.href)
-        break
+      if (
+        link.children?.some(
+          (child) =>
+            !child.sectionLabel &&
+            (pathname === child.href || pathname?.startsWith(`${child.href}/`)),
+        )
+      ) {
+        setExpandedHref(link.href);
+        break;
       }
     }
     // Only run on mount (pathname is intentionally not in deps to avoid re-expanding on navigation)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  
+  }, []);
+
   return (
     <TooltipProvider>
       <SidebarBody className="justify-between gap-0">
         {/* Header row - matches main header h-12 with bottom border */}
-        <div className={cn(
-          "h-12 shrink-0 flex items-center border-b border-neutral-200 dark:border-neutral-800",
-          open ? "px-3" : "px-2 justify-center"
-        )}>
+        <div
+          className={cn(
+            "flex h-12 shrink-0 items-center border-b border-neutral-200 dark:border-neutral-800",
+            open ? "px-3" : "justify-center px-2",
+          )}
+        >
           {open ? <Logo /> : <LogoIcon />}
         </div>
-      
+
         {/* Navigation content */}
-        <div className={cn(
-          "flex flex-1 flex-col overflow-x-hidden overflow-y-auto py-4 scrollbar-hide",
-          open ? "px-3" : "px-2"
-        )}>
+        <div
+          className={cn(
+            "scrollbar-hide flex flex-1 flex-col overflow-x-hidden overflow-y-auto py-4",
+            open ? "px-3" : "px-2",
+          )}
+        >
           {/* Prominent CTA Button */}
           <div className="mb-6">
             <FindPlayButton />
           </div>
-          
+
           {/* Navigation sections */}
           <div className="flex flex-col gap-6">
             {/* Sharp Tools */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Sharp Tools</SectionLabel>
               {edgeToolsLinks.map((link, idx) => (
-                <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+                <NavLink
+                  key={idx}
+                  link={link}
+                  expandedHref={expandedHref}
+                  onToggleExpand={handleToggleExpand}
+                />
               ))}
             </div>
 
             {/* Research — Sports + Odds */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Research</SectionLabel>
-              <NavLink link={nbaLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-              <NavLink link={mlbLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-              <NavLink link={oddsScreenLink} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+              <NavLink
+                link={nbaLink}
+                expandedHref={expandedHref}
+                onToggleExpand={handleToggleExpand}
+              />
+              <NavLink
+                link={mlbLink}
+                expandedHref={expandedHref}
+                onToggleExpand={handleToggleExpand}
+              />
+              <NavLink
+                link={oddsScreenLink}
+                expandedHref={expandedHref}
+                onToggleExpand={handleToggleExpand}
+              />
             </div>
-            
+
             {/* Resources */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Resources</SectionLabel>
               {resourcesLinks.map((link, idx) => (
-                <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+                <NavLink
+                  key={idx}
+                  link={link}
+                  expandedHref={expandedHref}
+                  onToggleExpand={handleToggleExpand}
+                />
               ))}
             </div>
-            
+
             {/* Account */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Account</SectionLabel>
               {accountLinks.map((link, idx) => (
-                <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
+                <NavLink
+                  key={idx}
+                  link={link}
+                  expandedHref={expandedHref}
+                  onToggleExpand={handleToggleExpand}
+                />
               ))}
             </div>
           </div>
         </div>
-      
+
         {/* Status card + User section at bottom */}
         <div className="pt-3">
           <StatusCard />
-          <div className={cn(
-            "border-t border-neutral-200 dark:border-neutral-800 pb-3 pt-3",
-            open ? "px-3" : "px-2"
-          )}>
+          <div
+            className={cn(
+              "border-t border-neutral-200 pt-3 pb-3 dark:border-neutral-800",
+              open ? "px-3" : "px-2",
+            )}
+          >
             <UserSection />
           </div>
         </div>
       </SidebarBody>
     </TooltipProvider>
-  )
+  );
 }

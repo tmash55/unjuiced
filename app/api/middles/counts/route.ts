@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
-import { ARBS_REDIS_KEYS } from "@/lib/arbs-redis-keys";
+import { MIDDLES_REDIS_KEYS } from "@/lib/middles-redis-keys";
 
 export async function GET() {
   try {
     const [all, live, pregame, v] = await Promise.all([
-      (redis as any).zcard(ARBS_REDIS_KEYS.sortRoi) as Promise<number>,
-      (redis as any).zcard(ARBS_REDIS_KEYS.sortRoiLive) as Promise<number>,
-      (redis as any).zcard(ARBS_REDIS_KEYS.sortRoiPregame) as Promise<number>,
-      redis.get<number>(ARBS_REDIS_KEYS.version),
+      (redis as any).zcard(MIDDLES_REDIS_KEYS.sortScore) as Promise<number>,
+      (redis as any).zcard(MIDDLES_REDIS_KEYS.sortScoreLive) as Promise<number>,
+      (redis as any).zcard(
+        MIDDLES_REDIS_KEYS.sortScorePregame,
+      ) as Promise<number>,
+      redis.get<number>(MIDDLES_REDIS_KEYS.version),
     ]);
+
     return NextResponse.json(
       {
         all: Number(all || 0),
@@ -19,9 +22,9 @@ export async function GET() {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch (e: any) {
+  } catch (error: any) {
     return NextResponse.json(
-      { error: "internal_error", message: e?.message || "" },
+      { error: "internal_error", message: error?.message || "" },
       { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }

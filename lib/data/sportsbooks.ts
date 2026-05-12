@@ -7,10 +7,26 @@ export interface SportsbookLink {
   deeplinkScheme?: string;
 }
 
+export type SportsbookKind =
+  | "sportsbook"
+  | "dfs"
+  | "prediction_market"
+  | "exchange";
+export type SportsbookVariant =
+  | "standard"
+  | "demon"
+  | "goblin"
+  | "discount"
+  | "boosted";
+
 export interface SportsbookMeta {
   id: SportsbookId;
   oddsVendorId?: string;
+  parentId?: SportsbookId;
   name: string;
+  displayName?: string;
+  kind?: SportsbookKind;
+  variant?: SportsbookVariant;
   sgp: boolean;
   legalStates: string[];
   links: SportsbookLink;
@@ -26,6 +42,8 @@ export interface SportsbookMeta {
   affiliateLink?: string;
   requiresState?: boolean;
   isActive?: boolean;
+  showInFilters?: boolean;
+  showAsStandaloneBook?: boolean;
   regions?: string[];
 }
 
@@ -42,577 +60,921 @@ export interface Sportsbook {
   affiliate?: boolean;
   affiliateLink?: string;
   appLinkTemplate?: string;
+  kind?: SportsbookKind;
+  parentId?: string;
+  variant?: SportsbookVariant;
+  displayName?: string;
+  showInFilters?: boolean;
+  showAsStandaloneBook?: boolean;
 }
 
 // Import from the new structure
 const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
-  "draftkings": {
+  draftkings: {
     id: "draftkings",
-    name: "DraftKings", 
+    name: "DraftKings",
     sgp: true,
-    legalStates: ["AZ","CO","CT","IA","IL","IN","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV","WY","NC"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "CT",
+      "IA",
+      "IL",
+      "IN",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+      "WY",
+      "NC",
+    ],
     links: {
       desktop: "https://sportsbook.draftkings.com/",
       mobile: "https://m.draftkings.com/sportsbook",
-      deeplinkScheme: "dksb://sb/addselection_name/{sid}"
+      deeplinkScheme: "dksb://sb/addselection_name/{sid}",
     },
     image: {
       light: "/images/sports-books/draftkings.png",
-      long: "/images/sports-books/draftkings_long.png"
+      long: "/images/sports-books/draftkings_long.png",
     },
     brandColor: "#61B512",
     priority: 10,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
-  
-  "fanduel": {
+
+  fanduel: {
     id: "fanduel",
     name: "FanDuel",
     sgp: true,
-    legalStates: ["AZ","CO","CT","IA","IL","IN","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV","WY"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "CT",
+      "IA",
+      "IL",
+      "IN",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+      "WY",
+    ],
     links: {
       desktop: "https://sportsbook.fanduel.com/",
-      mobile: "https://m.fanduel.com/sportsbook"
+      mobile: "https://m.fanduel.com/sportsbook",
     },
     image: {
       light: "/images/sports-books/fanduel.png",
-      long: "/images/sports-books/fanduel_long.png"
+      long: "/images/sports-books/fanduel_long.png",
     },
     brandColor: "#0171EB",
     priority: 10,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  "fanduelyourway": {
+  fanduelyourway: {
     id: "fanduelyourway",
     name: "FanDuel YourWay",
     sgp: false,
-    legalStates: ["AZ","CO","CT","IA","IL","IN","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV","WY"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "CT",
+      "IA",
+      "IL",
+      "IN",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+      "WY",
+    ],
     links: {
       desktop: "https://sportsbook.fanduel.com/",
-      mobile: "https://m.fanduel.com/sportsbook"
+      mobile: "https://m.fanduel.com/sportsbook",
     },
     image: {
       light: "/images/sports-books/fanduel_yourway.png",
-      long: "/images/sports-books/fanduel_long.png"
+      long: "/images/sports-books/fanduel_long.png",
     },
     brandColor: "#B6CFE8",
     priority: 9,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  "betmgm": {
-    id: "betmgm", 
+  betmgm: {
+    id: "betmgm",
     name: "BetMGM",
     sgp: true,
-    legalStates: ["AZ","CO","DC","IA","IL","IN","KS","KY","LA","MA","MD","MI","NJ","NV","NY","OH","PA","TN","VA","WV","WY"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "DC",
+      "IA",
+      "IL",
+      "IN",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NV",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+      "WY",
+    ],
     links: {
       desktop: "https://sports.{state}.betmgm.com/en/sports",
-      mobile: "https://sports.{state}.betmgm.com/en/sports"
+      mobile: "https://sports.{state}.betmgm.com/en/sports",
     },
     image: {
       light: "/images/sports-books/betmgm.png",
-      long: "/images/sports-books/betmgm_long.png"
+      long: "/images/sports-books/betmgm_long.png",
     },
     brandColor: "#C0A970",
     priority: 8,
     isActive: true,
-    requiresState: true
+    requiresState: true,
   },
 
-  "betrivers": {
+  betrivers: {
     id: "betrivers",
-    name: "BetRivers", 
+    name: "BetRivers",
     sgp: true,
-    legalStates: ["AZ","CO","IL","IN","IA","LA","MD","MI","NJ","NY","OH","PA","VA","WV"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "IL",
+      "IN",
+      "IA",
+      "LA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "VA",
+      "WV",
+    ],
     links: {
       desktop: "https://www.betrivers.com/",
-      mobile: "https://www.betrivers.com/"
+      mobile: "https://www.betrivers.com/",
     },
     image: {
       light: "/images/sports-books/betrivers.png",
-      long: "/images/sports-books/betrivers_long.png"
+      long: "/images/sports-books/betrivers_long.png",
     },
     brandColor: "#00285A",
     priority: 7,
     isActive: true,
-    requiresState: true
+    requiresState: true,
   },
 
-  "caesars": {
+  caesars: {
     id: "caesars",
     name: "Caesars",
-    sgp: true, 
-    legalStates: ["AZ","CO","IA","IL","IN","KS","LA","MD","MI","NJ","NY","OH","PA","TN","VA","WV","WY"],
+    sgp: true,
+    legalStates: [
+      "AZ",
+      "CO",
+      "IA",
+      "IL",
+      "IN",
+      "KS",
+      "LA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+      "WY",
+    ],
     links: {
       desktop: "https://www.caesars.com/sportsbook/",
-      mobile: "https://www.caesars.com/sportsbook/"
+      mobile: "https://www.caesars.com/sportsbook/",
     },
     image: {
       light: "/images/sports-books/caesars.png",
-      long: "/images/sports-books/caesars_long.png"
+      long: "/images/sports-books/caesars_long.png",
     },
     brandColor: "#183533",
     priority: 8,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  
-
-  "espn": {
+  espn: {
     id: "espn",
     name: "ESPN BET",
     sgp: true,
-    legalStates: ["AZ","CO","IL","IN","IA","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "IL",
+      "IN",
+      "IA",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+    ],
     links: {
       desktop: "https://espnbet.com/",
-      mobile: "https://espnbet.com/"
+      mobile: "https://espnbet.com/",
     },
     image: {
-      light: "/images/sports-books/espnbet.png", 
-      long: "/images/sports-books/espnbet_long.png"
+      light: "/images/sports-books/espnbet.png",
+      long: "/images/sports-books/espnbet_long.png",
     },
     brandColor: "#FF0000",
     priority: 8,
     isActive: false,
-    requiresState: false
+    requiresState: false,
   },
 
-  
-
-  "fanatics": {
+  fanatics: {
     id: "fanatics",
     name: "Fanatics",
     sgp: true,
-    legalStates: ["AZ","CO","IL","IN","IA","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "IL",
+      "IN",
+      "IA",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+    ],
     links: {
       desktop: "https://sportsbook.fanatics.com/",
-      mobile: "https://sportsbook.fanatics.com/"
+      mobile: "https://sportsbook.fanatics.com/",
     },
     image: {
       light: "/images/sports-books/fanatics.png",
-      long: "/images/sports-books/fanatics_long.png"
+      long: "/images/sports-books/fanatics_long.png",
     },
     brandColor: "#08203F",
     priority: 8,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
   "hard-rock": {
     id: "hard-rock",
     name: "Hard Rock",
     sgp: true,
-    legalStates: ["AZ","FL","IA","IL","IN","NJ","NY","OH","PA","TN","VA"],
+    legalStates: [
+      "AZ",
+      "FL",
+      "IA",
+      "IL",
+      "IN",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+    ],
     links: {
       desktop: "https://www.hardrock.bet/",
-      mobile: "https://www.hardrock.bet/"
+      mobile: "https://www.hardrock.bet/",
     },
     image: {
       light: "/images/sports-books/hardrockbet.png",
-      long: "/images/sports-books/hardrockbet_long.png"
+      long: "/images/sports-books/hardrockbet_long.png",
     },
     brandColor: "#6A46F2",
     priority: 4.5,
     isActive: true,
-    requiresState: true
+    requiresState: true,
   },
 
   "hard-rock-indiana": {
     id: "hard-rock-indiana",
-    name: "Hard Rock (Indiana)", 
+    name: "Hard Rock (Indiana)",
     sgp: true,
     legalStates: ["IN"],
     links: {
       desktop: "https://www.hardrock.bet/",
-      mobile: "https://www.hardrock.bet/"
+      mobile: "https://www.hardrock.bet/",
     },
     image: {
       light: "/images/sports-books/hardrockbet.png",
-      long: "/images/sports-books/hardrockbet_long.png"
+      long: "/images/sports-books/hardrockbet_long.png",
     },
     brandColor: "#6A46F2",
     priority: 4.5,
     isActive: false,
-    requiresState: true
+    requiresState: true,
   },
 
-
-  "novig": {
+  novig: {
     id: "novig",
     name: "Novig",
     sgp: false,
-    legalStates: ["AZ","CO","CT","IL","IN","IA","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV"],
+    legalStates: [
+      "AZ",
+      "CO",
+      "CT",
+      "IL",
+      "IN",
+      "IA",
+      "KS",
+      "KY",
+      "LA",
+      "MA",
+      "MD",
+      "MI",
+      "NJ",
+      "NY",
+      "OH",
+      "PA",
+      "TN",
+      "VA",
+      "WV",
+    ],
     links: {
       desktop: "https://www.novig.us/",
-      mobile: "https://www.novig.us/"
+      mobile: "https://www.novig.us/",
     },
     image: {
       light: "/images/sports-books/novig.png",
-      long: "/images/sports-books/novig_long.png"
+      long: "/images/sports-books/novig_long.png",
     },
     brandColor: "#050505",
     priority: 7,
     isActive: true,
     requiresState: false,
     affiliate: true,
-    affiliateLink: "https://novig.onelink.me/JHQQ/qh47vqcj"
+    affiliateLink: "https://novig.onelink.me/JHQQ/qh47vqcj",
   },
 
-  "betparx": {
+  betparx: {
     id: "betparx",
     name: "BetPARX",
     sgp: true,
-    legalStates: ["NJ","PA"],
+    legalStates: ["NJ", "PA"],
     links: {
       desktop: "https://www.betparx.com/",
-      mobile: "https://www.betparx.com/"
+      mobile: "https://www.betparx.com/",
     },
     image: {
       light: "/images/sports-books/betparx.png",
-      long: "/images/sports-books/betparx_long.png"
+      long: "/images/sports-books/betparx_long.png",
     },
     brandColor: "#180532",
     priority: 4,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
   "bally-bet": {
     id: "bally-bet",
     name: "Bally Bet",
     sgp: true,
-    legalStates: ["AZ","CO","IA","IL","IN","NY","VA"],
+    legalStates: ["AZ", "CO", "IA", "IL", "IN", "NY", "VA"],
     links: {
       desktop: "https://www.ballybet.com/",
-      mobile: "https://www.ballybet.com/"
+      mobile: "https://www.ballybet.com/",
     },
     image: {
       light: "/images/sports-books/ballybet.png",
-      long: "/images/sports-books/ballybet_long.png"
+      long: "/images/sports-books/ballybet_long.png",
     },
     brandColor: "#ED0100",
     priority: 7,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  "bwin": {
+  bwin: {
     id: "bwin",
     name: "bwin",
     sgp: true,
-    legalStates: ["NJ","PA","MI","WV"],
+    legalStates: ["NJ", "PA", "MI", "WV"],
     links: {
       desktop: "https://www.bwin.com/",
-      mobile: "https://www.bwin.com/"
+      mobile: "https://www.bwin.com/",
     },
     image: {
       light: "/images/sports-books/bwin.png",
-      long: "/images/sports-books/bwin_long.png"
+      long: "/images/sports-books/bwin_long.png",
     },
     brandColor: "#000000",
     priority: 4,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  "circa": {
+  circa: {
     id: "circa",
     name: "Circa",
     sgp: false,
-    legalStates: ["NV","CO","IA","IL"],
+    legalStates: ["NV", "CO", "IA", "IL"],
     links: {
       desktop: "https://www.circa.com/",
-      mobile: "https://www.circa.com/"
+      mobile: "https://www.circa.com/",
     },
     image: {
       light: "/images/sports-books/circa.png",
-      long: "/images/sports-books/circa_long.png"
+      long: "/images/sports-books/circa_long.png",
     },
     brandColor: "#000000",
     priority: 6,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
   "sports-interaction": {
     id: "sports-interaction",
-    name: "Sports Interaction", 
+    name: "Sports Interaction",
     sgp: true,
     legalStates: ["ON"],
     links: {
       desktop: "https://www.sportsinteraction.com/",
-      mobile: "https://www.sportsinteraction.com/"
+      mobile: "https://www.sportsinteraction.com/",
     },
     image: {
       light: "/images/sports-books/sportsinteraction.png",
-      long: "/images/sports-books/sportsinteraction_long.png"
+      long: "/images/sports-books/sportsinteraction_long.png",
     },
     brandColor: "#EC5E29",
     priority: 4,
-    isActive: true,
-    requiresState: false
+    isActive: false,
+    requiresState: false,
   },
 
-  "thescore": {
+  thescore: {
     id: "thescore",
     name: "theScore",
     sgp: true,
     legalStates: ["ON"],
     links: {
       desktop: "https://www.thescore.com/",
-      mobile: "https://www.thescore.com/"
+      mobile: "https://www.thescore.com/",
     },
     image: {
       light: "/images/sports-books/thescore.png",
-      long: "/images/sports-books/thescore_long.png"
+      long: "/images/sports-books/thescore_long.png",
     },
     brandColor: "#003778",
     priority: 7,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
   // Legacy entries for backward compatibility
-  "prophetx": {
+  prophetx: {
     id: "prophetx",
     name: "ProphetX",
     sgp: true,
     legalStates: ["US"],
     links: {
       desktop: "https://www.getprophetx.co/",
-      mobile: "https://www.getprophetx.co/"
+      mobile: "https://www.getprophetx.co/",
     },
     image: {
       light: "/images/sports-books/prophetx.png",
-      long: "/images/sports-books/prophetx_long.png"
+      long: "/images/sports-books/prophetx_long.png",
     },
     brandColor: "#1A2242",
     priority: 7,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-
-  "fliff": {
+  fliff: {
     id: "fliff",
     name: "Fliff",
     sgp: false,
     legalStates: ["EU"],
     links: {
       desktop: "https://www.getfliff.com/",
-      mobile: "https://www.getfliff.com/"
+      mobile: "https://www.getfliff.com/",
     },
     image: {
       light: "/images/sports-books/fliff.png",
-      long: "/images/sports-books/fliff_long.png"
+      long: "/images/sports-books/fliff_long.png",
     },
     brandColor: "#02123D",
     priority: 4.4,
     isActive: true,
     requiresState: false,
-    regions: ["eu"]
+    regions: ["eu"],
   },
 
-  "pinnacle": {
+  pinnacle: {
     id: "pinnacle",
     name: "Pinnacle",
     sgp: false,
     legalStates: ["EU"],
     links: {
       desktop: "https://www.pinnacle.com/en/",
-      mobile: "https://www.pinnacle.com/en/"
+      mobile: "https://www.pinnacle.com/en/",
     },
     image: {
       light: "/images/sports-books/pinnacle.png",
-      long: "/images/sports-books/pinnacle_long.png"
+      long: "/images/sports-books/pinnacle_long.png",
     },
     brandColor: "#072341",
     priority: 7,
     isActive: true,
     requiresState: false,
-    regions: ["eu"]
+    regions: ["eu"],
   },
 
-  "bet365": {
+  bet365: {
     id: "bet365",
     name: "Bet365",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.bet365.com/",
-      mobile: "https://www.bet365.com/"
+      mobile: "https://www.bet365.com/",
     },
     image: {
       light: "/images/sports-books/bet365.png",
-      long: "/images/sports-books/bet365_long.png"
+      long: "/images/sports-books/bet365_long.png",
     },
     brandColor: "#126F51",
     priority: 9,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
 
-  "betonline": {
+  betonline: {
     id: "betonline",
     name: "BetOnline",
     sgp: false,
     legalStates: ["US"], // Available nationwide (offshore)
     links: {
       desktop: "https://www.betonline.ag/sportsbook",
-      mobile: "https://www.betonline.ag/sportsbook"
+      mobile: "https://www.betonline.ag/sportsbook",
     },
     image: {
       light: "/images/sports-books/betonline.png",
-      long: "/images/sports-books/betonline_long.png"
+      long: "/images/sports-books/betonline_long.png",
     },
     brandColor: "#ED3535",
     priority: 4,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
-  "bovada": {
+  bovada: {
     id: "bovada",
     name: "Bovada",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.bovada.lv/",
-      mobile: "https://www.bovada.lv/"
+      mobile: "https://www.bovada.lv/",
     },
     image: {
       light: "/images/sports-books/bovada.png",
-      long: "/images/sports-books/bovada_long.png"
+      long: "/images/sports-books/bovada_long.png",
     },
     brandColor: "#CC1B00",
     priority: 4,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
-  "bodog": {
+  bodog: {
     id: "bodog",
     name: "Bodog",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.bodog.lv/",
-      mobile: "https://www.bodog.lv/"
+      mobile: "https://www.bodog.lv/",
     },
     image: {
       light: "/images/sports-books/bodog.png",
-      long: "/images/sports-books/bodog_long.png"
+      long: "/images/sports-books/bodog_long.png",
     },
     brandColor: "#A92629",
     priority: 4,
     isActive: false,
-    requiresState: false
+    requiresState: false,
   },
-  "polymarket": {
-    id: "polymarket-us",
+  polymarket: {
+    id: "polymarket",
     oddsVendorId: "polymarket-us",
     name: "Polymarket",
+    kind: "prediction_market",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.polymarket.com/",
-      mobile: "https://www.polymarket.com/"
+      mobile: "https://www.polymarket.com/",
     },
     image: {
       light: "/images/sports-books/polymarket.png",
-      long: "/images/sports-books/polymarket_long.png"
+      long: "/images/sports-books/polymarket_long.png",
     },
     brandColor: "#000000",
     priority: 5,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
-  "kalshi": {
+  "prop-builder": {
+    id: "prop-builder",
+    oddsVendorId: "prop-builder",
+    name: "Prop Builder",
+    kind: "sportsbook",
+    sgp: true,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.prophetx.co/",
+      mobile: "https://www.prophetx.co/",
+    },
+    image: {
+      light: "/images/sports-books/prop-builder.svg",
+      long: "/images/sports-books/prop-builder.svg",
+    },
+    brandColor: "#0EA5E9",
+    priority: 5,
+    isActive: true,
+    requiresState: false,
+  },
+  kalshi: {
     id: "kalshi",
     name: "Kalshi",
+    kind: "prediction_market",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.kalshi.com/",
-      mobile: "https://www.kalshi.com/"
+      mobile: "https://www.kalshi.com/",
     },
     image: {
       light: "/images/sports-books/kalshi.png",
-      long: "/images/sports-books/kalshi_long.png"
+      long: "/images/sports-books/kalshi_long.png",
     },
     brandColor: "#000000",
     priority: 5,
     isActive: true,
-    requiresState: false
+    requiresState: false,
   },
-  "prizePicks": {
-    id: "prizePicks",
+  prizepicks: {
+    id: "prizepicks",
+    oddsVendorId: "prizepicks",
     name: "PrizePicks",
+    kind: "dfs",
+    variant: "standard",
     sgp: false,
     legalStates: ["US"],
     links: {
       desktop: "https://www.prizepicks.com/",
-      mobile: "https://www.prizepicks.com/"
+      mobile: "https://www.prizepicks.com/",
     },
     image: {
       light: "/images/sports-books/prizepicks.png",
-      long: "/images/sports-books/prizepicks_long.png"
+      long: "/images/sports-books/prizepicks_long.png",
     },
     brandColor: "#000000",
     priority: 5,
     isActive: true,
-    requiresState: false
-  }
+    requiresState: false,
+  },
+  "prizepicks-demons": {
+    id: "prizepicks-demons",
+    oddsVendorId: "prizepicks-demons",
+    parentId: "prizepicks",
+    name: "PrizePicks Demons",
+    displayName: "Demons",
+    kind: "dfs",
+    variant: "demon",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.prizepicks.com/",
+      mobile: "https://www.prizepicks.com/",
+    },
+    image: {
+      light: "/images/sports-books/prizepicks.png",
+      long: "/images/sports-books/prizepicks_long.png",
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    showInFilters: false,
+    showAsStandaloneBook: false,
+    requiresState: false,
+  },
+  "prizepicks-goblins": {
+    id: "prizepicks-goblins",
+    oddsVendorId: "prizepicks-goblins",
+    parentId: "prizepicks",
+    name: "PrizePicks Goblins",
+    displayName: "Goblins",
+    kind: "dfs",
+    variant: "goblin",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.prizepicks.com/",
+      mobile: "https://www.prizepicks.com/",
+    },
+    image: {
+      light: "/images/sports-books/prizepicks.png",
+      long: "/images/sports-books/prizepicks_long.png",
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    showInFilters: false,
+    showAsStandaloneBook: false,
+    requiresState: false,
+  },
+  "payday-fantasy": {
+    id: "payday-fantasy",
+    oddsVendorId: "payday-fantasy",
+    name: "Payday Fantasy",
+    kind: "dfs",
+    variant: "standard",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.paydayfantasy.com/",
+      mobile: "https://www.paydayfantasy.com/",
+    },
+    image: {
+      light: "/images/sports-books/generic-sportsbook.svg",
+    },
+    brandColor: "#111827",
+    priority: 4,
+    isActive: true,
+    requiresState: false,
+  },
+  "splash-sports": {
+    id: "splash-sports",
+    oddsVendorId: "splash-sports",
+    name: "Splash Sports",
+    kind: "dfs",
+    variant: "standard",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.splashsports.com/",
+      mobile: "https://www.splashsports.com/",
+    },
+    image: {
+      light: "/images/sports-books/generic-sportsbook.svg",
+    },
+    brandColor: "#0EA5E9",
+    priority: 4,
+    isActive: true,
+    requiresState: false,
+  },
 };
 
+function isFilterableSportsbook(sb: SportsbookMeta): boolean {
+  return (
+    sb.isActive !== false &&
+    (sb.kind || "sportsbook") !== "dfs" &&
+    sb.showInFilters !== false &&
+    sb.showAsStandaloneBook !== false
+  );
+}
 
-// Convert to legacy format for backward compatibility
-export const sportsbooks: Sportsbook[] = Object.values(SPORTSBOOKS_META).map(sb => ({
-  id: sb.id,
-  name: sb.name,
-  logo: sb.image.light,
-  logo_long: sb.image.long || sb.image.light,
-  regions: sb.regions || (sb.legalStates.length > 0 ? ["us"] : []),
-  isActive: sb.isActive,
-  url: sb.links.desktop,
-  requiresState: sb.requiresState,
-  affiliate: sb.affiliate,
-  affiliateLink: sb.affiliateLink,
-  appLinkTemplate: sb.links.deeplinkScheme
-}));
+function isActiveStandaloneBook(sb: SportsbookMeta): boolean {
+  return sb.isActive !== false && sb.showAsStandaloneBook !== false;
+}
+
+function toLegacySportsbook(sb: SportsbookMeta): Sportsbook {
+  return {
+    id: sb.id,
+    name: sb.name,
+    logo: sb.image.light,
+    logo_long: sb.image.long || sb.image.light,
+    regions: sb.regions || (sb.legalStates.length > 0 ? ["us"] : []),
+    isActive: sb.isActive,
+    url: sb.links.desktop,
+    requiresState: sb.requiresState,
+    affiliate: sb.affiliate,
+    affiliateLink: sb.affiliateLink,
+    appLinkTemplate: sb.links.deeplinkScheme,
+    kind: sb.kind || "sportsbook",
+    parentId: sb.parentId,
+    variant: sb.variant,
+    displayName: sb.displayName,
+    showInFilters: sb.showInFilters,
+    showAsStandaloneBook: sb.showAsStandaloneBook,
+  };
+}
+
+// Convert to legacy format for backward compatibility.
+// Keep this list filterable/standalone so older filter UIs do not surface DFS variants.
+export const sportsbooks: Sportsbook[] = Object.values(SPORTSBOOKS_META)
+  .filter(isFilterableSportsbook)
+  .map(toLegacySportsbook);
 
 // Helper function to normalize sportsbook IDs (handle variations)
 export function normalizeSportsbookId(id: string): string {
+  const key = id
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-");
+
   // Common variations mapping
   const idMappings: Record<string, string> = {
-    'ballybet': 'bally-bet',
-    'bally_bet': 'bally-bet',
-    'sportsinteraction': 'sports-interaction',
-    'hardrockbet': 'hard-rock',
-    'hardrock': 'hard-rock',
-    'hard-rock-indiana': 'hard-rock',  // Treat Indiana variant as same book
-    'hardrockindiana': 'hard-rock',
-    'espnbet': 'espn',
-    'thescore': 'thescore',
-    'betparx': 'betparx',
-    'betrivers': 'betrivers',
-    'bet-rivers': 'betrivers',
-    'bet_rivers': 'betrivers',
-    'betonline': 'betonline',
-    'fanduel-yourway': 'fanduelyourway',
-    'fanduel_yourway': 'fanduelyourway',
+    ballybet: "bally-bet",
+    sportsinteraction: "sports-interaction",
+    hardrockbet: "hard-rock",
+    hardrock: "hard-rock",
+    "hard-rock-indiana": "hard-rock", // Treat Indiana variant as same book
+    hardrockindiana: "hard-rock",
+    espnbet: "espn",
+    thescore: "thescore",
+    betparx: "betparx",
+    betrivers: "betrivers",
+    "bet-rivers": "betrivers",
+    betonline: "betonline",
+    "fanduel-yourway": "fanduelyourway",
+    "fanduel-your-way": "fanduelyourway",
+    "fan-duel-yourway": "fanduelyourway",
+    "fan-duel-your-way": "fanduelyourway",
     // BetMGM Michigan is our preferred BetMGM source (US odds)
-    'betmgm-michigan': 'betmgm',
-    'betmgm_michigan': 'betmgm',
-    'polymarket-us': 'polymarket',
-    'polymarket_us': 'polymarket',
+    "betmgm-michigan": "betmgm",
+    "polymarket-us": "polymarket",
+    "props-builder": "prop-builder",
+    propbuilder: "prop-builder",
+    "prize-picks": "prizepicks",
+    "prizepicks-demon": "prizepicks-demons",
+    "prizepicks-demons": "prizepicks-demons",
+    "prizepicks-goblin": "prizepicks-goblins",
+    "prizepicks-goblins": "prizepicks-goblins",
+    paydayfantasy: "payday-fantasy",
+    "payday-fantasy": "payday-fantasy",
+    splashsports: "splash-sports",
+    "splash-sports": "splash-sports",
   };
-  
+
   // Return mapped ID if exists, otherwise return original (lowercase)
-  return idMappings[id.toLowerCase()] || id.toLowerCase();
+  return idMappings[key] || key;
 }
 
 // Books to exclude from all calculations (regional variants, etc.)
@@ -621,9 +983,38 @@ export const EXCLUDED_SPORTSBOOK_KEYS = new Set<string>([
 ]);
 
 // Helper functions for the new structure
-export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {
+export function getSportsbookById(
+  id: SportsbookId,
+): SportsbookMeta | undefined {
   const normalizedId = normalizeSportsbookId(id);
   return SPORTSBOOKS_META[normalizedId];
+}
+
+export function getSportsbookLogo(id?: SportsbookId): string | undefined {
+  if (!id) return undefined;
+  const sportsbook = getSportsbookById(id);
+  return sportsbook?.image.square || sportsbook?.image.light;
+}
+
+export function getSportsbookName(id?: SportsbookId): string {
+  if (!id) return "";
+  return getSportsbookById(id)?.name || id;
+}
+
+export function getParentSportsbook(
+  book: SportsbookId | SportsbookMeta,
+): SportsbookMeta | undefined {
+  const sportsbook = typeof book === "string" ? getSportsbookById(book) : book;
+  if (!sportsbook) return undefined;
+  return sportsbook.parentId
+    ? getSportsbookById(sportsbook.parentId)
+    : sportsbook;
+}
+
+export function getSportsbookDisplayMeta(
+  id: SportsbookId,
+): SportsbookMeta | undefined {
+  return getParentSportsbook(id) || getSportsbookById(id);
 }
 
 export function getOddsVendorId(id: SportsbookId): string | undefined {
@@ -632,12 +1023,30 @@ export function getOddsVendorId(id: SportsbookId): string | undefined {
 }
 
 export function getAllActiveSportsbooks(): SportsbookMeta[] {
-  return Object.values(SPORTSBOOKS_META).filter(sb => sb.isActive);
+  return Object.values(SPORTSBOOKS_META).filter(isFilterableSportsbook);
 }
 
 export function getSportsbooksByState(state: string): SportsbookMeta[] {
-  return Object.values(SPORTSBOOKS_META).filter(sb => 
-    sb.isActive && sb.legalStates.includes(state.toUpperCase())
+  return Object.values(SPORTSBOOKS_META).filter(
+    (sb) =>
+      isFilterableSportsbook(sb) &&
+      sb.legalStates.includes(state.toUpperCase()),
+  );
+}
+
+export function getActiveDfsOperators(): SportsbookMeta[] {
+  return Object.values(SPORTSBOOKS_META).filter(
+    (sb) => isActiveStandaloneBook(sb) && sb.kind === "dfs",
+  );
+}
+
+export function getDfsVariants(parentId: SportsbookId): SportsbookMeta[] {
+  const normalizedParentId = normalizeSportsbookId(parentId);
+  return Object.values(SPORTSBOOKS_META).filter(
+    (sb) =>
+      sb.isActive !== false &&
+      sb.kind === "dfs" &&
+      sb.parentId === normalizedParentId,
   );
 }
 

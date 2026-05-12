@@ -13,34 +13,110 @@ interface NavTool {
 }
 
 const NBA_TOOLS: NavTool[] = [
-  { title: "Hit Rates", description: "L5, L10, L20 player prop analysis", href: "/hit-rates/nba" },
-  { title: "Cheat Sheets", description: "Pre-built game-day research pages", href: "/cheatsheets/nba/hit-rates" },
-  { title: "Odds Screen", description: "Compare lines across 20+ books", href: "/odds/nba" },
+  {
+    title: "Hit Rates",
+    description: "L5, L10, L20 player prop analysis",
+    href: "/hit-rates/nba",
+  },
+  {
+    title: "Cheat Sheets",
+    description: "Pre-built game-day research pages",
+    href: "/cheatsheets/nba/hit-rates",
+  },
+  {
+    title: "Odds Screen",
+    description: "Compare lines across 20+ books",
+    href: "/odds/nba",
+  },
 ];
 
 const MLB_TOOLS: NavTool[] = [
-  { title: "Slate Insights", description: "Batter vs pitcher matchup breakdowns", href: "/cheatsheets/mlb/slate-insights", badge: "NEW" },
-  { title: "HR Command Center", description: "5-layer HR scoring with live odds", href: "/cheatsheets/mlb/hr-command-center", badge: "NEW" },
-  { title: "NRFI", description: "No Run First Inning grades & odds", href: "/cheatsheets/mlb/nrfi", badge: "NEW" },
-  { title: "Exit Velocity", description: "Statcast hard-hit leaders", href: "/cheatsheets/mlb/exit-velocity", badge: "NEW" },
-  { title: "Weather Report", description: "Park & weather impact scores", href: "/cheatsheets/mlb/weather-report", free: true },
-  { title: "Odds Screen", description: "MLB lines across 20+ books", href: "/odds/mlb" },
+  {
+    title: "Game Center",
+    description: "Unified MLB matchup research hub",
+    href: "/cheatsheets/mlb/game-center",
+    badge: "NEW",
+  },
+  {
+    title: "HR Command Center",
+    description: "5-layer HR scoring with live odds",
+    href: "/cheatsheets/mlb/hr-command-center",
+    badge: "NEW",
+  },
+  {
+    title: "NRFI",
+    description: "No Run First Inning grades & odds",
+    href: "/cheatsheets/mlb/nrfi",
+    badge: "NEW",
+  },
+  {
+    title: "Exit Velocity",
+    description: "Statcast hard-hit leaders",
+    href: "/cheatsheets/mlb/exit-velocity",
+    badge: "NEW",
+  },
+  {
+    title: "Weather Report",
+    description: "Park & weather impact scores",
+    href: "/cheatsheets/mlb/weather-report",
+    free: true,
+  },
+  {
+    title: "Odds Screen",
+    description: "MLB lines across 20+ books",
+    href: "/odds/mlb",
+  },
 ];
 
 const SHARP_TOOLS: NavTool[] = [
-  { title: "Edge Finder", description: "Spot soft lines and value bets", href: "/edge-finder" },
-  { title: "Positive EV", description: "Find +EV bets with true odds", href: "/positive-ev" },
-  { title: "Arbitrage", description: "Risk-free opportunities across books", href: "/arbitrage" },
-  { title: "Sharp Intel", description: "Real-time insider signals from prediction markets", href: "/sharp-intel" },
-  { title: "My Slips", description: "Saved plays and bet tracking", href: "/my-slips" },
+  {
+    title: "Edge Finder",
+    description: "Spot soft lines and value bets",
+    href: "/edge-finder",
+  },
+  {
+    title: "Positive EV",
+    description: "Find +EV bets with true odds",
+    href: "/positive-ev",
+  },
+  {
+    title: "Arbitrage",
+    description: "Risk-free opportunities across books",
+    href: "/arbitrage",
+  },
+  {
+    title: "Middles",
+    description: "Find line gaps with middle-hit upside",
+    href: "/middles",
+  },
+  {
+    title: "Sharp Intel",
+    description: "Real-time insider signals from prediction markets",
+    href: "/sharp-intel",
+  },
+  {
+    title: "My Slips",
+    description: "Saved plays and bet tracking",
+    href: "/my-slips",
+  },
 ];
 
-function NavSection({ title, icon, tools, domain }: { title: string; icon?: React.ReactNode; tools: NavTool[]; domain: string }) {
+function NavSection({
+  title,
+  icon,
+  tools,
+  domain,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  tools: NavTool[];
+  domain: string;
+}) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 px-3 mb-2">
+      <div className="mb-2 flex items-center gap-1.5 px-3">
         {icon}
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        <span className="text-[10px] font-semibold tracking-wider text-neutral-400 uppercase dark:text-neutral-500">
           {title}
         </span>
       </div>
@@ -48,24 +124,28 @@ function NavSection({ title, icon, tools, domain }: { title: string; icon?: Reac
         {tools.map((tool) => (
           <NavigationMenuLink asChild key={tool.title}>
             <Link
-              href={createHref(tool.href, domain, getUtmParams({ domain, utm_content: tool.title }))}
+              href={createHref(
+                tool.href,
+                domain,
+                getUtmParams({ domain, utm_content: tool.title }),
+              )}
               className="flex items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-neutral-100 dark:hover:bg-white/5"
             >
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
                   {tool.title}
                   {tool.badge && (
-                    <span className="rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                    <span className="rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1.5 py-0.5 text-[9px] leading-none font-bold text-white">
                       {tool.badge}
                     </span>
                   )}
                   {tool.free && (
-                    <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                    <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] leading-none font-bold text-emerald-600 dark:text-emerald-400">
                       FREE
                     </span>
                   )}
                 </span>
-                <p className="text-xs text-neutral-500 dark:text-white/50 mt-0.5 leading-snug">
+                <p className="mt-0.5 text-xs leading-snug text-neutral-500 dark:text-white/50">
                   {tool.description}
                 </p>
               </div>
@@ -97,11 +177,7 @@ export function ProductContent({ domain }: { domain: string }) {
       />
 
       {/* Column 3: Sharp Tools */}
-      <NavSection
-        title="Sharp Tools"
-        tools={SHARP_TOOLS}
-        domain={domain}
-      />
+      <NavSection title="Sharp Tools" tools={SHARP_TOOLS} domain={domain} />
     </div>
   );
 }

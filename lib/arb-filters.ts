@@ -2,7 +2,7 @@ import type { ArbRow } from "@/lib/arb-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { isMarketSelected } from "@/lib/utils";
 
-export type MarketType = 'player' | 'game';
+export type MarketType = "player" | "game";
 export type ArbMarketOption = {
   key: string;
   label: string;
@@ -39,6 +39,12 @@ export function normalizeArbMarketKey(market: string): string {
 }
 
 export function getArbSportKey(row: ArbRow): string {
+  const rowSport = String(row.sp || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  if (rowSport) return rowSport;
+
   const leagueId = String(row.lg?.id || "")
     .toLowerCase()
     .trim()
@@ -54,15 +60,14 @@ export function getArbSportKey(row: ArbRow): string {
 }
 
 function fallbackMarketLabel(market: string): string {
-  return market
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return market.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function getArbMarketLabel(market: string): string {
   const normalized = normalizeArbMarketKey(market);
   const fromCatalog = formatMarketLabel(normalized);
-  if (fromCatalog && fromCatalog.toLowerCase() !== normalized) return fromCatalog;
+  if (fromCatalog && fromCatalog.toLowerCase() !== normalized)
+    return fromCatalog;
   return fallbackMarketLabel(normalized);
 }
 
@@ -99,90 +104,90 @@ export function buildArbMarketOptions(rows: ArbRow[]): ArbMarketOption[] {
 // Determine if a market is a player prop or game prop
 export function getMarketType(market: string): MarketType {
   const mkt = market.toLowerCase();
-  
+
   // Game prop patterns - check these FIRST to avoid false positives
   const gamePatterns = [
-    'spread',
-    'handicap',
-    'moneyline',
-    'money_line',
-    'h2h',
-    'head_to_head',
-    'total',
-    'over_under',
-    'puck_line',
-    'run_line',
-    'race_to',
-    'first_to',
-    'btts',
-    'both_teams',
-    'odd_even',
-    'team_total',
-    'game_total',
-    'quarter',
-    'half',
-    'period',
-    'inning',
+    "spread",
+    "handicap",
+    "moneyline",
+    "money_line",
+    "h2h",
+    "head_to_head",
+    "total",
+    "over_under",
+    "puck_line",
+    "run_line",
+    "race_to",
+    "first_to",
+    "btts",
+    "both_teams",
+    "odd_even",
+    "team_total",
+    "game_total",
+    "quarter",
+    "half",
+    "period",
+    "inning",
   ];
-  
+
   // If it matches a game pattern, it's a game prop
-  if (gamePatterns.some(pattern => mkt.includes(pattern))) {
-    return 'game';
+  if (gamePatterns.some((pattern) => mkt.includes(pattern))) {
+    return "game";
   }
-  
+
   // Player prop patterns - more specific to avoid false positives
   const playerPatterns = [
-    'player_',
-    '_player',
-    'points',
-    'assists',
-    'rebounds',
-    'steals',
-    'blocks',
-    'turnovers',
-    'three_pointers',
-    'threes_made',
-    '3pt_made',
-    '3pm',
-    'passing_yards',
-    'rushing_yards',
-    'receiving_yards',
-    'touchdown',
-    'completions',
-    'interceptions',
-    'receptions',
-    'goals_',
-    '_goals',
-    'anytime_goal',
-    'shots_on',
-    'sog',
-    'saves',
-    'hits',
-    'strikeouts',
-    'home_runs',
-    'bases',
-    'pitcher_',
-    'batter_',
-    'anytime_scorer',
-    'first_scorer',
-    'last_scorer',
-    'pts_reb_ast',
-    'pts_reb',
-    'pts_ast',
-    'reb_ast',
-    'double_double',
-    'triple_double',
-    'fantasy',
-    'fpts',
+    "player_",
+    "_player",
+    "points",
+    "assists",
+    "rebounds",
+    "steals",
+    "blocks",
+    "turnovers",
+    "three_pointers",
+    "threes_made",
+    "3pt_made",
+    "3pm",
+    "passing_yards",
+    "rushing_yards",
+    "receiving_yards",
+    "touchdown",
+    "completions",
+    "interceptions",
+    "receptions",
+    "goals_",
+    "_goals",
+    "anytime_goal",
+    "shots_on",
+    "sog",
+    "saves",
+    "hits",
+    "strikeouts",
+    "home_runs",
+    "bases",
+    "pitcher_",
+    "batter_",
+    "anytime_scorer",
+    "first_scorer",
+    "last_scorer",
+    "pts_reb_ast",
+    "pts_reb",
+    "pts_ast",
+    "reb_ast",
+    "double_double",
+    "triple_double",
+    "fantasy",
+    "fpts",
   ];
-  
+
   // Check if it matches any player pattern
-  if (playerPatterns.some(pattern => mkt.includes(pattern))) {
-    return 'player';
+  if (playerPatterns.some((pattern) => mkt.includes(pattern))) {
+    return "player";
   }
-  
+
   // Default to game prop for unknown markets
-  return 'game';
+  return "game";
 }
 
 export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
@@ -196,7 +201,7 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   const overBook = normalize(String(row.o?.bk || ""));
   const underBook = normalize(String(row.u?.bk || ""));
   if (blockedBooks.has(overBook) || blockedBooks.has(underBook)) return false;
-  
+
   // Sportsbooks filter: empty array means ALL books are included
   if (prefs.selectedBooks.length > 0) {
     const books = new Set(prefs.selectedBooks.map((b) => normalize(b)));
@@ -215,8 +220,12 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   }
 
   // Filter by market types (player props vs game props)
-  if (prefs.selectedMarketTypes && prefs.selectedMarketTypes.length > 0 && prefs.selectedMarketTypes.length < 2) {
-    const marketType = getMarketType(row.mkt || '');
+  if (
+    prefs.selectedMarketTypes &&
+    prefs.selectedMarketTypes.length > 0 &&
+    prefs.selectedMarketTypes.length < 2
+  ) {
+    const marketType = getMarketType(row.mkt || "");
     if (!prefs.selectedMarketTypes.includes(marketType)) return false;
   }
 
@@ -231,7 +240,9 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   // Empty array means "all leagues selected", non-empty means "only these leagues"
   if (prefs.selectedLeagues.length > 0 && row.lg?.id) {
     const league = normalize(row.lg.id);
-    const selectedLeaguesNormalized = prefs.selectedLeagues.map((l) => normalize(l));
+    const selectedLeaguesNormalized = prefs.selectedLeagues.map((l) =>
+      normalize(l),
+    );
     if (!selectedLeaguesNormalized.includes(league)) return false;
   }
 
@@ -241,6 +252,7 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   const hay = [
     row.o?.name,
     row.u?.name,
+    row.ent,
     row.mkt,
     row.ev?.home?.name,
     row.ev?.home?.abbr,

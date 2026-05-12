@@ -1,62 +1,107 @@
 import type { ArbMode } from "@/lib/arb-freshness";
 
 export type ArbLeg = {
-    bk: string;
-    name?: string;
-    od: number;
-    id?: string;
-    u?: string;
-    m?: string | null;
-    max?: number | null; // Max bet amount for this leg
-  };
+  bk: string;
+  bt?: "sportsbook" | "prediction" | "exchange" | string;
+  name?: string;
+  od: number;
+  id?: string;
+  u?: string;
+  m?: string | null;
+  max?: number | null; // Max bet amount for this leg
+  upd?: string | null;
+  rg?: boolean;
+};
 
-  export type ArbRow = {
-    eid: string;
-    mkt: string;
-    ln: number;
-    roi_bps: number;
-    ts: number;
-    max_bet?: number | null; // Effective max for the arb (min of both legs)
-    lg?: {
-      id: string;
-      name: string;
-      sport: string;
-    };
-    ev: {
-      dt: string;
-      live: boolean;
-      home: { abbr?: string; name?: string };
-      away: { abbr?: string; name?: string };
-    };
-    o: ArbLeg;
-    u: ArbLeg;
+export type ArbRow = {
+  eid: string;
+  sp?: string;
+  mkt: string;
+  ln: number;
+  ent?: string;
+  ent_id?: string;
+  pair?: string;
+  roi_bps: number;
+  true_roi_bps?: number;
+  implied_bps?: number;
+  ts: number;
+  fs?: number;
+  ls?: number;
+  lu?: number;
+  max_bet?: number | null; // Effective max for the arb (min of both legs)
+  book_types?: string[];
+  has_regional?: boolean;
+  lg?: {
+    id: string;
+    name: string;
+    sport: string;
   };
-  
-  export async function fetchArbs(params: { v?: number; limit?: number; cursor?: number; event_id?: string; mode?: ArbMode }) {
-    const sp = new URLSearchParams();
-    if (params.v != null) sp.set("v", String(params.v));
-    if (params.limit != null) sp.set("limit", String(params.limit));
-    if (params.cursor != null) sp.set("cursor", String(params.cursor));
-    if (params.event_id) sp.set("event_id", params.event_id);
-    if (params.mode) sp.set("mode", params.mode);
-    const res = await fetch(`/api/arbs?${sp.toString()}`, { credentials: "include" });
-    if (res.status === 304) return { unchanged: true as const };
-    if (!res.ok) throw new Error(`GET /api/arbs ${res.status}`);
-    return (await res.json()) as { format: number; v: number; ids: string[]; rows: ArbRow[]; filteredCount?: number; filteredReason?: string };
+  ev: {
+    dt: string;
+    live: boolean;
+    home: { abbr?: string; name?: string };
+    away: { abbr?: string; name?: string };
+  };
+  o: ArbLeg;
+  u: ArbLeg;
+  inj?: {
+    st: string;
+    notes?: string;
+    src?: string;
+    upd?: string;
+    name?: string;
+    pid?: string;
+    odds_id?: string;
+    team?: string;
+    pos?: string;
+    nba_id?: number;
+    wnba_id?: number;
+  };
+  risk_flags?: string[];
+};
+
+export async function fetchArbs(params: {
+  v?: number;
+  limit?: number;
+  cursor?: number;
+  event_id?: string;
+  mode?: ArbMode;
+}) {
+  const sp = new URLSearchParams();
+  if (params.v != null) sp.set("v", String(params.v));
+  if (params.limit != null) sp.set("limit", String(params.limit));
+  if (params.cursor != null) sp.set("cursor", String(params.cursor));
+  if (params.event_id) sp.set("event_id", params.event_id);
+  if (params.mode) sp.set("mode", params.mode);
+  const res = await fetch(`/api/arbs?${sp.toString()}`, {
+    credentials: "include",
+  });
+  if (res.status === 304) return { unchanged: true as const };
+  if (!res.ok) throw new Error(`GET /api/arbs ${res.status}`);
+  return (await res.json()) as {
+    format: number;
+    v: number;
+    ids: string[];
+    rows: ArbRow[];
+    filteredCount?: number;
+    filteredReason?: string;
+  };
+}
+
+export async function fetchRows(
+  ids: string[],
+): Promise<Array<{ id: string; row: ArbRow | null }>> {
+  const res = await fetch("/api/arbs/rows", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ids }),
+  });
+  if (res.status === 401) {
+    // session likely expired (laptop sleep); surface a sentinel so caller can recover
+    throw new Error("AUTH_EXPIRED");
   }
-  
-  export async function fetchRows(ids: string[]): Promise<Array<{ id: string; row: ArbRow | null }>> {
-    const res = await fetch("/api/arbs/rows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ ids }),
-    });
-    if (res.status === 401) {
-      // session likely expired (laptop sleep); surface a sentinel so caller can recover
-      throw new Error("AUTH_EXPIRED");
-    }
-    if (!res.ok) throw new Error(`POST /api/arbs/rows ${res.status}`);
-    const { rows } = await res.json();
-    return rows as Array<{ id: string; row: ArbRow | null }>;
-  }
+  if (!res.ok) throw new Error(`POST /api/arbs/rows ${res.status}`);
+  const { rows } = await res.json();
+  return rows as Array<{ id: string; row: ArbRow | null }>;
+}

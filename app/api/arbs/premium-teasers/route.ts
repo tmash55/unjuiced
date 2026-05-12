@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
 import { zrevrangeCompat } from "@/lib/redis-zset";
-
-const H_ROWS = "arbs:rows";
-const Z_ROI_PREGAME = "arbs:sort:roi:pregame";
-const Z_ROI_ALL = "arbs:sort:roi";
+import { ARBS_REDIS_KEYS } from "@/lib/arbs-redis-keys";
 
 /**
  * Special endpoint to fetch premium arbs for teaser display
@@ -16,19 +13,33 @@ export async function GET(req: NextRequest) {
     const limit = 3; // Only need top 3 for teasers
 
     // Fetch top arbs by ROI (prefer pregame, fallback to all)
-    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
-    
+    let ids = await zrevrangeCompat(
+      redis as any,
+      ARBS_REDIS_KEYS.sortRoiPregame,
+      0,
+      limit - 1,
+    );
+
     if (ids.length === 0) {
-      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
+      ids = await zrevrangeCompat(
+        redis as any,
+        ARBS_REDIS_KEYS.sortRoi,
+        0,
+        limit - 1,
+      );
     }
 
-    const rawUnknown = ids.length ? ((await (redis as any).hmget(H_ROWS, ...ids)) as unknown) : [];
+    const rawUnknown = ids.length
+      ? ((await (redis as any).hmget(ARBS_REDIS_KEYS.rows, ...ids)) as unknown)
+      : [];
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
-    
+
     if (ids.length && rawArr.length === 0) {
-      rawArr = await Promise.all(ids.map((id) => (redis as any).hget(H_ROWS, id)));
+      rawArr = await Promise.all(
+        ids.map((id) => (redis as any).hget(ARBS_REDIS_KEYS.rows, id)),
+      );
     }
-    
+
     const rows: ArbRow[] = (rawArr || [])
       .map((r) => (r ? (typeof r === "string" ? JSON.parse(r) : r) : null))
       .filter(Boolean) as ArbRow[];
@@ -38,12 +49,16 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       { format: ROWS_FORMAT, rows: premiumRows },
-      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60" } }
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60",
+        },
+      },
     );
   } catch (e: any) {
     return NextResponse.json(
       { error: "internal_error", message: e?.message || "" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
