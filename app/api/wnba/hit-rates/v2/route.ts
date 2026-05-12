@@ -76,6 +76,17 @@ interface WnbaHistoricalContext {
   h2hGames: number | null;
 }
 
+function createEmptyHistoricalContext(): WnbaHistoricalContext {
+  return {
+    seasonPct: null,
+    seasonAvg: null,
+    seasonGames: null,
+    h2hPct: null,
+    h2hAvg: null,
+    h2hGames: null,
+  };
+}
+
 const WNBA_TEAM_IDS_BY_ABBR: Record<string, number> = {
   ATL: 1611661330,
   CHI: 1611661329,
@@ -235,7 +246,10 @@ async function fetchGameDateMap(
     .in("game_id", gameIds);
 
   if (error) {
-    console.error("[Hit Rates v2 WNBA] Game date map fetch error:", error.message);
+    console.error(
+      "[Hit Rates v2 WNBA] Game date map fetch error:",
+      error.message,
+    );
     return result;
   }
 
@@ -397,9 +411,7 @@ async function fetchHistoricalContextForRows(
 
   const { data: profileRows, error: profileError } = await supabase
     .from("wnba_hit_rate_profiles")
-    .select(
-      "id, season_2025_pct, season_2025_avg, season_2025_games, h2h_pct, h2h_avg, h2h_games",
-    )
+    .select("id, h2h_pct, h2h_avg, h2h_games")
     .in("id", ids);
 
   if (profileError) {
@@ -411,13 +423,98 @@ async function fetchHistoricalContextForRows(
 
   for (const profile of profileRows || []) {
     result.set(profile.id, {
-      seasonPct: profile.season_2025_pct ?? null,
-      seasonAvg: profile.season_2025_avg ?? null,
-      seasonGames: profile.season_2025_games ?? null,
+      ...createEmptyHistoricalContext(),
       h2hPct: profile.h2h_pct ?? null,
       h2hAvg: profile.h2h_avg ?? null,
       h2hGames: profile.h2h_games ?? null,
     });
+  }
+
+  const seasonRows = rows.filter(
+    (row) =>
+      row.id &&
+      row.player_id &&
+      row.game_date &&
+      row.market &&
+      typeof row.line === "number",
+  );
+
+  if (seasonRows.length > 0) {
+    const playerIds = [
+      ...new Set(seasonRows.map((row) => row.player_id).filter(Boolean)),
+    ] as number[];
+    const seasons = [
+      ...new Set(seasonRows.map((row) => getWnbaSeasonFromDate(row.game_date))),
+    ];
+    const maxDate = seasonRows
+      .map((row) => row.game_date!)
+      .sort()
+      .at(-1)!;
+
+    const { data: seasonBoxScores, error: seasonBoxScoreError } = await supabase
+      .from("wnba_player_box_scores")
+      .select(
+        "player_id, game_date, season, season_type, minutes, pts, reb, ast, fg3m, stl, blk, tov",
+      )
+      .in("player_id", playerIds)
+      .in("season", seasons)
+      .neq("season_type", "Preseason")
+      .gt("minutes", 0)
+      .lt("game_date", maxDate)
+      .order("game_date", { ascending: false })
+      .range(0, 19999);
+
+    if (seasonBoxScoreError) {
+      console.error(
+        "[Hit Rates v2 WNBA] Season box score fetch error:",
+        seasonBoxScoreError.message,
+      );
+    } else {
+      const boxScoresByPlayerSeason = new Map<string, any[]>();
+      for (const game of seasonBoxScores || []) {
+        const key = `${game.player_id}:${game.season}`;
+        const existing = boxScoresByPlayerSeason.get(key) ?? [];
+        existing.push(game);
+        boxScoresByPlayerSeason.set(key, existing);
+      }
+
+      for (const row of seasonRows) {
+        if (
+          !row.id ||
+          !row.player_id ||
+          !row.game_date ||
+          !row.market ||
+          typeof row.line !== "number"
+        )
+          continue;
+
+        const season = getWnbaSeasonFromDate(row.game_date);
+        const games = (
+          boxScoresByPlayerSeason.get(`${row.player_id}:${season}`) ?? []
+        ).filter((game) => String(game.game_date) < String(row.game_date));
+        const values = games
+          .map((game) => getWnbaMarketStat(game, row.market))
+          .filter(
+            (value): value is number =>
+              typeof value === "number" && Number.isFinite(value),
+          );
+
+        if (values.length === 0) continue;
+
+        const hits = values.filter((value) => value >= row.line!).length;
+        const existing = result.get(row.id) ?? createEmptyHistoricalContext();
+
+        result.set(row.id, {
+          ...existing,
+          seasonPct: roundNumber((hits / values.length) * 100, 1),
+          seasonAvg: roundNumber(
+            values.reduce((sum, value) => sum + value, 0) / values.length,
+            1,
+          ),
+          seasonGames: values.length,
+        });
+      }
+    }
   }
 
   const h2hRows = rows.filter((row) => {
@@ -507,14 +604,7 @@ async function fetchHistoricalContextForRows(
     if (values.length === 0) continue;
 
     const hits = values.filter((value) => value >= row.line!).length;
-    const existing = result.get(row.id) ?? {
-      seasonPct: null,
-      seasonAvg: null,
-      seasonGames: null,
-      h2hPct: null,
-      h2hAvg: null,
-      h2hGames: null,
-    };
+    const existing = result.get(row.id) ?? createEmptyHistoricalContext();
 
     result.set(row.id, {
       ...existing,
@@ -561,7 +651,9 @@ async function fetchDvpRanksForRows(
   }
 
   const seasonsToFetch = [
-    ...new Set(rows.flatMap((row) => getWnbaDvpSeasonCandidates(row.game_date))),
+    ...new Set(
+      rows.flatMap((row) => getWnbaDvpSeasonCandidates(row.game_date)),
+    ),
   ];
 
   const { data: teamRankRows, error } = await supabase
@@ -613,12 +705,15 @@ async function fetchDvpRanksForRows(
 
     if (!opponentTeamId || !position || !fields) continue;
 
-    const seasonUsed = getWnbaDvpSeasonCandidates(row.game_date).find((season) =>
-      defenseByTeamPosition.has(`${season}:${opponentTeamId}:${position}`),
+    const seasonUsed = getWnbaDvpSeasonCandidates(row.game_date).find(
+      (season) =>
+        defenseByTeamPosition.has(`${season}:${opponentTeamId}:${position}`),
     );
     if (!seasonUsed) continue;
 
-    const defense = defenseByTeamPosition.get(`${seasonUsed}:${opponentTeamId}:${position}`);
+    const defense = defenseByTeamPosition.get(
+      `${seasonUsed}:${opponentTeamId}:${position}`,
+    );
     if (!defense) continue;
 
     result.set(`${opponentTeamId}:${position}:${row.market}`, {
@@ -1105,15 +1200,15 @@ export async function GET(request: Request) {
     filteredData = filteredData.map((row) => {
       const context = row.id ? historicalContextMap.get(row.id) : null;
       if (!context) return row;
-      const hasPreviousSeasonSample = Boolean(
+      const hasSeasonSample = Boolean(
         context.seasonGames && context.seasonGames > 0,
       );
 
       return {
         ...row,
-        season_pct: hasPreviousSeasonSample ? context.seasonPct : null,
-        season_avg: hasPreviousSeasonSample ? context.seasonAvg : null,
-        season_games: context.seasonGames,
+        season_pct: hasSeasonSample ? context.seasonPct : row.season_pct,
+        season_avg: hasSeasonSample ? context.seasonAvg : row.season_avg,
+        season_games: hasSeasonSample ? context.seasonGames : row.season_games,
         h2h_pct: row.h2h_pct ?? context.h2hPct,
         h2h_avg: row.h2h_avg ?? context.h2hAvg,
         h2h_games:
