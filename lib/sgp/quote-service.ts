@@ -90,6 +90,7 @@ const ODDSBLAZE_BOOK_ID_MAP: Record<string, string> = {
   espn: "espnbet",
   fanatics: "fanatics",
   fliff: "fliff",
+  novig: "novig",
   "hard-rock": "hard-rock",
   "bally-bet": "bally-bet",
   thescore: "thescore",

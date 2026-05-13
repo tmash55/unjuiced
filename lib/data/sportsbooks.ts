@@ -245,7 +245,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "novig": {
     id: "novig",
     name: "Novig",
-    sgp: false,
+    sgp: true,
     legalStates: ["AZ","CO","CT","IL","IN","IA","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV"],
     links: {
       desktop: "https://www.novig.us/",
@@ -258,9 +258,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     brandColor: "#050505",
     priority: 7,
     isActive: true,
-    requiresState: false,
-    affiliate: true,
-    affiliateLink: "https://novig.onelink.me/JHQQ/qh47vqcj"
+    requiresState: false
   },
 
   "betparx": {

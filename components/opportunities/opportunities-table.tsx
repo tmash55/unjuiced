@@ -866,12 +866,12 @@ export function OpportunitiesTable({
     helpers: {
       isExpanded: boolean;
       showLogos: boolean;
-      bestBooksWithPrice: { book: string; price: number; decimal: number; link: string | null; limits?: { max?: number; min?: number } | null }[];
+      bestBooksWithPrice: { book: string; price: number; decimal: number; link: string | null; mobileLink?: string | null; limits?: { max?: number; min?: number } | null }[];
       dateStr: string;
       timeStr: string;
       isToday: boolean;
       isHiddenRow: boolean;
-      sortedBooks: { book: string; price: number; decimal: number; link: string | null; limits?: { max?: number; min?: number } | null }[];
+      sortedBooks: { book: string; price: number; decimal: number; link: string | null; mobileLink?: string | null; limits?: { max?: number; min?: number } | null }[];
       rowIndex: number;  // For pinning support
     }
   ) => {
@@ -1021,7 +1021,7 @@ export function OpportunitiesTable({
                               price: parseInt(opp.bestPrice?.replace('+', '') || '0', 10), // American odds as integer
                               line: opp.line,
                               book: opp.bestBook,
-                              mobileLink: opp.bestLink,
+                              mobileLink: opp.bestMobileLink ?? opp.bestLink,
                             }
                           } as any,
                           liveBookOffers: [
@@ -1031,7 +1031,7 @@ export function OpportunitiesTable({
                                   book: book.book,
                                   price: book.price,
                                   line: opp.line,
-                                  mobileLink: book.link,
+                                  mobileLink: book.mobileLink ?? book.link,
                                   decimal: book.decimal,
                                 }))
                               : []),
@@ -1041,7 +1041,7 @@ export function OpportunitiesTable({
                                   book: book.book,
                                   price: book.price,
                                   line: opp.line,
-                                  mobileLink: book.link,
+                                  mobileLink: book.mobileLink ?? book.link,
                                   decimal: book.decimal,
                                 }))
                               : []),
@@ -1420,7 +1420,7 @@ export function OpportunitiesTable({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openLink(opp.bestBook, opp.bestLink);
+                            openLink(opp.bestBook, opp.bestLink, opp.bestMobileLink);
                           }}
                           className={cn(
                             "p-1 lg:p-1.5 rounded-lg",
@@ -1461,7 +1461,7 @@ export function OpportunitiesTable({
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    openLink(book.book, book.link);
+                                    openLink(book.book, book.link, book.mobileLink);
                                     setOpenBetDropdown(null);
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors text-left"
@@ -1900,9 +1900,9 @@ export function OpportunitiesTable({
     return sorted;
   }, [opportunities, sortField, sortDirection, showHidden, isHidden, autoRefresh, expandedRows, pinnedPositions]);
 
-  const openLink = (bookId?: string, link?: string | null) => {
+  const openLink = (bookId?: string, link?: string | null, mobileLink?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
-    const raw = link || fallback;
+    const raw = chooseBookLink(link, mobileLink, fallback);
     if (!raw) return;
     const target = applyState(raw) || raw;
     sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
@@ -2548,7 +2548,7 @@ export function OpportunitiesTable({
                                               {overOffer ? (
                                                 <>
                                                   <button
-                                                    onClick={() => openLink(bookId, overOffer.link)}
+                                                    onClick={() => openLink(bookId, overOffer.link, overOffer.mobileLink)}
                                                     className={cn(
                                                       "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
                                                       "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",
@@ -2585,7 +2585,7 @@ export function OpportunitiesTable({
                                               {underOffer ? (
                                                 <>
                                                   <button
-                                                    onClick={() => openLink(bookId, underOffer.link)}
+                                                    onClick={() => openLink(bookId, underOffer.link, underOffer.mobileLink)}
                                                     className={cn(
                                                       "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
                                                       "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",

@@ -61,11 +61,6 @@ interface BetslipItemWithFavorite {
 
 const SGP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (database cache)
 
-// Get all sportsbooks that support SGP (only books with sgp: true in sportsbooks.ts)
-const SGP_SUPPORTING_BOOKS = getSgpSupportingBooks();
-
-console.log("[SGP API] SGP-supporting books:", SGP_SUPPORTING_BOOKS);
-
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -285,9 +280,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine which books to fetch
+    const sgpSupportingBooks = getSgpSupportingBooks();
     const booksToFetch = sportsbooks?.length 
-      ? sportsbooks.filter(b => SGP_SUPPORTING_BOOKS.includes(b))
-      : SGP_SUPPORTING_BOOKS;
+      ? sportsbooks.filter(b => sgpSupportingBooks.includes(b))
+      : sgpSupportingBooks;
 
     // Collect all favorite IDs to compute betslip legs hash
     // This helps frontend detect when legs were added/removed

@@ -64,6 +64,31 @@ export function getSgpSupportingBooks(): string[] {
     .map(([id]) => id);
 }
 
+function tokenizePlayerName(name: string): string[] {
+  return normalizePlayerName(name)
+    .replace(/[^a-z0-9_]/g, "_")
+    .split("_")
+    .filter(Boolean);
+}
+
+function playerNamesMatch(
+  legPlayerName: string | null | undefined,
+  selectionPlayerName: string | null | undefined
+): boolean {
+  const legPlayer = normalizePlayerName(legPlayerName || "");
+  if (!legPlayer) return true;
+
+  const selectionPlayer = normalizePlayerName(selectionPlayerName || "");
+  if (!selectionPlayer) return false;
+  if (selectionPlayer.includes(legPlayer) || legPlayer.includes(selectionPlayer)) return true;
+
+  const legTokens = tokenizePlayerName(legPlayerName || "");
+  const selectionTokens = tokenizePlayerName(selectionPlayerName || "");
+  if (legTokens.length === 0 || selectionTokens.length === 0) return false;
+
+  return legTokens.every((token) => selectionTokens.includes(token));
+}
+
 function normalizeBookList(books?: string[]): string[] {
   const sgpBooks = new Set(getSgpSupportingBooks());
   const requestedBooks = books?.length ? books : Array.from(sgpBooks);
@@ -144,11 +169,7 @@ function selectionMatchesLeg(
   const selectionPlayerId = String(selection.player_id || "").trim().toLowerCase();
   if (legPlayerId && selectionPlayerId && legPlayerId === selectionPlayerId) return true;
 
-  const legPlayer = normalizePlayerName(leg.player_name || "");
-  if (!legPlayer) return true;
-
-  const selectionPlayer = normalizePlayerName(selection.player || "");
-  return selectionPlayer.includes(legPlayer) || legPlayer.includes(selectionPlayer);
+  return playerNamesMatch(leg.player_name, selection.player);
 }
 
 async function resolveLegTokens(

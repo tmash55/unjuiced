@@ -50,8 +50,6 @@ interface SgpOddsCache {
   [bookId: string]: SgpBookOdds;
 }
 
-const SGP_SUPPORTING_BOOKS = getSgpSupportingBooks();
-
 // =============================================================================
 // API HANDLER
 // =============================================================================
@@ -77,9 +75,10 @@ export async function POST(request: NextRequest) {
     console.log(`[SGP Compare] Processing ${totalLegs} legs for compare`);
 
     // Determine which books to fetch
+    const sgpSupportingBooks = getSgpSupportingBooks();
     const booksToFetch = sportsbooks?.length
-      ? sportsbooks.filter(b => SGP_SUPPORTING_BOOKS.includes(b))
-      : SGP_SUPPORTING_BOOKS;
+      ? sportsbooks.filter(b => sgpSupportingBooks.includes(b))
+      : sgpSupportingBooks;
 
     const resolvedTokens = await resolveSgpTokensForLegs(legs, {
       books: booksToFetch,

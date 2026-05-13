@@ -24,12 +24,14 @@ export interface OpportunityV2 {
   best_price: string;        // Signed American ("+159")
   best_decimal: number;
   best_link: string | null;
+  best_mobile_link?: string | null;
   n_books: number;
   all_books: Array<{
     book: string;
     price: number;
     decimal: number;
     link: string | null;
+    mobile_link?: string | null;
     sgp: string | null;
   }>;
 
@@ -85,6 +87,7 @@ export interface OpportunityV2 {
       price: number;
       decimal: number;
       link: string | null;
+      mobile_link?: string | null;
       sgp: string | null;
     }>;
   } | null;
@@ -158,6 +161,7 @@ export function opportunityToDeal(opp: OpportunityV2): BestOddsDeal {
     bestBook: opp.best_book,
     bestPrice: parseAmericanOdds(opp.best_price),
     bestLink: opp.best_link || bestBookEntry?.link || "",
+    bestLinkMobile: opp.best_mobile_link || bestBookEntry?.mobile_link || null,
     numBooks: opp.n_books,
     avgPrice,
     priceImprovement: opp.edge_pct ?? 0,
@@ -167,13 +171,12 @@ export function opportunityToDeal(opp: OpportunityV2): BestOddsDeal {
       book: b.book,
       price: b.price,
       link: b.link || "",
-      mobileLink: null,
+      mobileLink: b.mobile_link || null,
       limit_max: null,
     })),
 
     // Optional fields
     bestLimit: null,
-    bestLinkMobile: null,
 
     scope: "pregame", // SSE data is pregame
     lastUpdated: opp.timestamp,
@@ -308,4 +311,3 @@ export function opportunityToExtendedDeal(opp: OpportunityV2): BestOddsDealV2 {
     } : null,
   };
 }
-
