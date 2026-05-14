@@ -1417,7 +1417,7 @@ export function MlbExitVelocity() {
         {viewMode === "scatter" && !isLoading && sortedLeaders.length > 0 ? (
           <div className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden p-4">
             <div className="max-w-5xl mx-auto">
-              <EvScatterPlot leaders={leaders} isMobile={!!isMobile} searchQuery={searchQuery} />
+              <EvScatterPlot leaders={sortedLeaders} isMobile={!!isMobile} searchQuery={searchQuery} />
             </div>
           </div>
         ) : isMobile && !isLoading && sortedLeaders.length > 0 ? (
