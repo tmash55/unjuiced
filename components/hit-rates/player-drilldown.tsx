@@ -720,6 +720,7 @@ export function PlayerDrilldown({
   const [chartFilters, setChartFilters] =
     useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
+  const [rosterSeason, setRosterSeason] = useState("2026");
   const [playTypeFilters, setPlayTypeFilters] = useState<PlayTypeFilter[]>([]);
   const [shotZoneFilters, setShotZoneFilters] = useState<ShotZoneFilter[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -780,8 +781,14 @@ export function PlayerDrilldown({
     setCustomLine(null);
     setChartFilters(DEFAULT_FILTERS);
     setInjuryFilters([]);
+    setRosterSeason("2026");
     setQuickFilters(new Set());
   }, [initialProfile.playerId]);
+
+  const handleRosterSeasonChange = useCallback((season: string) => {
+    setRosterSeason(season);
+    setInjuryFilters([]);
+  }, []);
 
   // Reset custom line when market changes (line values are market-specific)
   // BUT preserve filters - users shouldn't have to re-apply filters for each market
@@ -822,7 +829,7 @@ export function PlayerDrilldown({
   const { players: rosterPlayers } = useTeamRoster({
     teamId: profile.teamId,
     sport,
-    season: sport === "wnba" ? "2025" : undefined,
+    season: sport === "wnba" ? rosterSeason : undefined,
     enabled: !!profile.teamId,
   });
 
@@ -2971,6 +2978,10 @@ export function PlayerDrilldown({
           currentPlayerId={profile.playerId}
           filters={injuryFilters}
           onFiltersChange={setInjuryFilters}
+          season={sport === "wnba" ? rosterSeason : undefined}
+          onSeasonChange={
+            sport === "wnba" ? handleRosterSeasonChange : undefined
+          }
           sport={sport}
         />
       </div>

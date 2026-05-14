@@ -73,6 +73,7 @@ import { MobileShootingZones } from "./mobile-shooting-zones";
 // ═══════════════════════════════════════════════════════════════════════════
 
 type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
+const WNBA_ROSTER_SEASONS = ["2026", "2025", "2024"] as const;
 
 // Filter range type for advanced filters
 interface FilterRange {
@@ -3814,6 +3815,7 @@ export function MobilePlayerDrilldown({
     mode: InjuryFilterMode;
   }
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
+  const [rosterSeason, setRosterSeason] = useState("2026");
   
   // Team collapse state - default expanded for better visibility
   const [playerTeamCollapsed, setPlayerTeamCollapsed] = useState(false);
@@ -3842,6 +3844,11 @@ export function MobilePlayerDrilldown({
       // Add new filter
       return [...prev, { playerId, mode }];
     });
+  }, []);
+
+  const handleRosterSeasonChange = useCallback((season: string) => {
+    setRosterSeason(season);
+    setInjuryFilters([]);
   }, []);
   
   // Handler for tab changes - scrolls to top for fresh view
@@ -4078,7 +4085,7 @@ export function MobilePlayerDrilldown({
     playerTeamId: profile.teamId,
     opponentTeamId: profile.opponentTeamId,
     sport,
-    season: sport === "wnba" ? "2025" : "2025-26",
+    season: sport === "wnba" ? rosterSeason : "2025-26",
     // Load on chart tab (for roster section), correlation tab, or when injury filters are set
     enabled: (injuryFilters.length > 0 || activeTab === "injuries" || activeTab === "chart") && !!profile.teamId && !!profile.opponentTeamId,
   });
@@ -5990,6 +5997,36 @@ export function MobilePlayerDrilldown({
                 )} />
               </button>
 
+              {sport === "wnba" && (
+                <div className="flex items-center justify-between gap-3 border-t border-neutral-200/60 px-4 py-2 dark:border-neutral-800/60">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Roster Season
+                  </span>
+                  <div className="flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-700 dark:bg-neutral-800">
+                    {WNBA_ROSTER_SEASONS.map((seasonOption) => {
+                      const isSelected = rosterSeason === seasonOption;
+
+                      return (
+                        <button
+                          key={seasonOption}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => handleRosterSeasonChange(seasonOption)}
+                          className={cn(
+                            "rounded-md px-2.5 py-1 text-[11px] font-bold tabular-nums transition-colors",
+                            isSelected
+                              ? "bg-neutral-900 text-white shadow-sm dark:bg-white dark:text-neutral-900"
+                              : "text-neutral-500 hover:bg-white hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-white",
+                          )}
+                        >
+                          {seasonOption}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Roster Content - Collapsible */}
               {!playerTeamCollapsed && (
                 <div className="border-t border-neutral-200/60 dark:border-neutral-700/60">
@@ -6045,6 +6082,9 @@ export function MobilePlayerDrilldown({
                                         {player.injuryStatus}
                                       </span>
                                     )}
+                                    <span className="text-[10px] text-neutral-400 shrink-0">
+                                      {player.gamesPlayed || 0} GP
+                                    </span>
                                   </div>
                                   {!isCurrentPlayer && (
                                     <div className="flex items-center gap-1.5">
@@ -6116,6 +6156,9 @@ export function MobilePlayerDrilldown({
                                         {player.injuryStatus}
                                       </span>
                                     )}
+                                    <span className="text-[10px] text-neutral-400 shrink-0">
+                                      {player.gamesPlayed || 0} GP
+                                    </span>
                                   </div>
                                   <span className="text-[10px] text-neutral-400">{player.avgMinutes?.toFixed(0) || 0} min</span>
                                 </div>

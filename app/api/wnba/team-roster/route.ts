@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { z } from "zod";
 
+const WNBA_ROSTER_SEASONS = ["2024", "2025", "2026"] as const;
+
 const QuerySchema = z.object({
   teamId: z.coerce.number().int().positive(),
   season: z
-    .string()
+    .enum(WNBA_ROSTER_SEASONS)
     .nullish()
-    .transform((v) => v ?? "2025"),
+    .transform((v) => v ?? "2026"),
 });
 
 interface RpcPlayer {

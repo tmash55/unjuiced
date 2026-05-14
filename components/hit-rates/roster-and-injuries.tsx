@@ -28,9 +28,12 @@ interface RosterAndInjuriesProps {
   season?: string;
   filters: InjuryFilter[];
   onFiltersChange: (filters: InjuryFilter[]) => void;
+  onSeasonChange?: (season: string) => void;
   className?: string;
   sport?: "nba" | "wnba";
 }
+
+const WNBA_ROSTER_SEASONS = ["2026", "2025", "2024"] as const;
 
 const getInjuryColor = (status: string | null) => {
   if (!status) return "text-neutral-400";
@@ -306,6 +309,12 @@ function PlayerRow({
           <span className="text-[10px] text-neutral-500 tabular-nums dark:text-neutral-400">
             {(player.avgPoints || 0).toFixed(1)}p
           </span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            •
+          </span>
+          <span className="text-[10px] text-neutral-500 tabular-nums dark:text-neutral-400">
+            {player.gamesPlayed || 0}gp
+          </span>
           {hasInjury && (
             <Tooltip
               content={
@@ -395,11 +404,14 @@ export function RosterAndInjuries({
   season,
   filters,
   onFiltersChange,
+  onSeasonChange,
   className,
   sport = "nba",
 }: RosterAndInjuriesProps) {
   // Default to collapsed for a cleaner reading flow
   const [isCollapsed, setIsCollapsed] = React.useState(true);
+  const rosterSeason = season ?? "2026";
+  const showSeasonControl = sport === "wnba" && !!onSeasonChange;
 
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
@@ -606,6 +618,36 @@ export function RosterAndInjuries({
           </div>
         </div>
       </button>
+
+      {showSeasonControl && (
+        <div className="flex items-center justify-between gap-3 border-b border-neutral-200/60 bg-neutral-50/80 px-5 py-2.5 dark:border-neutral-700/60 dark:bg-neutral-900/30">
+          <span className="text-[10px] font-bold tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
+            Roster Season
+          </span>
+          <div className="flex rounded-lg border border-neutral-200 bg-white p-0.5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+            {WNBA_ROSTER_SEASONS.map((seasonOption) => {
+              const isSelected = rosterSeason === seasonOption;
+
+              return (
+                <button
+                  key={seasonOption}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSeasonChange?.(seasonOption)}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-[11px] font-bold tabular-nums transition-colors",
+                    isSelected
+                      ? "bg-neutral-900 text-white shadow-sm dark:bg-white dark:text-neutral-900"
+                      : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-white",
+                  )}
+                >
+                  {seasonOption}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Two-column layout - Collapsible */}
       {!isCollapsed && (
