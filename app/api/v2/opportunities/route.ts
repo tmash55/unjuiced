@@ -6,17 +6,15 @@
  * Before: Full EV computation per cache miss — 50–250+ Redis HTTP calls,
  *         5–25 s per request, frequent 504 timeouts.
  *
- * After:  Reads pre-computed EVRow data from per-sport HASHes via HGETALL:
- *           ev:{sport}:rows:{preset}    — HASH of seid → EVRow JSON
+ * After:  Reads pre-computed EVRow data from worker response keys first:
+ *           edge:response:{preset}:{sport} — JSON payload with rows[]
+ *
+ *         Custom blends and cache misses fall back to the per-event edge data:
+ *           edge:{sport}:{event_id}:{preset} — HASH of seid → EVRow JSON
  *           v2:opps:{hash}             — full cached filtered response
  *
- *         Per-sport HASHes are written atomically by the worker (DEL + HSET
- *         in one pipeline) so there's no race condition between sports.
- *         ZSET-based lookups have been removed — the global ZSET has a race
- *         condition where parallel sport writes (DEL + ZADD) cause only the
- *         last sport to survive.
- *
- *         Total Redis calls: 1 on cache hit, 1 per sport on miss.
+ *         The old giant edge:{sport}:rows:{preset} hash is avoided on the
+ *         primary preset path.
  *
  * The response schema (OpportunitiesResponse) and all Opportunity field
  * names are IDENTICAL to the original route — no frontend changes needed.
@@ -33,7 +31,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { getPreset } from "@/lib/odds/presets";
 import { americanToImpliedProb, devigMultiple, impliedProbToAmerican } from "@/lib/ev/devig";
-import { redis, parseRedisValue, hashCacheKey, hgetallSafe, hgetallPerEvent, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
+import { redis, parseRedisValue, hashCacheKey, hgetallPerEvent, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
 
 // ---------------------------------------------------------------------------
 // Types — kept identical to original so frontend stays unchanged
@@ -151,6 +149,17 @@ interface OpportunitiesResponse {
   };
   timing_ms: number;
   cache_hit: boolean;
+  source?: "edge_worker_cache" | "edge_worker_cache_with_fallback" | "edge_per_event_fallback";
+  preset_key?: string;
+  computed_at?: string | null;
+}
+
+interface EdgeResponsePayload {
+  sport: string;
+  preset: string;
+  rows: any[];
+  count: number;
+  computed_at?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +173,31 @@ const SPORT_FETCH_CONCURRENCY = 4;
 const MAX_RESPONSE_LIMIT = 2_000;
 const LIVE_LIQUIDITY_BOOKS = new Set(["novig", "prophetx", "kalshi", "pinnacle", "ps3838"]);
 const LIVE_LIQUIDITY_FETCH_CHUNK_SIZE = 500;
+const WORKER_EDGE_RESPONSE_PREFIX = "edge:response";
+
+const WORKER_PRESETS = new Set([
+  "pinnacle",
+  "market_average",
+  "pinnacle_circa",
+  "circa",
+  "prophetx",
+  "betonline",
+  "hardrock_thescore",
+  "draftkings",
+  "fanduel",
+  "betmgm",
+  "caesars",
+  "hardrock",
+  "bet365",
+  "thescore",
+  "ballybet",
+  "betrivers",
+  "fanatics",
+  "kalshi",
+  "polymarket",
+  "novig",
+  "next_best",
+]);
 
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
@@ -178,7 +212,11 @@ const DEVIG_METHODS = ["power", "multiplicative", "additive", "probit"] as const
 // Cache key
 // ---------------------------------------------------------------------------
 
-function buildFiltersCacheKey(params: URLSearchParams, blend: BookWeight[] | null): string {
+function buildFiltersCacheKey(
+  params: URLSearchParams,
+  blend: BookWeight[] | null,
+  sourceKey: string
+): string {
   const sports = (params.get("sports") || "nba")
     .toLowerCase().split(",").filter(Boolean).sort().join(",");
   const markets = (params.get("markets") || "").toLowerCase().split(",").filter(Boolean).sort().join(",");
@@ -199,7 +237,7 @@ function buildFiltersCacheKey(params: URLSearchParams, blend: BookWeight[] | nul
         .sort()
         .join(",")
     : canonicalizeBookId(params.get("preset") || "default");
-  const raw = `${sports}|${markets}|${marketLines}|${minOdds}|${maxOdds}|${minEdge}|${minEV}|${limit}|${sort}|${requireFullBlend}|${minBooksPerSide}|${requireTwoWay}|${marketType}|${blendKey}`;
+  const raw = `${sourceKey}|${sports}|${markets}|${marketLines}|${minOdds}|${maxOdds}|${minEdge}|${minEV}|${limit}|${sort}|${requireFullBlend}|${minBooksPerSide}|${requireTwoWay}|${marketType}|${blendKey}`;
   return hashCacheKey(raw);
 }
 
@@ -221,6 +259,67 @@ async function forEachWithConcurrency<T>(
       }
     })
   );
+}
+
+function isCustomModelRequest(params: URLSearchParams, blendParam: string | null): boolean {
+  return (
+    !!blendParam ||
+    params.get("custom") === "true" ||
+    params.has("customSharpBooks") ||
+    params.has("customBookWeights")
+  );
+}
+
+function resolveRequestedWorkerPresetKey(
+  presetId: string | null,
+  useAverage: boolean,
+  useNextBest: boolean
+): string {
+  if (useNextBest || presetId === "next_best") return "next_best";
+  if (useAverage || presetId === "average" || presetId === "market_average") {
+    return "market_average";
+  }
+  return canonicalizeBookId(presetId || "pinnacle");
+}
+
+function edgeResponseKey(preset: string, sport: string): string {
+  return `${WORKER_EDGE_RESPONSE_PREFIX}:${preset}:${sport}`;
+}
+
+async function readEdgeResponsePayload(
+  sport: string,
+  preset: string
+): Promise<EdgeResponsePayload | null> {
+  const key = edgeResponseKey(preset, sport);
+  try {
+    const raw = await redis.get<string | EdgeResponsePayload>(key);
+    const payload = parseRedisValue<EdgeResponsePayload>(raw, key);
+    if (!payload || !Array.isArray(payload.rows)) return null;
+    return payload;
+  } catch (err) {
+    console.warn(`[opportunities] edge response read failed for ${sport}/${preset}:`, err);
+    return null;
+  }
+}
+
+function shouldSkipPregameEdgeRow(row: any): boolean {
+  if (!row) return true;
+  if (row.meta?.scope === "live" || row.ev_data?.is_live === true) return true;
+
+  const startTime = row.ev_data?.start_time;
+  if (!startTime) return false;
+
+  const gameStart = new Date(startTime);
+  return !isNaN(gameStart.getTime()) && gameStart.getTime() <= Date.now();
+}
+
+function latestComputedAt(payloads: EdgeResponsePayload[]): string | null {
+  const computedAtValues = payloads
+    .map((payload) => payload.computed_at)
+    .filter((value): value is string => !!value)
+    .sort();
+
+  return computedAtValues.at(-1) ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +347,8 @@ function canonicalizeBookId(bookId: string): string {
     betmgm_michigan: "betmgm",
     "fanduel-yourway": "fanduelyourway",
     fanduel_yourway: "fanduelyourway",
+    average: "market_average",
+    "market-average": "market_average",
   };
   return mappings[lower] ?? lower;
 }
@@ -320,9 +421,13 @@ export async function GET(req: NextRequest) {
     let useNextBest = false;
 
     if (presetId) {
+      const canonicalPresetId = canonicalizeBookId(presetId);
       if (presetId === "next_best") {
         useNextBest = true;
         presetName = "Next Best";
+      } else if (presetId === "average" || canonicalPresetId === "market_average") {
+        useAverage = true;
+        presetName = "Market Average";
       } else {
         const preset = getPreset(presetId);
         if (preset) {
@@ -331,9 +436,8 @@ export async function GET(req: NextRequest) {
             blend = preset.books;
           } else {
             useAverage = true;
-        }
-      } else if (presetId !== "average") {
-          const canonicalPresetId = canonicalizeBookId(presetId);
+          }
+        } else {
           blend = [{ book: canonicalPresetId, weight: 1.0 }];
           presetName = presetId;
         }
@@ -342,14 +446,23 @@ export async function GET(req: NextRequest) {
       blend = parseBlend(blendParam);
     }
 
-    const useRuntimeCustomBlend = !!blend && blend.length > 1;
+    const hasCustomModel = isCustomModelRequest(params, blendParam);
+    const requestedWorkerPreset = resolveRequestedWorkerPresetKey(presetId, useAverage, useNextBest);
+    const canUseWorkerResponseCache =
+      !hasCustomModel && WORKER_PRESETS.has(requestedWorkerPreset);
+    const useRuntimeCustomBlend = !!blend && blend.length > 1 && !canUseWorkerResponseCache;
 
     // Determine the preset key used by the worker (which only pre-computes standard presets).
     // For custom blends (2+ books), we read a broad base preset and re-devig at request time.
-    const workerPreset = resolveWorkerPreset(blend, useAverage, useNextBest);
+    const workerPreset = canUseWorkerResponseCache
+      ? requestedWorkerPreset
+      : resolveWorkerPreset(blend, useAverage, useNextBest);
 
     // ── Step 1: Check full filtered-response cache ────────────────────────
-    const cacheKeyHash = buildFiltersCacheKey(params, blend);
+    const responseCacheSourceKey = canUseWorkerResponseCache
+      ? `edge-response:${requestedWorkerPreset}`
+      : `edge-fallback:${workerPreset}:${useRuntimeCustomBlend ? "custom" : "preset"}`;
+    const cacheKeyHash = buildFiltersCacheKey(params, blend, responseCacheSourceKey);
     const responseCacheKey = `${OPPS_CACHE_PREFIX}${cacheKeyHash}`;
 
     if (params.get("refresh") !== "true" && params.get("refresh") !== "1") {
@@ -374,76 +487,114 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Step 2: Read per-sport pre-computed EVRow data via HGETALL ────────
-    // Worker writes EVRow objects to ev:{sport}:rows:{preset} HASH.
-    // We use HGETALL to read all rows from each per-sport hash directly,
-    // avoiding the global ZSET entirely (which has a race condition when
-    // multiple sports write in parallel — DEL+ZADD causes only the last
-    // sport to survive).
+    // ── Step 2: Prefer worker response payloads for known preset requests ─
     let allOpportunities: Opportunity[] = [];
-    let workerDataFound = false;
+    let responseSource: OpportunitiesResponse["source"] = canUseWorkerResponseCache
+      ? "edge_worker_cache"
+      : "edge_per_event_fallback";
+    let computedAt: string | null = null;
+    let fallbackSports = sports;
+    let cachedRowsRead = 0;
 
-    await forEachWithConcurrency(
-      sports,
-      SPORT_FETCH_CONCURRENCY,
-      async (sport) => {
-        const presetCandidates = useRuntimeCustomBlend
-          ? ["next_best", "market_average", "pinnacle"]
-          : [workerPreset];
+    if (canUseWorkerResponseCache) {
+      const payloads = await Promise.all(
+        sports.map((sport) => readEdgeResponsePayload(sport, requestedWorkerPreset))
+      );
+      const presentPayloads: EdgeResponsePayload[] = [];
+      const missingSports: string[] = [];
 
-        let allFields: Record<string, string> | null = null;
-        let rowsKey = "";
-        for (const presetCandidate of presetCandidates) {
-          rowsKey = `edge:${sport}:rows:${presetCandidate}`;
-          try {
-            // Use per-event hashes (v2) with fallback to single hash (v1)
-            allFields = await hgetallPerEvent(sport, presetCandidate, "edge");
-          } catch (err) {
-            console.warn(`[opportunities] HGETALL failed for ${sport}/${presetCandidate}:`, err);
-            allFields = null;
-          }
-          if (allFields && Object.keys(allFields).length > 0) break;
+      payloads.forEach((payload, index) => {
+        const sport = sports[index];
+        if (!payload || payload.rows.length === 0) {
+          missingSports.push(sport);
+          return;
         }
 
-        if (!allFields || Object.keys(allFields).length === 0) return;
-        workerDataFound = true;
+        presentPayloads.push(payload);
+        cachedRowsRead += payload.rows.length;
 
-        for (const [seid, rawValue] of Object.entries(allFields)) {
-          const row = parseRedisValue<any>(rawValue, `${rowsKey}:${seid}`);
-          if (!row) continue;
-
-          // Filter out live / already-started games (matches production behavior)
-          if (row.meta?.scope === "live" || row.ev_data?.is_live === true) continue;
-          const startTime = row.ev_data?.start_time;
-          if (startTime) {
-            const gameStart = new Date(startTime);
-            if (!isNaN(gameStart.getTime()) && gameStart.getTime() <= Date.now()) continue;
-          }
-
-          let rowToMap = row;
-          let rowOverrides: OpportunityOverrides | undefined;
-
-          if (useRuntimeCustomBlend && blend) {
-            const recomputed = redevigWithCustomBlend(row, blend);
-            if (!recomputed) continue;
-            rowToMap = recomputed.row;
-            rowOverrides = recomputed.overrides;
-          }
-
-          // Map EVRow → Opportunity
-          allOpportunities.push(evRowToOpportunity(rowToMap, useNextBest, rowOverrides));
+        for (const row of payload.rows) {
+          if (shouldSkipPregameEdgeRow(row)) continue;
+          allOpportunities.push(evRowToOpportunity(row, useNextBest));
         }
-      }
-    );
+      });
 
-    // ── Step 3: No data found — return empty results (not an error) ─────
+      computedAt = latestComputedAt(presentPayloads);
+      fallbackSports = cachedRowsRead > 0 ? missingSports : sports;
+      responseSource = fallbackSports.length > 0 && cachedRowsRead > 0
+        ? "edge_worker_cache_with_fallback"
+        : "edge_worker_cache";
+    }
+
+    // ── Step 3: Fall back for custom models and missing worker responses ──
+    // Custom blends still need runtime re-devig. If a preset response key is
+    // temporarily absent, use the existing per-event fallback instead of
+    // serving an empty page.
+    const shouldReadFallback =
+      !canUseWorkerResponseCache || cachedRowsRead === 0 || fallbackSports.length > 0;
+    const sportsForFallback =
+      canUseWorkerResponseCache && cachedRowsRead > 0 ? fallbackSports : sports;
+
+    if (shouldReadFallback && sportsForFallback.length > 0) {
+      await forEachWithConcurrency(
+        sportsForFallback,
+        SPORT_FETCH_CONCURRENCY,
+        async (sport) => {
+          const presetCandidates = useRuntimeCustomBlend
+            ? ["next_best", "market_average", "pinnacle"]
+            : [workerPreset];
+
+          let allFields: Record<string, string> | null = null;
+          let rowsKey = "";
+          for (const presetCandidate of presetCandidates) {
+            rowsKey = `edge:${sport}:${presetCandidate}`;
+            try {
+              allFields = await hgetallPerEvent(sport, presetCandidate, "edge");
+            } catch (err) {
+              console.warn(`[opportunities] HGETALL failed for ${sport}/${presetCandidate}:`, err);
+              allFields = null;
+            }
+            if (allFields && Object.keys(allFields).length > 0) break;
+          }
+
+          if (!allFields || Object.keys(allFields).length === 0) return;
+
+          for (const [seid, rawValue] of Object.entries(allFields)) {
+            const row = parseRedisValue<any>(rawValue, `${rowsKey}:${seid}`);
+            if (shouldSkipPregameEdgeRow(row)) continue;
+
+            let rowToMap = row;
+            let rowOverrides: OpportunityOverrides | undefined;
+
+            if (useRuntimeCustomBlend && blend) {
+              const recomputed = redevigWithCustomBlend(row, blend);
+              if (!recomputed) continue;
+              rowToMap = recomputed.row;
+              rowOverrides = recomputed.overrides;
+            }
+
+            allOpportunities.push(evRowToOpportunity(rowToMap, useNextBest, rowOverrides));
+          }
+        }
+      );
+    }
+
+    if (!canUseWorkerResponseCache) {
+      responseSource = "edge_per_event_fallback";
+    } else if (cachedRowsRead === 0) {
+      responseSource = "edge_per_event_fallback";
+    } else if (sportsForFallback.length > 0 && cachedRowsRead > 0) {
+      responseSource = "edge_worker_cache_with_fallback";
+    }
+
+    // ── Step 4: No data found — return empty results (not an error) ─────
     // This can happen when a specific preset/book has no odds for the
     // requested sport, which is normal (e.g. FanDuel has no NHL lines).
     // Only the frontend decides whether to show "no results" messaging.
 
     const totalScanned = allOpportunities.length;
 
-    // ── Step 4: Apply client-side filters ────────────────────────────────
+    // ── Step 5: Apply client-side filters ────────────────────────────────
     // All filters applied in-process on pre-computed data — zero extra Redis calls.
 
     // Self-comparison exclusion for single-book presets
@@ -495,7 +646,7 @@ export async function GET(req: NextRequest) {
 
     const totalAfterFilters = allOpportunities.length;
 
-    // ── Step 5: Sort ──────────────────────────────────────────────────────
+    // ── Step 6: Sort ──────────────────────────────────────────────────────
     const getUniqueKey = (o: Opportunity) =>
       `${o.event_id}:${o.player}:${o.market}:${o.line}:${o.side}`;
 
@@ -535,12 +686,15 @@ export async function GET(req: NextRequest) {
       },
       timing_ms: Date.now() - startTime,
       cache_hit: false,
+      source: responseSource,
+      preset_key: workerPreset,
+      computed_at: computedAt,
     };
 
     const serializedResponse = JSON.stringify(response);
     const shouldCacheResponse = serializedResponse.length <= OPPS_MAX_CACHE_BYTES;
 
-    // ── Step 6: Cache the filtered response ───────────────────────────────
+    // ── Step 7: Cache the filtered response ───────────────────────────────
     if (shouldCacheResponse) {
       setSafe(responseCacheKey, serializedResponse, { ex: OPPS_CACHE_TTL }).then((ok) => {
         if (!ok) console.warn("[opportunities] Cache write failed");
@@ -581,15 +735,7 @@ function resolveWorkerPreset(
   if (blend.length === 1) {
     const book = canonicalizeBookId(blend[0].book);
     // If the single book matches a known worker preset, use it directly
-    const knownPresets = [
-      "pinnacle", "circa", "prophetx", "pinnacle_circa",
-      "hardrock_thescore", "market_average", "betonline",
-      "draftkings", "fanduel", "betmgm", "caesars",
-      "hardrock", "bet365", "thescore", "ballybet",
-      "betrivers", "fanatics", "kalshi", "polymarket", "novig",
-      "next_best",
-    ];
-    if (knownPresets.includes(book)) return book;
+    if (WORKER_PRESETS.has(book)) return book;
     // Non-standard single book: try pinnacle as best fallback
     return "pinnacle";
   }
