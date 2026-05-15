@@ -152,6 +152,7 @@ interface OpportunitiesResponse {
   source?: "edge_worker_cache" | "edge_worker_cache_with_fallback" | "edge_per_event_fallback";
   preset_key?: string;
   computed_at?: string | null;
+  debug?: OpportunitiesDebug;
 }
 
 interface EdgeResponsePayload {
@@ -160,6 +161,44 @@ interface EdgeResponsePayload {
   rows: any[];
   count: number;
   computed_at?: string;
+}
+
+type EdgeResponseReadStatus = "hit" | "missing" | "empty" | "invalid" | "error";
+
+interface EdgeResponseReadResult {
+  sport: string;
+  preset: string;
+  key: string;
+  status: EdgeResponseReadStatus;
+  payload: EdgeResponsePayload | null;
+  row_count: number;
+  computed_at: string | null;
+  error?: string;
+}
+
+interface OpportunitiesDebug {
+  requested_sports: string[];
+  preset_key: string;
+  can_use_worker_response_cache: boolean;
+  worker_read_status_by_sport: Record<string, EdgeResponseReadStatus>;
+  worker_row_counts_by_sport: Record<string, number>;
+  worker_rows_after_pregame_filter_by_sport: Record<string, number>;
+  worker_computed_at_by_sport: Record<string, string>;
+  fallback_sports: string[];
+  fallback_row_counts_by_sport: Record<string, number>;
+  fallback_rows_after_pregame_filter_by_sport: Record<string, number>;
+  rows_before_filters_by_sport: Record<string, number>;
+  rows_after_filters_by_sport: Record<string, number>;
+  rows_returned_by_sport: Record<string, number>;
+  missing_worker_sports: string[];
+  worker_read_failures: Record<string, string>;
+  unrecovered_worker_read_failures: string[];
+  response_cache: {
+    read_enabled: boolean;
+    write_enabled: boolean;
+    skip_reason: string | null;
+    serialized_bytes: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -286,19 +325,66 @@ function edgeResponseKey(preset: string, sport: string): string {
   return `${WORKER_EDGE_RESPONSE_PREFIX}:${preset}:${sport}`;
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "Unknown error";
+}
+
 async function readEdgeResponsePayload(
   sport: string,
   preset: string
-): Promise<EdgeResponsePayload | null> {
+): Promise<EdgeResponseReadResult> {
   const key = edgeResponseKey(preset, sport);
   try {
     const raw = await redis.get<string | EdgeResponsePayload>(key);
+    if (raw === null || raw === undefined) {
+      return {
+        sport,
+        preset,
+        key,
+        status: "missing",
+        payload: null,
+        row_count: 0,
+        computed_at: null,
+      };
+    }
+
     const payload = parseRedisValue<EdgeResponsePayload>(raw, key);
-    if (!payload || !Array.isArray(payload.rows)) return null;
-    return payload;
+    if (!payload || !Array.isArray(payload.rows)) {
+      return {
+        sport,
+        preset,
+        key,
+        status: "invalid",
+        payload: null,
+        row_count: 0,
+        computed_at: null,
+        error: "Invalid edge response payload",
+      };
+    }
+
+    return {
+      sport,
+      preset,
+      key,
+      status: payload.rows.length > 0 ? "hit" : "empty",
+      payload,
+      row_count: payload.rows.length,
+      computed_at: payload.computed_at ?? null,
+    };
   } catch (err) {
     console.warn(`[opportunities] edge response read failed for ${sport}/${preset}:`, err);
-    return null;
+    return {
+      sport,
+      preset,
+      key,
+      status: "error",
+      payload: null,
+      row_count: 0,
+      computed_at: null,
+      error: errorMessage(err),
+    };
   }
 }
 
@@ -320,6 +406,26 @@ function latestComputedAt(payloads: EdgeResponsePayload[]): string | null {
     .sort();
 
   return computedAtValues.at(-1) ?? null;
+}
+
+function incrementCount(counts: Record<string, number>, key: string | null | undefined, amount = 1): void {
+  if (!key) return;
+  counts[key] = (counts[key] ?? 0) + amount;
+}
+
+function countOpportunitySports(opportunities: Opportunity[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const opportunity of opportunities) {
+    incrementCount(counts, opportunity.sport);
+  }
+  return counts;
+}
+
+function summarizeCountKeys(counts: Record<string, number>): string {
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([sport, count]) => `${sport}:${count}`)
+    .join(",");
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +511,7 @@ export async function GET(req: NextRequest) {
     const minBooksPerSide = Math.max(1, parseInt(params.get("minBooksPerSide") || "2"));
     const requireTwoWay = params.get("requireTwoWay") === "true";
     const marketType = params.get("marketType") as "player" | "game" | null;
+    const includeDebug = params.get("debug") === "true" || params.get("debug") === "1";
 
     let marketLines: Record<string, number[]> = {};
     const marketLinesParam = params.get("marketLines");
@@ -465,18 +572,22 @@ export async function GET(req: NextRequest) {
     const cacheKeyHash = buildFiltersCacheKey(params, blend, responseCacheSourceKey);
     const responseCacheKey = `${OPPS_CACHE_PREFIX}${cacheKeyHash}`;
 
-    if (params.get("refresh") !== "true" && params.get("refresh") !== "1") {
+    if (!includeDebug && params.get("refresh") !== "true" && params.get("refresh") !== "1") {
       try {
         const cached = await redis.get<OpportunitiesResponse>(responseCacheKey);
         if (cached) {
           const response = typeof cached === "string" ? JSON.parse(cached) : cached;
           await hydrateOpportunitiesWithLiveLiquidity(response.opportunities);
+          const returnedSports = countOpportunitySports(response.opportunities || []);
           return NextResponse.json(
             { ...response, cache_hit: true, timing_ms: Date.now() - startTime },
             {
               headers: {
                 "X-Cache": "HIT",
                 "X-Timing-Ms": String(Date.now() - startTime),
+                "X-Edge-Source": response.source || "response_cache",
+                "X-Edge-Requested-Sports": response.filters?.sports?.join(",") || "",
+                "X-Edge-Returned-Sports": summarizeCountKeys(returnedSports),
                 "Cache-Control": "private, max-age=15",
               },
             }
@@ -495,16 +606,38 @@ export async function GET(req: NextRequest) {
     let computedAt: string | null = null;
     let fallbackSports = sports;
     let cachedRowsRead = 0;
+    const workerReadStatusBySport: Record<string, EdgeResponseReadStatus> = {};
+    const workerRowCountsBySport: Record<string, number> = {};
+    const workerRowsAfterPregameBySport: Record<string, number> = {};
+    const workerComputedAtBySport: Record<string, string> = {};
+    const workerReadFailures: Record<string, string> = {};
+    const fallbackRowCountsBySport: Record<string, number> = {};
+    const fallbackRowsAfterPregameBySport: Record<string, number> = {};
+    const rowsBeforeFiltersBySport: Record<string, number> = {};
 
     if (canUseWorkerResponseCache) {
-      const payloads = await Promise.all(
-        sports.map((sport) => readEdgeResponsePayload(sport, requestedWorkerPreset))
+      const payloads: EdgeResponseReadResult[] = [];
+      await forEachWithConcurrency(
+        sports.map((sport, index) => ({ sport, index })),
+        SPORT_FETCH_CONCURRENCY,
+        async ({ sport, index }) => {
+          payloads[index] = await readEdgeResponsePayload(sport, requestedWorkerPreset);
+        }
       );
+
       const presentPayloads: EdgeResponsePayload[] = [];
       const missingSports: string[] = [];
 
-      payloads.forEach((payload, index) => {
-        const sport = sports[index];
+      payloads.forEach((result, index) => {
+        const sport = result?.sport || sports[index];
+        workerReadStatusBySport[sport] = result?.status || "error";
+        workerRowCountsBySport[sport] = result?.row_count ?? 0;
+        if (result?.computed_at) workerComputedAtBySport[sport] = result.computed_at;
+        if (result?.status === "error" || result?.status === "invalid") {
+          workerReadFailures[sport] = result.error || result.status;
+        }
+
+        const payload = result?.payload ?? null;
         if (!payload || payload.rows.length === 0) {
           missingSports.push(sport);
           return;
@@ -513,10 +646,15 @@ export async function GET(req: NextRequest) {
         presentPayloads.push(payload);
         cachedRowsRead += payload.rows.length;
 
+        let rowsAfterPregame = 0;
         for (const row of payload.rows) {
           if (shouldSkipPregameEdgeRow(row)) continue;
-          allOpportunities.push(evRowToOpportunity(row, useNextBest));
+          rowsAfterPregame++;
+          const opportunity = evRowToOpportunity(row, useNextBest);
+          allOpportunities.push(opportunity);
+          incrementCount(rowsBeforeFiltersBySport, opportunity.sport || sport);
         }
+        workerRowsAfterPregameBySport[sport] = rowsAfterPregame;
       });
 
       computedAt = latestComputedAt(presentPayloads);
@@ -559,9 +697,14 @@ export async function GET(req: NextRequest) {
 
           if (!allFields || Object.keys(allFields).length === 0) return;
 
+          const fallbackRowCount = Object.keys(allFields).length;
+          fallbackRowCountsBySport[sport] = fallbackRowCount;
+          let fallbackRowsAfterPregame = 0;
+
           for (const [seid, rawValue] of Object.entries(allFields)) {
             const row = parseRedisValue<any>(rawValue, `${rowsKey}:${seid}`);
             if (shouldSkipPregameEdgeRow(row)) continue;
+            fallbackRowsAfterPregame++;
 
             let rowToMap = row;
             let rowOverrides: OpportunityOverrides | undefined;
@@ -573,8 +716,12 @@ export async function GET(req: NextRequest) {
               rowOverrides = recomputed.overrides;
             }
 
-            allOpportunities.push(evRowToOpportunity(rowToMap, useNextBest, rowOverrides));
+            const opportunity = evRowToOpportunity(rowToMap, useNextBest, rowOverrides);
+            allOpportunities.push(opportunity);
+            incrementCount(rowsBeforeFiltersBySport, opportunity.sport || sport);
           }
+
+          fallbackRowsAfterPregameBySport[sport] = fallbackRowsAfterPregame;
         }
       );
     }
@@ -585,6 +732,61 @@ export async function GET(req: NextRequest) {
       responseSource = "edge_per_event_fallback";
     } else if (sportsForFallback.length > 0 && cachedRowsRead > 0) {
       responseSource = "edge_worker_cache_with_fallback";
+    }
+
+    const unrecoveredWorkerReadFailures = Object.keys(workerReadFailures).filter((sport) => {
+      const recoveredRows =
+        (workerRowsAfterPregameBySport[sport] ?? 0) +
+        (fallbackRowsAfterPregameBySport[sport] ?? 0);
+      return recoveredRows === 0;
+    });
+
+    if (unrecoveredWorkerReadFailures.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Partial edge data unavailable",
+          message:
+            "One or more requested worker response keys failed to read and fallback did not recover rows. Refusing to serve a partial Edge Finder result.",
+          source: responseSource,
+          preset_key: workerPreset,
+          timing_ms: Date.now() - startTime,
+          debug: {
+            requested_sports: sports,
+            preset_key: workerPreset,
+            can_use_worker_response_cache: canUseWorkerResponseCache,
+            worker_read_status_by_sport: workerReadStatusBySport,
+            worker_row_counts_by_sport: workerRowCountsBySport,
+            worker_rows_after_pregame_filter_by_sport: workerRowsAfterPregameBySport,
+            worker_computed_at_by_sport: workerComputedAtBySport,
+            fallback_sports: sportsForFallback,
+            fallback_row_counts_by_sport: fallbackRowCountsBySport,
+            fallback_rows_after_pregame_filter_by_sport: fallbackRowsAfterPregameBySport,
+            rows_before_filters_by_sport: rowsBeforeFiltersBySport,
+            rows_after_filters_by_sport: {},
+            rows_returned_by_sport: {},
+            missing_worker_sports: fallbackSports,
+            worker_read_failures: workerReadFailures,
+            unrecovered_worker_read_failures: unrecoveredWorkerReadFailures,
+            response_cache: {
+              read_enabled: !includeDebug,
+              write_enabled: false,
+              skip_reason: "unrecovered_worker_read_failure",
+              serialized_bytes: 0,
+            },
+          } satisfies OpportunitiesDebug,
+        },
+        {
+          status: 503,
+          headers: {
+            "X-Cache": "BYPASS",
+            "X-Timing-Ms": String(Date.now() - startTime),
+            "X-Edge-Source": responseSource || "",
+            "X-Edge-Requested-Sports": sports.join(","),
+            "X-Edge-Read-Failures": unrecoveredWorkerReadFailures.join(","),
+            "Cache-Control": "no-store",
+          },
+        }
+      );
     }
 
     // ── Step 4: No data found — return empty results (not an error) ─────
@@ -645,6 +847,7 @@ export async function GET(req: NextRequest) {
     });
 
     const totalAfterFilters = allOpportunities.length;
+    const rowsAfterFiltersBySport = countOpportunitySports(allOpportunities);
 
     // ── Step 6: Sort ──────────────────────────────────────────────────────
     const getUniqueKey = (o: Opportunity) =>
@@ -664,6 +867,7 @@ export async function GET(req: NextRequest) {
     });
 
     const paginated = allOpportunities.slice(0, limit);
+    const rowsReturnedBySport = countOpportunitySports(paginated);
     await hydrateOpportunitiesWithLiveLiquidity(paginated);
 
     const response: OpportunitiesResponse = {
@@ -692,7 +896,42 @@ export async function GET(req: NextRequest) {
     };
 
     const serializedResponse = JSON.stringify(response);
-    const shouldCacheResponse = serializedResponse.length <= OPPS_MAX_CACHE_BYTES;
+    const responseCacheSkipReason =
+      includeDebug
+        ? "debug_request"
+        : Object.keys(workerReadFailures).length > 0
+          ? "worker_read_failure"
+          : serializedResponse.length > OPPS_MAX_CACHE_BYTES
+            ? "response_too_large"
+            : null;
+    const shouldCacheResponse = responseCacheSkipReason === null;
+
+    if (includeDebug) {
+      response.debug = {
+        requested_sports: sports,
+        preset_key: workerPreset,
+        can_use_worker_response_cache: canUseWorkerResponseCache,
+        worker_read_status_by_sport: workerReadStatusBySport,
+        worker_row_counts_by_sport: workerRowCountsBySport,
+        worker_rows_after_pregame_filter_by_sport: workerRowsAfterPregameBySport,
+        worker_computed_at_by_sport: workerComputedAtBySport,
+        fallback_sports: sportsForFallback,
+        fallback_row_counts_by_sport: fallbackRowCountsBySport,
+        fallback_rows_after_pregame_filter_by_sport: fallbackRowsAfterPregameBySport,
+        rows_before_filters_by_sport: rowsBeforeFiltersBySport,
+        rows_after_filters_by_sport: rowsAfterFiltersBySport,
+        rows_returned_by_sport: rowsReturnedBySport,
+        missing_worker_sports: fallbackSports,
+        worker_read_failures: workerReadFailures,
+        unrecovered_worker_read_failures: unrecoveredWorkerReadFailures,
+        response_cache: {
+          read_enabled: false,
+          write_enabled: shouldCacheResponse,
+          skip_reason: responseCacheSkipReason,
+          serialized_bytes: serializedResponse.length,
+        },
+      };
+    }
 
     // ── Step 7: Cache the filtered response ───────────────────────────────
     if (shouldCacheResponse) {
@@ -705,6 +944,10 @@ export async function GET(req: NextRequest) {
       headers: {
         "X-Cache": "MISS",
         "X-Timing-Ms": String(Date.now() - startTime),
+        "X-Edge-Source": responseSource || "",
+        "X-Edge-Requested-Sports": sports.join(","),
+        "X-Edge-Returned-Sports": summarizeCountKeys(rowsReturnedBySport),
+        "X-Edge-Read-Failures": Object.keys(workerReadFailures).join(","),
         "Cache-Control": "private, max-age=15",
       },
     });
