@@ -13,7 +13,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef } from "react";
 import {
   type Opportunity,
   type OpportunityFilters,
@@ -604,7 +604,8 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
 async function fetchFilterOpportunities(
   config: FilterConfig,
   isPro: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  forceRefresh: boolean = false
 ): Promise<{
   opportunities: Opportunity[];
   totalScanned: number;
@@ -613,6 +614,9 @@ async function fetchFilterOpportunities(
   config: FilterConfig;
 }> {
   const params = buildQueryParams(config.filters, isPro);
+  if (forceRefresh) {
+    params.set("refresh", "true");
+  }
   const url = `/api/v2/opportunities?${params.toString()}`;
 
   const response = await fetch(url, { 
@@ -859,6 +863,7 @@ export function useMultiFilterOpportunities({
 
   const effectiveLimit = limit ?? (isPro ? 200 : 50);
   const isCustomMode = activePresets.length > 0;
+  const forceRefreshRef = useRef(false);
   
   // PROGRESSIVE LOADING: Use smaller batch for initial fast load
   const useProgressiveLoading = effectiveLimit > INITIAL_BATCH_SIZE && isPro;
@@ -968,7 +973,9 @@ export function useMultiFilterOpportunities({
     queryKey: initialQueryKey,
     queryFn: async ({ signal }) => {
       const results = await Promise.all(
-        initialFilterConfigs.map(config => fetchFilterOpportunities(config, isPro, signal))
+        initialFilterConfigs.map(config =>
+          fetchFilterOpportunities(config, isPro, signal, forceRefreshRef.current)
+        )
       );
       const merged = mergeOpportunities(results);
       return {
@@ -1002,7 +1009,9 @@ export function useMultiFilterOpportunities({
     queryKey: fullQueryKey,
     queryFn: async ({ signal }) => {
       const results = await Promise.all(
-        fullFilterConfigs.map(config => fetchFilterOpportunities(config, isPro, signal))
+        fullFilterConfigs.map(config =>
+          fetchFilterOpportunities(config, isPro, signal, forceRefreshRef.current)
+        )
       );
       const merged = mergeOpportunities(results);
       return {
@@ -1039,10 +1048,15 @@ export function useMultiFilterOpportunities({
 
   // Refetch function that refetches both queries
   const queryRefetch = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: initialQueryKey }),
-      queryClient.invalidateQueries({ queryKey: fullQueryKey }),
-    ]);
+    forceRefreshRef.current = true;
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: initialQueryKey }),
+        queryClient.invalidateQueries({ queryKey: fullQueryKey }),
+      ]);
+    } finally {
+      forceRefreshRef.current = false;
+    }
   }, [queryClient, initialQueryKey, fullQueryKey]);
 
   // OPTIMIZATION: Prefetch function for presets on hover

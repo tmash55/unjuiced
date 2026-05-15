@@ -404,11 +404,7 @@ export function MobileEdgeFinder({
               <button
                 onClick={() => {
                   if (!canUseAutoRefresh) return;
-                  if (autoRefresh && streamFailed && onStreamReconnect) {
-                    onStreamReconnect();
-                  } else {
-                    onAutoRefreshChange(!autoRefresh);
-                  }
+                  onAutoRefreshChange(!autoRefresh);
                 }}
                 disabled={!canUseAutoRefresh}
                 aria-pressed={autoRefresh}
