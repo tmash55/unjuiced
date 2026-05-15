@@ -1033,11 +1033,13 @@ export function PlayerDrilldownV2({
             dvpRankByOpponent={dvpRankByOpponent}
             dvpTotalTeams={dvpTotalTeams}
             paceRankByOpponent={paceRankByOpponent}
+            paceTotalTeams={teamPaceQuery.totalTeams}
             metricOverlays={metricOverlays}
             onMetricOverlayToggle={(key) => chartPrefs.toggleMetricOverlay(key)}
             playTypeDefenseFilters={playTypeDefenseFilters}
             tonightDate={oddsContextProfile.gameDate}
             tonightSpread={oddsContextProfile.spread}
+            tonightTotal={oddsContextProfile.total}
             tonightOpponentTeamId={currentOpponentTeamId}
             activeFilterChips={activeFilterChips}
             onClearAllFilters={onClearAllFilters}

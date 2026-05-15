@@ -182,6 +182,9 @@ interface HitRateChartProps {
   /** Opp team_id → pace rank (lower = faster). Powers the per-game pace
    *  overlay tier dots when the user enables that chart setting. */
   paceRankByOpponent?: Map<number, number>;
+  /** League team count for pace ranks. Usually matches DvP, but it is sourced
+   *  from the pace API so the pace overlay does not inherit stale DvP metadata. */
+  paceTotalTeams?: number;
   /** Set of metric keys (e.g., "minutes") the user has toggled on as
    *  per-game line overlays via the metric range popovers. Each metric
    *  renders as a distinct color line + dot trail across the chart. */
@@ -196,6 +199,8 @@ interface HitRateChartProps {
   /** Tonight's spread for the player's team — drives whether Close or
    *  Blowout is the contextual inline chip. */
   tonightSpread?: number | null;
+  /** Tonight's game total. Used in the upcoming-game hover card. */
+  tonightTotal?: number | null;
   /** Tonight's opponent team_id. Drives whether the inline DvP chip
    *  upgrades to the sharper Top 5 / Bottom 5 tier when the matchup is
    *  in the extreme. */
@@ -352,11 +357,13 @@ export function HitRateChart({
   dvpRankByOpponent,
   dvpTotalTeams,
   paceRankByOpponent,
+  paceTotalTeams,
   metricOverlays,
   onMetricOverlayToggle,
   playTypeDefenseFilters,
   tonightDate,
   tonightSpread,
+  tonightTotal,
   tonightOpponentTeamId,
   activeFilterChips,
   onClearAllFilters,
@@ -402,6 +409,11 @@ export function HitRateChart({
     sport,
     upcomingGameDate ?? tonightDate,
     dvpTotalTeams,
+  );
+  const effectivePaceTotalTeams = getDvpTeamCount(
+    sport,
+    upcomingGameDate ?? tonightDate,
+    paceTotalTeams,
   );
   // Container width drives responsive bar sizing. ResizeObserver keeps it in
   // sync as the layout / viewport changes (e.g. roster rail collapses on
@@ -675,6 +687,14 @@ export function HitRateChart({
   const gapPx = gapForCount(itemCount);
   const trackWidth =
     itemCount > 0 ? itemCount * barWidth + (itemCount - 1) * gapPx : 0;
+  const upcomingDvpRank =
+    upcomingSlot && tonightOpponentTeamId != null
+      ? (dvpRankByOpponent?.get(tonightOpponentTeamId) ?? null)
+      : null;
+  const upcomingPaceRank =
+    upcomingSlot && tonightOpponentTeamId != null
+      ? (paceRankByOpponent?.get(tonightOpponentTeamId) ?? null)
+      : null;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1170,7 +1190,7 @@ export function HitRateChart({
                             <RankLineOverlay
                               games={chartGames}
                               rankMap={paceRankByOpponent}
-                              totalTeams={effectiveDvpTotalTeams}
+                              totalTeams={effectivePaceTotalTeams}
                               barWidth={barWidth}
                               gapPx={gapPx}
                               chartHeight={CHART_HEIGHT}
@@ -1244,20 +1264,20 @@ export function HitRateChart({
                       <Tooltip
                         side="top"
                         content={
-                          <div className="px-3 py-2 text-[11px]">
-                            <div className="font-bold tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
-                              Upcoming
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 font-bold text-neutral-700 dark:text-neutral-200">
-                              <span className="tabular-nums">
-                                {upcomingSlot.date.slice(5).replace("-", "/")}
-                              </span>
-                              <span className="text-neutral-400 dark:text-neutral-500">
-                                {upcomingSlot.homeAway === "H" ? "vs" : "@"}
-                              </span>
-                              <span>{upcomingSlot.opponentAbbr ?? "OPP"}</span>
-                            </div>
-                          </div>
+                          <UpcomingGameTooltip
+                            date={upcomingSlot.date}
+                            opponentAbbr={upcomingSlot.opponentAbbr}
+                            homeAway={upcomingSlot.homeAway}
+                            sport={sport}
+                            line={line}
+                            market={market}
+                            spread={tonightSpread}
+                            total={tonightTotal}
+                            dvpRank={upcomingDvpRank}
+                            paceRank={upcomingPaceRank}
+                            dvpTotalTeams={effectiveDvpTotalTeams}
+                            paceTotalTeams={effectivePaceTotalTeams}
+                          />
                         }
                       >
                         <div
@@ -1520,7 +1540,7 @@ export function HitRateChart({
                       }
                       if (id.startsWith("pace")) legacyActive = true;
                     }
-                    const total = effectiveDvpTotalTeams;
+                    const total = effectivePaceTotalTeams;
                     const tierSize = Math.max(3, Math.round(total / 3));
                     const fastCutoff = tierSize;
                     const slowCutoff = total - tierSize + 1;
@@ -1822,7 +1842,8 @@ export function HitRateChart({
                 playerAvgsById,
                 dvpRank,
                 paceRank,
-                totalTeams: effectiveDvpTotalTeams,
+                dvpTotalTeams: effectiveDvpTotalTeams,
+                paceTotalTeams: effectivePaceTotalTeams,
               });
             })()}
           </div>,
@@ -2032,7 +2053,8 @@ function renderBarTooltip({
   playerAvgsById,
   dvpRank,
   paceRank,
-  totalTeams,
+  dvpTotalTeams,
+  paceTotalTeams,
 }: {
   game: BoxScoreGame;
   value: number;
@@ -2047,7 +2069,8 @@ function renderBarTooltip({
   // tooltip with rank + tier label.
   dvpRank?: number | null;
   paceRank?: number | null;
-  totalTeams?: number;
+  dvpTotalTeams?: number;
+  paceTotalTeams?: number;
 }) {
   const isHit = value >= line;
   const margin = value - line;
@@ -2165,27 +2188,28 @@ function renderBarTooltip({
           between the per-market stats and Teammates Out as supporting
           context. Single inline row (label + #rank + tier) keeps the block
           compact instead of large card-style cells. */}
-      {(typeof dvpRank === "number" || typeof paceRank === "number") &&
-        typeof totalTeams === "number" && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-200/40 px-3 py-1.5 text-[11px] dark:border-neutral-800/40">
-            {typeof dvpRank === "number" && (
+      {(typeof dvpRank === "number" || typeof paceRank === "number") && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-200/40 px-3 py-1.5 text-[11px] dark:border-neutral-800/40">
+          {typeof dvpRank === "number" &&
+            typeof dvpTotalTeams === "number" && (
               <RankInline
                 label="Opp DvP"
                 rank={dvpRank}
-                totalTeams={totalTeams}
+                totalTeams={dvpTotalTeams}
                 kind="dvp"
               />
             )}
-            {typeof paceRank === "number" && (
+          {typeof paceRank === "number" &&
+            typeof paceTotalTeams === "number" && (
               <RankInline
                 label="Opp Pace"
                 rank={paceRank}
-                totalTeams={totalTeams}
+                totalTeams={paceTotalTeams}
                 kind="pace"
               />
             )}
-          </div>
-        )}
+        </div>
+      )}
 
       {/* Teammates Out — top 3 by season avg for this stat. Avg gets a tier
           color (gold/orange/neutral) so the eye spots the impact rotation
@@ -2200,6 +2224,134 @@ function renderBarTooltip({
             playerAvgsById={playerAvgsById}
           />
         )}
+    </div>
+  );
+}
+
+function UpcomingGameTooltip({
+  date,
+  opponentAbbr,
+  homeAway,
+  sport,
+  line,
+  market,
+  spread,
+  total,
+  dvpRank,
+  paceRank,
+  dvpTotalTeams,
+  paceTotalTeams,
+}: {
+  date: string;
+  opponentAbbr: string | null;
+  homeAway: string | null;
+  sport: "nba" | "wnba";
+  line: number;
+  market: string;
+  spread?: number | null;
+  total?: number | null;
+  dvpRank?: number | null;
+  paceRank?: number | null;
+  dvpTotalTeams: number;
+  paceTotalTeams: number;
+}) {
+  const parsed = new Date(`${date}T00:00:00`);
+  const tooltipDate = Number.isNaN(parsed.getTime())
+    ? date
+    : parsed.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+  const matchupLabel = `${homeAway === "H" ? "vs" : "@"} ${
+    opponentAbbr ?? "OPP"
+  }`;
+
+  return (
+    <div className="w-[290px] max-w-[calc(100vw-24px)] overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200/60 px-3 py-2 dark:border-neutral-800/60">
+        <div>
+          <div className="text-[9px] font-black tracking-[0.16em] text-neutral-400 uppercase dark:text-neutral-500">
+            Upcoming
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+            {opponentAbbr && (
+              <img
+                src={getTeamLogoUrl(opponentAbbr, sport)}
+                alt={opponentAbbr}
+                className="h-4 w-4 object-contain"
+              />
+            )}
+            <span className="tabular-nums">{tooltipDate}</span>
+            <span className="text-neutral-400 dark:text-neutral-500">
+              {matchupLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 divide-x divide-neutral-200/50 border-b border-neutral-200/50 dark:divide-neutral-800/60 dark:border-neutral-800/60">
+        <UpcomingMetric
+          label="Prop"
+          value={formatLine(line)}
+          detail={formatMarketLabel(market)}
+        />
+        <UpcomingMetric
+          label="Spread"
+          value={typeof spread === "number" ? formatSpreadValue(spread) : "—"}
+        />
+        <UpcomingMetric
+          label="O/U"
+          value={typeof total === "number" ? formatTotalValue(total) : "—"}
+        />
+      </div>
+
+      {(typeof dvpRank === "number" || typeof paceRank === "number") && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-[11px]">
+          {typeof dvpRank === "number" && (
+            <RankInline
+              label="Opp DvP"
+              rank={dvpRank}
+              totalTeams={dvpTotalTeams}
+              kind="dvp"
+            />
+          )}
+          {typeof paceRank === "number" && (
+            <RankInline
+              label="Opp Pace"
+              rank={paceRank}
+              totalTeams={paceTotalTeams}
+              kind="pace"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpcomingMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="min-w-0 px-3 py-2">
+      <div className="text-[9px] font-black tracking-[0.14em] text-neutral-400 uppercase dark:text-neutral-500">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate text-sm font-black text-neutral-900 tabular-nums dark:text-neutral-100">
+        {value}
+      </div>
+      {detail && (
+        <div className="mt-0.5 truncate text-[9px] font-bold tracking-[0.08em] text-neutral-400 uppercase dark:text-neutral-500">
+          {detail}
+        </div>
+      )}
     </div>
   );
 }
@@ -2361,6 +2513,15 @@ function ChartEmpty() {
 }
 
 function formatLine(value: number): string {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
+function formatSpreadValue(value: number): string {
+  const formatted = Number.isInteger(value) ? `${value}` : value.toFixed(1);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+function formatTotalValue(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
