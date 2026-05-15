@@ -31,7 +31,7 @@ import { FiltersDrawer } from "./filters-drawer";
 import { ChartSettingsPopover } from "./chart-settings-popover";
 import { MetricRangePopover } from "./metric-range-popover";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
+import { getDvpRankYPercent, getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 // Maps the short-form inline-chip prefix (e.g. "minutes" from "minutes30")
 // onto the corresponding METRIC_FILTERS key. Anything in this map will
@@ -2773,6 +2773,12 @@ function RankLineOverlay({
   // the bar tops or baseline labels.
   const yMargin = 10;
   const yRange = Math.max(1, chartHeight - yMargin * 2);
+  const getRankY = (rank: number) => {
+    const yPercent = getDvpRankYPercent(rank, totalTeams) / 100;
+    return inverted
+      ? yMargin + (1 - yPercent) * yRange // rank 1 → bottom, rank N → top
+      : yMargin + yPercent * yRange; // rank 1 → top, rank N → bottom
+  };
   const points: Array<{
     x: number;
     y: number;
@@ -2785,10 +2791,7 @@ function RankLineOverlay({
     if (rank == null) return;
     // Center of this game's bar column in pixels.
     const x = idx * (barWidth + gapPx) + barWidth / 2;
-    const t = (rank - 1) / Math.max(1, totalTeams - 1); // 0..1
-    const y = inverted
-      ? yMargin + (1 - t) * yRange // rank 1 → bottom, rank N → top
-      : yMargin + t * yRange; // rank 1 → top, rank N → bottom
+    const y = getRankY(rank);
     points.push({ x, y, rank });
   });
   // Extend the trend through the upcoming-game column when we know the
@@ -2798,8 +2801,7 @@ function RankLineOverlay({
     const upcomingRank = rankMap.get(upcomingOpponentTeamId);
     if (upcomingRank != null) {
       const x = games.length * (barWidth + gapPx) + barWidth / 2;
-      const t = (upcomingRank - 1) / Math.max(1, totalTeams - 1);
-      const y = inverted ? yMargin + (1 - t) * yRange : yMargin + t * yRange;
+      const y = getRankY(upcomingRank);
       points.push({ x, y, rank: upcomingRank, isUpcoming: true });
     }
   }
