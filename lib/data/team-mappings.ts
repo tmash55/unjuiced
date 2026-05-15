@@ -300,21 +300,22 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   // Get standardized team abbreviation
   export function getStandardAbbreviation(teamName: string, sport: string = "baseball_mlb"): string {
     if (!teamName) return ""
+    const sportKey = sport.toLowerCase()
     
     // Normalize sport names used by API routes and logo folders.
     // Took main's ternary form — same behavior as HEAD's if-chain for the
     // five known sports, with a clean passthrough for anything else.
-    const normalizedSport = sport === "mlb"
+    const normalizedSport = sportKey === "mlb"
       ? "baseball_mlb"
-      : sport === "wnba"
+      : sportKey === "wnba"
         ? "basketball_wnba"
-        : sport === "nba"
+        : sportKey === "nba"
           ? "basketball_nba"
-          : sport === "nfl"
+          : sportKey === "nfl"
             ? "football_nfl"
-            : sport === "nhl"
+            : sportKey === "nhl"
               ? "icehockey_nhl"
-              : sport
+              : sportKey
     
     // First, check if it's a full team name
     const teamMaps: Record<string, Record<string, string>> = {
@@ -540,7 +541,7 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       ? 'ncaaf'
       : sportKey === 'basketball_wnba'
         ? 'wnba'
-        : sport;
+        : sportKey;
     return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
   }
 

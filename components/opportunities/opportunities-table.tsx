@@ -349,7 +349,7 @@ const getTeamLogoUrl = (teamName: string, sport: string): string => {
     ? 'ncaaf'
     : sportKey === 'basketball_wnba'
       ? 'wnba'
-      : sport;
+      : sportKey;
   return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
 };
 
