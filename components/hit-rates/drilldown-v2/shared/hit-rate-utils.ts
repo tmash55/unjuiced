@@ -80,6 +80,10 @@ export interface HitRateBuckets {
   h2hSample: number | null;
 }
 
+interface ComputeHitRatesOptions {
+  seasonFilter?: (game: BoxScoreGame) => boolean;
+}
+
 // Compute hit rates for L5/L10/L20/season/H2H against an arbitrary line. Used
 // when the user adjusts the line via the stepper — server-side rates are only
 // valid for the prop's default line.
@@ -87,7 +91,8 @@ export function computeHitRates(
   games: BoxScoreGame[],
   market: string,
   line: number,
-  opponentTeamId: number | null
+  opponentTeamId: number | null,
+  options: ComputeHitRatesOptions = {},
 ): HitRateBuckets {
   // Newest game first — date is YYYY-MM-DD so a string sort works.
   const sortedGames = [...games].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
@@ -101,7 +106,10 @@ export function computeHitRates(
   const l5 = bucket(sortedGames.slice(0, 5));
   const l10 = bucket(sortedGames.slice(0, 10));
   const l20 = bucket(sortedGames.slice(0, 20));
-  const season = bucket(sortedGames);
+  const seasonGames = options.seasonFilter
+    ? sortedGames.filter(options.seasonFilter)
+    : sortedGames;
+  const season = bucket(seasonGames);
   const h2h = opponentTeamId
     ? bucket(sortedGames.filter((g) => g.opponentTeamId === opponentTeamId))
     : { pct: null, sample: 0 };

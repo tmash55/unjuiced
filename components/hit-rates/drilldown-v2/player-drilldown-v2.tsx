@@ -120,6 +120,31 @@ const gameMatchesChartSplit = (game: BoxScoreGame, split: ChartSplit) => {
   }
 };
 
+const getCurrentSeasonId = (sport: "nba" | "wnba") => {
+  const today = new Date();
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth() + 1;
+  if (sport === "wnba") return String(year);
+  return String(month >= 8 ? year : year - 1);
+};
+
+const getGameSeasonId = (
+  dateStr: string | null | undefined,
+  sport: "nba" | "wnba",
+) => {
+  if (!dateStr) return null;
+  const year = Number(dateStr.slice(0, 4));
+  const month = Number(dateStr.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+  if (sport === "wnba") return String(year);
+  return String(month >= 8 ? year : year - 1);
+};
+
+const gameMatchesCurrentSeason = (
+  game: BoxScoreGame,
+  sport: "nba" | "wnba",
+) => getGameSeasonId(game.date, sport) === getCurrentSeasonId(sport);
+
 const SINGLE_LINE_ODDS_MARKETS = new Set([
   "player_double_double",
   "player_triple_double",
@@ -759,12 +784,15 @@ export function PlayerDrilldownV2({
     quickFilters.size > 0 ||
     chartSplit !== "all";
   const computedRates = useMemo(() => {
-    if (!shouldRecompute || fullyFilteredBoxScores.length === 0) return null;
+    if (!shouldRecompute) return null;
     return computeHitRates(
       fullyFilteredBoxScores,
       profile.market,
       effectiveLine,
       profile.opponentTeamId,
+      {
+        seasonFilter: (game) => gameMatchesCurrentSeason(game, sport),
+      },
     );
   }, [
     shouldRecompute,
@@ -772,6 +800,7 @@ export function PlayerDrilldownV2({
     profile.market,
     profile.opponentTeamId,
     effectiveLine,
+    sport,
   ]);
 
   // Hit-rate segments rendered in the chart header — server-computed by default,
