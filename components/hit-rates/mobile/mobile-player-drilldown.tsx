@@ -67,6 +67,13 @@ import { useFavorites, createFavoriteKey, type AddFavoriteParams, type BookSnaps
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
+import {
+  formatDvpRankRange,
+  getDvpRankBucket,
+  getDvpRankYPercent,
+  getDvpTeamCount,
+  isDvpRankInBucket,
+} from "@/lib/dvp-rank-scale";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -1134,6 +1141,7 @@ interface HeroBarChartProps {
   activeMatchupFilters?: MatchupFilterLine[];
   playTypeRanksMap?: Map<string, Map<string, number>>;
   shotZoneRanksMap?: Map<string, Map<string, number>>;
+  dvpTeamCount: number;
   // Drives the team-logo path on each game bar — was hardcoded to NBA so
   // WNBA charts showed empty / NBA placeholder logos.
   sport: "nba" | "wnba";
@@ -1167,6 +1175,7 @@ function HeroBarChart({
   activeMatchupFilters = [],
   playTypeRanksMap,
   shotZoneRanksMap,
+  dvpTeamCount,
   sport,
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
@@ -1383,7 +1392,7 @@ function HeroBarChart({
                             const rank = ranksMap.get(opponent);
                             if (rank === null || rank === undefined) return null;
                             const x = idx * (barWidthPx + barGapPx) + (barWidthPx / 2);
-                            const yPercent = ((rank - 1) / 29) * 100;
+                            const yPercent = getDvpRankYPercent(rank, dvpTeamCount);
                             const y = chartHeight * (1 - yPercent / 100);
                             return { x, y };
                           })
@@ -1434,7 +1443,7 @@ function HeroBarChart({
               Matchup Lines
             </span>
             {activeMatchupFilters.map((filter) => {
-              const labelText = filter.label === "tough" ? "1-10" : filter.label === "neutral" ? "11-20" : "21-30";
+              const labelText = formatDvpRankRange(filter.label, dvpTeamCount);
               return (
                 <span
                   key={`${filter.type}-${filter.key}`}
@@ -2285,6 +2294,7 @@ interface MatchupFiltersSheetProps {
   onShotZoneFiltersChange: (filters: ShotZoneFilter[]) => void;
   shotZoneRanks: { zone: string; teams: { teamAbbr: string; rank: number }[] }[];
   shotZoneMatchup?: { zones: Array<{ zone: string; display_name: string; opponent_def_rank: number | null; player_pct_of_total: number }> };
+  dvpTeamCount: number;
 }
 
 function MatchupFiltersSheet({
@@ -2301,13 +2311,14 @@ function MatchupFiltersSheet({
   onShotZoneFiltersChange,
   shotZoneRanks,
   shotZoneMatchup,
+  dvpTeamCount,
 }: MatchupFiltersSheetProps) {
   if (!isOpen) return null;
 
   const dvpOptions = [
-    { key: "dvpTough", label: "Tough (1-10)", tone: "red" },
-    { key: "dvpAverage", label: "Avg (11-20)", tone: "amber" },
-    { key: "dvpWeak", label: "Soft (21-30)", tone: "emerald" },
+    { key: "dvpTough", label: `Tough (${formatDvpRankRange("tough", dvpTeamCount)})`, tone: "red" },
+    { key: "dvpAverage", label: `Avg (${formatDvpRankRange("neutral", dvpTeamCount)})`, tone: "amber" },
+    { key: "dvpWeak", label: `Soft (${formatDvpRankRange("favorable", dvpTeamCount)})`, tone: "emerald" },
   ] as const;
 
   const activeCount =
@@ -2321,12 +2332,13 @@ function MatchupFiltersSheet({
         —
       </span>
     );
+    const bucket = getDvpRankBucket(rank, dvpTeamCount);
     const cls =
-      rank >= 21
+      bucket === "favorable"
         ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-        : rank <= 10
-        ? "bg-red-500/20 text-red-600 dark:text-red-400"
-        : "bg-amber-500/20 text-amber-600 dark:text-amber-400";
+        : bucket === "tough"
+          ? "bg-red-500/20 text-red-600 dark:text-red-400"
+          : "bg-amber-500/20 text-amber-600 dark:text-amber-400";
     return (
       <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums", cls)}>
         #{rank}
@@ -2448,7 +2460,7 @@ function MatchupFiltersSheet({
                             : label === "neutral"
                             ? isActive ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                             : isActive ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                          const labelText = label === "tough" ? "1-10" : label === "neutral" ? "11-20" : "21-30";
+                          const labelText = formatDvpRankRange(label, dvpTeamCount);
                           return (
                             <button
                               key={label}
@@ -2532,7 +2544,7 @@ function MatchupFiltersSheet({
                             : label === "neutral"
                             ? isActive ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                             : isActive ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                          const labelText = label === "tough" ? "1-10" : label === "neutral" ? "11-20" : "21-30";
+                          const labelText = formatDvpRankRange(label, dvpTeamCount);
                           return (
                             <button
                               key={label}
@@ -3313,15 +3325,24 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
   
   // Use selected position instead of player's actual position
   const playerPosition = selectedPosition;
+  const wnbaDefenseSeason =
+    sport === "wnba"
+      ? (profile.gameDate?.match(/\b(20\d{2})\b/)?.[1] ?? "2026")
+      : undefined;
 
   
   // Fetch team defense ranks for all positions (for the matrix)
-  const { positions: defensePositions, isLoading: defenseLoading } = useTeamDefenseRanks({
+  const { positions: defensePositions, meta: defenseMeta, isLoading: defenseLoading } = useTeamDefenseRanks({
     opponentTeamId: profile.opponentTeamId,
     sport,
-    season: sport === "wnba" ? "2026" : undefined,
+    season: wnbaDefenseSeason,
     enabled: !!profile.opponentTeamId,
   });
+  const defenseTotalTeams = getDvpTeamCount(
+    sport,
+    wnbaDefenseSeason ?? profile.gameDate,
+    defenseMeta?.totalTeams ?? profile.dvpTotalTeams,
+  );
   
   // Markets for the matrix
   const MATRIX_MARKETS = [
@@ -3349,18 +3370,11 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
     return { rank: data.rank, avgAllowed: data.avgAllowed };
   }, [defensePositions, playerPosition, selectedMarket]);
 
-  // Get rank color for DvP badge — sport-aware.
-  // NBA: 30 teams (tough = 1-10, soft = 21-30)
-  // WNBA: 15 teams in 2026 (tough = 1-5, soft = 11-15)
-  // Was hardcoded to NBA cutoffs which painted every WNBA badge red since
-  // most WNBA ranks fell into the rank<=10 bucket.
   const getRankColor = (rank: number | null | undefined) => {
     if (!rank) return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
-    const totalTeams = sport === "wnba" ? 15 : 30;
-    const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
-    const softMin = totalTeams - toughCutoff + 1;
-    if (rank <= toughCutoff) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
-    if (rank >= softMin) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
+    const bucket = getDvpRankBucket(rank, defenseTotalTeams);
+    if (bucket === "tough") return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+    if (bucket === "favorable") return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
     return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
   };
 
@@ -3588,8 +3602,9 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
                         // Colors based on rank (low rank = hard = red, high rank = good = green)
                         const getRankTextColor = () => {
                           if (!rank) return "text-neutral-400";
-                          if (rank <= 10) return "text-red-600 dark:text-red-400";
-                          if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
+                          const bucket = getDvpRankBucket(rank, defenseTotalTeams);
+                          if (bucket === "tough") return "text-red-600 dark:text-red-400";
+                          if (bucket === "favorable") return "text-emerald-600 dark:text-emerald-400";
                           return "text-neutral-600 dark:text-neutral-400";
                         };
                         
@@ -3646,6 +3661,7 @@ interface MarketStatCardProps {
   matchupRank: number | null;
   avgAllowed: number | null;
   isLoadingRank: boolean;
+  totalTeams?: number;
 }
 
 function MarketStatCard({ 
@@ -3658,7 +3674,8 @@ function MarketStatCard({
   isActive, 
   matchupRank,
   avgAllowed,
-  isLoadingRank 
+  isLoadingRank,
+  totalTeams = 30,
 }: MarketStatCardProps) {
   const { avgStat, totalGames, isLoading } = usePositionVsTeam({
     position,
@@ -3683,15 +3700,17 @@ function MarketStatCard({
   // Get rank color (low rank = hard = red, high rank = good = green)
   const getRankColor = (rank: number | null) => {
     if (!rank) return "text-neutral-500";
-    if (rank <= 10) return "text-red-600 dark:text-red-400"; // Hard matchup (tough defense)
-    if (rank >= 21) return "text-emerald-600 dark:text-emerald-400"; // Good matchup (weak defense)
+    const bucket = getDvpRankBucket(rank, totalTeams);
+    if (bucket === "tough") return "text-red-600 dark:text-red-400";
+    if (bucket === "favorable") return "text-emerald-600 dark:text-emerald-400";
     return "text-neutral-600 dark:text-neutral-400"; // Neutral
   };
 
   const getRankBg = (rank: number | null) => {
     if (!rank) return "bg-neutral-100 dark:bg-neutral-800";
-    if (rank <= 10) return "bg-red-100 dark:bg-red-900/30";
-    if (rank >= 21) return "bg-emerald-100 dark:bg-emerald-900/30";
+    const bucket = getDvpRankBucket(rank, totalTeams);
+    if (bucket === "tough") return "bg-red-100 dark:bg-red-900/30";
+    if (bucket === "favorable") return "bg-emerald-100 dark:bg-emerald-900/30";
     return "bg-neutral-100 dark:bg-neutral-800";
   };
 
@@ -3737,9 +3756,9 @@ function MarketStatCard({
       {/* Rank with Meter */}
       <div className="flex items-center justify-center gap-1.5">
         {/* Rank Meter Dot (low rank = hard = red, high rank = good = green) */}
-        {rank && rank <= 10 && <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
-        {rank && rank > 10 && rank <= 20 && <div className="h-1.5 w-1.5 rounded-full bg-neutral-400" />}
-        {rank && rank > 20 && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
+        {rank && getDvpRankBucket(rank, totalTeams) === "tough" && <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
+        {rank && getDvpRankBucket(rank, totalTeams) === "neutral" && <div className="h-1.5 w-1.5 rounded-full bg-neutral-400" />}
+        {rank && getDvpRankBucket(rank, totalTeams) === "favorable" && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
         
         {/* Rank Text */}
         <div className={cn(
@@ -3941,7 +3960,7 @@ export function MobilePlayerDrilldown({
   });
   
   // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
-  const { teams: dvpTeams } = useDvpRankings({
+  const { teams: dvpTeams, meta: dvpMeta } = useDvpRankings({
     position: profile.position || "PG",
     sport,
     season: sport === "wnba" ? "2026" : undefined,
@@ -4061,6 +4080,11 @@ export function MobilePlayerDrilldown({
     }
     return map;
   }, [dvpTeams, profile.market]);
+  const dvpTeamCount = getDvpTeamCount(
+    sport,
+    profile.gameDate ?? rosterSeason,
+    profile.dvpTotalTeams ?? dvpMeta?.totalTeams,
+  );
   
   // Build a map of gameId -> teammates out (player IDs who were out for that game)
   // Uses the full injury context data from get_player_games_with_injuries RPC
@@ -4533,13 +4557,13 @@ export function MobilePlayerDrilldown({
         const teamData = playTypeData.teams.find((t) => t.teamAbbr === opponentAbbr);
         if (!teamData) continue;
         const rank = teamData.pppRank;
-        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        const matchupLabel = getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
         if (matchupLabel !== filter.label) return false;
       }
 
       return true;
     });
-  }, [playTypeFilters, playTypeRanks]);
+  }, [playTypeFilters, playTypeRanks, dvpTeamCount]);
 
   const applyShotZoneFiltersToChart = useCallback((games: typeof chartGames) => {
     if (shotZoneFilters.length === 0 || shotZoneRanks.length === 0) return games;
@@ -4553,13 +4577,13 @@ export function MobilePlayerDrilldown({
         const teamData = zoneData.teams.find((t) => t.teamAbbr === opponentAbbr);
         if (!teamData) continue;
         const rank = teamData.rank;
-        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        const matchupLabel = getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
         if (matchupLabel !== filter.label) return false;
       }
 
       return true;
     });
-  }, [shotZoneFilters, shotZoneRanks]);
+  }, [shotZoneFilters, shotZoneRanks, dvpTeamCount]);
   
   // Filter games based on quick filters AND injury filters
   const filteredChartGames = useMemo(() => {
@@ -4592,9 +4616,9 @@ export function MobilePlayerDrilldown({
           
           // Check if game matches ANY of the active DvP filters (OR logic)
           const matchesDvpFilter = (
-            (quickFilters.has("dvpTough") && dvpRank >= 1 && dvpRank <= 10) ||
-            (quickFilters.has("dvpAverage") && dvpRank >= 11 && dvpRank <= 20) ||
-            (quickFilters.has("dvpWeak") && dvpRank >= 21 && dvpRank <= 30)
+            (quickFilters.has("dvpTough") && isDvpRankInBucket(dvpRank, "tough", dvpTeamCount)) ||
+            (quickFilters.has("dvpAverage") && isDvpRankInBucket(dvpRank, "neutral", dvpTeamCount)) ||
+            (quickFilters.has("dvpWeak") && isDvpRankInBucket(dvpRank, "favorable", dvpTeamCount))
           );
           if (!matchesDvpFilter) return false;
         }
@@ -4731,7 +4755,7 @@ export function MobilePlayerDrilldown({
     }
     
     return games;
-  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, opponentDvpRanks, applyPlayTypeFiltersToChart, applyShotZoneFiltersToChart]);
+  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, opponentDvpRanks, dvpTeamCount, applyPlayTypeFiltersToChart, applyShotZoneFiltersToChart]);
 
   // Games for TrendingFilters/AdvancedFilters histograms - applies quick + injury filters but NOT advanced filters
   // This way when you filter "without Sam Merrill", the histogram shows only those games
@@ -4782,7 +4806,7 @@ export function MobilePlayerDrilldown({
           const teamData = playTypeData.teams.find(t => t.teamAbbr === opponentAbbr);
           if (!teamData) continue;
           const rank = teamData.pppRank;
-          const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          const matchupLabel = getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
           if (matchupLabel !== filter.label) return false;
         }
 
@@ -4802,7 +4826,7 @@ export function MobilePlayerDrilldown({
           const teamData = zoneData.teams.find(t => t.teamAbbr === opponentAbbr);
           if (!teamData) continue;
           const rank = teamData.rank;
-          const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          const matchupLabel = getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
           if (matchupLabel !== filter.label) return false;
         }
 
@@ -4819,7 +4843,7 @@ export function MobilePlayerDrilldown({
     }
     
     return games;
-  }, [boxScoreGames, quickFilters, injuryFilters, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, playTypeFilters, shotZoneFilters, playTypeRanks, shotZoneRanks]);
+  }, [boxScoreGames, quickFilters, injuryFilters, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, playTypeFilters, shotZoneFilters, playTypeRanks, shotZoneRanks, dvpTeamCount]);
   
   // Calculate average from filtered games
   const avg = useMemo(() => {
@@ -5010,11 +5034,11 @@ export function MobilePlayerDrilldown({
                   return (
                     <span className={cn(
                       "text-[9px] font-bold px-1 py-0.5 rounded-sm",
-                      upcomingDvpRank <= 10 
-                        ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
-                        : upcomingDvpRank <= 20
-                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
-                        : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+	                      getDvpRankBucket(upcomingDvpRank, dvpTeamCount) === "tough"
+	                        ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+	                        : getDvpRankBucket(upcomingDvpRank, dvpTeamCount) === "neutral"
+	                          ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+	                          : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
                     )}>
                       DvP #{upcomingDvpRank}
                     </span>
@@ -5090,9 +5114,9 @@ export function MobilePlayerDrilldown({
                     loss: "Losses",
                     wonBy10: "Won 10+",
                     lostBy10: "Lost 10+",
-                    dvpTough: "DvP 1-10",
-                    dvpAverage: "DvP 11-20",
-                    dvpWeak: "DvP 21-30",
+	                    dvpTough: `DvP ${formatDvpRankRange("tough", dvpTeamCount)}`,
+	                    dvpAverage: `DvP ${formatDvpRankRange("neutral", dvpTeamCount)}`,
+	                    dvpWeak: `DvP ${formatDvpRankRange("favorable", dvpTeamCount)}`,
                   };
                   return (
                     <span key={filter} className="text-[9px] px-1.5 py-0.5 rounded bg-brand/10 text-brand font-medium">
@@ -5409,6 +5433,7 @@ export function MobilePlayerDrilldown({
         onShotZoneFiltersChange={setShotZoneFilters}
         shotZoneRanks={shotZoneRanks}
         shotZoneMatchup={shotZoneMatchup}
+        dvpTeamCount={dvpTeamCount}
       />
 
       {/* All Odds - Bottom Sheet Modal */}
@@ -5744,6 +5769,7 @@ export function MobilePlayerDrilldown({
               activeMatchupFilters={activeMatchupFilterLines}
               playTypeRanksMap={playTypeRanksMap}
               shotZoneRanksMap={shotZoneRanksMap}
+              dvpTeamCount={dvpTeamCount}
               sport={sport}
             />
             

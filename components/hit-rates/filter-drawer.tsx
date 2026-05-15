@@ -10,6 +10,10 @@ import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import type { PlayTypeData } from "@/hooks/use-team-play-type-ranks";
 import type { ShotZoneData } from "@/hooks/use-team-shot-zone-ranks";
+import {
+  formatDvpRankRange,
+  getDvpRankBucket,
+} from "@/lib/dvp-rank-scale";
 
 // Matchup filter types
 export type MatchupLabel = "tough" | "neutral" | "favorable";
@@ -95,6 +99,7 @@ interface FilterDrawerProps {
   sport?: "nba" | "wnba";
   // DvP data
   hasDvpData?: boolean;
+  dvpTeamCount?: number;
   // Play type and shooting zone matchup data (for current opponent context)
   playTypeMatchup?: { play_types: Array<{ play_type: string; display_name: string; opponent_def_rank: number | null; player_ppg: number }> };
   shotZoneMatchup?: { zones: Array<{ zone: string; display_name: string; opponent_def_rank: number | null; player_pct_of_total: number }> };
@@ -171,6 +176,7 @@ export function FilterDrawer({
   market,
   sport = "nba",
   hasDvpData = false,
+  dvpTeamCount = 30,
   playTypeMatchup,
   shotZoneMatchup,
   opponentTeamAbbr,
@@ -283,6 +289,27 @@ export function FilterDrawer({
     if (key === "dvpAverage") return "bg-amber-500 border-amber-500";
     if (key === "dvpWeak") return "bg-emerald-500 border-emerald-500";
     return "bg-brand border-brand";
+  };
+
+  const getDvpRangeLabel = (label: MatchupLabel) =>
+    formatDvpRankRange(label, dvpTeamCount);
+
+  const getMatchupRankBadgeClass = (rank: number | null | undefined) => {
+    const bucket = getDvpRankBucket(rank, dvpTeamCount);
+    if (bucket === "favorable") return "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400";
+    if (bucket === "tough") return "bg-red-500/20 text-red-600 dark:text-red-400";
+    return "bg-neutral-200 dark:bg-neutral-700 text-neutral-500";
+  };
+
+  const getMatchupRowClass = (rank: number | null | undefined) => {
+    const bucket = getDvpRankBucket(rank, dvpTeamCount);
+    if (bucket === "favorable") {
+      return "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/50 dark:border-emerald-800/30";
+    }
+    if (bucket === "tough") {
+      return "bg-red-50 dark:bg-red-900/20 border border-red-200/50 dark:border-red-800/30";
+    }
+    return "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/30";
   };
 
   // Count injured teammates
@@ -440,7 +467,7 @@ export function FilterDrawer({
             {hasDvpData && (
               <>
                 <span className="text-neutral-200 dark:text-neutral-700">|</span>
-                <Tooltip content="Games vs top 10 defenses at this position (harder matchups)" side="bottom">
+                <Tooltip content={`Games vs top-ranked defenses (${getDvpRangeLabel("tough")}) at this position`} side="bottom">
                   <button
                     type="button"
                     onClick={() => onQuickFilterToggle("dvpTough")}
@@ -454,7 +481,7 @@ export function FilterDrawer({
                     vs Top D
                   </button>
                 </Tooltip>
-                <Tooltip content="Games vs bottom 10 defenses at this position (easier matchups)" side="bottom">
+                <Tooltip content={`Games vs lower-ranked defenses (${getDvpRangeLabel("favorable")}) at this position`} side="bottom">
                   <button
                     type="button"
                     onClick={() => onQuickFilterToggle("dvpWeak")}
@@ -729,17 +756,17 @@ export function FilterDrawer({
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20">
                     <div className="w-1.5 h-1.5 rounded-sm bg-red-500" />
-                    <span className="text-[9px] font-semibold text-red-600 dark:text-red-400">1-10</span>
+                    <span className="text-[9px] font-semibold text-red-600 dark:text-red-400">{getDvpRangeLabel("tough")}</span>
                     <span className="text-[8px] text-neutral-400">Tough</span>
                   </div>
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20">
                     <div className="w-1.5 h-1.5 rounded-sm bg-yellow-500" />
-                    <span className="text-[9px] font-semibold text-yellow-600 dark:text-yellow-400">11-20</span>
+                    <span className="text-[9px] font-semibold text-yellow-600 dark:text-yellow-400">{getDvpRangeLabel("neutral")}</span>
                     <span className="text-[8px] text-neutral-400">Avg</span>
                   </div>
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                     <div className="w-1.5 h-1.5 rounded-sm bg-emerald-500" />
-                    <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">21-30</span>
+                    <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">{getDvpRangeLabel("favorable")}</span>
                     <span className="text-[8px] text-neutral-400">Soft</span>
                   </div>
                 </div>
@@ -790,11 +817,7 @@ export function FilterDrawer({
                               {currentRank && (
                                 <span className={cn(
                                   "px-1 py-0.5 rounded text-[8px] font-bold tabular-nums",
-                                  currentRank >= 21 
-                                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                                    : currentRank <= 10 
-                                      ? "bg-red-500/20 text-red-600 dark:text-red-400"
-                                      : "bg-neutral-200 dark:bg-neutral-700 text-neutral-500"
+                                  getMatchupRankBadgeClass(currentRank)
                                 )}>
                                   #{currentRank}
                                 </span>
@@ -821,15 +844,15 @@ export function FilterDrawer({
                                 const config = {
                                   tough: { 
                                     bg: isActive ? "bg-red-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20",
-                                    text: "1-10"
+                                    text: getDvpRangeLabel("tough")
                                   },
                                   neutral: { 
                                     bg: isActive ? "bg-yellow-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20",
-                                    text: "11-20"
+                                    text: getDvpRangeLabel("neutral")
                                   },
                                   favorable: { 
                                     bg: isActive ? "bg-emerald-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
-                                    text: "21-30"
+                                    text: getDvpRangeLabel("favorable")
                                   },
                                 };
                                 return (
@@ -874,18 +897,12 @@ export function FilterDrawer({
                       .slice(0, 8)
                       .map(pt => {
                         const rank = pt.opponent_def_rank ?? 0;
-                        const isFavorable = rank >= 21;
-                        const isTough = rank <= 10;
                         return (
                           <div 
                             key={pt.play_type}
                             className={cn(
                               "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs",
-                              isFavorable 
-                                ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/50 dark:border-emerald-800/30" 
-                                : isTough 
-                                  ? "bg-red-50 dark:bg-red-900/20 border border-red-200/50 dark:border-red-800/30"
-                                  : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/30"
+                              getMatchupRowClass(rank)
                             )}
                           >
                             <div className="flex-1">
@@ -905,11 +922,7 @@ export function FilterDrawer({
                             </div>
                             <span className={cn(
                               "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums shrink-0",
-                              isFavorable 
-                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                                : isTough 
-                                  ? "bg-red-500/20 text-red-600 dark:text-red-400"
-                                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
+                              getMatchupRankBadgeClass(rank)
                             )}>
                               #{rank}
                             </span>
@@ -968,11 +981,7 @@ export function FilterDrawer({
                               {currentRank && (
                                 <span className={cn(
                                   "px-1 py-0.5 rounded text-[8px] font-bold tabular-nums",
-                                  currentRank >= 21 
-                                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                                    : currentRank <= 10 
-                                      ? "bg-red-500/20 text-red-600 dark:text-red-400"
-                                      : "bg-neutral-200 dark:bg-neutral-700 text-neutral-500"
+                                  getMatchupRankBadgeClass(currentRank)
                                 )}>
                                   #{currentRank}
                                 </span>
@@ -999,15 +1008,15 @@ export function FilterDrawer({
                                 const config = {
                                   tough: { 
                                     bg: isActive ? "bg-red-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20",
-                                    text: "1-10"
+                                    text: getDvpRangeLabel("tough")
                                   },
                                   neutral: { 
                                     bg: isActive ? "bg-yellow-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20",
-                                    text: "11-20"
+                                    text: getDvpRangeLabel("neutral")
                                   },
                                   favorable: { 
                                     bg: isActive ? "bg-emerald-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
-                                    text: "21-30"
+                                    text: getDvpRangeLabel("favorable")
                                   },
                                 };
                                 return (
@@ -1051,18 +1060,12 @@ export function FilterDrawer({
                       .sort((a, b) => (b.opponent_def_rank ?? 0) - (a.opponent_def_rank ?? 0))
                       .map(zone => {
                         const rank = zone.opponent_def_rank ?? 0;
-                        const isFavorable = rank >= 21;
-                        const isTough = rank <= 10;
                         return (
                           <div 
                             key={zone.zone}
                             className={cn(
                               "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs",
-                              isFavorable 
-                                ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/50 dark:border-emerald-800/30" 
-                                : isTough 
-                                  ? "bg-red-50 dark:bg-red-900/20 border border-red-200/50 dark:border-red-800/30"
-                                  : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/30"
+                              getMatchupRowClass(rank)
                             )}
                           >
                             <div className="flex-1">
@@ -1082,11 +1085,7 @@ export function FilterDrawer({
                             </div>
                             <span className={cn(
                               "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums shrink-0",
-                              isFavorable 
-                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                                : isTough 
-                                  ? "bg-red-500/20 text-red-600 dark:text-red-400"
-                                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
+                              getMatchupRankBadgeClass(rank)
                             )}>
                               #{rank}
                             </span>

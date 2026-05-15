@@ -77,6 +77,12 @@ import {
   type BookSnapshot,
 } from "@/hooks/use-favorites";
 import { useOddsLine } from "@/hooks/use-odds-line";
+import {
+  getDvpRankBucket,
+  getDvpRankLabel,
+  getDvpTeamCount,
+  isDvpRankInBucket,
+} from "@/lib/dvp-rank-scale";
 
 // Injury status color helpers
 const getInjuryIconColor = (status: string | null): string => {
@@ -856,7 +862,7 @@ export function PlayerDrilldown({
   }, [rosterPlayers, profile.market]);
 
   // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
-  const { teams: dvpTeams } = useDvpRankings({
+  const { teams: dvpTeams, meta: dvpMeta } = useDvpRankings({
     position: profile.position || "PG",
     sport,
     season: sport === "wnba" ? "2026" : undefined,
@@ -1009,6 +1015,12 @@ export function PlayerDrilldown({
     }
     return map;
   }, [dvpTeams, profile.market]);
+
+  const dvpTeamCount = getDvpTeamCount(
+    sport,
+    profile.gameDate ?? rosterSeason,
+    profile.dvpTotalTeams ?? dvpMeta?.totalTeams,
+  );
 
   // Fetch odds for current profile using new Redis keys
   const activeLine = customLine ?? profile.line;
@@ -1382,9 +1394,12 @@ export function PlayerDrilldown({
 
         // Check if game matches ANY of the active DvP filters (OR logic)
         const matchesDvpFilter =
-          (quickFilters.has("dvpTough") && dvpRank >= 1 && dvpRank <= 10) ||
-          (quickFilters.has("dvpAverage") && dvpRank >= 11 && dvpRank <= 20) ||
-          (quickFilters.has("dvpWeak") && dvpRank >= 21 && dvpRank <= 30);
+          (quickFilters.has("dvpTough") &&
+            isDvpRankInBucket(dvpRank, "tough", dvpTeamCount)) ||
+          (quickFilters.has("dvpAverage") &&
+            isDvpRankInBucket(dvpRank, "neutral", dvpTeamCount)) ||
+          (quickFilters.has("dvpWeak") &&
+            isDvpRankInBucket(dvpRank, "favorable", dvpTeamCount));
         if (!matchesDvpFilter) return false;
       }
 
@@ -1459,7 +1474,7 @@ export function PlayerDrilldown({
 
         const rank = teamData.pppRank;
         const matchupLabel =
-          rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
 
         // If this game's opponent doesn't match the filter label, exclude the game
         if (matchupLabel !== filter.label) return false;
@@ -1490,7 +1505,7 @@ export function PlayerDrilldown({
 
         const rank = teamData.rank;
         const matchupLabel =
-          rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          getDvpRankBucket(rank, dvpTeamCount) ?? "neutral";
 
         // If this game's opponent doesn't match the filter label, exclude the game
         if (matchupLabel !== filter.label) return false;
@@ -1525,6 +1540,7 @@ export function PlayerDrilldown({
     teammatesOutByGame,
     profile.opponentTeamAbbr,
     opponentDvpRanks,
+    dvpTeamCount,
   ]);
 
   // Filter games based on quick filters, chart filters, injury filters, THEN limit by game count
@@ -1566,6 +1582,7 @@ export function PlayerDrilldown({
     teammatesOutByGame,
     profile.opponentTeamAbbr,
     opponentDvpRanks,
+    dvpTeamCount,
   ]);
 
   // Get stat value from a game based on market
@@ -2235,18 +2252,22 @@ export function PlayerDrilldown({
                         return null;
 
                       const getDvpBadgeColor = (rank: number) => {
-                        if (rank <= 10)
+                        const bucket = getDvpRankBucket(rank, dvpTeamCount);
+                        if (bucket === "tough")
                           return "from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/20 border-red-200/60 dark:border-red-700/40 text-red-600 dark:text-red-400";
-                        if (rank <= 20)
+                        if (bucket === "neutral")
                           return "from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 border-amber-200/60 dark:border-amber-700/40 text-amber-600 dark:text-amber-400";
                         return "from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/20 border-emerald-200/60 dark:border-emerald-700/40 text-emerald-600 dark:text-emerald-400";
                       };
 
                       const getDvpLabel = (rank: number) => {
-                        if (rank <= 10) return "Tough";
-                        if (rank <= 20) return "Average";
-                        return "Favorable";
+                        const label = getDvpRankLabel(rank, dvpTeamCount);
+                        return label === "Avg" ? "Average" : label ?? "Average";
                       };
+                      const upcomingDvpBucket = getDvpRankBucket(
+                        upcomingDvpRank,
+                        dvpTeamCount,
+                      );
 
                       return (
                         <Tooltip
@@ -2259,9 +2280,9 @@ export function PlayerDrilldown({
                                 <span
                                   className={cn(
                                     "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                                    upcomingDvpRank <= 10
+                                    upcomingDvpBucket === "tough"
                                       ? "bg-red-500/20 text-red-400"
-                                      : upcomingDvpRank <= 20
+                                      : upcomingDvpBucket === "neutral"
                                         ? "bg-amber-500/20 text-amber-400"
                                         : "bg-emerald-500/20 text-emerald-400",
                                   )}
@@ -2276,9 +2297,9 @@ export function PlayerDrilldown({
                                 </span>{" "}
                                 in allowing {formatMarketLabel(profile.market)}{" "}
                                 to {profile.position}s this season.
-                                {upcomingDvpRank <= 10 &&
+                                {upcomingDvpBucket === "tough" &&
                                   " This is a tough matchup."}
-                                {upcomingDvpRank > 20 &&
+                                {upcomingDvpBucket === "favorable" &&
                                   " This is a favorable matchup."}
                               </p>
                             </div>
@@ -3773,6 +3794,7 @@ export function PlayerDrilldown({
         market={profile.market}
         sport={sport === "wnba" ? "wnba" : "nba"}
         hasDvpData={opponentDvpRanks.size > 0}
+        dvpTeamCount={dvpTeamCount}
         playTypeMatchup={playTypeMatchupData}
         shotZoneMatchup={shotZoneMatchupData}
         opponentTeamAbbr={profile.opponentTeamAbbr}

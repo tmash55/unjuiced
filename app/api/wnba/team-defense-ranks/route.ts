@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 import { z } from "zod";
 
 const QuerySchema = z.object({
@@ -57,13 +58,18 @@ export async function GET(req: NextRequest) {
     }
 
     const positionData: TeamDefenseRanksResponse["positions"] = {};
-    let totalTeams = 0;
+    let totalTeams = getDvpTeamCount("wnba", season);
 
     defenseData?.forEach((data: any) => {
       const position = data.position;
       if (!position) return;
 
-      totalTeams = Math.max(totalTeams, season === "2025" ? 13 : Number(data.total_teams || 0));
+      const rowTotalTeams =
+        season === "2025" ? 13 : Number(data.total_teams || 0);
+      totalTeams = Math.max(
+        totalTeams,
+        getDvpTeamCount("wnba", season, rowTotalTeams),
+      );
       positionData[position] = {
         player_points: {
           rank: data.pts_rank,

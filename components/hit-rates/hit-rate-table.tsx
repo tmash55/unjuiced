@@ -61,6 +61,11 @@ import {
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getHitRateTableConfig } from "@/lib/hit-rates/table-config";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  getDvpRankBucket,
+  getDvpRankRanges,
+  getDvpTeamCount,
+} from "@/lib/dvp-rank-scale";
 
 // Map of combo market keys to their full descriptions (only abbreviated combos need tooltips)
 const COMBO_MARKET_DESCRIPTIONS: Record<string, string> = {
@@ -385,9 +390,10 @@ const tierToCellClass = (tier: MatchupTier | null): string => {
 const getDefRankCellClass = (
   rank: number | null | undefined,
   sport: "nba" | "mlb" | "wnba" = "nba",
+  totalTeams?: number | null,
 ): string => {
   if (rank === null || rank === undefined) return tierToCellClass(null);
-  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport, undefined, totalTeams));
   return tierToCellClass(tier);
 };
 
@@ -1413,11 +1419,15 @@ export const DailyInsightStrip = ({
   }, [rows, totalCount]);
 
   const sportLabel = sport.toUpperCase();
-  const defenseTotalTeams = getDefenseTotalTeams(sport);
   const bestL10 = insights.bestL10;
   const bestOdds = insights.bestOdds;
   const hotStreak = insights.hotStreak;
   const weakDefense = insights.weakDefense;
+  const defenseTotalTeams = getDefenseTotalTeams(
+    sport,
+    weakDefense?.gameDate,
+    weakDefense?.dvpTotalTeams,
+  );
 
   return (
     <div className="border-b border-neutral-200/80 bg-gradient-to-r from-neutral-50 via-white to-neutral-50 px-5 py-4 dark:border-neutral-800/80 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
@@ -1511,7 +1521,11 @@ const ExpandedRowPanel = ({
     row.last10Avg !== null && row.line !== null
       ? row.last10Avg - row.line
       : null;
-  const defenseTotalTeams = getDefenseTotalTeams(sport);
+  const defenseTotalTeams = getDefenseTotalTeams(
+    sport,
+    row.gameDate,
+    row.dvpTotalTeams,
+  );
   const chartGames = useMemo(
     () => recentGames.slice(0, 10).reverse(),
     [recentGames],
@@ -1525,9 +1539,9 @@ const ExpandedRowPanel = ({
   }, [chartGames, row.line, row.market]);
   const matchupText =
     row.matchupRank !== null
-      ? row.matchupRank >= 21
+      ? getDvpRankBucket(row.matchupRank, defenseTotalTeams) === "favorable"
         ? "Favorable defense"
-        : row.matchupRank <= 10
+        : getDvpRankBucket(row.matchupRank, defenseTotalTeams) === "tough"
           ? "Tough defense"
           : "Neutral defense"
       : "No defense rank";
@@ -1737,7 +1751,7 @@ const ExpandedRowPanel = ({
             <span
               className={cn(
                 "font-black tabular-nums",
-                getMatchupRankColor(row.matchupRank, sport),
+                getMatchupRankColor(row.matchupRank, sport, defenseTotalTeams),
               )}
             >
               {row.matchupRank !== null
@@ -2006,19 +2020,23 @@ const hasInjuryStatus = (status: string | null): boolean => {
 };
 
 // Get matchup tier based on rank (5-tier system)
-// LOW rank (1-10) = tough defense = HARD for player (red)
-// HIGH rank (21-30) = weak defense = GOOD for player (green)
+// LOW rank = tough defense = HARD for player (red)
+// HIGH rank = weak defense = GOOD for player (green)
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst" | null;
 
-const getDefenseTotalTeams = (sport: "nba" | "mlb" | "wnba") =>
-  sport === "wnba" ? 15 : 30;
+const getDefenseTotalTeams = (
+  sport: "nba" | "mlb" | "wnba",
+  seasonOrDate?: string | number | null,
+  knownTotalTeams?: number | null,
+) => getDvpTeamCount(sport, seasonOrDate, knownTotalTeams);
 
 const getMatchupTier = (rank: number | null, totalTeams = 30): MatchupTier => {
   if (rank === null) return null;
-  const toughEliteCutoff = Math.max(1, Math.floor(totalTeams * 0.17));
-  const toughCutoff = Math.ceil(totalTeams / 3);
-  const favorableCutoff = totalTeams - toughCutoff + 1;
-  const favorableEliteCutoff = totalTeams - toughEliteCutoff + 1;
+  const ranges = getDvpRankRanges(totalTeams);
+  const toughEliteCutoff = Math.max(1, Math.floor(ranges.total * 0.17));
+  const toughCutoff = ranges.tough.max;
+  const favorableCutoff = ranges.favorable.min;
+  const favorableEliteCutoff = ranges.total - toughEliteCutoff + 1;
 
   if (rank <= toughEliteCutoff) return "worst";
   if (rank <= toughCutoff) return "bad";
@@ -2031,8 +2049,9 @@ const getMatchupTier = (rank: number | null, totalTeams = 30): MatchupTier => {
 const getMatchupRankColor = (
   rank: number | null,
   sport: "nba" | "mlb" | "wnba" = "nba",
+  totalTeams?: number | null,
 ): string => {
-  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport));
+  const tier = getMatchupTier(rank, getDefenseTotalTeams(sport, undefined, totalTeams));
   if (!tier) return "text-neutral-500 dark:text-neutral-400";
   switch (tier) {
     case "elite":
@@ -2312,11 +2331,10 @@ export function HitRateTable({
       });
     }
 
-    // Filter by matchup rank (top N best matchups = highest ranks = weakest defense)
-    // With our logic: high rank (21-30) = good for player, low rank (1-10) = bad for player
-    // So "top 10 matchups" means ranks 21-30 (the 10 easiest matchups)
+    // Filter by matchup rank: highest ranks are the weakest defenses.
     if (maxMatchupRank > 0) {
-      const minRankThreshold = 31 - maxMatchupRank; // top 10 = ranks >= 21, top 5 = ranks >= 26
+      const defenseTotalTeams = getDefenseTotalTeams(sport);
+      const minRankThreshold = defenseTotalTeams + 1 - maxMatchupRank;
       result = result.filter(
         (row) =>
           row.matchupRank !== null && row.matchupRank >= minRankThreshold,
@@ -2326,7 +2344,7 @@ export function HitRateTable({
     // Note: hideNoOdds filter is applied in render since odds are fetched separately
 
     return result;
-  }, [rows, selectedPositions, maxMatchupRank]);
+  }, [rows, selectedPositions, maxMatchupRank, sport]);
 
   // Odds are now loaded directly from the main API via bestOdds field
   // No separate odds fetch needed - bestodds:nba keys provide the best price
@@ -3108,7 +3126,11 @@ export function HitRateTable({
               const rowKey = `${row.id}-${row.gameId ?? "no-game"}-${row.market}-${idx}`;
               const rowSport =
                 sport === "mlb" ? "mlb" : sport === "wnba" ? "wnba" : "nba";
-              const defenseTotalTeamsForRow = getDefenseTotalTeams(rowSport);
+              const defenseTotalTeamsForRow = getDefenseTotalTeams(
+                rowSport,
+                row.gameDate,
+                row.dvpTotalTeams,
+              );
 
               // Check if this row should be blurred (for gated access)
               const isBlurred =
@@ -3588,7 +3610,11 @@ export function HitRateTable({
                         "border-brand/20 dark:border-brand/15 border-l px-2 py-3 text-center align-middle transition-colors duration-200",
                         compactView && "py-1.5",
                         !isBlurred &&
-                          getDefRankCellClass(row.matchupRank, rowSport),
+                          getDefRankCellClass(
+                            row.matchupRank,
+                            rowSport,
+                            defenseTotalTeamsForRow,
+                          ),
                       )}
                     >
                       {isBlurred || row.matchupRank === null ? (
@@ -3635,6 +3661,7 @@ export function HitRateTable({
                                           getMatchupRankColor(
                                             row.matchupRank,
                                             rowSport,
+                                            defenseTotalTeamsForRow,
                                           ),
                                         )}
                                       >

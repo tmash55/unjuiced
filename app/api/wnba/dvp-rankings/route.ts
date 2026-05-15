@@ -5,6 +5,7 @@ import type {
   DvpRankingsResponse,
   DvpTeamRanking,
 } from "@/app/api/nba/dvp-rankings/route";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 const POSITIONS = ["G", "F", "C"] as const;
 
@@ -352,13 +353,17 @@ export async function GET(req: NextRequest) {
         : [];
 
     const teams = [...activeTeams, ...expansionTeams];
+    const observedTotalTeams = Math.max(
+      0,
+      ...rows.map((row: any) => Number(row.total_teams || 0)),
+    );
 
     const response: DvpRankingsResponse = {
       position,
       season,
       teams,
       meta: {
-        totalTeams: activeTeams.length,
+        totalTeams: getDvpTeamCount("wnba", season, observedTotalTeams),
         updatedAt: new Date().toISOString(),
       },
     };

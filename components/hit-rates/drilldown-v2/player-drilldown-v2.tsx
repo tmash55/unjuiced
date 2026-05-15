@@ -57,6 +57,7 @@ import { MatchupContextPanel } from "./hero/matchup-context-panel";
 import { DrilldownTabs } from "./tabs/drilldown-tabs";
 import { computeHitRates } from "./shared/hit-rate-utils";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 interface PlayerDrilldownV2Props {
   profile: HitRateProfile;
@@ -461,7 +462,11 @@ export function PlayerDrilldownV2({
     }
     return map;
   }, [dvpQuery.teams, profile.market]);
-  const dvpTotalTeams = sport === "wnba" ? 15 : 30;
+  const dvpTotalTeams = getDvpTeamCount(
+    sport,
+    profile.gameDate,
+    profile.dvpTotalTeams ?? dvpQuery.meta?.totalTeams,
+  );
 
   const currentOpponentTeamId =
     oddsContextProfile.opponentTeamId ?? profile.opponentTeamId ?? null;

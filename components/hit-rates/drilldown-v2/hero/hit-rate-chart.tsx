@@ -31,6 +31,7 @@ import { FiltersDrawer } from "./filters-drawer";
 import { ChartSettingsPopover } from "./chart-settings-popover";
 import { MetricRangePopover } from "./metric-range-popover";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 // Maps the short-form inline-chip prefix (e.g. "minutes" from "minutes30")
 // onto the corresponding METRIC_FILTERS key. Anything in this map will
@@ -397,6 +398,11 @@ export function HitRateChart({
   // !showPotential to preserve the existing variable name downstream.
   const { settings: chartSettings } = useChartPreferences();
   const hidePotential = !chartSettings.showPotential;
+  const effectiveDvpTotalTeams = getDvpTeamCount(
+    sport,
+    upcomingGameDate ?? tonightDate,
+    dvpTotalTeams,
+  );
   // Container width drives responsive bar sizing. ResizeObserver keeps it in
   // sync as the layout / viewport changes (e.g. roster rail collapses on
   // smaller widths, tab switches).
@@ -422,7 +428,7 @@ export function HitRateChart({
       recentGames: games,
       dvpRankByOpponent,
       paceRankByOpponent,
-      totalTeams: dvpTotalTeams,
+      totalTeams: effectiveDvpTotalTeams,
       tonightDate,
       tonightSpread,
       tonightOpponentTeamId,
@@ -434,7 +440,7 @@ export function HitRateChart({
       games,
       dvpRankByOpponent,
       paceRankByOpponent,
-      dvpTotalTeams,
+      effectiveDvpTotalTeams,
       tonightDate,
       tonightSpread,
       tonightOpponentTeamId,
@@ -1140,7 +1146,7 @@ export function HitRateChart({
                           <RankLineOverlay
                             games={chartGames}
                             rankMap={dvpRankByOpponent}
-                            totalTeams={dvpTotalTeams ?? 30}
+                            totalTeams={effectiveDvpTotalTeams}
                             barWidth={barWidth}
                             gapPx={gapPx}
                             chartHeight={CHART_HEIGHT}
@@ -1164,7 +1170,7 @@ export function HitRateChart({
                             <RankLineOverlay
                               games={chartGames}
                               rankMap={paceRankByOpponent}
-                              totalTeams={dvpTotalTeams ?? 30}
+                              totalTeams={effectiveDvpTotalTeams}
                               barWidth={barWidth}
                               gapPx={gapPx}
                               chartHeight={CHART_HEIGHT}
@@ -1474,7 +1480,7 @@ export function HitRateChart({
                           dvpRankByOpponent?.get(g.opponentTeamId) ?? null
                         }
                         minOverride={1}
-                        maxOverride={dvpTotalTeams}
+                        maxOverride={effectiveDvpTotalTeams}
                         onChange={(range) => {
                           const next = new Set(
                             quickFilters ?? new Set<string>(),
@@ -1514,7 +1520,7 @@ export function HitRateChart({
                       }
                       if (id.startsWith("pace")) legacyActive = true;
                     }
-                    const total = dvpTotalTeams ?? (sport === "wnba" ? 15 : 30);
+                    const total = effectiveDvpTotalTeams;
                     const tierSize = Math.max(3, Math.round(total / 3));
                     const fastCutoff = tierSize;
                     const slowCutoff = total - tierSize + 1;
@@ -1694,7 +1700,7 @@ export function HitRateChart({
               recentGames={games}
               dvpRankByOpponent={dvpRankByOpponent}
               paceRankByOpponent={paceRankByOpponent}
-              totalTeams={dvpTotalTeams}
+              totalTeams={effectiveDvpTotalTeams}
               playTypeDefenseFilters={playTypeDefenseFilters}
               active={quickFilters ?? new Set()}
               onToggle={(id) => onQuickFilterToggle?.(id)}
@@ -1816,7 +1822,7 @@ export function HitRateChart({
                 playerAvgsById,
                 dvpRank,
                 paceRank,
-                totalTeams: dvpTotalTeams ?? 30,
+                totalTeams: effectiveDvpTotalTeams,
               });
             })()}
           </div>,

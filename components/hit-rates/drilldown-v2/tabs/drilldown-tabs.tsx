@@ -57,6 +57,10 @@ import {
   type TripleDoubleBestPrice,
   type TripleDoubleSheetRow,
 } from "@/hooks/use-triple-double-sheet";
+import {
+  getDvpRankRanges,
+  getDvpTeamCount,
+} from "@/lib/dvp-rank-scale";
 
 type DrilldownTabId =
   | "overview"
@@ -422,10 +426,6 @@ function TabPreview({
   );
 }
 
-const TOTAL_TEAMS_BY_SPORT: Record<"nba" | "wnba", number> = {
-  nba: 30,
-  wnba: 15,
-};
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst";
 type CorrelationMarket =
   | "points"
@@ -712,7 +712,8 @@ export function ShootingPanel({
       ),
     [data?.zones],
   );
-  const totalTeams = data?.summary?.total_teams ?? TOTAL_TEAMS_BY_SPORT[sport];
+  const totalTeams =
+    data?.summary?.total_teams ?? getDvpTeamCount(sport, season);
 
   return (
     <div>
@@ -2718,7 +2719,11 @@ function OverviewPanel({
     { market: "player_assists", label: "AST" },
     { market: "player_threes_made", label: "3PM" },
   ];
-  const total = TOTAL_TEAMS_BY_SPORT[sport];
+  const total = getDvpTeamCount(
+    sport,
+    profile.gameDate,
+    profile.dvpTotalTeams,
+  );
   const defTier = getMatchupTier(profile.matchupRank, total);
   const paceRank = profile.paceContext?.opponentRecent.l5Rank ?? null;
   const paceTier =
@@ -3633,8 +3638,11 @@ export function MatchupPanel({
       !!normalizedPosition && !!profile.opponentTeamId && !!profile.market,
   });
 
-  const totalTeams =
-    defenseQuery.meta?.totalTeams ?? TOTAL_TEAMS_BY_SPORT[sport];
+  const totalTeams = getDvpTeamCount(
+    sport,
+    selectedSeason ?? profile.gameDate,
+    defenseQuery.meta?.totalTeams ?? profile.dvpTotalTeams,
+  );
   const activeDefense = normalizedPosition
     ? (defenseQuery.positions[normalizedPosition]?.[profile.market] ?? null)
     : null;
@@ -5188,10 +5196,11 @@ function getMatchupTier(
   total: number,
 ): MatchupTier | null {
   if (rank === null) return null;
-  const toughEliteCutoff = Math.max(1, Math.floor(total * 0.17));
-  const toughCutoff = Math.ceil(total / 3);
-  const favorableCutoff = total - toughCutoff + 1;
-  const favorableEliteCutoff = total - toughEliteCutoff + 1;
+  const ranges = getDvpRankRanges(total);
+  const toughEliteCutoff = Math.max(1, Math.floor(ranges.total * 0.17));
+  const toughCutoff = ranges.tough.max;
+  const favorableCutoff = ranges.favorable.min;
+  const favorableEliteCutoff = ranges.total - toughEliteCutoff + 1;
   if (rank <= toughEliteCutoff) return "worst";
   if (rank <= toughCutoff) return "bad";
   if (rank >= favorableEliteCutoff) return "elite";
@@ -5200,11 +5209,11 @@ function getMatchupTier(
 }
 
 function getRankBuckets(totalTeams: number) {
-  const total = Math.max(totalTeams || 30, 1);
+  const ranges = getDvpRankRanges(totalTeams);
   return {
-    toughMax: Math.ceil(total / 3),
-    neutralMax: Math.ceil((total * 2) / 3),
-    total,
+    toughMax: ranges.tough.max,
+    neutralMax: ranges.neutral.max,
+    total: ranges.total,
   };
 }
 
@@ -5331,9 +5340,8 @@ function getDefenseRankTone(rank: number | null, totalTeams: number) {
       bar: "bg-neutral-400",
     };
   }
-  const toughMax = Math.ceil(totalTeams / 3);
-  const easyMin = totalTeams - toughMax + 1;
-  if (rank >= easyMin) {
+  const ranges = getDvpRankRanges(totalTeams);
+  if (rank >= ranges.favorable.min) {
     return {
       label: "Soft",
       text: "text-emerald-600 dark:text-emerald-400",
@@ -5341,7 +5349,7 @@ function getDefenseRankTone(rank: number | null, totalTeams: number) {
       bar: "bg-emerald-500",
     };
   }
-  if (rank <= toughMax) {
+  if (rank <= ranges.tough.max) {
     return {
       label: "Tough",
       text: "text-red-500 dark:text-red-400",

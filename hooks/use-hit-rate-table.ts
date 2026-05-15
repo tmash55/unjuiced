@@ -187,6 +187,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     matchupRankLabel: matchup?.rank_label ?? null,
     matchupAvgAllowed: matchup?.avg_allowed ?? null,
     matchupQuality: matchup?.matchup_quality ?? null,
+    dvpTotalTeams: matchup?.total_teams ?? null,
     paceContext: profile.pace_context ?? null,
     // Best odds from Redis
     bestOdds: profile.best_odds ?? null,

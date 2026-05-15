@@ -10,6 +10,7 @@ export interface MatchupRank {
   rank_label: string | null;
   avg_allowed: number | null;
   matchup_quality: "favorable" | "neutral" | "unfavorable" | null;
+  total_teams?: number | null;
 }
 
 export interface RawHitRateProfile {
@@ -165,6 +166,7 @@ export interface HitRateProfile {
   matchupRankLabel: string | null;
   matchupAvgAllowed: number | null;
   matchupQuality: "favorable" | "neutral" | "unfavorable" | null;
+  dvpTotalTeams: number | null;
   paceContext: PaceContext | null;
   // Best odds from Redis (returned by v2 API)
   bestOdds: {

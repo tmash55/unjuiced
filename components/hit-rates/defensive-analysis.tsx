@@ -6,6 +6,7 @@ import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { Tooltip } from "@/components/tooltip";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 interface DefensiveAnalysisProps {
   playerId: number;
@@ -32,8 +33,6 @@ const ALL_MARKETS = [
   "player_points_rebounds_assists",
 ];
 
-// LOW rank (1-10) = tough defense = HARD for player (red)
-// HIGH rank (21-30) = weak defense = GOOD for player (green)
 const getRankBuckets = (totalTeams: number) => {
   const total = Math.max(totalTeams || 30, 1);
   return {
@@ -80,7 +79,7 @@ export function DefensiveAnalysis({
   });
 
   const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, sport) : null;
-  const totalTeams = sport === "wnba" ? (meta?.totalTeams || (wnbaSeason === "2025" ? 13 : 15)) : 30;
+  const totalTeams = getDvpTeamCount(sport, selectedSeason, meta?.totalTeams);
   const rankBuckets = getRankBuckets(totalTeams);
   const currentPosition = sport === "wnba"
     ? (position === "C" ? "C" : position === "F" ? "F" : "G")

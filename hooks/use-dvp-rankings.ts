@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { DvpRankingsResponse, DvpTeamRanking } from "@/app/api/nba/dvp-rankings/route";
+import { getDvpRankBucket, getDvpRankRanges } from "@/lib/dvp-rank-scale";
 
 export type { DvpTeamRanking, DvpRankingsResponse };
 
@@ -415,22 +416,26 @@ export function useDvpRankings({ position, sport = "nba", season, enabled = true
   };
 }
 
-// Helper to get rank color based on our matchup logic
-// Lower rank (1-10) = strong defense = tough for player = RED
-// Higher rank (21-30) = weak defense = good for player = GREEN
-export function getDvpRankColor(rank: number | null): string {
+// Helper to get rank color based on our matchup logic.
+// Lower rank = strong defense = tough for player = RED.
+// Higher rank = weak defense = good for player = GREEN.
+export function getDvpRankColor(rank: number | null, totalTeams = 30): string {
   if (rank === null) return "text-neutral-500";
-  if (rank <= 10) return "text-red-600 dark:text-red-400";
-  if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
+  const bucket = getDvpRankBucket(rank, totalTeams);
+  if (bucket === "tough") return "text-red-600 dark:text-red-400";
+  if (bucket === "favorable") return "text-emerald-600 dark:text-emerald-400";
   return "text-neutral-600 dark:text-neutral-400";
 }
 
-export function getDvpRankBg(rank: number | null): string {
+export function getDvpRankBg(rank: number | null, totalTeams = 30): string {
   if (rank === null) return "";
-  if (rank <= 5) return "bg-red-100 dark:bg-red-900/30";
-  if (rank <= 10) return "bg-red-50 dark:bg-red-900/20";
-  if (rank >= 26) return "bg-emerald-100 dark:bg-emerald-900/30";
-  if (rank >= 21) return "bg-emerald-50 dark:bg-emerald-900/20";
+  const ranges = getDvpRankRanges(totalTeams);
+  const eliteSpan = Math.max(1, Math.floor(ranges.total * 0.17));
+  if (rank <= eliteSpan) return "bg-red-100 dark:bg-red-900/30";
+  if (rank <= ranges.tough.max) return "bg-red-50 dark:bg-red-900/20";
+  if (rank >= ranges.total - eliteSpan + 1)
+    return "bg-emerald-100 dark:bg-emerald-900/30";
+  if (rank >= ranges.favorable.min) return "bg-emerald-50 dark:bg-emerald-900/20";
   return "";
 }
 

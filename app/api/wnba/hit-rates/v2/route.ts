@@ -872,6 +872,7 @@ function transformProfile(
   const effectiveDvpAvgAllowed =
     row.dvp_avg_allowed ?? dvpRank?.avgAllowed ?? null;
   const effectiveTotalTeams =
+    row.dvp_total_teams ??
     dvpRank?.totalTeams ??
     (getWnbaSeasonFromDate(row.game_date) === "2025" ? 13 : 15);
   const startTime =
@@ -1001,6 +1002,7 @@ function transformProfile(
                 : "Neutral"),
           avg_allowed: effectiveDvpAvgAllowed,
           matchup_quality: matchupQuality,
+          total_teams: effectiveTotalTeams,
         }
       : null,
     pace_context: row.pace_context ?? paceContext,
@@ -1262,13 +1264,14 @@ export async function GET(request: Request) {
             null)
           : null;
 
-      if (!dvp || row.dvp_rank) return row;
+      if (!dvp) return row;
+      if (row.dvp_rank && row.dvp_total_teams) return row;
 
       return {
         ...row,
-        dvp_rank: dvp.rank,
-        dvp_avg_allowed: dvp.avgAllowed,
-        dvp_total_teams: dvp.totalTeams,
+        dvp_rank: row.dvp_rank ?? dvp.rank,
+        dvp_avg_allowed: row.dvp_avg_allowed ?? dvp.avgAllowed,
+        dvp_total_teams: row.dvp_total_teams ?? dvp.totalTeams,
       };
     });
 

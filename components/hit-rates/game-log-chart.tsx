@@ -9,6 +9,13 @@ import { getPlayerHeadshotUrl } from "@/lib/utils/player-headshot";
 import { useStateLink } from "@/hooks/use-state-link";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  formatDvpRankRange,
+  getDvpRankBucket,
+  getDvpRankLabel,
+  getDvpRankYPercent,
+  getDvpTeamCount,
+} from "@/lib/dvp-rank-scale";
 
 // Sportsbook helpers
 const getBookLogo = (bookId?: string): string | null => {
@@ -818,6 +825,11 @@ export function GameLogChart({
     if (!inputGames || inputGames.length === 0) return [];
     return [...inputGames].reverse(); // Oldest first, most recent on right
   }, [inputGames]);
+  const dvpTeamCount = getDvpTeamCount(
+    sport,
+    upcomingGameDate ?? games[0]?.date,
+  );
+  const dvpMidRank = Math.ceil(dvpTeamCount / 2);
 
   const upcomingSlot = useMemo(() => {
     if (!upcomingGameDate || line === null || games.length === 0) return null;
@@ -1040,9 +1052,9 @@ export function GameLogChart({
                 <>
                   <span className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
                   {([
-                    { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10", tooltip: "Tough defense" },
-                    { key: "dvpAverage" as QuickFilterKey, label: "DvP 11-20", tooltip: "Average defense" },
-                    { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30", tooltip: "Weak defense" },
+                    { key: "dvpTough" as QuickFilterKey, label: `DvP ${formatDvpRankRange("tough", dvpTeamCount)}`, tooltip: "Tough defense" },
+                    { key: "dvpAverage" as QuickFilterKey, label: `DvP ${formatDvpRankRange("neutral", dvpTeamCount)}`, tooltip: "Average defense" },
+                    { key: "dvpWeak" as QuickFilterKey, label: `DvP ${formatDvpRankRange("favorable", dvpTeamCount)}`, tooltip: "Weak defense" },
                   ]).map(({ key, label, tooltip }) => (
                     <Tooltip key={key} content={tooltip} side="top">
                       <button
@@ -1125,13 +1137,13 @@ export function GameLogChart({
       {/* DvP Y-Axis Labels - Right side (only when DvP line is shown) */}
       {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && (
         <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1 z-20" style={{ top: 0, height: chartHeight }}>
-          {/* Top = Rank 30 (Weak defense = good for player) */}
+          {/* Top = weakest defense, good for player */}
           <div className="flex items-center justify-end gap-0.5">
-            <span className="text-emerald-500 font-bold">#30</span>
+            <span className="text-emerald-500 font-bold">#{dvpTeamCount}</span>
           </div>
-          {/* Middle = Rank 15 */}
+          {/* Middle = average defense */}
           <div className="flex items-center justify-end gap-0.5">
-            <span className="text-amber-500 font-bold">#15</span>
+            <span className="text-amber-500 font-bold">#{dvpMidRank}</span>
           </div>
           {/* Bottom = Rank 1 (Tough defense = hard for player) */}
           <div className="flex items-center justify-end gap-0.5">
@@ -1252,8 +1264,7 @@ export function GameLogChart({
               // X = center of each bar within the content area
               const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
               
-              // Y = rank 1 at bottom (tough), rank 30 at top (weak)
-              const yPercent = ((dvpRank - 1) / 29) * 100;
+              const yPercent = getDvpRankYPercent(dvpRank, dvpTeamCount);
               const y = chartHeight * (1 - yPercent / 100);
               
               return { x, y, rank: dvpRank, idx };
@@ -1315,8 +1326,7 @@ export function GameLogChart({
                 // X = center of each game track within the content area
                 const x = idx * (trackWidth + gapSize) + (trackWidth / 2);
                 
-                // Y = rank 1 at bottom (tough), rank 30 at top (weak/favorable)
-                const yPercent = ((rank - 1) / 29) * 100;
+                const yPercent = getDvpRankYPercent(rank, dvpTeamCount);
                 const y = chartHeight * (1 - yPercent / 100);
                 
                 return { x, y, rank, idx };
@@ -1434,15 +1444,14 @@ export function GameLogChart({
             const opponentDvpRank = opponentDvpRanks?.get(game.opponentTeamId) ?? null;
             const getDvpRankColor = (rank: number | null) => {
               if (rank === null) return "text-neutral-400";
-              if (rank <= 10) return "text-red-400"; // tough
-              if (rank <= 20) return "text-amber-400"; // average
-              return "text-emerald-400"; // weak
+              const bucket = getDvpRankBucket(rank, dvpTeamCount);
+              if (bucket === "tough") return "text-red-400";
+              if (bucket === "neutral") return "text-amber-400";
+              return "text-emerald-400";
             };
             const getDvpLabel = (rank: number | null) => {
               if (rank === null) return null;
-              if (rank <= 10) return "Tough";
-              if (rank <= 20) return "Avg";
-              return "Weak";
+              return getDvpRankLabel(rank, dvpTeamCount);
             };
             
             // Get teammates out for this game from profile game logs
@@ -1520,14 +1529,16 @@ export function GameLogChart({
                         if (!opponentRank) return null;
                         
                         const getRankColor = (rank: number) => {
-                          if (rank <= 10) return "text-red-400"; // Tough
-                          if (rank >= 21) return "text-emerald-400"; // Favorable
-                          return "text-yellow-400"; // Neutral
+                          const bucket = getDvpRankBucket(rank, dvpTeamCount);
+                          if (bucket === "tough") return "text-red-400";
+                          if (bucket === "favorable") return "text-emerald-400";
+                          return "text-yellow-400";
                         };
                         
                         const getRankBg = (rank: number) => {
-                          if (rank <= 10) return "bg-red-500/20";
-                          if (rank >= 21) return "bg-emerald-500/20";
+                          const bucket = getDvpRankBucket(rank, dvpTeamCount);
+                          if (bucket === "tough") return "bg-red-500/20";
+                          if (bucket === "favorable") return "bg-emerald-500/20";
                           return "bg-yellow-500/20";
                         };
                         
@@ -1966,8 +1977,8 @@ export function GameLogChart({
               <>
                 <span className="text-neutral-300 dark:text-neutral-600 mx-0.5">·</span>
                 {([
-                  { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10" },
-                  { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30" },
+                  { key: "dvpTough" as QuickFilterKey, label: `DvP ${formatDvpRankRange("tough", dvpTeamCount)}` },
+                  { key: "dvpWeak" as QuickFilterKey, label: `DvP ${formatDvpRankRange("favorable", dvpTeamCount)}` },
                 ]).map(({ key, label }) => (
                   <button
                     key={key}

@@ -7,6 +7,7 @@ import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
 import { useTeamPace } from "@/hooks/use-team-pace";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import type { PaceRecentContext } from "@/lib/basketball/pace-context";
+import { getDvpRankBucket, getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 type Tab = "pace" | "defense";
 
@@ -90,7 +91,7 @@ function PaceTab({ profile, sport }: { profile: HitRateProfile; sport: "nba" | "
     : profile.opponentTeamId
       ? teams[String(profile.opponentTeamId)]
       : null;
-  const paceTotalTeams = totalTeams || (sport === "nba" ? 30 : 15);
+  const paceTotalTeams = getDvpTeamCount(sport, profile.gameDate, totalTeams);
 
   if (!playerRow && !oppRow) {
     return (
@@ -195,14 +196,15 @@ function PaceCell({
   // Higher pace = faster game = good for over-on-counting-stats. Rank 1 =
   // fastest team. Color the rank: top third bright, bottom third muted.
   const rank = entry.rank ?? null;
+  const bucket = getDvpRankBucket(rank, totalTeams);
   const tier =
-    rank === null
+    bucket === null
       ? "mid"
-      : rank <= Math.round(totalTeams / 3)
-      ? "fast"
-      : rank > Math.round((totalTeams * 2) / 3)
-      ? "slow"
-      : "mid";
+      : bucket === "tough"
+        ? "fast"
+        : bucket === "favorable"
+          ? "slow"
+          : "mid";
   const rankColor =
     tier === "fast"
       ? "text-emerald-600 dark:text-emerald-400"
@@ -232,14 +234,23 @@ function DefenseTab({
   profile: HitRateProfile;
   sport: "nba" | "wnba";
 }) {
+  const defenseSeason =
+    sport === "wnba"
+      ? (profile.gameDate?.match(/\b(20\d{2})\b/)?.[1] ?? "2026")
+      : undefined;
   const { positions, meta, isLoading } = useTeamDefenseRanks({
     opponentTeamId: profile.opponentTeamId,
     sport,
+    season: defenseSeason,
     enabled: !!profile.opponentTeamId,
   });
 
   const position = (profile.position ?? "").toUpperCase().split("-")[0];
-  const totalTeams = meta?.totalTeams ?? (sport === "nba" ? 30 : 15);
+  const totalTeams = getDvpTeamCount(
+    sport,
+    defenseSeason ?? profile.gameDate,
+    meta?.totalTeams ?? profile.dvpTotalTeams,
+  );
 
   // Show all the markets we care about for this position. The active market
   // gets a brand-tinted highlight so the user sees the matchup at a glance.
@@ -315,14 +326,15 @@ function DefenseTableRow({
   totalTeams: number;
   isActive: boolean;
 }) {
+  const bucket = getDvpRankBucket(rank, totalTeams);
   const tier =
-    rank === null
+    bucket === null
       ? "mid"
-      : rank <= Math.round(totalTeams / 3)
-      ? "tough"
-      : rank > Math.round((totalTeams * 2) / 3)
-      ? "soft"
-      : "mid";
+      : bucket === "tough"
+        ? "tough"
+        : bucket === "favorable"
+          ? "soft"
+          : "mid";
   const rankColor =
     tier === "tough"
       ? "text-red-500 dark:text-red-400"

@@ -5,13 +5,12 @@ import { cn } from "@/lib/utils";
 import { Tile } from "../shared/tile";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
+import { getDvpRankRanges, getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 interface MatchupTileProps {
   profile: HitRateProfile;
   sport: "nba" | "wnba";
 }
-
-const TOTAL_TEAMS_BY_SPORT: Record<"nba" | "wnba", number> = { nba: 30, wnba: 15 };
 
 // Mirrors the table's matchup tier system. Pace tier is INVERTED relative to
 // DEF: high pace rank = fast pace = good for offensive props.
@@ -19,10 +18,11 @@ type Tier = "elite" | "strong" | "neutral" | "bad" | "worst";
 
 function getTier(rank: number | null, total: number): Tier | null {
   if (rank === null) return null;
-  const toughEliteCutoff = Math.max(1, Math.floor(total * 0.17));
-  const toughCutoff = Math.ceil(total / 3);
-  const favorableCutoff = total - toughCutoff + 1;
-  const favorableEliteCutoff = total - toughEliteCutoff + 1;
+  const ranges = getDvpRankRanges(total);
+  const toughEliteCutoff = Math.max(1, Math.floor(ranges.total * 0.17));
+  const toughCutoff = ranges.tough.max;
+  const favorableCutoff = ranges.favorable.min;
+  const favorableEliteCutoff = ranges.total - toughEliteCutoff + 1;
   if (rank <= toughEliteCutoff) return "worst";
   if (rank <= toughCutoff) return "bad";
   if (rank >= favorableEliteCutoff) return "elite";
@@ -72,7 +72,11 @@ const paceTierLabel = (tier: Tier | null) => {
 // pace, and the supporting game lines. Each row sits flush so the eye reads
 // the rank+tier badge as one chunk.
 export function MatchupTile({ profile, sport }: MatchupTileProps) {
-  const total = TOTAL_TEAMS_BY_SPORT[sport];
+  const total = getDvpTeamCount(
+    sport,
+    profile.gameDate,
+    profile.dvpTotalTeams,
+  );
   const defTier = getTier(profile.matchupRank, total);
   // Pace rank is inverted: high rank = fast pace = good
   const paceRank = profile.paceContext?.opponentRecent.l5Rank ?? null;

@@ -1,4 +1,9 @@
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
+import {
+  formatDvpRankRange,
+  isDvpRankInBucket,
+  type DvpRankBucket,
+} from "@/lib/dvp-rank-scale";
 
 // Per-market quick filters that appear as chips under the chart's Splits row.
 // Each filter has a predicate over BoxScoreGame; multiple active filters
@@ -474,17 +479,15 @@ export function resolveQuickFilter(
     );
     if (!source || !["tough", "neutral", "favorable"].includes(tier ?? ""))
       return null;
-    const label =
-      tier === "tough" ? "1-10" : tier === "favorable" ? "21-30" : "11-20";
+    const bucket = tier as DvpRankBucket;
+    const total = ctx.totalTeams ?? 30;
+    const label = formatDvpRankRange(bucket, total);
     return {
       id,
       label: `${source.label} ${label}`,
       predicate: (game) => {
         const rank = source.rankByOpponentAbbr.get(game.opponentAbbr);
-        if (rank == null) return false;
-        if (tier === "tough") return rank <= 10;
-        if (tier === "favorable") return rank >= 21;
-        return rank > 10 && rank < 21;
+        return isDvpRankInBucket(rank, bucket, total);
       },
     };
   }
@@ -789,31 +792,32 @@ export function getQuickFilters(ctx: QuickFilterContext): QuickFilter[] {
   }
 
   if (ctx.playTypeDefenseFilters && ctx.playTypeDefenseFilters.length > 0) {
+    const total = ctx.totalTeams ?? 30;
     for (const playType of ctx.playTypeDefenseFilters) {
       const encoded = encodeURIComponent(playType.playType);
       filters.push(
         {
           id: `playType:${encoded}:tough`,
-          label: `${playType.label} 1-10`,
+          label: `${playType.label} ${formatDvpRankRange("tough", total)}`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
-            return rank != null && rank <= 10;
+            return isDvpRankInBucket(rank, "tough", total);
           },
         },
         {
           id: `playType:${encoded}:neutral`,
-          label: `${playType.label} 11-20`,
+          label: `${playType.label} ${formatDvpRankRange("neutral", total)}`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
-            return rank != null && rank > 10 && rank < 21;
+            return isDvpRankInBucket(rank, "neutral", total);
           },
         },
         {
           id: `playType:${encoded}:favorable`,
-          label: `${playType.label} 21-30`,
+          label: `${playType.label} ${formatDvpRankRange("favorable", total)}`,
           predicate: (g) => {
             const rank = playType.rankByOpponentAbbr.get(g.opponentAbbr);
-            return rank != null && rank >= 21;
+            return isDvpRankInBucket(rank, "favorable", total);
           },
         },
       );

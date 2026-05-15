@@ -10,6 +10,10 @@ import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useFavorites, type AddFavoriteParams } from "@/hooks/use-favorites";
 import { useOddsLine } from "@/hooks/use-odds-line";
+import {
+  getDvpRankBucket,
+  getDvpTeamCount,
+} from "@/lib/dvp-rank-scale";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -147,23 +151,20 @@ function getOrdinalSuffix(n: number): string {
 function DvpBadge({
   rank,
   sport = "nba",
+  totalTeams,
 }: {
   rank: number | null;
   sport?: "nba" | "wnba" | "mlb";
+  totalTeams?: number | null;
 }) {
   if (rank === null) return null;
 
-  // Sport-aware tier cutoffs — NBA uses 30 teams (tough = 1-10, soft = 21-30)
-  // but current WNBA has 15 (tough = 1-5, soft = 11-15). Hardcoding the NBA
-  // cutoffs painted WNBA badges incorrectly because mid-pack ranks hit the
-  // `<= 10` clause despite being a soft matchup. Mirror the same
-  // proportional cutoffs (toughCutoff = round(total/3), min 3) the desktop
-  // hit-rate table + drilldown use.
-  const totalTeams = sport === "wnba" ? 15 : 30;
-  const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
-  const softMin = totalTeams - toughCutoff + 1;
-  const isHardMatchup = rank <= toughCutoff;
-  const isGoodMatchup = rank >= softMin;
+  const bucket = getDvpRankBucket(
+    rank,
+    getDvpTeamCount(sport, undefined, totalTeams),
+  );
+  const isHardMatchup = bucket === "tough";
+  const isGoodMatchup = bucket === "favorable";
 
   // Get pill styling based on matchup quality - Premium
   const getPillStyle = () => {
@@ -456,7 +457,11 @@ export function PlayerCard({
                 </span>
               </a>
             )}
-            <DvpBadge rank={isBlurred ? null : matchupRank} sport={sport} />
+            <DvpBadge
+              rank={isBlurred ? null : matchupRank}
+              sport={sport}
+              totalTeams={profile.dvpTotalTeams ?? getDvpTeamCount(sport, profile.gameDate)}
+            />
             {!isBlurred && favoriteParams && (
               <button
                 type="button"

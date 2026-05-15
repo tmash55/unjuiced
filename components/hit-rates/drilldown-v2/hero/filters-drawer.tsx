@@ -16,6 +16,7 @@ import { Popover } from "@/components/popover";
 import { Tooltip } from "@/components/tooltip";
 import { formatMarketLabel } from "@/lib/data/markets";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
+import { formatDvpRankRange } from "@/lib/dvp-rank-scale";
 import {
   METRIC_FILTERS,
   DVP_RANK_CONFIG,
@@ -770,11 +771,12 @@ export function FiltersDrawer({
                         <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-200/70 dark:border-neutral-800/70">
                           {group.items.map((item) => {
                             const isActive = active.has(item.id);
+                            const total = totalTeams ?? 30;
                             const tier = item.id.endsWith(":tough")
-                              ? "1-10"
+                              ? formatDvpRankRange("tough", total)
                               : item.id.endsWith(":favorable")
-                                ? "21-30"
-                                : "11-20";
+                                ? formatDvpRankRange("favorable", total)
+                                : formatDvpRankRange("neutral", total);
                             return (
                               <button
                                 key={item.id}
@@ -1001,8 +1003,8 @@ export function FiltersDrawer({
                     Opponent Pace
                   </h3>
                   <p className="mb-2 text-[10.5px] leading-snug text-neutral-500 dark:text-neutral-500">
-                    Rank is league-relative: #1 is fastest. WNBA ranges use 1-
-                    {totalTeams ?? 13}; NBA ranges use 1-{totalTeams ?? 30}.
+                    Rank is league-relative: #1 is fastest. Current league
+                    range is 1-{totalTeams ?? 30}.
                   </p>
                   {filtersByCategory.gameflow.filter((f) =>
                     f.id.startsWith("pace"),
