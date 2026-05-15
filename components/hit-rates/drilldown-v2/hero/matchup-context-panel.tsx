@@ -90,7 +90,7 @@ function PaceTab({ profile, sport }: { profile: HitRateProfile; sport: "nba" | "
     : profile.opponentTeamId
       ? teams[String(profile.opponentTeamId)]
       : null;
-  const paceTotalTeams = totalTeams || (sport === "nba" ? 30 : 13);
+  const paceTotalTeams = totalTeams || (sport === "nba" ? 30 : 15);
 
   if (!playerRow && !oppRow) {
     return (
@@ -239,7 +239,7 @@ function DefenseTab({
   });
 
   const position = (profile.position ?? "").toUpperCase().split("-")[0];
-  const totalTeams = meta?.totalTeams ?? (sport === "nba" ? 30 : 13);
+  const totalTeams = meta?.totalTeams ?? (sport === "nba" ? 30 : 15);
 
   // Show all the markets we care about for this position. The active market
   // gets a brand-tinted highlight so the user sees the matchup at a glance.

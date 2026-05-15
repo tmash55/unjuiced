@@ -39,6 +39,21 @@ export interface PlayerLookupResponse {
   found: boolean;
 }
 
+async function getWnbaTeam(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  teamId: number | null,
+) {
+  if (!teamId) return null;
+
+  const { data } = await supabase
+    .from("wnba_teams")
+    .select("name, abbreviation")
+    .eq("team_id", teamId)
+    .maybeSingle();
+
+  return data;
+}
+
 /**
  * Player Lookup API
  * Maps odds_player_id to the internal sport player ID and returns full player data
@@ -155,6 +170,7 @@ export async function POST(req: NextRequest) {
     }
 
     const row = data as any;
+    const wnbaTeam = sport === "wnba" ? await getWnbaTeam(supabase, row.team_id) : null;
 
     // Transform response to match interface
     const playerResult: PlayerLookupResult = {
@@ -166,8 +182,8 @@ export async function POST(req: NextRequest) {
       first_name: row.first_name ?? "",
       last_name: row.last_name ?? "",
       team_id: row.team_id,
-      team_name: row.odds_team_name,
-      team_abbr: row.odds_team_abbr,
+      team_name: sport === "wnba" ? (wnbaTeam?.name || row.odds_team_name) : row.odds_team_name,
+      team_abbr: sport === "wnba" ? (wnbaTeam?.abbreviation || row.odds_team_abbr) : row.odds_team_abbr,
       position: row.pos_abbr ?? row.position ?? null,
       depth_chart_pos: row.depth_chart_pos ?? null,
       jersey_number: row.jersey_number ?? null,

@@ -67,7 +67,7 @@ export function DefensiveAnalysis({
   sport = "nba",
 }: DefensiveAnalysisProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("ranks");
-  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2025");
+  const [wnbaSeason, setWnbaSeason] = useState<(typeof WNBA_SEASONS)[number]>("2026");
   const positionsToShow = sport === "wnba" ? WNBA_POSITIONS : NBA_POSITIONS;
   const selectedSeason = sport === "wnba" ? wnbaSeason : undefined;
   
@@ -80,7 +80,7 @@ export function DefensiveAnalysis({
   });
 
   const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, sport) : null;
-  const totalTeams = sport === "wnba" ? (meta?.totalTeams || 13) : 30;
+  const totalTeams = sport === "wnba" ? (meta?.totalTeams || (wnbaSeason === "2025" ? 13 : 15)) : 30;
   const rankBuckets = getRankBuckets(totalTeams);
   const currentPosition = sport === "wnba"
     ? (position === "C" ? "C" : position === "F" ? "F" : "G")

@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const QuerySchema = z.object({
   opponentTeamId: z.coerce.number().int().positive(),
-  season: z.string().nullish().transform((v) => v ?? "2025"),
+  season: z.string().nullish().transform((v) => v ?? "2026"),
 });
 
 export interface TeamDefenseRanksResponse {

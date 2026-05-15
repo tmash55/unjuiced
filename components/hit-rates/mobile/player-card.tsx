@@ -154,12 +154,12 @@ function DvpBadge({
   if (rank === null) return null;
 
   // Sport-aware tier cutoffs — NBA uses 30 teams (tough = 1-10, soft = 21-30)
-  // but WNBA only has 13 (tough = 1-4, soft = 10-13). Hardcoding the NBA
-  // cutoffs painted every WNBA badge red because rank 10 of 13 hit the
+  // but current WNBA has 15 (tough = 1-5, soft = 11-15). Hardcoding the NBA
+  // cutoffs painted WNBA badges incorrectly because mid-pack ranks hit the
   // `<= 10` clause despite being a soft matchup. Mirror the same
   // proportional cutoffs (toughCutoff = round(total/3), min 3) the desktop
   // hit-rate table + drilldown use.
-  const totalTeams = sport === "wnba" ? 13 : 30;
+  const totalTeams = sport === "wnba" ? 15 : 30;
   const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
   const softMin = totalTeams - toughCutoff + 1;
   const isHardMatchup = rank <= toughCutoff;

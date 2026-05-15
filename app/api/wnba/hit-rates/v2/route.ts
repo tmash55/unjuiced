@@ -110,6 +110,7 @@ const WNBA_TEAM_IDS_BY_ABBR: Record<string, number> = {
   PHO: 1611661317,
   PHX: 1611661317,
   POR: 1611661332,
+  PDX: 1611661332,
   SEA: 1611661328,
   TOR: 1611661327,
   WAS: 1611661322,
@@ -118,7 +119,18 @@ const WNBA_TEAM_IDS_BY_ABBR: Record<string, number> = {
 
 function getWnbaTeamIdFromAbbr(abbr?: string | null): number | null {
   if (!abbr) return null;
-  return WNBA_TEAM_IDS_BY_ABBR[abbr.toUpperCase()] ?? null;
+  return WNBA_TEAM_IDS_BY_ABBR[abbr.trim().toUpperCase()] ?? null;
+}
+
+function resolveWnbaTeamId(
+  rowTeamId?: number | string | null,
+  abbr?: string | null,
+): number | null {
+  const idFromAbbr = getWnbaTeamIdFromAbbr(abbr);
+  if (idFromAbbr) return idFromAbbr;
+
+  const numericId = Number(rowTeamId);
+  return Number.isFinite(numericId) && numericId > 0 ? numericId : null;
 }
 
 function getWnbaSeasonFromDate(gameDate?: string | null): string {
@@ -519,8 +531,10 @@ async function fetchHistoricalContextForRows(
 
   const h2hRows = rows.filter((row) => {
     const existing = row.id ? result.get(row.id) : null;
-    const opponentTeamId =
-      row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+    const opponentTeamId = resolveWnbaTeamId(
+      row.opponent_team_id,
+      row.opponent_team_abbr,
+    );
     return (
       row.id &&
       row.player_id &&
@@ -540,10 +554,8 @@ async function fetchHistoricalContextForRows(
   const opponentIds = [
     ...new Set(
       h2hRows
-        .map(
-          (row) =>
-            row.opponent_team_id ??
-            getWnbaTeamIdFromAbbr(row.opponent_team_abbr),
+        .map((row) =>
+          resolveWnbaTeamId(row.opponent_team_id, row.opponent_team_abbr),
         )
         .filter(Boolean),
     ),
@@ -580,8 +592,10 @@ async function fetchHistoricalContextForRows(
   }
 
   for (const row of h2hRows) {
-    const opponentTeamId =
-      row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+    const opponentTeamId = resolveWnbaTeamId(
+      row.opponent_team_id,
+      row.opponent_team_abbr,
+    );
     if (
       !row.id ||
       !row.player_id ||
@@ -637,10 +651,8 @@ async function fetchDvpRanksForRows(
   const opponentIds = [
     ...new Set(
       rows
-        .map(
-          (row) =>
-            row.opponent_team_id ??
-            getWnbaTeamIdFromAbbr(row.opponent_team_abbr),
+        .map((row) =>
+          resolveWnbaTeamId(row.opponent_team_id, row.opponent_team_abbr),
         )
         .filter(Boolean),
     ),
@@ -685,13 +697,16 @@ async function fetchDvpRanksForRows(
     if (!teamId || !position) continue;
     defenseByTeamPosition.set(`${season}:${teamId}:${position}`, {
       ...data,
-      total_teams: teamIdsBySeason.get(season)?.size ?? 13,
+      total_teams:
+        teamIdsBySeason.get(season)?.size ?? (season === "2025" ? 13 : 15),
     });
   }
 
   for (const row of rows) {
-    const opponentTeamId =
-      row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+    const opponentTeamId = resolveWnbaTeamId(
+      row.opponent_team_id,
+      row.opponent_team_abbr,
+    );
     const metadata = row.player_id
       ? (playerMetadataMap.get(row.player_id) ?? null)
       : null;
@@ -842,9 +857,11 @@ function transformProfile(
   paceContext: PaceContext | null,
   gameLineContext: GameLineContext | null,
 ) {
-  const teamId = row.team_id ?? getWnbaTeamIdFromAbbr(row.team_abbr);
-  const opponentTeamId =
-    row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+  const teamId = resolveWnbaTeamId(row.team_id, row.team_abbr);
+  const opponentTeamId = resolveWnbaTeamId(
+    row.opponent_team_id,
+    row.opponent_team_abbr,
+  );
   const playerPosition =
     row.player_depth_chart_pos ||
     row.player_position ||
@@ -854,7 +871,9 @@ function transformProfile(
   const effectiveDvpRank = row.dvp_rank ?? dvpRank?.rank ?? null;
   const effectiveDvpAvgAllowed =
     row.dvp_avg_allowed ?? dvpRank?.avgAllowed ?? null;
-  const effectiveTotalTeams = dvpRank?.totalTeams ?? 13;
+  const effectiveTotalTeams =
+    dvpRank?.totalTeams ??
+    (getWnbaSeasonFromDate(row.game_date) === "2025" ? 13 : 15);
   const startTime =
     eventStartTime ||
     row.start_time ||
@@ -1224,8 +1243,10 @@ export async function GET(request: Request) {
     );
 
     filteredData = filteredData.map((row) => {
-      const opponentTeamId =
-        row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+      const opponentTeamId = resolveWnbaTeamId(
+        row.opponent_team_id,
+        row.opponent_team_abbr,
+      );
       const metadata = row.player_id
         ? (playerMetadataMap.get(row.player_id) ?? null)
         : null;
@@ -1271,9 +1292,11 @@ export async function GET(request: Request) {
     const eventStartTimes = await fetchEventStartTimes(paginatedData);
     const paceRows = paginatedData.map((row) => ({
       ...row,
-      team_id: row.team_id ?? getWnbaTeamIdFromAbbr(row.team_abbr),
-      opponent_team_id:
-        row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr),
+      team_id: resolveWnbaTeamId(row.team_id, row.team_abbr),
+      opponent_team_id: resolveWnbaTeamId(
+        row.opponent_team_id,
+        row.opponent_team_abbr,
+      ),
     }));
     const paceContextMap = await fetchPaceContextsForRows(
       supabase,
@@ -1299,8 +1322,10 @@ export async function GET(request: Request) {
       const playerMetadata = row.player_id
         ? (playerMetadataMap.get(row.player_id) ?? null)
         : null;
-      const opponentTeamId =
-        row.opponent_team_id ?? getWnbaTeamIdFromAbbr(row.opponent_team_abbr);
+      const opponentTeamId = resolveWnbaTeamId(
+        row.opponent_team_id,
+        row.opponent_team_abbr,
+      );
       const position = normalizeWnbaPosition(
         row.player_depth_chart_pos ||
           row.player_position ||

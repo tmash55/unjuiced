@@ -1514,7 +1514,7 @@ export function HitRateChart({
                       }
                       if (id.startsWith("pace")) legacyActive = true;
                     }
-                    const total = dvpTotalTeams ?? (sport === "wnba" ? 13 : 30);
+                    const total = dvpTotalTeams ?? (sport === "wnba" ? 15 : 30);
                     const tierSize = Math.max(3, Math.round(total / 3));
                     const fastCutoff = tierSize;
                     const slowCutoff = total - tierSize + 1;

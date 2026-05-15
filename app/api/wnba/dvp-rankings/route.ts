@@ -10,7 +10,7 @@ const POSITIONS = ["G", "F", "C"] as const;
 
 const QuerySchema = z.object({
   position: z.enum(POSITIONS).default("G"),
-  season: z.string().nullish().transform((v) => v ?? "2025"),
+  season: z.string().nullish().transform((v) => v ?? "2026"),
 });
 
 const EXPANSION_TEAMS_2026 = [

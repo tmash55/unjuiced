@@ -2011,7 +2011,7 @@ const hasInjuryStatus = (status: string | null): boolean => {
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst" | null;
 
 const getDefenseTotalTeams = (sport: "nba" | "mlb" | "wnba") =>
-  sport === "wnba" ? 13 : 30;
+  sport === "wnba" ? 15 : 30;
 
 const getMatchupTier = (rank: number | null, totalTeams = 30): MatchupTier => {
   if (rank === null) return null;

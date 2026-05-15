@@ -109,6 +109,21 @@ interface RpcResponse {
   games: RpcGame[];
 }
 
+function toNumber(value: unknown, fallback = 0): number {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function average(values: number[], decimals = 2): number {
+  if (values.length === 0) return 0;
+  const factor = 10 ** decimals;
+  return (
+    Math.round(
+      (values.reduce((sum, value) => sum + value, 0) / values.length) * factor,
+    ) / factor
+  );
+}
+
 async function fetchGamePaceByGameOpponent(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   games: RpcGame[]
@@ -136,6 +151,83 @@ async function fetchGamePaceByGameOpponent(
   for (const row of data || []) {
     if (!row.game_id || !row.opponent_team_id || row.pace === null) continue;
     result.set(`${row.game_id}:${row.opponent_team_id}`, row.pace);
+  }
+
+  const missingGameIds = [
+    ...new Set(
+      games
+        .filter(
+          (game) =>
+            !result.has(`${Number(game.game_id)}:${game.opponent_team_id}`),
+        )
+        .map((game) => Number(game.game_id))
+        .filter((gameId) => Number.isFinite(gameId) && gameId > 0),
+    ),
+  ];
+
+  if (missingGameIds.length === 0) {
+    return result;
+  }
+
+  const { data: boxRows, error: boxError } = await supabase
+    .from("wnba_player_box_scores")
+    .select("game_id,team_id,fga,oreb,tov,fta")
+    .in("game_id", missingGameIds);
+
+  if (boxError) {
+    console.error(
+      "[WNBA Player Box Scores] Computed pace fallback error:",
+      boxError.message,
+    );
+    return result;
+  }
+
+  const teamStatsByGame = new Map<
+    string,
+    Map<string, { fga: number; oreb: number; tov: number; fta: number }>
+  >();
+  for (const row of boxRows || []) {
+    if (!row.game_id || !row.team_id) continue;
+
+    const gameKey = String(row.game_id);
+    const teamKey = String(row.team_id);
+    const gameStats =
+      teamStatsByGame.get(gameKey) ??
+      new Map<string, { fga: number; oreb: number; tov: number; fta: number }>();
+    const teamStats = gameStats.get(teamKey) ?? {
+      fga: 0,
+      oreb: 0,
+      tov: 0,
+      fta: 0,
+    };
+
+    teamStats.fga += toNumber(row.fga);
+    teamStats.oreb += toNumber(row.oreb);
+    teamStats.tov += toNumber(row.tov);
+    teamStats.fta += toNumber(row.fta);
+
+    gameStats.set(teamKey, teamStats);
+    teamStatsByGame.set(gameKey, gameStats);
+  }
+
+  const paceByGame = new Map<string, number>();
+  for (const [gameId, gameStats] of teamStatsByGame.entries()) {
+    const possessions = [...gameStats.values()].map((teamStats) =>
+      teamStats.fga - teamStats.oreb + teamStats.tov + 0.44 * teamStats.fta,
+    );
+    if (possessions.length > 0) {
+      paceByGame.set(gameId, average(possessions));
+    }
+  }
+
+  for (const game of games) {
+    const key = `${Number(game.game_id)}:${game.opponent_team_id}`;
+    if (result.has(key)) continue;
+
+    const pace = paceByGame.get(String(Number(game.game_id)));
+    if (pace != null) {
+      result.set(key, pace);
+    }
   }
 
   return result;

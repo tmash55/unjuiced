@@ -11,7 +11,7 @@ interface MatchupTileProps {
   sport: "nba" | "wnba";
 }
 
-const TOTAL_TEAMS_BY_SPORT: Record<"nba" | "wnba", number> = { nba: 30, wnba: 13 };
+const TOTAL_TEAMS_BY_SPORT: Record<"nba" | "wnba", number> = { nba: 30, wnba: 15 };
 
 // Mirrors the table's matchup tier system. Pace tier is INVERTED relative to
 // DEF: high pace rank = fast pace = good for offensive props.

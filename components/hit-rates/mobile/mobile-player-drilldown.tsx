@@ -3319,7 +3319,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
   const { positions: defensePositions, isLoading: defenseLoading } = useTeamDefenseRanks({
     opponentTeamId: profile.opponentTeamId,
     sport,
-    season: sport === "wnba" ? "2025" : undefined,
+    season: sport === "wnba" ? "2026" : undefined,
     enabled: !!profile.opponentTeamId,
   });
   
@@ -3351,12 +3351,12 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket, sport = 
 
   // Get rank color for DvP badge — sport-aware.
   // NBA: 30 teams (tough = 1-10, soft = 21-30)
-  // WNBA: 13 teams (tough = 1-4, soft = 10-13)
+  // WNBA: 15 teams in 2026 (tough = 1-5, soft = 11-15)
   // Was hardcoded to NBA cutoffs which painted every WNBA badge red since
   // most WNBA ranks fell into the rank<=10 bucket.
   const getRankColor = (rank: number | null | undefined) => {
     if (!rank) return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
-    const totalTeams = sport === "wnba" ? 13 : 30;
+    const totalTeams = sport === "wnba" ? 15 : 30;
     const toughCutoff = Math.max(3, Math.round(totalTeams / 3));
     const softMin = totalTeams - toughCutoff + 1;
     if (rank <= toughCutoff) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };

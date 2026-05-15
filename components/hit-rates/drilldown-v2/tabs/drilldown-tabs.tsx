@@ -424,7 +424,7 @@ function TabPreview({
 
 const TOTAL_TEAMS_BY_SPORT: Record<"nba" | "wnba", number> = {
   nba: 30,
-  wnba: 13,
+  wnba: 15,
 };
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst";
 type CorrelationMarket =

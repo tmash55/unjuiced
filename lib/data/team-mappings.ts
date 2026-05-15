@@ -265,7 +265,7 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     PHX: "PHX", // Phoenix Mercury (stats.wnba.com uses "PHX")
     PHO: "PHX",
     POR: "POR", // Portland expansion team
-    PDX: "PDX", // From main — Portland alt abbreviation
+    PDX: "POR", // Portland alt abbreviation
     SEA: "SEA", // Seattle Storm
     TOR: "TOR", // Toronto expansion team
     WAS: "WAS", // Washington Mystics

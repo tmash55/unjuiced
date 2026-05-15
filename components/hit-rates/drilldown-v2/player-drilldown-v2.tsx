@@ -461,7 +461,7 @@ export function PlayerDrilldownV2({
     }
     return map;
   }, [dvpQuery.teams, profile.market]);
-  const dvpTotalTeams = sport === "wnba" ? 13 : 30;
+  const dvpTotalTeams = sport === "wnba" ? 15 : 30;
 
   // Pace ranks for every opponent that appears in the visible games. Keyed
   // by opponent_team_id so the chart can color-code per-game pace context

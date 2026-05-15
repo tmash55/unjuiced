@@ -626,6 +626,18 @@ const DVP_VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode
   { value: "trends", label: "Trends", icon: <TrendingUp className="w-4 h-4" /> },
 ];
 
+function getDvpLegendRanges(totalTeams: number) {
+  const total = Math.max(1, Math.floor(totalTeams));
+  const bucketSize = Math.max(1, Math.floor(total / 3));
+  const favorableStart = Math.max(bucketSize + 1, total - bucketSize + 1);
+
+  return {
+    tough: `1-${bucketSize}`,
+    neutral: `${bucketSize + 1}-${favorableStart - 1}`,
+    good: `${favorableStart}-${total}`,
+  };
+}
+
 function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const sheetInfo = SHEET_INFO[sheet];
   const isWnba = sport === "wnba";
@@ -635,7 +647,7 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
   const [displayMode, setDisplayMode] = useState<DvpDisplayMode>('values');
   const [trendBaseline, setTrendBaseline] = useState<TrendCompareBaseline>('season');
   const [trendStat, setTrendStat] = useState<TrendStat>('pts');
-  const [season, setSeason] = useState(isWnba ? "2025" : "2025-26");
+  const [season, setSeason] = useState(isWnba ? "2026" : "2025-26");
   const hideTrends = isWnba && season === "2025";
   const mobileViewModes = hideTrends ? DVP_VIEW_MODES.filter((mode) => mode.value !== "trends") : DVP_VIEW_MODES;
 
@@ -650,7 +662,7 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
 
   useEffect(() => {
     if (isWnba && season === "2025-26") {
-      setSeason("2025");
+      setSeason("2026");
     }
     if (!isWnba && season === "2025") {
       setSeason("2025-26");
@@ -669,9 +681,9 @@ function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedShe
     position: selectedPosition,
     season: season,
   });
-  const totalTeams = meta?.totalTeams ?? (isWnba ? 13 : 30);
+  const totalTeams = meta?.totalTeams ?? (isWnba ? (season === "2025" ? 13 : 15) : 30);
   const legendRanges = isWnba
-    ? { tough: "1-4", neutral: "5-9", good: "10-13" }
+    ? getDvpLegendRanges(totalTeams)
     : { tough: "1-10", neutral: "11-20", good: "21-30" };
 
   return (

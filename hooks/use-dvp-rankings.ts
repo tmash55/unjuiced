@@ -406,7 +406,7 @@ export function useDvpRankings({ position, sport = "nba", season, enabled = true
   return {
     teams: query.data?.teams ?? [],
     position: query.data?.position ?? normalizedPosition,
-    season: query.data?.season ?? (sport === "wnba" ? "2025" : "2025-26"),
+    season: query.data?.season ?? (sport === "wnba" ? "2026" : "2025-26"),
     meta: query.data?.meta,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
