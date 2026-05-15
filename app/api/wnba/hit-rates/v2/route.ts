@@ -18,6 +18,7 @@ import {
   getWnbaDbDatesForLocalDates,
   normalizeWnbaGameDate,
 } from "@/lib/wnba/game-date";
+import { getDvpTeamCount } from "@/lib/dvp-rank-scale";
 
 /**
  * Hit Rates API v2 - WNBA
@@ -697,8 +698,11 @@ async function fetchDvpRanksForRows(
     if (!teamId || !position) continue;
     defenseByTeamPosition.set(`${season}:${teamId}:${position}`, {
       ...data,
-      total_teams:
-        teamIdsBySeason.get(season)?.size ?? (season === "2025" ? 13 : 15),
+      total_teams: getDvpTeamCount(
+        "wnba",
+        season,
+        Number(data.total_teams || 0) || teamIdsBySeason.get(season)?.size,
+      ),
     });
   }
 
@@ -871,10 +875,11 @@ function transformProfile(
   const effectiveDvpRank = row.dvp_rank ?? dvpRank?.rank ?? null;
   const effectiveDvpAvgAllowed =
     row.dvp_avg_allowed ?? dvpRank?.avgAllowed ?? null;
-  const effectiveTotalTeams =
-    row.dvp_total_teams ??
-    dvpRank?.totalTeams ??
-    (getWnbaSeasonFromDate(row.game_date) === "2025" ? 13 : 15);
+  const effectiveTotalTeams = getDvpTeamCount(
+    "wnba",
+    row.game_date,
+    row.dvp_total_teams ?? dvpRank?.totalTeams,
+  );
   const startTime =
     eventStartTime ||
     row.start_time ||

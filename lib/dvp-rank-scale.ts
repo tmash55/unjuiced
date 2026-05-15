@@ -19,15 +19,18 @@ export function getDvpTeamCount(
   seasonOrDate?: string | number | null,
   knownTotalTeams?: number | null,
 ): number {
-  if (knownTotalTeams && Number.isFinite(knownTotalTeams) && knownTotalTeams > 0) {
-    return Math.floor(knownTotalTeams);
-  }
-
   if (sport === "wnba") {
     const year = parseYear(seasonOrDate);
-    return year && year <= 2025
+    const seasonTotal = year && year <= 2025
       ? WNBA_2025_DVP_TEAM_COUNT
       : WNBA_2026_DVP_TEAM_COUNT;
+    return knownTotalTeams && Number.isFinite(knownTotalTeams)
+      ? Math.max(Math.floor(knownTotalTeams), seasonTotal)
+      : seasonTotal;
+  }
+
+  if (knownTotalTeams && Number.isFinite(knownTotalTeams) && knownTotalTeams > 0) {
+    return Math.floor(knownTotalTeams);
   }
 
   return NBA_DVP_TEAM_COUNT;
