@@ -463,17 +463,22 @@ export function PlayerDrilldownV2({
   }, [dvpQuery.teams, profile.market]);
   const dvpTotalTeams = sport === "wnba" ? 15 : 30;
 
-  // Pace ranks for every opponent that appears in the visible games. Keyed
-  // by opponent_team_id so the chart can color-code per-game pace context
-  // when the user enables the Pace overlay setting. Both NBA and WNBA are
-  // backed by basketball_team_pace_rankings.
+  const currentOpponentTeamId =
+    oddsContextProfile.opponentTeamId ?? profile.opponentTeamId ?? null;
+
+  // Pace ranks for every historical opponent, plus the current matchup
+  // opponent. Keyed by opponent_team_id so the chart can color-code per-game
+  // pace context and extend the line into the upcoming-game column.
   const opponentTeamIds = useMemo(() => {
     const set = new Set<number>();
     for (const g of boxScoreGames) {
       if (typeof g.opponentTeamId === "number") set.add(g.opponentTeamId);
     }
+    if (typeof currentOpponentTeamId === "number") {
+      set.add(currentOpponentTeamId);
+    }
     return [...set];
-  }, [boxScoreGames]);
+  }, [boxScoreGames, currentOpponentTeamId]);
   const teamPaceQuery = useTeamPace({
     teamIds: opponentTeamIds,
     sport,
@@ -712,7 +717,7 @@ export function PlayerDrilldownV2({
       playTypeDefenseFilters,
       tonightDate: profile.gameDate,
       tonightSpread: profile.spread,
-      tonightOpponentTeamId: profile.opponentTeamId ?? null,
+      tonightOpponentTeamId: currentOpponentTeamId,
     };
     const available = getQuickFilters(ctx);
     const predicates = [...quickFilters]
@@ -735,6 +740,7 @@ export function PlayerDrilldownV2({
     paceRankByOpponent,
     dvpTotalTeams,
     playTypeDefenseFilters,
+    currentOpponentTeamId,
   ]);
 
   // Recompute hit rates from box scores whenever ANY filter is in play —
@@ -863,7 +869,7 @@ export function PlayerDrilldownV2({
         paceRankByOpponent,
         totalTeams: dvpTotalTeams,
         playTypeDefenseFilters,
-        tonightOpponentTeamId: profile.opponentTeamId ?? null,
+        tonightOpponentTeamId: currentOpponentTeamId,
       });
       for (const id of quickFilters) {
         const qf = resolveQuickFilter(id, available, {
@@ -874,7 +880,7 @@ export function PlayerDrilldownV2({
           paceRankByOpponent,
           totalTeams: dvpTotalTeams,
           playTypeDefenseFilters,
-          tonightOpponentTeamId: profile.opponentTeamId ?? null,
+          tonightOpponentTeamId: currentOpponentTeamId,
         });
         if (qf) {
           chips.push({
@@ -926,6 +932,7 @@ export function PlayerDrilldownV2({
     paceRankByOpponent,
     dvpTotalTeams,
     playTypeDefenseFilters,
+    currentOpponentTeamId,
     teammateFilters,
     topTeammates,
   ]);
@@ -1026,7 +1033,7 @@ export function PlayerDrilldownV2({
             playTypeDefenseFilters={playTypeDefenseFilters}
             tonightDate={oddsContextProfile.gameDate}
             tonightSpread={oddsContextProfile.spread}
-            tonightOpponentTeamId={oddsContextProfile.opponentTeamId ?? null}
+            tonightOpponentTeamId={currentOpponentTeamId}
             activeFilterChips={activeFilterChips}
             onClearAllFilters={onClearAllFilters}
             onLineChange={setActiveCustomLine}
