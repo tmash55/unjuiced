@@ -6,7 +6,14 @@
  * Before: Full EV computation per cache miss — 50–250+ Redis HTTP calls,
  *         5–25 s per request, frequent 504 timeouts.
  *
- * After:  Reads pre-computed EVRow data from worker response keys first:
+ * After:  Reads top preset rows from worker sorted indexes first:
+ *           edge:sort:{preset}:all
+ *           edge:sort:{preset}:{sport}
+ *
+ *         The selected sorted-index members hydrate only the needed fields from:
+ *           edge:{sport}:{event_id}:{preset}
+ *
+ *         Falls back to pre-computed EVRow response payloads:
  *           edge:response:{preset}:{sport} — JSON payload with rows[]
  *
  *         Custom blends and cache misses fall back to the per-event edge data:
@@ -32,6 +39,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPreset } from "@/lib/odds/presets";
 import { americanToImpliedProb, devigMultiple, impliedProbToAmerican } from "@/lib/ev/devig";
 import { redis, parseRedisValue, hashCacheKey, hgetallPerEvent, setSafe } from "@/lib/shared-redis-client"; // /api/v2/shared-redis-client.ts
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 // ---------------------------------------------------------------------------
 // Types — kept identical to original so frontend stays unchanged
@@ -149,7 +157,12 @@ interface OpportunitiesResponse {
   };
   timing_ms: number;
   cache_hit: boolean;
-  source?: "edge_worker_cache" | "edge_worker_cache_with_fallback" | "edge_per_event_fallback";
+  source?:
+    | "edge_sort_index"
+    | "edge_sort_index_with_fallback"
+    | "edge_worker_cache"
+    | "edge_worker_cache_with_fallback"
+    | "edge_per_event_fallback";
   preset_key?: string;
   computed_at?: string | null;
   debug?: OpportunitiesDebug;
@@ -164,6 +177,29 @@ interface EdgeResponsePayload {
 }
 
 type EdgeResponseReadStatus = "hit" | "missing" | "empty" | "invalid" | "error";
+
+type EdgeSortIndexStatus = "unused" | "hit" | "missing" | "partial" | "error";
+
+interface EdgeIndexRef {
+  sport: string;
+  eventId: string;
+  preset: string;
+  seid: string;
+  member: string;
+}
+
+interface EdgeSortIndexResult {
+  status: EdgeSortIndexStatus;
+  sort_keys: string[];
+  members_read: number;
+  refs: EdgeIndexRef[];
+  rows: any[];
+  row_count: number;
+  missing_hydrations: number;
+  row_counts_by_sport: Record<string, number>;
+  errors: Record<string, string>;
+  computed_at: string | null;
+}
 
 interface EdgeResponseReadResult {
   sport: string;
@@ -180,6 +216,13 @@ interface OpportunitiesDebug {
   requested_sports: string[];
   preset_key: string;
   can_use_worker_response_cache: boolean;
+  sort_index_status: EdgeSortIndexStatus;
+  sort_index_keys: string[];
+  sort_index_members_read: number;
+  sort_index_rows_hydrated: number;
+  sort_index_missing_hydrations: number;
+  sort_index_row_counts_by_sport: Record<string, number>;
+  sort_index_errors: Record<string, string>;
   worker_read_status_by_sport: Record<string, EdgeResponseReadStatus>;
   worker_row_counts_by_sport: Record<string, number>;
   worker_rows_after_pregame_filter_by_sport: Record<string, number>;
@@ -213,6 +256,13 @@ const MAX_RESPONSE_LIMIT = 2_000;
 const LIVE_LIQUIDITY_BOOKS = new Set(["novig", "prophetx", "kalshi", "pinnacle", "ps3838"]);
 const LIVE_LIQUIDITY_FETCH_CHUNK_SIZE = 500;
 const WORKER_EDGE_RESPONSE_PREFIX = "edge:response";
+const WORKER_EDGE_SORT_PREFIX = "edge:sort";
+const EDGE_SORT_FILTERED_FETCH_MULTIPLIER = 4;
+const EDGE_SORT_UNFILTERED_BUFFER = 500;
+const EDGE_SORT_FETCH_MIN = 500;
+const EDGE_SORT_FETCH_MAX = 8_000;
+const EDGE_SORT_HYDRATE_CONCURRENCY = 8;
+const EDGE_SORT_HMGET_CHUNK_SIZE = 100;
 
 const WORKER_PRESETS = new Set([
   "pinnacle",
@@ -325,10 +375,202 @@ function edgeResponseKey(preset: string, sport: string): string {
   return `${WORKER_EDGE_RESPONSE_PREFIX}:${preset}:${sport}`;
 }
 
+function edgeSortKey(preset: string, sportOrAll: string): string {
+  return `${WORKER_EDGE_SORT_PREFIX}:${preset}:${sportOrAll}`;
+}
+
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return "Unknown error";
+}
+
+function isAllSportsRequest(sports: string[]): boolean {
+  return sports.length === VALID_SPORTS.size && sports.every((sport) => VALID_SPORTS.has(sport));
+}
+
+function canUseEdgeSortIndex(sports: string[]): boolean {
+  return isAllSportsRequest(sports) || sports.length === 1;
+}
+
+function edgeSortFetchLimit(limit: number, hasSelectiveFilters: boolean): number {
+  const target = hasSelectiveFilters
+    ? limit * EDGE_SORT_FILTERED_FETCH_MULTIPLIER
+    : limit + EDGE_SORT_UNFILTERED_BUFFER;
+
+  return Math.min(
+    EDGE_SORT_FETCH_MAX,
+    Math.max(limit, EDGE_SORT_FETCH_MIN, target)
+  );
+}
+
+function parseEdgeIndexMember(member: string): EdgeIndexRef | null {
+  const [sport, eventId, preset, ...seidParts] = member.split("|");
+  const seid = seidParts.join("|");
+  if (!sport || !eventId || !preset || !seid) return null;
+  return { sport, eventId, preset, seid, member };
+}
+
+function normalizeHmgetResult(raw: unknown, fields: string[]): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    return fields.map((field) => record[field] ?? null);
+  }
+  return [];
+}
+
+function latestComputedAtFromRows(rows: any[]): string | null {
+  const values = rows
+    .map((row) => {
+      const raw = row?.computed_at ?? row?.meta?.last_computed ?? row?.ts;
+      if (typeof raw === "string" && raw) return raw;
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        const millis = raw > 10_000_000_000 ? raw : raw * 1000;
+        return new Date(millis).toISOString();
+      }
+      return null;
+    })
+    .filter((value): value is string => !!value)
+    .sort();
+
+  return values.at(-1) ?? null;
+}
+
+async function readEdgeSortIndexRows(
+  sports: string[],
+  preset: string,
+  memberLimit: number
+): Promise<EdgeSortIndexResult> {
+  if (!canUseEdgeSortIndex(sports)) {
+    return {
+      status: "unused",
+      sort_keys: [],
+      members_read: 0,
+      refs: [],
+      rows: [],
+      row_count: 0,
+      missing_hydrations: 0,
+      row_counts_by_sport: {},
+      errors: {},
+      computed_at: null,
+    };
+  }
+
+  const sportSet = new Set(sports);
+  const sortKey = isAllSportsRequest(sports)
+    ? edgeSortKey(preset, "all")
+    : edgeSortKey(preset, sports[0]);
+  const errors: Record<string, string> = {};
+
+  let members: string[] = [];
+  try {
+    members = await zrevrangeCompat(redis as any, sortKey, 0, memberLimit - 1);
+  } catch (err) {
+    errors[sortKey] = errorMessage(err);
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return {
+      status: "error",
+      sort_keys: [sortKey],
+      members_read: members.length,
+      refs: [],
+      rows: [],
+      row_count: 0,
+      missing_hydrations: 0,
+      row_counts_by_sport: {},
+      errors,
+      computed_at: null,
+    };
+  }
+
+  if (members.length === 0) {
+    return {
+      status: "missing",
+      sort_keys: [sortKey],
+      members_read: 0,
+      refs: [],
+      rows: [],
+      row_count: 0,
+      missing_hydrations: 0,
+      row_counts_by_sport: {},
+      errors: {},
+      computed_at: null,
+    };
+  }
+
+  const refs = members
+    .map(parseEdgeIndexMember)
+    .filter((ref): ref is EdgeIndexRef =>
+      !!ref &&
+      ref.preset === preset &&
+      VALID_SPORTS.has(ref.sport) &&
+      sportSet.has(ref.sport)
+    );
+
+  const byHash = new Map<string, EdgeIndexRef[]>();
+  for (const ref of refs) {
+    const hashKey = `edge:${ref.sport}:${ref.eventId}:${ref.preset}`;
+    const entries = byHash.get(hashKey) ?? [];
+    entries.push(ref);
+    byHash.set(hashKey, entries);
+  }
+
+  const rows: any[] = [];
+  let missingHydrations = 0;
+
+  await forEachWithConcurrency(
+    Array.from(byHash.entries()),
+    EDGE_SORT_HYDRATE_CONCURRENCY,
+    async ([hashKey, hashRefs]) => {
+      for (let i = 0; i < hashRefs.length; i += EDGE_SORT_HMGET_CHUNK_SIZE) {
+        const chunk = hashRefs.slice(i, i + EDGE_SORT_HMGET_CHUNK_SIZE);
+        const fields = chunk.map((ref) => ref.seid);
+
+        try {
+          const rawValues = await (redis as any).hmget(hashKey, ...fields);
+          const values = normalizeHmgetResult(rawValues, fields);
+
+          for (let j = 0; j < chunk.length; j++) {
+            const raw = values[j];
+            if (!raw) {
+              missingHydrations++;
+              continue;
+            }
+
+            const row = parseRedisValue<any>(raw as any, `${hashKey}:${chunk[j].seid}`);
+            if (!row) {
+              missingHydrations++;
+              continue;
+            }
+            rows.push(row);
+          }
+        } catch (err) {
+          errors[hashKey] = errorMessage(err);
+          missingHydrations += chunk.length;
+        }
+      }
+    }
+  );
+
+  const rowCountsBySport: Record<string, number> = {};
+  for (const row of rows) {
+    incrementCount(rowCountsBySport, row?.sport);
+  }
+
+  return {
+    status: rows.length > 0 && missingHydrations > 0 ? "partial" : rows.length > 0 ? "hit" : "missing",
+    sort_keys: [sortKey],
+    members_read: members.length,
+    refs,
+    rows,
+    row_count: rows.length,
+    missing_hydrations: missingHydrations,
+    row_counts_by_sport: rowCountsBySport,
+    errors,
+    computed_at: latestComputedAtFromRows(rows),
+  };
 }
 
 async function readEdgeResponsePayload(
@@ -567,7 +809,7 @@ export async function GET(req: NextRequest) {
 
     // ── Step 1: Check full filtered-response cache ────────────────────────
     const responseCacheSourceKey = canUseWorkerResponseCache
-      ? `edge-response:${requestedWorkerPreset}`
+      ? `edge-sort:${requestedWorkerPreset}:v1`
       : `edge-fallback:${workerPreset}:${useRuntimeCustomBlend ? "custom" : "preset"}`;
     const cacheKeyHash = buildFiltersCacheKey(params, blend, responseCacheSourceKey);
     const responseCacheKey = `${OPPS_CACHE_PREFIX}${cacheKeyHash}`;
@@ -588,6 +830,7 @@ export async function GET(req: NextRequest) {
                 "X-Edge-Source": response.source || "response_cache",
                 "X-Edge-Requested-Sports": response.filters?.sports?.join(",") || "",
                 "X-Edge-Returned-Sports": summarizeCountKeys(returnedSports),
+                "X-Edge-Sort-Index": response.source?.startsWith("edge_sort_index") ? "1" : "0",
                 "Cache-Control": "private, max-age=15",
               },
             }
@@ -598,14 +841,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Step 2: Prefer worker response payloads for known preset requests ─
+    // ── Step 2: Prefer worker sorted indexes for known preset requests ────
     let allOpportunities: Opportunity[] = [];
     let responseSource: OpportunitiesResponse["source"] = canUseWorkerResponseCache
-      ? "edge_worker_cache"
+      ? "edge_sort_index"
       : "edge_per_event_fallback";
     let computedAt: string | null = null;
     let fallbackSports = sports;
     let cachedRowsRead = 0;
+    let usedSortIndex = false;
+    let sortIndexResult: EdgeSortIndexResult = {
+      status: "unused",
+      sort_keys: [],
+      members_read: 0,
+      refs: [],
+      rows: [],
+      row_count: 0,
+      missing_hydrations: 0,
+      row_counts_by_sport: {},
+      errors: {},
+      computed_at: null,
+    };
     const workerReadStatusBySport: Record<string, EdgeResponseReadStatus> = {};
     const workerRowCountsBySport: Record<string, number> = {};
     const workerRowsAfterPregameBySport: Record<string, number> = {};
@@ -616,6 +872,44 @@ export async function GET(req: NextRequest) {
     const rowsBeforeFiltersBySport: Record<string, number> = {};
 
     if (canUseWorkerResponseCache) {
+      const hasSelectiveSortFilters =
+        !!markets ||
+        Object.keys(marketLines).length > 0 ||
+        minEdge > 0 ||
+        minEV > 0 ||
+        minOdds > -10000 ||
+        maxOdds < 20000 ||
+        minBooksPerSide > 2 ||
+        requireFullBlend ||
+        requireTwoWay ||
+        !!marketType;
+      const sortIndexMemberLimit = edgeSortFetchLimit(limit, hasSelectiveSortFilters);
+      sortIndexResult = await readEdgeSortIndexRows(
+        sports,
+        requestedWorkerPreset,
+        sortIndexMemberLimit
+      );
+      const sortIndexHasHydrationIssues =
+        sortIndexResult.missing_hydrations > 0 || Object.keys(sortIndexResult.errors).length > 0;
+
+      if (sortIndexResult.rows.length > 0 && !sortIndexHasHydrationIssues) {
+        usedSortIndex = true;
+        cachedRowsRead = sortIndexResult.row_count;
+        fallbackSports = [];
+        responseSource = "edge_sort_index";
+        computedAt = sortIndexResult.computed_at;
+
+        for (const row of sortIndexResult.rows) {
+          if (shouldSkipPregameEdgeRow(row)) continue;
+          const opportunity = evRowToOpportunity(row, useNextBest);
+          allOpportunities.push(opportunity);
+          incrementCount(rowsBeforeFiltersBySport, opportunity.sport || row?.sport);
+        }
+      }
+    }
+
+    // ── Step 3: Fall back to full worker response payloads if needed ─────
+    if (canUseWorkerResponseCache && !usedSortIndex) {
       const payloads: EdgeResponseReadResult[] = [];
       await forEachWithConcurrency(
         sports.map((sport, index) => ({ sport, index })),
@@ -660,11 +954,11 @@ export async function GET(req: NextRequest) {
       computedAt = latestComputedAt(presentPayloads);
       fallbackSports = cachedRowsRead > 0 ? missingSports : sports;
       responseSource = fallbackSports.length > 0 && cachedRowsRead > 0
-        ? "edge_worker_cache_with_fallback"
+        ? (sortIndexResult.status !== "unused" ? "edge_sort_index_with_fallback" : "edge_worker_cache_with_fallback")
         : "edge_worker_cache";
     }
 
-    // ── Step 3: Fall back for custom models and missing worker responses ──
+    // ── Step 4: Fall back for custom models and missing worker responses ──
     // Custom blends still need runtime re-devig. If a preset response key is
     // temporarily absent, use the existing per-event fallback instead of
     // serving an empty page.
@@ -728,10 +1022,14 @@ export async function GET(req: NextRequest) {
 
     if (!canUseWorkerResponseCache) {
       responseSource = "edge_per_event_fallback";
+    } else if (usedSortIndex) {
+      responseSource = "edge_sort_index";
     } else if (cachedRowsRead === 0) {
       responseSource = "edge_per_event_fallback";
     } else if (sportsForFallback.length > 0 && cachedRowsRead > 0) {
-      responseSource = "edge_worker_cache_with_fallback";
+      responseSource = sortIndexResult.status !== "unused"
+        ? "edge_sort_index_with_fallback"
+        : "edge_worker_cache_with_fallback";
     }
 
     const unrecoveredWorkerReadFailures = Object.keys(workerReadFailures).filter((sport) => {
@@ -754,6 +1052,13 @@ export async function GET(req: NextRequest) {
             requested_sports: sports,
             preset_key: workerPreset,
             can_use_worker_response_cache: canUseWorkerResponseCache,
+            sort_index_status: sortIndexResult.status,
+            sort_index_keys: sortIndexResult.sort_keys,
+            sort_index_members_read: sortIndexResult.members_read,
+            sort_index_rows_hydrated: sortIndexResult.row_count,
+            sort_index_missing_hydrations: sortIndexResult.missing_hydrations,
+            sort_index_row_counts_by_sport: sortIndexResult.row_counts_by_sport,
+            sort_index_errors: sortIndexResult.errors,
             worker_read_status_by_sport: workerReadStatusBySport,
             worker_row_counts_by_sport: workerRowCountsBySport,
             worker_rows_after_pregame_filter_by_sport: workerRowsAfterPregameBySport,
@@ -783,6 +1088,8 @@ export async function GET(req: NextRequest) {
             "X-Edge-Source": responseSource || "",
             "X-Edge-Requested-Sports": sports.join(","),
             "X-Edge-Read-Failures": unrecoveredWorkerReadFailures.join(","),
+            "X-Edge-Sort-Index": usedSortIndex ? "1" : "0",
+            "X-Edge-Sort-Index-Status": sortIndexResult.status,
             "Cache-Control": "no-store",
           },
         }
@@ -911,6 +1218,13 @@ export async function GET(req: NextRequest) {
         requested_sports: sports,
         preset_key: workerPreset,
         can_use_worker_response_cache: canUseWorkerResponseCache,
+        sort_index_status: sortIndexResult.status,
+        sort_index_keys: sortIndexResult.sort_keys,
+        sort_index_members_read: sortIndexResult.members_read,
+        sort_index_rows_hydrated: sortIndexResult.row_count,
+        sort_index_missing_hydrations: sortIndexResult.missing_hydrations,
+        sort_index_row_counts_by_sport: sortIndexResult.row_counts_by_sport,
+        sort_index_errors: sortIndexResult.errors,
         worker_read_status_by_sport: workerReadStatusBySport,
         worker_row_counts_by_sport: workerRowCountsBySport,
         worker_rows_after_pregame_filter_by_sport: workerRowsAfterPregameBySport,
@@ -948,6 +1262,8 @@ export async function GET(req: NextRequest) {
         "X-Edge-Requested-Sports": sports.join(","),
         "X-Edge-Returned-Sports": summarizeCountKeys(rowsReturnedBySport),
         "X-Edge-Read-Failures": Object.keys(workerReadFailures).join(","),
+        "X-Edge-Sort-Index": usedSortIndex ? "1" : "0",
+        "X-Edge-Sort-Index-Status": sortIndexResult.status,
         "Cache-Control": "private, max-age=15",
       },
     });
