@@ -146,7 +146,7 @@ function buildRecent(rows: PaceTableRow[], profileSeason: string | null, teamId?
   const l10 = average(sorted.slice(0, 10).map((row) => row.pace));
   const l20 = average(sorted.slice(0, 20).map((row) => row.pace));
   const seasonRows = profileSeason ? sorted.filter((row) => row.season === profileSeason) : [];
-  const season = seasonRows.length >= 5 ? average(seasonRows.map((row) => row.pace)) : null;
+  const season = seasonRows.length > 0 ? average(seasonRows.map((row) => row.pace)) : null;
   const trendL5VsSeason = l5 !== null && season !== null ? roundPace(l5 - season) : null;
 
   return {
@@ -175,8 +175,10 @@ function rankTeamsByAverage(
     const sourceRows = window === "season" && profileSeason
       ? sorted.filter((row) => row.season === profileSeason)
       : sorted;
-    const minGames = window === "season" ? 5 : window;
-    if (sourceRows.length < minGames) continue;
+    // Early-season WNBA expansion teams can have real pace rows before they
+    // have a full L5/L10 sample. Rank the available sample so pace context is
+    // present instead of blank until the fifth game.
+    if (sourceRows.length === 0) continue;
     const sample = window === "season" ? sourceRows : sourceRows.slice(0, window);
     const value = average(sample.map((row) => row.pace));
     if (value !== null) averages.push({ teamId, value });

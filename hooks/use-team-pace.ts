@@ -61,7 +61,7 @@ export function useTeamPace(options: UseTeamPaceOptions) {
 
   return {
     teams: query.data?.teams ?? {},
-    totalTeams: query.data?.totalTeams ?? (sport === "wnba" ? 13 : 30),
+    totalTeams: query.data?.totalTeams ?? (sport === "wnba" ? 15 : 30),
     season: query.data?.season ?? "",
     isLoading: query.isLoading,
     isFetching: query.isFetching,
