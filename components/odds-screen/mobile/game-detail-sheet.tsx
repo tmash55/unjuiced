@@ -88,7 +88,7 @@ function getBookLogo(bookId: string): string | null {
 
 // Check if sport has player props
 function hasPlayerProps(sport: string): boolean {
-  const sportsWithoutPlayerProps = ["ncaabaseball", "tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta", "ufc"];
+  const sportsWithoutPlayerProps = ["nfl", "ncaabaseball", "tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta", "ufc"];
   return !sportsWithoutPlayerProps.includes(sport.toLowerCase());
 }
 

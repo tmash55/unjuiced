@@ -55,6 +55,7 @@ interface SportConfig {
 const SPORTS: SportConfig[] = [
   // Active
   { id: "mlb", label: "MLB" },
+  { id: "nfl", label: "NFL" },
   { id: "nba", label: "NBA" },
   { id: "nhl", label: "NHL" },
   { id: "wnba", label: "WNBA" },
@@ -75,13 +76,12 @@ const SPORTS: SportConfig[] = [
   // Off season
   { id: "ncaab", label: "NCAAB", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
-  { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
 
-const LEADING_SPORT_IDS = ["mlb", "nba", "wnba", "nhl", "ncaabaseball"] as const;
+const LEADING_SPORT_IDS = ["mlb", "nfl", "nba", "wnba", "nhl", "ncaabaseball"] as const;
 const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
 const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
-const TRAILING_SPORT_IDS = ["ufc", "ncaab", "ncaaf", "nfl"] as const;
+const TRAILING_SPORT_IDS = ["ufc", "ncaab", "ncaaf"] as const;
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
 interface MarketTab {

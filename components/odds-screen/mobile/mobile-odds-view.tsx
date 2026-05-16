@@ -12,6 +12,8 @@ import { LoadingState } from "@/components/common/loading-state";
 
 // Available sports
 const SPORTS = [
+  { key: "mlb", label: "MLB", disabled: false },
+  { key: "nfl", label: "NFL" },
   { key: "nba", label: "NBA" },
   { key: "wnba", label: "WNBA" },
   { key: "nhl", label: "NHL" },
@@ -29,10 +31,8 @@ const SPORTS = [
   { key: "tennis_utr_men", label: "UTR Men" },
   { key: "tennis_utr_women", label: "UTR Women" },
   { key: "ufc", label: "UFC" },
-  { key: "mlb", label: "MLB", disabled: false },
   { key: "ncaab", label: "NCAAB", disabled: true },
   { key: "ncaaf", label: "NCAAF", disabled: true },
-  { key: "nfl", label: "NFL", disabled: true },
 ];
 
 interface MobileOddsViewProps {
